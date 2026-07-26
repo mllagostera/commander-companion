@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import com.commandercompanion.presentation.screens.dashboard.DashboardScreen
 import com.commandercompanion.presentation.screens.game.GameTrackerScreen
 import com.commandercompanion.presentation.screens.history.HistoryScreen
+import com.commandercompanion.presentation.screens.login.LoginScreen
 import com.commandercompanion.presentation.screens.setup.PlayerSetupScreen
 
 @OptIn(ExperimentalSafeArgsApi::class)
@@ -18,8 +19,18 @@ fun AppNavigation(
 ) {
     NavHost(
         navController = navController,
-        startDestination = DashboardRoute
+        startDestination = LoginRoute
     ) {
+        composable<LoginRoute> {
+            LoginScreen(
+                onLoginWithPassword = { _, _ ->
+                    navController.navigate(DashboardRoute) { popUpTo(LoginRoute) { inclusive = true } }
+                },
+                onLoginWithGoogle = {
+                    navController.navigate(DashboardRoute) { popUpTo(LoginRoute) { inclusive = true } }
+                }
+            )
+        }
         composable<DashboardRoute> {
             DashboardScreen(
                 onNewGame = { navController.navigate(PlayerSetupRoute) },

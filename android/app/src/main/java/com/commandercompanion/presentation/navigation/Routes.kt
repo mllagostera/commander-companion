@@ -3,6 +3,9 @@ package com.commandercompanion.presentation.navigation
 import kotlinx.serialization.Serializable
 
 @Serializable
+object LoginRoute
+
+@Serializable
 object DashboardRoute
 
 @Serializable
