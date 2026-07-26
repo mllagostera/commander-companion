@@ -1,7 +1,11 @@
 package games
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 // Handler contiene las dependencias del transporte HTTP para games.
@@ -34,7 +38,7 @@ func (h *Handler) CreateGame(c *fiber.Ctx) error {
 
 	res, err := h.svc.CreateGame(c.Context(), req)
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
@@ -43,7 +47,7 @@ func (h *Handler) CreateGame(c *fiber.Ctx) error {
 func (h *Handler) ListGames(c *fiber.Ctx) error {
 	res, err := h.svc.ListGames(c.Context())
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.JSON(res)
 }
@@ -52,29 +56,31 @@ func (h *Handler) ListGames(c *fiber.Ctx) error {
 func (h *Handler) GetGame(c *fiber.Ctx) error {
 	res, err := h.svc.GetGame(c.Context(), c.Params("id"))
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.JSON(res)
 }
 
-// JoinGame añade un jugador a una partida en estado pending.
+// JoinGame añade al usuario autenticado a una partida en estado pending.
 func (h *Handler) JoinGame(c *fiber.Ctx) error {
 	var req JoinGameRequest
 	if err := c.BodyParser(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	res, err := h.svc.JoinGame(c.Context(), c.Params("id"), req)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.JoinGame(c.Context(), c.Params("id"), userID, req)
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.JSON(res)
 }
 
-// LeaveGame remueve a un jugador de una partida en estado pending.
+// LeaveGame remueve al usuario autenticado de una partida en estado pending.
 func (h *Handler) LeaveGame(c *fiber.Ctx) error {
-	if err := h.svc.LeaveGame(c.Context(), c.Params("id"), c.Query("user_id")); err != nil {
-		return err
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	if err := h.svc.LeaveGame(c.Context(), c.Params("id"), userID); err != nil {
+		return mapError(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -83,7 +89,7 @@ func (h *Handler) LeaveGame(c *fiber.Ctx) error {
 func (h *Handler) StartGame(c *fiber.Ctx) error {
 	res, err := h.svc.StartGame(c.Context(), c.Params("id"))
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.JSON(res)
 }
@@ -92,7 +98,14 @@ func (h *Handler) StartGame(c *fiber.Ctx) error {
 func (h *Handler) FinishGame(c *fiber.Ctx) error {
 	res, err := h.svc.FinishGame(c.Context(), c.Params("id"))
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.JSON(res)
+}
+
+func mapError(err error) error {
+	if errors.Is(err, ErrGameNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, err.Error())
+	}
+	return err
 }

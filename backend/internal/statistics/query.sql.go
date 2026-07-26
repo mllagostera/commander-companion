@@ -11,6 +11,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countFinishedGamesForPlaygroup = `-- name: CountFinishedGamesForPlaygroup :one
+SELECT COUNT(*) FROM games WHERE playgroup_id = $1 AND status = 'finished'
+`
+
+func (q *Queries) CountFinishedGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countFinishedGamesForPlaygroup, playgroupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getDeckByID = `-- name: GetDeckByID :one
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error) {
+	row := q.db.QueryRow(ctx, getDeckByID, id)
+	var i Deck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Commander,
+		&i.MoxfieldID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getDeckStatistics = `-- name: GetDeckStatistics :one
 SELECT deck_id, games_played, games_won, highest_life_total_achieved, total_commander_damage_dealt, last_recalculated_at FROM deck_statistics_summary
 WHERE deck_id = $1 LIMIT 1
@@ -48,4 +78,188 @@ func (q *Queries) GetUserStatistics(ctx context.Context, userID pgtype.UUID) (Us
 		&i.LastRecalculatedAt,
 	)
 	return i, err
+}
+
+const listGameActionsForGame = `-- name: ListGameActionsForGame :many
+SELECT id, game_id, actor_id, target_id, action_type, payload, created_at FROM game_actions WHERE game_id = $1 ORDER BY created_at ASC
+`
+
+func (q *Queries) ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error) {
+	rows, err := q.db.Query(ctx, listGameActionsForGame, gameID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GameAction
+	for rows.Next() {
+		var i GameAction
+		if err := rows.Scan(
+			&i.ID,
+			&i.GameID,
+			&i.ActorID,
+			&i.TargetID,
+			&i.ActionType,
+			&i.Payload,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGamePlayersForGame = `-- name: ListGamePlayersForGame :many
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated FROM game_players WHERE game_id = $1
+`
+
+func (q *Queries) ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error) {
+	rows, err := q.db.Query(ctx, listGamePlayersForGame, gameID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GamePlayer
+	for rows.Next() {
+		var i GamePlayer
+		if err := rows.Scan(
+			&i.ID,
+			&i.GameID,
+			&i.UserID,
+			&i.DeckID,
+			&i.LifeTotal,
+			&i.PoisonCounters,
+			&i.EnergyCounters,
+			&i.ExperienceCounters,
+			&i.IsEliminated,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlaygroupMemberGameStats = `-- name: ListPlaygroupMemberGameStats :many
+SELECT
+  gp.user_id,
+  COUNT(DISTINCT gp.game_id)::int AS games_played,
+  COUNT(DISTINCT winner.id)::int AS games_won
+FROM game_players gp
+JOIN games g ON g.id = gp.game_id
+LEFT JOIN (
+  -- El ganador de una partida es el único jugador que llega vivo al final; el
+  -- filtro por alive_count = 1 selecciona esa fila sin necesitar MIN()/MAX()
+  -- sobre uuid (Postgres no tiene un operador de orden para ese tipo).
+  SELECT id, game_id
+  FROM (
+    SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count
+    FROM game_players
+    WHERE NOT is_eliminated
+  ) alive
+  WHERE alive_count = 1
+) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
+WHERE g.playgroup_id = $1 AND g.status = 'finished'
+GROUP BY gp.user_id
+`
+
+type ListPlaygroupMemberGameStatsRow struct {
+	UserID      pgtype.UUID `json:"user_id"`
+	GamesPlayed int32       `json:"games_played"`
+	GamesWon    int32       `json:"games_won"`
+}
+
+func (q *Queries) ListPlaygroupMemberGameStats(ctx context.Context, playgroupID pgtype.UUID) ([]ListPlaygroupMemberGameStatsRow, error) {
+	rows, err := q.db.Query(ctx, listPlaygroupMemberGameStats, playgroupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPlaygroupMemberGameStatsRow
+	for rows.Next() {
+		var i ListPlaygroupMemberGameStatsRow
+		if err := rows.Scan(&i.UserID, &i.GamesPlayed, &i.GamesWon); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertDeckStatistics = `-- name: UpsertDeckStatistics :exec
+INSERT INTO deck_statistics_summary (
+  deck_id, games_played, games_won, highest_life_total_achieved, total_commander_damage_dealt
+)
+VALUES ($1, $2, $3, $4,
+        $5)
+ON CONFLICT (deck_id) DO UPDATE SET
+  games_played = deck_statistics_summary.games_played + EXCLUDED.games_played,
+  games_won = deck_statistics_summary.games_won + EXCLUDED.games_won,
+  highest_life_total_achieved = GREATEST(deck_statistics_summary.highest_life_total_achieved, EXCLUDED.highest_life_total_achieved),
+  total_commander_damage_dealt = deck_statistics_summary.total_commander_damage_dealt + EXCLUDED.total_commander_damage_dealt,
+  last_recalculated_at = now()
+`
+
+type UpsertDeckStatisticsParams struct {
+	DeckID                    pgtype.UUID `json:"deck_id"`
+	GamesPlayed               pgtype.Int4 `json:"games_played"`
+	GamesWon                  pgtype.Int4 `json:"games_won"`
+	HighestLifeTotalAchieved  pgtype.Int4 `json:"highest_life_total_achieved"`
+	TotalCommanderDamageDealt pgtype.Int4 `json:"total_commander_damage_dealt"`
+}
+
+func (q *Queries) UpsertDeckStatistics(ctx context.Context, arg UpsertDeckStatisticsParams) error {
+	_, err := q.db.Exec(ctx, upsertDeckStatistics,
+		arg.DeckID,
+		arg.GamesPlayed,
+		arg.GamesWon,
+		arg.HighestLifeTotalAchieved,
+		arg.TotalCommanderDamageDealt,
+	)
+	return err
+}
+
+const upsertUserStatistics = `-- name: UpsertUserStatistics :exec
+INSERT INTO user_statistics_summary (
+  user_id, games_played, games_won, total_damage_dealt, total_commander_damage_dealt, total_eliminations
+)
+VALUES ($1, $2, $3, $4,
+        $5, $6)
+ON CONFLICT (user_id) DO UPDATE SET
+  games_played = user_statistics_summary.games_played + EXCLUDED.games_played,
+  games_won = user_statistics_summary.games_won + EXCLUDED.games_won,
+  total_damage_dealt = user_statistics_summary.total_damage_dealt + EXCLUDED.total_damage_dealt,
+  total_commander_damage_dealt = user_statistics_summary.total_commander_damage_dealt + EXCLUDED.total_commander_damage_dealt,
+  total_eliminations = user_statistics_summary.total_eliminations + EXCLUDED.total_eliminations,
+  last_recalculated_at = now()
+`
+
+type UpsertUserStatisticsParams struct {
+	UserID                    pgtype.UUID `json:"user_id"`
+	GamesPlayed               pgtype.Int4 `json:"games_played"`
+	GamesWon                  pgtype.Int4 `json:"games_won"`
+	TotalDamageDealt          pgtype.Int4 `json:"total_damage_dealt"`
+	TotalCommanderDamageDealt pgtype.Int4 `json:"total_commander_damage_dealt"`
+	TotalEliminations         pgtype.Int4 `json:"total_eliminations"`
+}
+
+func (q *Queries) UpsertUserStatistics(ctx context.Context, arg UpsertUserStatisticsParams) error {
+	_, err := q.db.Exec(ctx, upsertUserStatistics,
+		arg.UserID,
+		arg.GamesPlayed,
+		arg.GamesWon,
+		arg.TotalDamageDealt,
+		arg.TotalCommanderDamageDealt,
+		arg.TotalEliminations,
+	)
+	return err
 }

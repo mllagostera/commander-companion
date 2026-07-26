@@ -31,3 +31,6 @@ DELETE FROM game_players WHERE game_id = $1 AND user_id = $2;
 
 -- name: ListGamePlayers :many
 SELECT * FROM game_players WHERE game_id = $1;
+
+-- name: GetDeckByID :one
+SELECT * FROM decks WHERE id = $1 LIMIT 1;

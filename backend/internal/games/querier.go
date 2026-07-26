@@ -14,6 +14,7 @@ type Querier interface {
 	AddGamePlayer(ctx context.Context, arg AddGamePlayerParams) (GamePlayer, error)
 	CreateGame(ctx context.Context, arg CreateGameParams) (Game, error)
 	FinishGame(ctx context.Context, id pgtype.UUID) (Game, error)
+	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
 	ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
 	ListGames(ctx context.Context) ([]Game, error)

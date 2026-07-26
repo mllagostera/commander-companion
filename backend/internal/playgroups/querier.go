@@ -14,8 +14,11 @@ type Querier interface {
 	AddPlaygroupMember(ctx context.Context, arg AddPlaygroupMemberParams) (PlaygroupMember, error)
 	CreatePlaygroup(ctx context.Context, name string) (Playgroup, error)
 	GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, error)
+	GetPlaygroupMember(ctx context.Context, arg GetPlaygroupMemberParams) (PlaygroupMember, error)
+	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	ListPlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) ([]PlaygroupMember, error)
 	ListPlaygroups(ctx context.Context) ([]Playgroup, error)
+	ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID) ([]Playgroup, error)
 }
 
 var _ Querier = (*Queries)(nil)

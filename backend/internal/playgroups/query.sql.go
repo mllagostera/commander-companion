@@ -63,6 +63,41 @@ func (q *Queries) GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, 
 	return i, err
 }
 
+const getPlaygroupMember = `-- name: GetPlaygroupMember :one
+SELECT playgroup_id, user_id, joined_at FROM playgroup_members WHERE playgroup_id = $1 AND user_id = $2 LIMIT 1
+`
+
+type GetPlaygroupMemberParams struct {
+	PlaygroupID pgtype.UUID `json:"playgroup_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetPlaygroupMember(ctx context.Context, arg GetPlaygroupMemberParams) (PlaygroupMember, error) {
+	row := q.db.QueryRow(ctx, getPlaygroupMember, arg.PlaygroupID, arg.UserID)
+	var i PlaygroupMember
+	err := row.Scan(&i.PlaygroupID, &i.UserID, &i.JoinedAt)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, username, email, password_hash, created_at, updated_at, google_id FROM users WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GoogleID,
+	)
+	return i, err
+}
+
 const listPlaygroupMembers = `-- name: ListPlaygroupMembers :many
 SELECT playgroup_id, user_id, joined_at FROM playgroup_members WHERE playgroup_id = $1
 `
@@ -93,6 +128,38 @@ SELECT id, name, created_at, updated_at FROM playgroups ORDER BY created_at DESC
 
 func (q *Queries) ListPlaygroups(ctx context.Context) ([]Playgroup, error) {
 	rows, err := q.db.Query(ctx, listPlaygroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Playgroup
+	for rows.Next() {
+		var i Playgroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlaygroupsForUser = `-- name: ListPlaygroupsForUser :many
+SELECT p.id, p.name, p.created_at, p.updated_at FROM playgroups p
+JOIN playgroup_members pm ON pm.playgroup_id = p.id
+WHERE pm.user_id = $1
+ORDER BY p.created_at DESC
+`
+
+func (q *Queries) ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID) ([]Playgroup, error) {
+	rows, err := q.db.Query(ctx, listPlaygroupsForUser, userID)
 	if err != nil {
 		return nil, err
 	}
