@@ -8,5 +8,7 @@ data class GameEntity(
     @PrimaryKey
     val id: String,
     val startTime: Long,
-    val status: String // e.g. "IN_PROGRESS", "FINISHED"
+    val endTime: Long? = null,
+    val status: String, // "IN_PROGRESS" | "FINISHED"
+    val playerCount: Int
 )
