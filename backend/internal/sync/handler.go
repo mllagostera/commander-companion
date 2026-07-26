@@ -22,7 +22,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 
 // SyncMoxfield inicia una sincronización de deck con Moxfield.
 func (h *Handler) SyncMoxfield(c *fiber.Ctx) error {
-	var req SyncRequest
+	var req Request
 	if err := c.BodyParser(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}

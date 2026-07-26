@@ -8,8 +8,8 @@ import (
 
 // Service define la lógica de negocio del módulo sync.
 type Service interface {
-	TriggerSync(ctx context.Context, moxfieldID string) (*SyncResponse, error)
-	GetSyncStatus(ctx context.Context, jobID string) (*SyncResponse, error)
+	TriggerSync(ctx context.Context, moxfieldID string) (*Response, error)
+	GetSyncStatus(ctx context.Context, jobID string) (*Response, error)
 }
 
 type service struct {
@@ -22,13 +22,13 @@ func NewService(db *pgxpool.Pool) Service {
 }
 
 // TriggerSync encola una sincronización de deck con Moxfield.
-func (s *service) TriggerSync(ctx context.Context, moxfieldID string) (*SyncResponse, error) {
+func (s *service) TriggerSync(ctx context.Context, moxfieldID string) (*Response, error) {
 	//nolint:godox // Deferido a la fase de refinamiento (Stage 8: Importación Moxfield).
 	// TODO: Send to background worker / queue
-	return &SyncResponse{Status: "queued", JobID: "job-" + moxfieldID}, nil
+	return &Response{Status: "queued", JobID: "job-" + moxfieldID}, nil
 }
 
 // GetSyncStatus devuelve el estado de un job de sincronización.
-func (s *service) GetSyncStatus(ctx context.Context, jobID string) (*SyncResponse, error) {
-	return &SyncResponse{Status: "in_progress", JobID: jobID}, nil
+func (s *service) GetSyncStatus(ctx context.Context, jobID string) (*Response, error) {
+	return &Response{Status: "in_progress", JobID: jobID}, nil
 }

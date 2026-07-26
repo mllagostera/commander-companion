@@ -29,8 +29,9 @@ func run() error {
 	// 1. Conexión a BD
 	dbURL := os.Getenv("DB_URL")
 	if dbURL == "" {
-		// Credencial de desarrollo local por defecto, no un secreto real; se sobreescribe con DB_URL en cualquier otro entorno.
-		dbURL = "postgres://postgres:postgres@localhost:5432/commander?sslmode=disable" //nolint:gosec
+		// Credencial de desarrollo local por defecto; se sobreescribe con DB_URL en cualquier otro entorno.
+		//nolint:gosec // dev-only default, not a real secret
+		dbURL = "postgres://postgres:postgres@localhost:5432/commander?sslmode=disable"
 	}
 
 	db, err := common.NewDB(dbURL)
@@ -93,8 +94,8 @@ func run() error {
 	if port == "" {
 		port = "8080"
 	}
-	// El puerto proviene de una variable de entorno controlada por el operador del despliegue, no de un usuario final.
-	log.Printf("Iniciando servidor en el puerto %s...", port) //nolint:gosec
+	//nolint:gosec // port viene de una env var del operador, no de un usuario final
+	log.Printf("Iniciando servidor en el puerto %s...", port)
 	if err := app.Listen(":" + port); err != nil {
 		return fmt.Errorf("error al arrancar el servidor: %w", err)
 	}
