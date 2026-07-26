@@ -2,6 +2,8 @@ package statistics
 
 import (
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 // Handler contiene las dependencias del transporte HTTP para statistics.
@@ -23,9 +25,8 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 
 // GetUserStats devuelve las estadísticas del usuario autenticado.
 func (h *Handler) GetUserStats(c *fiber.Ctx) error {
-	// Simular lectura del usuario autenticado (id en token)
-	dummyID := "d41076b1-0000-0000-0000-000000000000"
-	res, err := h.svc.GetUserStats(c.Context(), dummyID)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.GetUserStats(c.Context(), userID)
 	if err != nil {
 		return err
 	}

@@ -71,13 +71,23 @@ type PlaygroupMember struct {
 	JoinedAt    pgtype.Timestamp `json:"joined_at"`
 }
 
+type RefreshToken struct {
+	ID        pgtype.UUID      `json:"id"`
+	UserID    pgtype.UUID      `json:"user_id"`
+	TokenHash string           `json:"token_hash"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	RevokedAt pgtype.Timestamp `json:"revoked_at"`
+}
+
 type User struct {
 	ID           pgtype.UUID      `json:"id"`
 	Username     string           `json:"username"`
 	Email        string           `json:"email"`
-	PasswordHash string           `json:"password_hash"`
+	PasswordHash pgtype.Text      `json:"password_hash"`
 	CreatedAt    pgtype.Timestamp `json:"created_at"`
 	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+	GoogleID     pgtype.Text      `json:"google_id"`
 }
 
 type UserStatisticsSummary struct {

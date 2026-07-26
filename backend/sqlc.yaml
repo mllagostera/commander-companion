@@ -12,6 +12,17 @@ sql:
         emit_interface: true
 
   - engine: "postgresql"
+    queries: "internal/auth/query.sql"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "auth"
+        out: "internal/auth"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
+
+  - engine: "postgresql"
     queries: "internal/decks/query.sql"
     schema: "migrations/"
     gen:

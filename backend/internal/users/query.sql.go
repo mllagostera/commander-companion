@@ -17,13 +17,13 @@ INSERT INTO users (
 ) VALUES (
   $1, $2, $3
 )
-RETURNING id, username, email, password_hash, created_at, updated_at
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id
 `
 
 type CreateUserParams struct {
-	Username     string `json:"username"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
+	Username     string      `json:"username"`
+	Email        string      `json:"email"`
+	PasswordHash pgtype.Text `json:"password_hash"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -36,12 +36,43 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.PasswordHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GoogleID,
+	)
+	return i, err
+}
+
+const createUserWithGoogle = `-- name: CreateUserWithGoogle :one
+INSERT INTO users (
+  username, email, google_id
+) VALUES (
+  $1, $2, $3
+)
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id
+`
+
+type CreateUserWithGoogleParams struct {
+	Username string      `json:"username"`
+	Email    string      `json:"email"`
+	GoogleID pgtype.Text `json:"google_id"`
+}
+
+func (q *Queries) CreateUserWithGoogle(ctx context.Context, arg CreateUserWithGoogleParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUserWithGoogle, arg.Username, arg.Email, arg.GoogleID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, username, email, password_hash, created_at, updated_at FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id FROM users
 WHERE email = $1 LIMIT 1
 `
 
@@ -55,12 +86,33 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.PasswordHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GoogleID,
+	)
+	return i, err
+}
+
+const getUserByGoogleID = `-- name: GetUserByGoogleID :one
+SELECT id, username, email, password_hash, created_at, updated_at, google_id FROM users
+WHERE google_id = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByGoogleID, googleID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, password_hash, created_at, updated_at FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id FROM users
 WHERE id = $1 LIMIT 1
 `
 
@@ -74,6 +126,33 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.PasswordHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GoogleID,
+	)
+	return i, err
+}
+
+const linkGoogleID = `-- name: LinkGoogleID :one
+UPDATE users SET google_id = $2
+WHERE id = $1
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id
+`
+
+type LinkGoogleIDParams struct {
+	ID       pgtype.UUID `json:"id"`
+	GoogleID pgtype.Text `json:"google_id"`
+}
+
+func (q *Queries) LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (User, error) {
+	row := q.db.QueryRow(ctx, linkGoogleID, arg.ID, arg.GoogleID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GoogleID,
 	)
 	return i, err
 }

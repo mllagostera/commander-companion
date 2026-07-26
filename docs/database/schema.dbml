@@ -7,9 +7,21 @@ Table users {
   id uuid [primary key]
   username varchar [unique, not null]
   email varchar [unique, not null]
-  password_hash varchar [not null]
+  password_hash varchar [note: 'Nullable: cuentas creadas vía Google no tienen password']
+  google_id varchar [unique, note: 'Sub de Google (id_token). Nullable: cuentas email/password no lo tienen']
   created_at timestamp [default: `now()`]
   updated_at timestamp
+
+  Note: 'CHECK: password_hash IS NOT NULL OR google_id IS NOT NULL'
+}
+
+Table refresh_tokens {
+  id uuid [primary key]
+  user_id uuid [ref: > users.id]
+  token_hash varchar [unique, not null, note: 'SHA-256 del refresh token; el token en claro nunca se persiste']
+  expires_at timestamp [not null]
+  created_at timestamp [default: `now()`]
+  revoked_at timestamp [note: 'Se setea en logout o al rotar el token']
 }
 
 Table decks {

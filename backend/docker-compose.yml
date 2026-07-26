@@ -6,11 +6,11 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DB_HOST=db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=commander
-      - DB_PORT=5432
+      - DB_URL=postgres://postgres:postgres@db:5432/commander?sslmode=disable
+      - JWT_SECRET=dev-insecure-jwt-secret-change-me
+      - ACCESS_TOKEN_TTL=15m
+      - REFRESH_TOKEN_TTL=720h
+      - GOOGLE_CLIENT_ID=
     depends_on:
       - db
 

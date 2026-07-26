@@ -2,6 +2,8 @@ package decks
 
 import (
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 // Handler contiene las dependencias del transporte HTTP para decks.
@@ -29,8 +31,8 @@ func (h *Handler) CreateDeck(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	dummyUserID := "dummy-user-id"
-	res, err := h.svc.CreateDeck(c.Context(), dummyUserID, req)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.CreateDeck(c.Context(), userID, req)
 	if err != nil {
 		return err
 	}
@@ -39,8 +41,8 @@ func (h *Handler) CreateDeck(c *fiber.Ctx) error {
 
 // ListDecks devuelve los decks del usuario autenticado.
 func (h *Handler) ListDecks(c *fiber.Ctx) error {
-	dummyUserID := "dummy-user-id"
-	res, err := h.svc.ListDecks(c.Context(), dummyUserID)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.ListDecks(c.Context(), userID)
 	if err != nil {
 		return err
 	}
