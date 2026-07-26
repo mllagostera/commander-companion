@@ -1,0 +1,60 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-ci.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/android-ci.yml"
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: android
+
+jobs:
+  lint-test-build:
+    name: lint, unit tests y assembleDebug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: android
+
+      - name: Dar permisos de ejecución a gradlew
+        run: chmod +x gradlew
+
+      - name: Android Lint
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: Tests unitarios
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Build (assembleDebug)
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Publicar reportes de Lint/Test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-reports
+          path: |
+            android/app/build/reports/lint-results-debug.html
+            android/app/build/test-results/**/*.xml
+          retention-days: 14

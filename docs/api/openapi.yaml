@@ -1,0 +1,435 @@
+openapi: 3.1.0
+info:
+  title: Commander Companion API
+  version: 0.1.0
+  description: API para la aplicación Commander Companion.
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Servidor de desarrollo
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+    Deck:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        commander:
+          type: string
+        moxfield_id:
+          type: string
+          nullable: true
+    Game:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        playgroup_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [pending, active, finished]
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+    GamePlayer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        game_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        deck_id:
+          type: string
+          format: uuid
+        life_total:
+          type: integer
+        poison_counters:
+          type: integer
+        energy_counters:
+          type: integer
+        experience_counters:
+          type: integer
+        is_eliminated:
+          type: boolean
+    GameAction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        game_id:
+          type: string
+          format: uuid
+        actor_id:
+          type: string
+          format: uuid
+        target_id:
+          type: string
+          format: uuid
+          nullable: true
+        action_type:
+          type: string
+        payload:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+    Playgroup:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      summary: Registrar usuario
+      security: []
+      responses:
+        '201':
+          description: Usuario registrado
+  /auth/login:
+    post:
+      summary: Iniciar sesión
+      security: []
+      responses:
+        '200':
+          description: Login exitoso
+  /auth/refresh:
+    post:
+      summary: Refrescar token
+      responses:
+        '200':
+          description: Token renovado
+  /auth/logout:
+    post:
+      summary: Cerrar sesión
+      responses:
+        '204':
+          description: Sesión terminada
+  /auth/me:
+    get:
+      summary: Obtener perfil actual
+      responses:
+        '200':
+          description: Datos del usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/{id}:
+    get:
+      summary: Obtener usuario
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalle del usuario
+    patch:
+      summary: Actualizar usuario
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Usuario actualizado
+
+  /playgroups:
+    get:
+      summary: Listar grupos de juego
+      responses:
+        '200':
+          description: Lista de grupos
+    post:
+      summary: Crear grupo
+      responses:
+        '201':
+          description: Grupo creado
+  /playgroups/{id}:
+    get:
+      summary: Obtener grupo
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalle del grupo
+
+  /decks:
+    get:
+      summary: Listar decks
+      responses:
+        '200':
+          description: Lista de decks
+    post:
+      summary: Crear deck manualmente
+      responses:
+        '201':
+          description: Deck creado
+  /decks/import/moxfield:
+    post:
+      summary: Importar desde Moxfield
+      responses:
+        '201':
+          description: Deck importado
+  /decks/{id}:
+    get:
+      summary: Obtener deck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalle del deck
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
+    patch:
+      summary: Modificar deck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deck actualizado
+    delete:
+      summary: Eliminar deck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Deck eliminado
+
+  /games:
+    get:
+      summary: Listar partidas
+      responses:
+        '200':
+          description: Historial de partidas
+    post:
+      summary: Crear partida
+      responses:
+        '201':
+          description: Partida creada (estado pending)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+  /games/{id}/join:
+    post:
+      summary: Unirse a la partida
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Jugador añadido
+  /games/{id}/leave:
+    post:
+      summary: Salir de la partida (solo en pending)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Jugador removido
+  /games/{id}/start:
+    post:
+      summary: Iniciar partida
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Partida activa
+  /games/{id}/finish:
+    post:
+      summary: Finalizar partida
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Partida finalizada (lanza recálculo de estadísticas)
+  /games/{id}/actions:
+    post:
+      summary: Registrar acción en la partida
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actor_id:
+                  type: string
+                target_id:
+                  type: string
+                action_type:
+                  type: string
+                payload:
+                  type: object
+      responses:
+        '201':
+          description: Acción registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameAction'
+  /games/{id}/timeline:
+    get:
+      summary: Obtener historial completo de acciones
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Línea de tiempo de la partida
+
+  /statistics/user:
+    get:
+      summary: Obtener estadísticas globales del usuario
+      responses:
+        '200':
+          description: Estadísticas pre-calculadas del usuario
+  /statistics/deck/{id}:
+    get:
+      summary: Obtener estadísticas de un deck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Estadísticas pre-calculadas del deck
+  /statistics/playgroup/{id}:
+    get:
+      summary: Obtener estadísticas de un grupo
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Estadísticas del grupo
+
+  /sync/moxfield:
+    post:
+      summary: Iniciar sincronización con Moxfield
+      responses:
+        '202':
+          description: Sincronización en proceso
+  /sync/status:
+    get:
+      summary: Obtener estado de la sincronización
+      responses:
+        '200':
+          description: Estado actual

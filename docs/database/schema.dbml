@@ -1,0 +1,91 @@
+Project CommanderCompanion {
+  database_type: 'PostgreSQL'
+  Note: 'Esquema de base de datos para Commander Companion'
+}
+
+Table users {
+  id uuid [primary key]
+  username varchar [unique, not null]
+  email varchar [unique, not null]
+  password_hash varchar [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+}
+
+Table decks {
+  id uuid [primary key]
+  user_id uuid [ref: > users.id]
+  name varchar [not null]
+  commander varchar [not null]
+  moxfield_id varchar
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+}
+
+Table playgroups {
+  id uuid [primary key]
+  name varchar [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+}
+
+Table playgroup_members {
+  playgroup_id uuid [ref: > playgroups.id]
+  user_id uuid [ref: > users.id]
+  joined_at timestamp [default: `now()`]
+
+  indexes {
+    (playgroup_id, user_id) [pk]
+  }
+}
+
+Table games {
+  id uuid [primary key]
+  playgroup_id uuid [ref: > playgroups.id, null, note: 'Opcional si la partida pertenece a un grupo']
+  status varchar [not null, note: 'pending, active, finished']
+  started_at timestamp
+  finished_at timestamp
+  created_at timestamp [default: `now()`]
+}
+
+Table game_players {
+  id uuid [primary key]
+  game_id uuid [ref: > games.id]
+  user_id uuid [ref: > users.id]
+  deck_id uuid [ref: > decks.id]
+  life_total int [default: 40]
+  poison_counters int [default: 0]
+  energy_counters int [default: 0]
+  experience_counters int [default: 0]
+  is_eliminated boolean [default: false]
+}
+
+Table game_actions {
+  id uuid [primary key]
+  game_id uuid [ref: > games.id]
+  actor_id uuid [ref: > game_players.id, note: 'Quién realiza o es el origen de la acción']
+  target_id uuid [ref: > game_players.id, note: 'Sobre quién se realiza (opcional)']
+  action_type varchar [not null, note: 'Ej: LifeChange, CombatDamage, CommanderDamage, PoisonCounter, TurnStart, TurnEnd, Elimination']
+  payload jsonb [note: 'Ej para CommanderDamage: {"amount": 7, "commander_deck_id": "uuid"}']
+  created_at timestamp [default: `now()`]
+}
+
+// Estadísticas pre-calculadas (se recalculan si una partida histórica se modifica)
+Table user_statistics_summary {
+  user_id uuid [primary key, ref: - users.id]
+  games_played int [default: 0]
+  games_won int [default: 0]
+  total_damage_dealt int [default: 0]
+  total_commander_damage_dealt int [default: 0]
+  total_eliminations int [default: 0]
+  last_recalculated_at timestamp [default: `now()`]
+}
+
+Table deck_statistics_summary {
+  deck_id uuid [primary key, ref: - decks.id]
+  games_played int [default: 0]
+  games_won int [default: 0]
+  highest_life_total_achieved int [default: 0]
+  total_commander_damage_dealt int [default: 0]
+  last_recalculated_at timestamp [default: `now()`]
+}

@@ -1,0 +1,46 @@
+name: Docs CI (fuentes de verdad)
+
+# Valida las fuentes de verdad del proyecto (ver README.md, sección 3):
+# OpenAPI (docs/api/openapi.yaml) y DBML (docs/database/schema.dbml).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/api/**"
+      - "docs/database/**"
+      - ".spectral.yaml"
+      - ".github/workflows/docs-ci.yml"
+  pull_request:
+    paths:
+      - "docs/api/**"
+      - "docs/database/**"
+      - ".spectral.yaml"
+      - ".github/workflows/docs-ci.yml"
+
+concurrency:
+  group: docs-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  openapi-lint:
+    name: Lint OpenAPI (Spectral)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Spectral lint
+        run: npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml --ruleset .spectral.yaml
+
+  dbml-validate:
+    name: Validar DBML (compila a SQL)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: dbml2sql
+        run: npx --yes @dbml/cli dbml2sql docs/database/schema.dbml --postgres -o /tmp/schema.sql

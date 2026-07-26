@@ -1,0 +1,27 @@
+# --- Go / backend ---
+/backend/bin/
+*.test
+*.out
+
+# --- Android / Gradle ---
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/.idea/
+/android/.artifacts/
+/android/local.properties
+*.iml
+.cxx/
+.externalNativeBuild/
+captures/
+
+# --- IDE / OS ---
+.DS_Store
+Thumbs.db
+
+# --- Claude Code local settings ---
+.claude/settings.local.json
+
+# --- Entornos ---
+.env
+*.env.local

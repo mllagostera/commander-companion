@@ -1,0 +1,67 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/users/query.sql"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "users"
+        out: "internal/users"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
+
+  - engine: "postgresql"
+    queries: "internal/decks/query.sql"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "decks"
+        out: "internal/decks"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
+
+  - engine: "postgresql"
+    queries: "internal/playgroups/query.sql"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "playgroups"
+        out: "internal/playgroups"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
+
+  - engine: "postgresql"
+    queries: "internal/games/query.sql"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "games"
+        out: "internal/games"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
+
+  - engine: "postgresql"
+    queries: "internal/game-actions/query.sql"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "gameactions"
+        out: "internal/game-actions"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
+
+  - engine: "postgresql"
+    queries: "internal/statistics/query.sql"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "statistics"
+        out: "internal/statistics"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true
