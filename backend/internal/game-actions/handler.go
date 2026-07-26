@@ -1,6 +1,8 @@
 package gameactions
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -29,7 +31,7 @@ func (h *Handler) CreateAction(c *fiber.Ctx) error {
 
 	res, err := h.svc.RecordAction(c.Context(), c.Params("id"), req)
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
@@ -38,7 +40,14 @@ func (h *Handler) CreateAction(c *fiber.Ctx) error {
 func (h *Handler) GetTimeline(c *fiber.Ctx) error {
 	res, err := h.svc.GetTimeline(c.Context(), c.Params("id"))
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.JSON(res)
+}
+
+func mapError(err error) error {
+	if errors.Is(err, ErrGameNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, err.Error())
+	}
+	return err
 }

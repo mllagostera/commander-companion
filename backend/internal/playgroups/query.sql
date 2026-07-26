@@ -16,3 +16,15 @@ RETURNING *;
 
 -- name: ListPlaygroupMembers :many
 SELECT * FROM playgroup_members WHERE playgroup_id = $1;
+
+-- name: ListPlaygroupsForUser :many
+SELECT p.* FROM playgroups p
+JOIN playgroup_members pm ON pm.playgroup_id = p.id
+WHERE pm.user_id = $1
+ORDER BY p.created_at DESC;
+
+-- name: GetPlaygroupMember :one
+SELECT * FROM playgroup_members WHERE playgroup_id = $1 AND user_id = $2 LIMIT 1;
+
+-- name: GetUserByID :one
+SELECT * FROM users WHERE id = $1 LIMIT 1;

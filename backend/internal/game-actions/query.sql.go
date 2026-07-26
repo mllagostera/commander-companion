@@ -11,6 +11,64 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adjustGamePlayerLife = `-- name: AdjustGamePlayerLife :one
+UPDATE game_players
+SET life_total = life_total + $1::int
+WHERE id = $2
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated
+`
+
+type AdjustGamePlayerLifeParams struct {
+	Delta int32       `json:"delta"`
+	ID    pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) AdjustGamePlayerLife(ctx context.Context, arg AdjustGamePlayerLifeParams) (GamePlayer, error) {
+	row := q.db.QueryRow(ctx, adjustGamePlayerLife, arg.Delta, arg.ID)
+	var i GamePlayer
+	err := row.Scan(
+		&i.ID,
+		&i.GameID,
+		&i.UserID,
+		&i.DeckID,
+		&i.LifeTotal,
+		&i.PoisonCounters,
+		&i.EnergyCounters,
+		&i.ExperienceCounters,
+		&i.IsEliminated,
+	)
+	return i, err
+}
+
+const adjustGamePlayerPoison = `-- name: AdjustGamePlayerPoison :one
+UPDATE game_players
+SET poison_counters = poison_counters + $1::int
+WHERE id = $2
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated
+`
+
+type AdjustGamePlayerPoisonParams struct {
+	Delta int32       `json:"delta"`
+	ID    pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) AdjustGamePlayerPoison(ctx context.Context, arg AdjustGamePlayerPoisonParams) (GamePlayer, error) {
+	row := q.db.QueryRow(ctx, adjustGamePlayerPoison, arg.Delta, arg.ID)
+	var i GamePlayer
+	err := row.Scan(
+		&i.ID,
+		&i.GameID,
+		&i.UserID,
+		&i.DeckID,
+		&i.LifeTotal,
+		&i.PoisonCounters,
+		&i.EnergyCounters,
+		&i.ExperienceCounters,
+		&i.IsEliminated,
+	)
+	return i, err
+}
+
 const createGameAction = `-- name: CreateGameAction :one
 INSERT INTO game_actions (game_id, actor_id, target_id, action_type, payload)
 VALUES ($1, $2, $3, $4, $5)
@@ -46,6 +104,45 @@ func (q *Queries) CreateGameAction(ctx context.Context, arg CreateGameActionPara
 	return i, err
 }
 
+const getGame = `-- name: GetGame :one
+SELECT id, playgroup_id, status, started_at, finished_at, created_at FROM games WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetGame(ctx context.Context, id pgtype.UUID) (Game, error) {
+	row := q.db.QueryRow(ctx, getGame, id)
+	var i Game
+	err := row.Scan(
+		&i.ID,
+		&i.PlaygroupID,
+		&i.Status,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getGamePlayer = `-- name: GetGamePlayer :one
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated FROM game_players WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer, error) {
+	row := q.db.QueryRow(ctx, getGamePlayer, id)
+	var i GamePlayer
+	err := row.Scan(
+		&i.ID,
+		&i.GameID,
+		&i.UserID,
+		&i.DeckID,
+		&i.LifeTotal,
+		&i.PoisonCounters,
+		&i.EnergyCounters,
+		&i.ExperienceCounters,
+		&i.IsEliminated,
+	)
+	return i, err
+}
+
 const listGameActions = `-- name: ListGameActions :many
 SELECT id, game_id, actor_id, target_id, action_type, payload, created_at FROM game_actions WHERE game_id = $1 ORDER BY created_at ASC
 `
@@ -76,4 +173,33 @@ func (q *Queries) ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]Ga
 		return nil, err
 	}
 	return items, nil
+}
+
+const setGamePlayerEliminated = `-- name: SetGamePlayerEliminated :one
+UPDATE game_players
+SET is_eliminated = $1
+WHERE id = $2
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated
+`
+
+type SetGamePlayerEliminatedParams struct {
+	IsEliminated pgtype.Bool `json:"is_eliminated"`
+	ID           pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) SetGamePlayerEliminated(ctx context.Context, arg SetGamePlayerEliminatedParams) (GamePlayer, error) {
+	row := q.db.QueryRow(ctx, setGamePlayerEliminated, arg.IsEliminated, arg.ID)
+	var i GamePlayer
+	err := row.Scan(
+		&i.ID,
+		&i.GameID,
+		&i.UserID,
+		&i.DeckID,
+		&i.LifeTotal,
+		&i.PoisonCounters,
+		&i.EnergyCounters,
+		&i.ExperienceCounters,
+		&i.IsEliminated,
+	)
+	return i, err
 }

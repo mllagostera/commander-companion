@@ -124,7 +124,11 @@ jobs:
       - name: Aplicar migraciones
         run: goose -dir migrations postgres "$DB_URL" up
       - name: go test
-        run: go test -race -cover ./...
+        # -p 1: los tests de integración (auth, decks) comparten una única base
+        # Postgres y hacen TRUNCATE de tablas comunes entre tests; correr los
+        # test binaries de distintos paquetes en paralelo (default de `go test`)
+        # los haría pisarse entre sí.
+        run: go test -race -cover -p 1 ./...
 
   dockerfile-lint:
     name: hadolint (Dockerfile)

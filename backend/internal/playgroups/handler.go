@@ -1,7 +1,11 @@
 package playgroups
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 // Handler contiene las dependencias del transporte HTTP para playgroups.
@@ -29,27 +33,30 @@ func (h *Handler) CreatePlaygroup(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	res, err := h.svc.CreatePlaygroup(c.Context(), req)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.CreatePlaygroup(c.Context(), userID, req)
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// ListPlaygroups devuelve el listado de grupos de juego.
+// ListPlaygroups devuelve los grupos del usuario autenticado.
 func (h *Handler) ListPlaygroups(c *fiber.Ctx) error {
-	res, err := h.svc.ListPlaygroups(c.Context())
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.ListPlaygroups(c.Context(), userID)
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.JSON(res)
 }
 
-// GetPlaygroup devuelve el detalle de un grupo de juego.
+// GetPlaygroup devuelve el detalle de un grupo, si el usuario autenticado es miembro.
 func (h *Handler) GetPlaygroup(c *fiber.Ctx) error {
-	res, err := h.svc.GetPlaygroup(c.Context(), c.Params("id"))
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.GetPlaygroup(c.Context(), userID, c.Params("id"))
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.JSON(res)
 }
@@ -61,9 +68,17 @@ func (h *Handler) AddMember(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	res, err := h.svc.AddMember(c.Context(), c.Params("id"), req)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.AddMember(c.Context(), c.Params("id"), userID, req)
 	if err != nil {
-		return err
+		return mapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
+}
+
+func mapError(err error) error {
+	if errors.Is(err, ErrPlaygroupNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, err.Error())
+	}
+	return err
 }

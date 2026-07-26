@@ -11,8 +11,15 @@ import (
 )
 
 type Querier interface {
+	CountFinishedGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) (int64, error)
+	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetDeckStatistics(ctx context.Context, deckID pgtype.UUID) (DeckStatisticsSummary, error)
 	GetUserStatistics(ctx context.Context, userID pgtype.UUID) (UserStatisticsSummary, error)
+	ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error)
+	ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
+	ListPlaygroupMemberGameStats(ctx context.Context, playgroupID pgtype.UUID) ([]ListPlaygroupMemberGameStatsRow, error)
+	UpsertDeckStatistics(ctx context.Context, arg UpsertDeckStatisticsParams) error
+	UpsertUserStatistics(ctx context.Context, arg UpsertUserStatisticsParams) error
 }
 
 var _ Querier = (*Queries)(nil)
