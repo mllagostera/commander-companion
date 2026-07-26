@@ -3,13 +3,7 @@ name: Android CI
 on:
   push:
     branches: [main]
-    paths:
-      - "android/**"
-      - ".github/workflows/android-ci.yml"
   pull_request:
-    paths:
-      - "android/**"
-      - ".github/workflows/android-ci.yml"
 
 concurrency:
   group: android-ci-${{ github.ref }}
@@ -20,8 +14,28 @@ defaults:
     working-directory: android
 
 jobs:
+  # Sin filtro de path: siempre corre y siempre reporta un check (aunque sea
+  # "skipped"), para que este workflow pueda marcarse como required en
+  # branch protection sin dejar colgados los PRs que no tocan android/.
+  changes:
+    name: Detectar cambios en android/
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.filter.outputs.android }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            android:
+              - 'android/**'
+              - '.github/workflows/android-ci.yml'
+
   lint-test-build:
     name: lint, unit tests y assembleDebug
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

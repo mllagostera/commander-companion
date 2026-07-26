@@ -3,13 +3,7 @@ name: Backend CI
 on:
   push:
     branches: [main]
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-ci.yml"
   pull_request:
-    paths:
-      - "backend/**"
-      - ".github/workflows/backend-ci.yml"
 
 concurrency:
   group: backend-ci-${{ github.ref }}
@@ -20,8 +14,29 @@ defaults:
     working-directory: backend
 
 jobs:
+  # Job sin filtro de path: siempre corre y siempre reporta un check, aunque
+  # sea "skipped". Así los checks de abajo pueden marcarse como required en
+  # branch protection sin dejar bloqueados los PRs que no tocan backend/
+  # (un check requerido que nunca llega a dispararse deja el PR colgado).
+  changes:
+    name: Detectar cambios en backend/
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/backend-ci.yml'
+
   fmt-vet:
     name: gofmt / go vet
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +56,8 @@ jobs:
 
   lint:
     name: golangci-lint
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +72,8 @@ jobs:
 
   sqlc-diff:
     name: sqlc generate (sin diffs pendientes)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +93,8 @@ jobs:
 
   build-test-migrate:
     name: build, test y migraciones contra PostgreSQL
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -107,6 +128,8 @@ jobs:
 
   dockerfile-lint:
     name: hadolint (Dockerfile)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

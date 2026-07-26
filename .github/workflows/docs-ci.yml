@@ -6,25 +6,40 @@ name: Docs CI (fuentes de verdad)
 on:
   push:
     branches: [main]
-    paths:
-      - "docs/api/**"
-      - "docs/database/**"
-      - ".spectral.yaml"
-      - ".github/workflows/docs-ci.yml"
   pull_request:
-    paths:
-      - "docs/api/**"
-      - "docs/database/**"
-      - ".spectral.yaml"
-      - ".github/workflows/docs-ci.yml"
 
 concurrency:
   group: docs-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Sin filtro de path: siempre corre y siempre reporta un check (aunque sea
+  # "skipped"), para que estos jobs puedan marcarse como required en branch
+  # protection sin dejar colgados los PRs que no tocan estos archivos.
+  changes:
+    name: Detectar cambios en docs
+    runs-on: ubuntu-latest
+    outputs:
+      openapi: ${{ steps.filter.outputs.openapi }}
+      dbml: ${{ steps.filter.outputs.dbml }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            openapi:
+              - 'docs/api/**'
+              - '.spectral.yaml'
+              - '.github/workflows/docs-ci.yml'
+            dbml:
+              - 'docs/database/**'
+              - '.github/workflows/docs-ci.yml'
+
   openapi-lint:
     name: Lint OpenAPI (Spectral)
+    needs: changes
+    if: needs.changes.outputs.openapi == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +51,8 @@ jobs:
 
   dbml-validate:
     name: Validar DBML (compila a SQL)
+    needs: changes
+    if: needs.changes.outputs.dbml == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
