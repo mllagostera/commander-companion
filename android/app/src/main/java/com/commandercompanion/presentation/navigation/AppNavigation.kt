@@ -6,10 +6,12 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.commandercompanion.presentation.screens.dashboard.DashboardScreen
 import com.commandercompanion.presentation.screens.game.GameTrackerScreen
 import com.commandercompanion.presentation.screens.history.HistoryScreen
 import com.commandercompanion.presentation.screens.login.LoginScreen
+import com.commandercompanion.presentation.screens.pregame.PreGameScreen
 import com.commandercompanion.presentation.screens.setup.PlayerSetupScreen
 
 @OptIn(ExperimentalSafeArgsApi::class)
@@ -40,7 +42,16 @@ fun AppNavigation(
         composable<PlayerSetupRoute> {
             PlayerSetupScreen(
                 onStartGame = { gameId, playersEncoded ->
-                    navController.navigate(GameTrackerRoute(gameId, playersEncoded)) {
+                    navController.navigate(PreGameRoute(gameId, playersEncoded))
+                }
+            )
+        }
+        composable<PreGameRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<PreGameRoute>()
+            PreGameScreen(
+                playersEncoded = route.playersEncoded,
+                onContinue = { playersEncoded, startingPlayerSeat ->
+                    navController.navigate(GameTrackerRoute(route.gameId, playersEncoded, startingPlayerSeat)) {
                         popUpTo(DashboardRoute)
                     }
                 }

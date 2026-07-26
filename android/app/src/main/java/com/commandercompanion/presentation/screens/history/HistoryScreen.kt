@@ -87,7 +87,11 @@ private fun GameHistoryCard(entry: GameWithPlayers) {
                                 .background(colorForKey(player.colorKey))
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("${player.name}: ${player.finalLife}", style = MaterialTheme.typography.bodySmall)
+                        val mulliganSuffix = if (player.mulligans > 0) " (${player.mulligans}m)" else ""
+                        Text(
+                            "${player.name}: ${player.finalLife}$mulliganSuffix",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }

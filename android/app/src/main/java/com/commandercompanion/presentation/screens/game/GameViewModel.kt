@@ -22,12 +22,19 @@ class GameViewModel @Inject constructor(
 
     private val gameId: String = checkNotNull(savedStateHandle["gameId"])
     private val playerConfigs = decodePlayerConfigs(checkNotNull(savedStateHandle["playersEncoded"]))
+    private val startingPlayerSeat: Int = savedStateHandle["startingPlayerSeat"] ?: -1
 
     private val _state = mutableStateOf(
         GameState(
             players = playerConfigs.mapIndexed { index, config ->
-                PlayerState(id = index + 1, name = config.name, color = colorForKey(config.colorKey))
-            }
+                PlayerState(
+                    id = index + 1,
+                    name = config.name,
+                    color = colorForKey(config.colorKey),
+                    mulligans = config.mulligans
+                )
+            },
+            startingPlayerId = startingPlayerSeat.takeIf { it >= 0 }?.plus(1)
         )
     )
     val state: State<GameState> = _state
@@ -54,7 +61,8 @@ class GameViewModel @Inject constructor(
                         seatIndex = player.id - 1,
                         name = player.name,
                         colorKey = playerConfigs[player.id - 1].colorKey,
-                        finalLife = player.life
+                        finalLife = player.life,
+                        mulligans = player.mulligans
                     )
                 }
             )

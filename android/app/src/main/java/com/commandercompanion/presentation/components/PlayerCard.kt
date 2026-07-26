@@ -25,7 +25,8 @@ fun PlayerCard(
     otherPlayers: List<PlayerState>,
     onLifeChange: (Int) -> Unit,
     onCommanderDamageChange: (Int, Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isStartingPlayer: Boolean = false
 ) {
     var showCommanderDamage by remember { mutableStateOf(false) }
 
@@ -45,10 +46,17 @@ fun PlayerCard(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = playerState.name,
+                    text = if (isStartingPlayer) "${playerState.name} · empieza" else playerState.name,
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.Black.copy(alpha = 0.7f)
                 )
+                if (playerState.mulligans > 0) {
+                    Text(
+                        text = "Mulligans: ${playerState.mulligans}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Black.copy(alpha = 0.6f)
+                    )
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

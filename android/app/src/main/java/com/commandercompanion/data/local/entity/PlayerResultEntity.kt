@@ -13,5 +13,6 @@ data class PlayerResultEntity(
     val name: String,
     val colorKey: String,
     val finalLife: Int,
+    val mulligans: Int = 0,
     val won: Boolean = false
 )

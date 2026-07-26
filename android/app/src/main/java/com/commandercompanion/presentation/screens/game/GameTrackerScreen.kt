@@ -64,6 +64,7 @@ fun GameTrackerScreen(
                             onCommanderDamageChange = { attackerId, amount ->
                                 viewModel.adjustCommanderDamage(player.id, attackerId, amount)
                             },
+                            isStartingPlayer = player.id == state.startingPlayerId,
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         )
                     }
