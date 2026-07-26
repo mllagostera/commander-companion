@@ -7,8 +7,9 @@ type CreatePlaygroupRequest struct {
 
 // PlaygroupResponse es el DTO de un grupo de juego enviado al cliente.
 type PlaygroupResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID      string                    `json:"id"`
+	Name    string                    `json:"name"`
+	Members []PlaygroupMemberResponse `json:"members,omitempty"`
 }
 
 // AddMemberRequest es el payload para añadir un miembro a un grupo de juego.

@@ -7,16 +7,17 @@ type CreateGameRequest struct {
 
 // GameResponse es el DTO de una partida enviado al cliente.
 type GameResponse struct {
-	ID          string  `json:"id"`
-	PlaygroupID *string `json:"playgroup_id,omitempty"`
-	Status      string  `json:"status"`
-	StartedAt   *string `json:"started_at,omitempty"`
-	FinishedAt  *string `json:"finished_at,omitempty"`
+	ID          string               `json:"id"`
+	PlaygroupID *string              `json:"playgroup_id,omitempty"`
+	Status      string               `json:"status"`
+	StartedAt   *string              `json:"started_at,omitempty"`
+	FinishedAt  *string              `json:"finished_at,omitempty"`
+	Players     []GamePlayerResponse `json:"players,omitempty"`
 }
 
-// JoinGameRequest es el payload para unirse a una partida.
+// JoinGameRequest es el payload para unirse a una partida. El jugador es
+// siempre el usuario autenticado (vía JWT); solo hace falta indicar el deck.
 type JoinGameRequest struct {
-	UserID string `json:"user_id"`
 	DeckID string `json:"deck_id"`
 }
 

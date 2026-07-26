@@ -86,6 +86,25 @@ func (q *Queries) FinishGame(ctx context.Context, id pgtype.UUID) (Game, error) 
 	return i, err
 }
 
+const getDeckByID = `-- name: GetDeckByID :one
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error) {
+	row := q.db.QueryRow(ctx, getDeckByID, id)
+	var i Deck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Commander,
+		&i.MoxfieldID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getGame = `-- name: GetGame :one
 SELECT id, playgroup_id, status, started_at, finished_at, created_at FROM games WHERE id = $1 LIMIT 1
 `

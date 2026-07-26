@@ -99,6 +99,23 @@ components:
         moxfield_id:
           type: string
           nullable: true
+    CreateDeckRequest:
+      type: object
+      required: [name, commander]
+      properties:
+        name:
+          type: string
+        commander:
+          type: string
+        moxfield_id:
+          type: string
+    ImportMoxfieldRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: URL completa del deck en Moxfield (https://moxfield.com/decks/{id}) o solo el ID público.
     Game:
       type: object
       properties:
@@ -116,6 +133,29 @@ components:
           type: string
           format: date-time
           nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/GamePlayer'
+    CreateGameRequest:
+      type: object
+      properties:
+        playgroup_id:
+          type: string
+          format: uuid
+          description: Opcional; asocia la partida a un grupo de juego existente.
+    JoinGameRequest:
+      type: object
+      required: [deck_id]
+      properties:
+        deck_id:
+          type: string
+          format: uuid
+          description: Debe pertenecer al usuario autenticado.
     GamePlayer:
       type: object
       properties:
@@ -172,6 +212,86 @@ components:
           format: uuid
         name:
           type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaygroupMember'
+    PlaygroupMember:
+      type: object
+      properties:
+        playgroup_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+    CreatePlaygroupRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    AddMemberRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: Debe ser un usuario existente; quien invita debe ya ser miembro del grupo.
+    UserStatsResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        games_played:
+          type: integer
+        games_won:
+          type: integer
+        total_damage_dealt:
+          type: integer
+        total_commander_damage_dealt:
+          type: integer
+        total_eliminations:
+          type: integer
+    DeckStatsResponse:
+      type: object
+      properties:
+        deck_id:
+          type: string
+          format: uuid
+        games_played:
+          type: integer
+        games_won:
+          type: integer
+        highest_life_total_achieved:
+          type: integer
+        total_commander_damage_dealt:
+          type: integer
+    PlaygroupStatsResponse:
+      type: object
+      properties:
+        playgroup_id:
+          type: string
+          format: uuid
+        games_played:
+          type: integer
+          description: Partidas finalizadas asociadas a este grupo.
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaygroupMemberStats'
+    PlaygroupMemberStats:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        games_played:
+          type: integer
+        games_won:
+          type: integer
     ErrorResponse:
       type: object
       properties:
@@ -340,15 +460,37 @@ paths:
 
   /playgroups:
     get:
-      summary: Listar grupos de juego
+      summary: Listar los grupos de juego del usuario autenticado
       responses:
         '200':
-          description: Lista de grupos
+          description: Grupos de los que el usuario autenticado es miembro
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Playgroup'
     post:
-      summary: Crear grupo
+      summary: Crear grupo (el creador queda como primer miembro)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlaygroupRequest'
       responses:
         '201':
           description: Grupo creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Playgroup'
+        '400':
+          description: Falta el nombre del grupo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /playgroups/{id}:
     get:
       summary: Obtener grupo
@@ -361,25 +503,108 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Detalle del grupo
+          description: Detalle del grupo, si el usuario autenticado es miembro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Playgroup'
+        '404':
+          description: No existe, o el usuario autenticado no es miembro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /playgroups/{id}/members:
+    post:
+      summary: Añadir un miembro al grupo (solo un miembro existente puede invitar)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
+      responses:
+        '201':
+          description: Miembro añadido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaygroupMember'
+        '404':
+          description: Grupo o usuario a añadir no encontrados (o quien invita no es miembro del grupo)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El usuario ya es miembro del grupo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /decks:
     get:
       summary: Listar decks
       responses:
         '200':
-          description: Lista de decks
+          description: Lista de decks del usuario autenticado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deck'
     post:
       summary: Crear deck manualmente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeckRequest'
       responses:
         '201':
           description: Deck creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
   /decks/import/moxfield:
     post:
       summary: Importar desde Moxfield
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportMoxfieldRequest'
       responses:
         '201':
-          description: Deck importado
+          description: Deck importado (nombre y comandante tomados de Moxfield)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
+        '400':
+          description: URL/ID inválido, o el deck de Moxfield no tiene comandante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe ningún deck público de Moxfield con ese ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /decks/{id}:
     get:
       summary: Obtener deck
@@ -397,6 +622,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Deck'
+        '404':
+          description: No existe, o no pertenece al usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Modificar deck
       parameters:
@@ -421,6 +652,12 @@ paths:
       responses:
         '204':
           description: Deck eliminado
+        '404':
+          description: No existe, o no pertenece al usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /games:
     get:
@@ -430,6 +667,11 @@ paths:
           description: Historial de partidas
     post:
       summary: Crear partida
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGameRequest'
       responses:
         '201':
           description: Partida creada (estado pending)
@@ -437,9 +679,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Game'
+        '400':
+          description: playgroup_id inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/join:
     post:
-      summary: Unirse a la partida
+      summary: Unirse a la partida con un deck propio
       parameters:
         - in: path
           name: id
@@ -447,9 +695,31 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinGameRequest'
       responses:
         '200':
           description: Jugador añadido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GamePlayer'
+        '404':
+          description: Partida o deck no encontrados (o el deck no pertenece al usuario autenticado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partida ya no acepta jugadores, o el usuario ya está en la partida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/leave:
     post:
       summary: Salir de la partida (solo en pending)
@@ -463,6 +733,18 @@ paths:
       responses:
         '204':
           description: Jugador removido
+        '404':
+          description: El usuario autenticado no es miembro de esta partida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partida ya no está en pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/start:
     post:
       summary: Iniciar partida
@@ -476,6 +758,16 @@ paths:
       responses:
         '200':
           description: Partida activa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '409':
+          description: La partida no está en pending, o no tiene suficientes jugadores
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/finish:
     post:
       summary: Finalizar partida
@@ -489,6 +781,16 @@ paths:
       responses:
         '200':
           description: Partida finalizada (lanza recálculo de estadísticas)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '409':
+          description: Solo una partida activa puede finalizarse
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/actions:
     post:
       summary: Registrar acción en la partida
@@ -505,16 +807,41 @@ paths:
           application/json:
             schema:
               type: object
+              required: [actor_id, action_type]
               properties:
                 actor_id:
                   type: string
+                  format: uuid
+                  description: ID del GamePlayer (no del usuario) que origina la acción.
                 target_id:
                   type: string
+                  format: uuid
+                  description: ID del GamePlayer afectado; si se omite, afecta al propio actor.
                 action_type:
                   type: string
+                  enum: [LifeChange, CombatDamage, CommanderDamage, PoisonCounter, TurnStart, TurnEnd, Elimination]
                 payload:
                   type: object
+                  description: 'Para LifeChange/CombatDamage/CommanderDamage/PoisonCounter: { "amount": <integer> }.'
       responses:
+        '400':
+          description: action_type inválido, o payload.amount faltante/no numérico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Partida, actor o target no encontrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La partida no está activa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '201':
           description: Acción registrada
           content:
@@ -537,13 +864,17 @@ paths:
 
   /statistics/user:
     get:
-      summary: Obtener estadísticas globales del usuario
+      summary: Obtener estadísticas globales del usuario autenticado
       responses:
         '200':
-          description: Estadísticas pre-calculadas del usuario
+          description: Estadísticas del usuario, recalculadas al finalizar cada partida (ceros si nunca jugó)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStatsResponse'
   /statistics/deck/{id}:
     get:
-      summary: Obtener estadísticas de un deck
+      summary: Obtener estadísticas de un deck del usuario autenticado
       parameters:
         - in: path
           name: id
@@ -553,10 +884,21 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Estadísticas pre-calculadas del deck
+          description: Estadísticas del deck (ceros si nunca jugó una partida finalizada)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeckStatsResponse'
+        '404':
+          description: No existe, o no pertenece al usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /statistics/playgroup/{id}:
     get:
       summary: Obtener estadísticas de un grupo
+      description: Calculadas en vivo sobre las partidas finalizadas del grupo (no hay tabla de resumen precalculada).
       parameters:
         - in: path
           name: id
@@ -566,7 +908,11 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Estadísticas del grupo
+          description: Estadísticas agregadas por miembro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaygroupStatsResponse'
 
   /sync/moxfield:
     post:

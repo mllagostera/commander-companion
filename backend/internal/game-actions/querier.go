@@ -11,8 +11,13 @@ import (
 )
 
 type Querier interface {
+	AdjustGamePlayerLife(ctx context.Context, arg AdjustGamePlayerLifeParams) (GamePlayer, error)
+	AdjustGamePlayerPoison(ctx context.Context, arg AdjustGamePlayerPoisonParams) (GamePlayer, error)
 	CreateGameAction(ctx context.Context, arg CreateGameActionParams) (GameAction, error)
+	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
+	GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer, error)
 	ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error)
+	SetGamePlayerEliminated(ctx context.Context, arg SetGamePlayerEliminatedParams) (GamePlayer, error)
 }
 
 var _ Querier = (*Queries)(nil)

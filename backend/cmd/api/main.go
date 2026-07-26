@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
+	"github.com/usuario/commander-companion-backend/internal/moxfield"
 	"github.com/usuario/commander-companion-backend/internal/playgroups"
 	"github.com/usuario/commander-companion-backend/internal/statistics"
 	"github.com/usuario/commander-companion-backend/internal/sync"
@@ -62,6 +64,11 @@ func run() error {
 	// Middlewares
 	app.Use(logger.New())
 	app.Use(recover.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: corsAllowedOrigins(),
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+	}))
 
 	registerModules(app, db, authCfg)
 
@@ -105,6 +112,17 @@ func loadAuthConfig() (auth.Config, error) {
 	}, nil
 }
 
+// corsAllowedOrigins lee los orígenes permitidos para CORS. Por defecto, en
+// desarrollo se permite cualquier origen (no se usan cookies/credentials, solo
+// Bearer tokens); en cualquier otro entorno hay que restringirlo explícitamente.
+func corsAllowedOrigins() string {
+	origins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if origins == "" {
+		return "*"
+	}
+	return origins
+}
+
 func parseDurationEnv(name string, fallback time.Duration) (time.Duration, error) {
 	raw := os.Getenv(name)
 	if raw == "" {
@@ -134,20 +152,20 @@ func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	protected := api.Group("", auth.RequireAuth(authCfg.JWTSecret))
 	authHandler.RegisterProtectedRoutes(protected) // GET /auth/me
 
-	decksService := decks.NewService(db.Pool)
+	decksService := decks.NewService(db.Pool, moxfield.NewClient())
 	decks.NewHandler(decksService).RegisterRoutes(protected)
 
 	playgroupsService := playgroups.NewService(db.Pool)
 	playgroups.NewHandler(playgroupsService).RegisterRoutes(protected)
 
-	gamesService := games.NewService(db.Pool)
+	statisticsService := statistics.NewService(db.Pool)
+	statistics.NewHandler(statisticsService).RegisterRoutes(protected)
+
+	gamesService := games.NewService(db.Pool, statisticsService)
 	games.NewHandler(gamesService).RegisterRoutes(protected)
 
 	gameActionsService := gameactions.NewService(db.Pool)
 	gameactions.NewHandler(gameActionsService).RegisterRoutes(protected)
-
-	statisticsService := statistics.NewService(db.Pool)
-	statistics.NewHandler(statisticsService).RegisterRoutes(protected)
 
 	syncService := sync.NewService(db.Pool)
 	sync.NewHandler(syncService).RegisterRoutes(protected)
