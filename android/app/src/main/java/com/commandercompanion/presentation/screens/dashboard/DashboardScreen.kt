@@ -3,6 +3,7 @@ package com.commandercompanion.presentation.screens.dashboard
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -11,7 +12,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun DashboardScreen(
-    onNavigateToGame: (String) -> Unit
+    onNewGame: () -> Unit,
+    onViewHistory: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -24,10 +26,17 @@ fun DashboardScreen(
         )
         Spacer(modifier = Modifier.height(32.dp))
         Button(
-            onClick = { onNavigateToGame("new-game-123") },
+            onClick = onNewGame,
             modifier = Modifier.fillMaxWidth().height(64.dp)
         ) {
             Text("NEW GAME", style = MaterialTheme.typography.titleLarge)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedButton(
+            onClick = onViewHistory,
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Text("HISTORIAL")
         }
     }
 }

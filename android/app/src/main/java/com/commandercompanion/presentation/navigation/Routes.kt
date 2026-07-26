@@ -6,4 +6,10 @@ import kotlinx.serialization.Serializable
 object DashboardRoute
 
 @Serializable
-data class GameTrackerRoute(val gameId: String)
+object PlayerSetupRoute
+
+@Serializable
+object HistoryRoute
+
+@Serializable
+data class GameTrackerRoute(val gameId: String, val playersEncoded: String)

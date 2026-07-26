@@ -8,7 +8,7 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - Añade tareas nuevas según aparezcan; no borres las completadas, son historial útil.
 - Actualiza la fecha de "Última revisión" cada vez que se audite el estado real del código.
 
-**Última revisión:** 2026-07-26 (auditoría inicial + detalle de auth con Google OAuth + generación de slices playgroups/games/game-actions y fix de tooling sqlc/lint + quality gates de GitHub Actions + repo vinculado y branch protection activo en `main` + implementación real de auth email/password + Google)
+**Última revisión:** 2026-07-26 (auditoría inicial + detalle de auth con Google OAuth + generación de slices playgroups/games/game-actions y fix de tooling sqlc/lint + quality gates de GitHub Actions + repo vinculado y branch protection activo en `main` + implementación real de auth email/password + Google + life tracker local de Android completo con persistencia en Room)
 
 ---
 
@@ -81,19 +81,27 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 
 - [x] Proyecto inicializado: Compose, Material 3, Navigation, Hilt, Room, Retrofit, kotlinx.serialization
 - [x] Theming base (`Color.kt`, `Theme.kt`, `Type.kt`) y navegación con rutas (`AppNavigation.kt`, `Routes.kt`)
-- [x] Pantallas placeholder: `DashboardScreen`, `GameTrackerScreen`, componente `PlayerCard`
+- [x] **Life tracker local completo y funcional** (2026-07-26), 100% en memoria + Room, sin depender del backend:
+  - `PlayerSetupScreen`: elegir 2-6 jugadores, nombre y color (paleta WUBRG + incoloro) por jugador
+  - `GameTrackerScreen`: grid dinámico (filas de hasta 2 cartas, funciona para 2-6 jugadores en vez del layout fijo de 4 anterior), contador de turno, vida ±, panel de daño de comandante por oponente (`PlayerCard`) que también resta vida
+  - `GameViewModel`: fin de partida automático cuando solo queda 1 jugador con vida > 0, o manual con botón "Finalizar" + diálogo de confirmación; detecta ganador (o empate si hay más de un jugador con la vida máxima)
+  - Persistencia real en Room: `GameEntity`/`PlayerResultEntity`/`GameWithPlayers` (`DatabaseModule` nuevo en Hilt) — la partida se guarda al crearse (`IN_PROGRESS`) y se actualiza al finalizar (`FINISHED` + vida final + ganador)
+  - `HistoryScreen`: lista de partidas pasadas (fecha, nº de jugadores, estado, vida final y color de cada jugador) leída de Room vía `HistoryViewModel`
+  - Verificado end-to-end en emulador (`Pixel_10_Pro`): setup → tracker → daño de comandante → finalizar → historial persistido
+  - Deliberadamente fuera de alcance de esta pasada: recuperación de partida en curso tras kill del proceso (el estado de vida vive solo en memoria hasta finalizar), autenticación, y cualquier llamada al backend — sigue siendo 100% local
+- [x] Pantallas placeholder: `DashboardScreen` (ahora con navegación real a setup/historial), componente `PlayerCard` (ahora con lógica real de daño de comandante)
 - [ ] Pantallas de autenticación (login/registro) — no existen
   - [ ] Dependencia Credential Manager + Google Identity Services (`androidx.credentials`, `androidx.credentials:credentials-play-services-auth`, `com.google.android.libraries.identity.googleid`)
   - [ ] Botón "Continuar con Google" que dispara el flujo de Credential Manager y obtiene el `id_token`
   - [ ] Enviar el `id_token` a `POST /auth/google` y guardar los tokens devueltos igual que en el login normal
   - [ ] Manejo de estado: usuario cancela el picker de cuentas, no tiene cuenta Google configurada en el dispositivo, o el backend rechaza el token
   - [ ] Flujo de "Cerrar sesión" que también limpia el estado de credenciales de Google (`clearCredentialState`)
-- [ ] Capa de dominio (`domain/` con use cases e interfaces de repositorio) — no existe, se salta directo de UI a datos
-- [ ] Repositorios reales en `data/repository/` — hoy solo hay un `GameDao` + `GameEntity` sueltos, sin repositorio que los use
-- [ ] DI completo: `AppModule` solo provee el `Context`; faltan módulos de red (Retrofit/OkHttp), base de datos (Room) y bindings de repositorios
-- [ ] `GameViewModel.kt` — el archivo existe pero está **vacío**, sin lógica de negocio
-- [ ] `CommanderApi.kt` — solo tiene un `GET /health`; faltan todos los endpoints reales (auth, decks, games, game-actions, statistics)
-- [ ] `GameState.kt` — revisar que modele correctamente vida, veneno, energía, experiencia, daño de comandante por oponente
+- [ ] Capa de dominio (`domain/` con use cases e interfaces de repositorio) — no existe, se salta directo de UI a datos (el life tracker inyecta `GameDao` directo en el `ViewModel`, sin capa de repositorio; aceptable para el alcance actual, revisar si se justifica al integrar el backend)
+- [ ] Repositorios reales en `data/repository/` — no existe todavía; hoy `GameDao` se inyecta directo en `GameViewModel`/`HistoryViewModel`
+- [x] DI de Room: `DatabaseModule` (Hilt) provee `CommanderDatabase` y `GameDao`. Sigue pendiente el módulo de red (Retrofit/OkHttp) — `AppModule` solo provee `Context`
+- [x] `GameViewModel.kt` — ya no está vacío: vida, turno, daño de comandante y persistencia del resultado en Room (ver nota del life tracker más arriba)
+- [ ] `CommanderApi.kt` — solo tiene un `GET /health`; faltan todos los endpoints reales (auth, decks, games, game-actions, statistics) — necesario para conectar el life tracker a partidas reales del backend en vez de jugarse 100% local
+- [x] `GameState.kt` — modela vida, turno y daño de comandante por oponente para N jugadores (2-6). Veneno/energía/experiencia siguen sin modelar (no forman parte del alcance de esta pasada)
 
 ## Stage 5: Integración Android ↔ Backend
 

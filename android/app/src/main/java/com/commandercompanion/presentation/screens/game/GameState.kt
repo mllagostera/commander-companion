@@ -12,5 +12,7 @@ data class PlayerState(
 
 data class GameState(
     val players: List<PlayerState> = emptyList(),
-    val currentTurn: Int = 1
+    val currentTurn: Int = 1,
+    val isFinished: Boolean = false,
+    val winnerId: Int? = null
 )
