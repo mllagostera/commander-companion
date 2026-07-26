@@ -8,7 +8,7 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - Añade tareas nuevas según aparezcan; no borres las completadas, son historial útil.
 - Actualiza la fecha de "Última revisión" cada vez que se audite el estado real del código.
 
-**Última revisión:** 2026-07-26 (auditoría inicial + detalle de auth con Google OAuth + generación de slices playgroups/games/game-actions y fix de tooling sqlc/lint + quality gates de GitHub Actions + repo vinculado y branch protection activo en `main` + implementación real de auth email/password + Google + life tracker local de Android completo con persistencia en Room)
+**Última revisión:** 2026-07-26 (auditoría inicial + detalle de auth con Google OAuth + generación de slices playgroups/games/game-actions y fix de tooling sqlc/lint + quality gates de GitHub Actions + repo vinculado y branch protection activo en `main` + implementación real de auth email/password + Google + life tracker local de Android completo con persistencia en Room + `LoginScreen` como shell de navegación con email/password y Google diferenciados)
 
 ---
 
@@ -90,11 +90,16 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
   - Verificado end-to-end en emulador (`Pixel_10_Pro`): setup → tracker → daño de comandante → finalizar → historial persistido
   - Deliberadamente fuera de alcance de esta pasada: recuperación de partida en curso tras kill del proceso (el estado de vida vive solo en memoria hasta finalizar), autenticación, y cualquier llamada al backend — sigue siendo 100% local
 - [x] Pantallas placeholder: `DashboardScreen` (ahora con navegación real a setup/historial), componente `PlayerCard` (ahora con lógica real de daño de comandante)
-- [ ] Pantallas de autenticación (login/registro) — no existen
+- [x] **Flujo de navegación de la app definido** (decisión, 2026-07-26): `LoginRoute → DashboardRoute → (PlayerSetupRoute → GameTrackerRoute → vuelta a Dashboard) / HistoryRoute`. `LoginRoute` es ahora el `startDestination` del `NavHost`. Decisiones tomadas:
+  - Se implementa el login como **shell de navegación primero, sin autenticar todavía**, para fijar la estructura de rutas antes de conectar el backend real — evita tener que reestructurar el grafo de navegación (y las pantallas que ya asumen "usuario logueado") más adelante
+  - Los dos métodos de auth que ya soporta el backend (`POST /auth/login` y `POST /auth/google`) tienen **callbacks separados desde ya** en `LoginScreen` (`onLoginWithPassword`, `onLoginWithGoogle`), diferenciados también visualmente (botón sólido vs. botón outline + separador "o"), aunque hoy ambos solo navegan a `DashboardRoute` — conectar cada uno a su endpoint real será un cambio acotado en el callback, no un rediseño de pantalla
+  - Al llegar a `DashboardRoute` se hace `popUpTo(LoginRoute) { inclusive = true }`: una vez "dentro" de la app el botón atrás no debe volver al login
+  - El life tracker sigue siendo 100% local (Room) independientemente del login: no hay ninguna llamada al backend todavía, ni desde el login ni desde la partida — son dos piezas construidas en paralelo que se conectarán juntas cuando `CommanderApi.kt` tenga endpoints reales
+- [ ] Pantallas de autenticación (login/registro) — `LoginScreen` existe (email/password + Google diferenciados, ver flujo de navegación arriba) pero **ningún método autentica todavía contra el backend**; falta:
   - [ ] Dependencia Credential Manager + Google Identity Services (`androidx.credentials`, `androidx.credentials:credentials-play-services-auth`, `com.google.android.libraries.identity.googleid`)
-  - [ ] Botón "Continuar con Google" que dispara el flujo de Credential Manager y obtiene el `id_token`
-  - [ ] Enviar el `id_token` a `POST /auth/google` y guardar los tokens devueltos igual que en el login normal
-  - [ ] Manejo de estado: usuario cancela el picker de cuentas, no tiene cuenta Google configurada en el dispositivo, o el backend rechaza el token
+  - [ ] Conectar `onLoginWithGoogle` al flujo real de Credential Manager para obtener el `id_token`
+  - [ ] Conectar `onLoginWithPassword`/`onLoginWithGoogle` a `POST /auth/login` / `POST /auth/google` y guardar los tokens devueltos
+  - [ ] Manejo de estado: credenciales inválidas, usuario cancela el picker de cuentas, no tiene cuenta Google configurada en el dispositivo, o el backend rechaza el token
   - [ ] Flujo de "Cerrar sesión" que también limpia el estado de credenciales de Google (`clearCredentialState`)
 - [ ] Capa de dominio (`domain/` con use cases e interfaces de repositorio) — no existe, se salta directo de UI a datos (el life tracker inyecta `GameDao` directo en el `ViewModel`, sin capa de repositorio; aceptable para el alcance actual, revisar si se justifica al integrar el backend)
 - [ ] Repositorios reales en `data/repository/` — no existe todavía; hoy `GameDao` se inyecta directo en `GameViewModel`/`HistoryViewModel`
@@ -161,7 +166,7 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 3. **Conectar los servicios a la base de datos real** (Transversal): sacar los dummies de `users`, `decks`, `playgroups`, `games`, `game-actions` — es la mayor brecha entre "parece terminado" y "funciona".
 4. **Estadísticas reales** (Stage 7): recálculo al finalizar partida.
 5. **Completar el contrato OpenAPI** (Stage 3) para que coincida con lo implementado, incluida paginación.
-6. **Android: capas de dominio/datos + auth + wiring real de `GameViewModel`** (Stage 4-5).
+6. **Android: capas de dominio/datos + auth + wiring real de `GameViewModel`** (Stage 4-5) — arrancado: `GameViewModel` ya tiene lógica real (local, Room) y existe el shell de `LoginScreen` con el flujo de navegación completo; falta conectar ambos al backend (Credential Manager + Google, `POST /auth/*`, `CommanderApi.kt` real, interceptor de sesión).
 7. **Websocket** (Stage 6) una vez el flujo síncrono funciona de punta a punta.
 8. **Integración Moxfield** (Stage 8) — es la pieza más aislada, puede ir en paralelo o al final.
 9. **Tests + CI** — idealmente no se dejan para el final; introducir tests a medida que se reemplazan los stubs en el punto 3 evita tener que rehacerlos después.
