@@ -60,4 +60,4 @@ jobs:
         with:
           node-version: "20"
       - name: dbml2sql
-        run: npx --yes @dbml/cli dbml2sql docs/database/schema.dbml --postgres -o /tmp/schema.sql
+        run: npx --yes -p @dbml/cli dbml2sql docs/database/schema.dbml --postgres -o /tmp/schema.sql

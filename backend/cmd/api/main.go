@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
+	"github.com/usuario/commander-companion-backend/internal/auth"
 	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
@@ -17,6 +19,11 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/statistics"
 	"github.com/usuario/commander-companion-backend/internal/sync"
 	"github.com/usuario/commander-companion-backend/internal/users"
+)
+
+const (
+	defaultAccessTokenTTL  = 15 * time.Minute
+	defaultRefreshTokenTTL = 30 * 24 * time.Hour
 )
 
 func main() {
@@ -41,6 +48,11 @@ func run() error {
 	defer db.Close()
 	log.Println("Conectado a PostgreSQL exitosamente.")
 
+	authCfg, err := loadAuthConfig()
+	if err != nil {
+		return err
+	}
+
 	// 2. Inicializar Fiber
 	app := fiber.New(fiber.Config{
 		ErrorHandler: common.ErrorHandler,
@@ -51,43 +63,7 @@ func run() error {
 	app.Use(logger.New())
 	app.Use(recover.New())
 
-	// 3. Inicializar Módulos (Inyección de dependencias)
-	api := app.Group("/api/v1")
-
-	// Users Module
-	usersService := users.NewService(db.Pool)
-	usersHandler := users.NewHandler(usersService)
-	usersHandler.RegisterRoutes(api)
-
-	// Decks Module
-	decksService := decks.NewService(db.Pool)
-	decksHandler := decks.NewHandler(decksService)
-	decksHandler.RegisterRoutes(api)
-
-	// Playgroups Module
-	playgroupsService := playgroups.NewService(db.Pool)
-	playgroupsHandler := playgroups.NewHandler(playgroupsService)
-	playgroupsHandler.RegisterRoutes(api)
-
-	// Games Module
-	gamesService := games.NewService(db.Pool)
-	gamesHandler := games.NewHandler(gamesService)
-	gamesHandler.RegisterRoutes(api)
-
-	// Game Actions Module
-	gameActionsService := gameactions.NewService(db.Pool)
-	gameActionsHandler := gameactions.NewHandler(gameActionsService)
-	gameActionsHandler.RegisterRoutes(api)
-
-	// Statistics Module
-	statisticsService := statistics.NewService(db.Pool)
-	statisticsHandler := statistics.NewHandler(statisticsService)
-	statisticsHandler.RegisterRoutes(api)
-
-	// Sync Module
-	syncService := sync.NewService(db.Pool)
-	syncHandler := sync.NewHandler(syncService)
-	syncHandler.RegisterRoutes(api)
+	registerModules(app, db, authCfg)
 
 	// 4. Arrancar Servidor
 	port := os.Getenv("PORT")
@@ -100,4 +76,79 @@ func run() error {
 		return fmt.Errorf("error al arrancar el servidor: %w", err)
 	}
 	return nil
+}
+
+// loadAuthConfig lee la configuración de auth desde variables de entorno.
+func loadAuthConfig() (auth.Config, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		// Secreto de desarrollo local por defecto; se sobreescribe con JWT_SECRET en cualquier otro entorno.
+		//nolint:gosec // dev-only default, not a real secret
+		secret = "dev-insecure-jwt-secret-change-me"
+	}
+
+	accessTTL, err := parseDurationEnv("ACCESS_TOKEN_TTL", defaultAccessTokenTTL)
+	if err != nil {
+		return auth.Config{}, err
+	}
+
+	refreshTTL, err := parseDurationEnv("REFRESH_TOKEN_TTL", defaultRefreshTokenTTL)
+	if err != nil {
+		return auth.Config{}, err
+	}
+
+	return auth.Config{
+		JWTSecret:       []byte(secret),
+		AccessTokenTTL:  accessTTL,
+		RefreshTokenTTL: refreshTTL,
+		GoogleClientID:  os.Getenv("GOOGLE_CLIENT_ID"),
+	}, nil
+}
+
+func parseDurationEnv(name string, fallback time.Duration) (time.Duration, error) {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback, nil
+	}
+
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parsing %s: %w", name, err)
+	}
+	return d, nil
+}
+
+// registerModules instancia repositorios, servicios y handlers, y registra las
+// rutas de todos los módulos bajo /api/v1 (públicas y protegidas por JWT).
+func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
+	api := app.Group("/api/v1")
+
+	usersService := users.NewService(db.Pool)
+	usersHandler := users.NewHandler(usersService)
+	usersHandler.RegisterRoutes(api) // POST /auth/register
+
+	authService := auth.NewService(db.Pool, usersService, authCfg)
+	authHandler := auth.NewHandler(authService)
+	authHandler.RegisterPublicRoutes(api) // login, google, refresh, logout
+
+	protected := api.Group("", auth.RequireAuth(authCfg.JWTSecret))
+	authHandler.RegisterProtectedRoutes(protected) // GET /auth/me
+
+	decksService := decks.NewService(db.Pool)
+	decks.NewHandler(decksService).RegisterRoutes(protected)
+
+	playgroupsService := playgroups.NewService(db.Pool)
+	playgroups.NewHandler(playgroupsService).RegisterRoutes(protected)
+
+	gamesService := games.NewService(db.Pool)
+	games.NewHandler(gamesService).RegisterRoutes(protected)
+
+	gameActionsService := gameactions.NewService(db.Pool)
+	gameactions.NewHandler(gameActionsService).RegisterRoutes(protected)
+
+	statisticsService := statistics.NewService(db.Pool)
+	statistics.NewHandler(statisticsService).RegisterRoutes(protected)
+
+	syncService := sync.NewService(db.Pool)
+	sync.NewHandler(syncService).RegisterRoutes(protected)
 }
