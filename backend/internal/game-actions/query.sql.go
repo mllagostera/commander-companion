@@ -203,3 +203,35 @@ func (q *Queries) SetGamePlayerEliminated(ctx context.Context, arg SetGamePlayer
 	)
 	return i, err
 }
+
+const upsertCommanderDamage = `-- name: UpsertCommanderDamage :one
+INSERT INTO commander_damage (game_id, attacker_id, defender_id, amount)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (attacker_id, defender_id)
+DO UPDATE SET amount = commander_damage.amount + EXCLUDED.amount
+RETURNING game_id, attacker_id, defender_id, amount
+`
+
+type UpsertCommanderDamageParams struct {
+	GameID     pgtype.UUID `json:"game_id"`
+	AttackerID pgtype.UUID `json:"attacker_id"`
+	DefenderID pgtype.UUID `json:"defender_id"`
+	Delta      int32       `json:"delta"`
+}
+
+func (q *Queries) UpsertCommanderDamage(ctx context.Context, arg UpsertCommanderDamageParams) (CommanderDamage, error) {
+	row := q.db.QueryRow(ctx, upsertCommanderDamage,
+		arg.GameID,
+		arg.AttackerID,
+		arg.DefenderID,
+		arg.Delta,
+	)
+	var i CommanderDamage
+	err := row.Scan(
+		&i.GameID,
+		&i.AttackerID,
+		&i.DefenderID,
+		&i.Amount,
+	)
+	return i, err
+}
