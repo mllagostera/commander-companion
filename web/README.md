@@ -21,7 +21,10 @@ cp .env.example .env   # completar NUXT_PUBLIC_API_BASE / NUXT_PUBLIC_GOOGLE_CLI
 npm run dev            # http://localhost:3000
 ```
 
-Necesita el backend corriendo (`docker compose up` desde la raíz del repo).
+Necesita el backend corriendo (ver `backend/README.md` o la sección de Docker
+más abajo) y `CORS_ALLOWED_ORIGINS` en el backend debe incluir el origin de
+este cliente (o dejarlo vacío en dev) — aunque con el flujo normal del
+cliente web ya no hace falta CORS, ver la sección de Nitro más abajo.
 
 Para que el botón de Google funcione, en Google Cloud Console → **Credentials**
 → el Web Application OAuth Client → **Authorized JavaScript origins**, agregá
@@ -73,6 +76,34 @@ el anterior en cada refresh):
   los `Set-Cookie` a la respuesta que sí ve el navegador **y** los aplica a las
   llamadas siguientes del mismo render (si no, la segunda llamada iría con un
   refresh token ya revocado).
+
+## Probar contra el backend con Docker
+
+Para levantar la web + la API + Postgres juntos sin instalar nada más que
+Docker, desde la raíz del repo:
+
+```bash
+docker compose up --build
+```
+
+Esto expone la web en `http://localhost:3000` y la API en
+`http://localhost:8080`. La primera vez hay que aplicar las migraciones
+(no corren solas dentro del contenedor):
+
+```bash
+cd backend
+make migrate-up   # requiere goose local, o correrlo vía Docker (ver Makefile)
+```
+
+Notas sobre las variables de entorno de `docker-compose.yml`:
+
+- `NUXT_PUBLIC_API_BASE`: URL de la API que usa el **navegador** (llamadas
+  hechas desde el cliente, ej. el submit del login) → `http://localhost:8080/api/v1`.
+- `NUXT_API_BASE`: URL de la API que usa el **servidor Nitro dentro del
+  contenedor** (llamadas SSR, ej. `GET /auth/me` al cargar `/`) →
+  `http://api:8080/api/v1`, el hostname interno del servicio `api` en la red
+  de Compose. Sin esta variable separada, el render en servidor intentaría
+  resolver `localhost:8080` dentro del propio contenedor `web` y fallaría.
 
 ## Estructura
 
