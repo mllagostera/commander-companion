@@ -340,6 +340,19 @@ func TestImportFromMoxfield_DeckNotFound_ReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestImportFromMoxfield_MoxfieldUnavailable_ReturnsServiceUnavailable(t *testing.T) {
+	pool := testutil.DB(t)
+	testutil.Truncate(t, pool, "users")
+
+	owner := createTestUser(t, pool, "import-unavailable@example.com")
+	svc := newDecksSvc(pool, &mockMoxfieldClient{err: fmt.Errorf("%w: 503", moxfield.ErrUpstreamUnavailable)})
+
+	_, err := svc.ImportFromMoxfield(context.Background(), owner.ID, decks.ImportMoxfieldRequest{URL: "abc123"})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusServiceUnavailable {
+		t.Fatalf("ImportFromMoxfield() moxfield caído: code = %d, want %d", fiberErr.Code, fiber.StatusServiceUnavailable)
+	}
+}
+
 func TestImportFromMoxfield_MissingURL_ReturnsBadRequest(t *testing.T) {
 	pool := testutil.DB(t)
 	testutil.Truncate(t, pool, "users")

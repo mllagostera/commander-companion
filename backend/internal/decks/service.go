@@ -184,6 +184,9 @@ func (s *service) ImportFromMoxfield(
 		if errors.Is(err, moxfield.ErrDeckNotFound) {
 			return nil, ErrMoxfieldDeckNotFound
 		}
+		if errors.Is(err, moxfield.ErrUpstreamUnavailable) {
+			return nil, common.UpstreamUnavailable("moxfield no está disponible, intentalo de nuevo en unos minutos")
+		}
 		return nil, fmt.Errorf("fetching moxfield deck: %w", err)
 	}
 	if moxDeck.Commander == "" {
@@ -229,6 +232,9 @@ func (s *service) ResyncFromMoxfield(
 	if err != nil {
 		if errors.Is(err, moxfield.ErrDeckNotFound) {
 			return nil, ErrMoxfieldDeckNotFound
+		}
+		if errors.Is(err, moxfield.ErrUpstreamUnavailable) {
+			return nil, common.UpstreamUnavailable("moxfield no está disponible, intentalo de nuevo en unos minutos")
 		}
 		return nil, fmt.Errorf("fetching moxfield deck: %w", err)
 	}
