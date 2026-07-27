@@ -5,95 +5,107 @@ export interface AuthUser {
   created_at: string
 }
 
-interface TokenResponse {
-  access_token: string
-  refresh_token: string
-  token_type: string
-  expires_in: number
-  user: AuthUser
+interface SessionResponse {
+  user: AuthUser | null
 }
 
-const COOKIE_OPTS = { sameSite: 'lax' as const, maxAge: 60 * 60 * 24 * 30 }
-
+/**
+ * Sesión del cliente web.
+ *
+ * Los tokens **no** viven acá: son cookies httpOnly que solo maneja Nitro
+ * (`web/server/api/auth/*`, ver `web/server/utils/backend.ts`). Desde el
+ * navegador solo se ve `cc_session`, un marcador sin valor sensible que sirve
+ * para saber si hay sesión sin pegarle a la API — lo usa el middleware de
+ * rutas, que corre tanto en SSR como en el cliente.
+ */
 export function useAuth() {
-  const config = useRuntimeConfig()
-  // En SSR (Docker Compose) el servidor debe llamar a la API por su hostname
-  // interno; el navegador necesita la URL pública. Ver nuxt.config.ts.
-  const apiBase = import.meta.server ? config.apiBase : config.public.apiBase
-  const accessToken = useCookie<string | null>('cc_access_token', COOKIE_OPTS)
-  const refreshToken = useCookie<string | null>('cc_refresh_token', COOKIE_OPTS)
   const user = useState<AuthUser | null>('auth-user', () => null)
+  const sessionMarker = useCookie<string | null>('cc_session', {
+    path: '/',
+    sameSite: 'lax',
+  })
+  const nitroFetch = useNitroFetch()
 
-  function applyTokenResponse(data: TokenResponse) {
-    accessToken.value = data.access_token
-    refreshToken.value = data.refresh_token
-    user.value = data.user
+  // El estado vive en `useState`, no en el ref de la cookie: en SSR cada
+  // llamada a `useCookie` crea un ref nuevo leído de la request original, así
+  // que invalidar la sesión en un plugin no se vería después en el middleware.
+  const hasSession = useState<boolean>(
+    'auth-has-session',
+    () => !!sessionMarker.value,
+  )
+
+  const isAuthenticated = computed(() => hasSession.value)
+
+  function resetSession() {
+    user.value = null
+    hasSession.value = false
+    sessionMarker.value = null
   }
 
-  function clearSession() {
-    accessToken.value = null
-    refreshToken.value = null
-    user.value = null
+  function applySession(data: SessionResponse) {
+    user.value = data.user
+    hasSession.value = !!data.user
+    sessionMarker.value = data.user ? '1' : null
+    return data.user
   }
 
   async function login(email: string, password: string) {
-    const data = await $fetch<TokenResponse>('/auth/login', {
-      baseURL: apiBase,
-      method: 'POST',
-      body: { email, password },
-    })
-    applyTokenResponse(data)
+    return applySession(
+      await nitroFetch<SessionResponse>('/api/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      }),
+    )
+  }
+
+  async function register(username: string, email: string, password: string) {
+    return applySession(
+      await nitroFetch<SessionResponse>('/api/auth/register', {
+        method: 'POST',
+        body: { username, email, password },
+      }),
+    )
   }
 
   async function loginWithGoogle(idToken: string) {
-    const data = await $fetch<TokenResponse>('/auth/google', {
-      baseURL: apiBase,
-      method: 'POST',
-      body: { id_token: idToken },
-    })
-    applyTokenResponse(data)
-  }
-
-  async function fetchMe() {
-    if (!accessToken.value) {
-      user.value = null
-      return null
-    }
-    try {
-      const data = await $fetch<AuthUser>('/auth/me', {
-        baseURL: apiBase,
-        headers: { Authorization: `Bearer ${accessToken.value}` },
-      })
-      user.value = data
-      return data
-    } catch {
-      clearSession()
-      return null
-    }
+    return applySession(
+      await nitroFetch<SessionResponse>('/api/auth/google', {
+        method: 'POST',
+        body: { id_token: idToken },
+      }),
+    )
   }
 
   async function logout() {
-    if (refreshToken.value) {
-      try {
-        await $fetch('/auth/logout', {
-          baseURL: apiBase,
-          method: 'POST',
-          body: { refresh_token: refreshToken.value },
-        })
-      } catch {
-        // Best-effort: igual limpiamos la sesión local aunque el backend falle.
-      }
+    try {
+      await nitroFetch('/api/auth/logout', { method: 'POST' })
+    } catch {
+      // Best-effort: igual limpiamos la sesión local aunque el backend falle.
     }
-    clearSession()
+    resetSession()
+  }
+
+  /**
+   * Rehidrata el usuario a partir de las cookies httpOnly. Nunca tira 401: si
+   * no hay sesión válida devuelve null (Nitro ya limpió las cookies).
+   */
+  async function fetchSession() {
+    try {
+      return applySession(await nitroFetch<SessionResponse>('/api/auth/session'))
+    } catch {
+      resetSession()
+      return null
+    }
   }
 
   return {
     user,
-    accessToken,
-    isAuthenticated: computed(() => !!accessToken.value),
+    isAuthenticated,
     login,
+    register,
     loginWithGoogle,
     logout,
-    fetchMe,
+    fetchSession,
+    resetSession,
   }
 }

@@ -1,0 +1,71 @@
+name: Web CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: web
+
+jobs:
+  # Sin filtro de path: siempre corre y siempre reporta un check (aunque sea
+  # "skipped"), para que este workflow pueda marcarse como required en
+  # branch protection sin dejar colgados los PRs que no tocan web/.
+  changes:
+    name: Detectar cambios en web/
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - 'web/**'
+              - '.github/workflows/web-ci.yml'
+
+  lint-typecheck-build:
+    name: eslint, typecheck y nuxt build
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint -- --max-warnings=0
+
+      - name: Typecheck (vue-tsc)
+        run: npm run typecheck
+
+      - name: Build SSR (nuxt build)
+        run: npm run build
+
+  dockerfile-lint:
+    name: hadolint (Dockerfile)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: web/Dockerfile

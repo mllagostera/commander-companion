@@ -2,7 +2,7 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-07-27',
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint'],
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     // URL de la API para llamadas hechas desde el servidor (SSR). En Docker
