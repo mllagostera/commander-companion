@@ -8,7 +8,7 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - Añade tareas nuevas según aparezcan; no borres las completadas, son historial útil.
 - Actualiza la fecha de "Última revisión" cada vez que se audite el estado real del código.
 
-**Última revisión:** 2026-07-26 (auditoría inicial + detalle de auth con Google OAuth + generación de slices playgroups/games/game-actions y fix de tooling sqlc/lint + quality gates de GitHub Actions + repo vinculado y branch protection activo en `main` + implementación real de auth email/password + Google + CORS + herramienta de test manual `tools/auth-test/` + wiring real de `decks` e import de Moxfield + primeros tests de integración de backend en `auth`/`decks`/`moxfield` + wiring real de `games`/`game-actions`, el motor de partida + wiring real de `playgroups` y `statistics` (recálculo al finalizar partida) — **backend 100% conectado a la base de datos real**, sin módulos dummy pendientes + life tracker local de Android completo con persistencia en Room + `LoginScreen` como shell de navegación con email/password y Google diferenciados + `PreGameScreen` con randomizador de turno y tracking de mulligans)
+**Última revisión:** 2026-07-27 (cierre de los 4 entregables pendientes de Stage 0: casos de uso, wireframes, diagramas de flujo/estado y ADRs fundacionales — ver Stage 0 más abajo. Revisión anterior, 2026-07-26: auditoría inicial + detalle de auth con Google OAuth + generación de slices playgroups/games/game-actions y fix de tooling sqlc/lint + quality gates de GitHub Actions + repo vinculado y branch protection activo en `main` + implementación real de auth email/password + Google + CORS + herramienta de test manual `tools/auth-test/` + wiring real de `decks` e import de Moxfield + primeros tests de integración de backend en `auth`/`decks`/`moxfield` + wiring real de `games`/`game-actions`, el motor de partida + wiring real de `playgroups` y `statistics` (recálculo al finalizar partida) — **backend 100% conectado a la base de datos real**, sin módulos dummy pendientes + life tracker local de Android completo con persistencia en Room + `LoginScreen` como shell de navegación con email/password y Google diferenciados + `PreGameScreen` con randomizador de turno y tracking de mulligans)
 
 ---
 
@@ -16,10 +16,15 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 
 - [x] Roadmap general (`docs/roadmap/ROADMAP.md`)
 - [x] Documento de arquitectura y principios (`docs/architecture/ARCHITECTURE.md`)
-- [ ] Casos de uso detallados (flujos de usuario paso a paso: crear partida, unirse, trackear vida, finalizar, ver stats)
-- [ ] Wireframes de las pantallas Android (`docs/ux/` está vacío)
-- [ ] Diagramas adicionales de flujo/estado (`docs/diagrams/` está vacío; solo existen los 2 diagramas de arquitectura embebidos en el ROADMAP)
-- [ ] ADRs de las decisiones fundacionales del proyecto (anteriores a esta sesión, sin contexto propio para redactarlas honestamente): elección de Go+Fiber, PostgreSQL, sqlc+goose, Android nativo (Kotlin/Compose) vs. cross-platform, monolito modular vs. microservicios
+- [x] Casos de uso detallados (flujos de usuario paso a paso: crear partida, unirse, trackear vida, finalizar, ver stats) — [`docs/ux/casos-de-uso.md`](../ux/casos-de-uso.md), basado en el código real de `games`/`game-actions` (backend) y de las pantallas de setup/pregame/tracker/history (Android), documentando explícitamente dónde diverge "hoy" (Android 100% local) de "objetivo" (flujo contra el backend)
+- [x] Wireframes de las pantallas Android (`docs/ux/` está vacío) — [`docs/ux/wireframes.md`](../ux/wireframes.md): wireframes ASCII + jerarquía de componentes de `LoginScreen`, `DashboardScreen`, `PlayerSetupScreen`, `PreGameScreen`, `GameTrackerScreen` y `HistoryScreen`, leídos del Compose real de cada pantalla
+- [x] Diagramas adicionales de flujo/estado (`docs/diagrams/` está vacío; solo existen los 2 diagramas de arquitectura embebidos en el ROADMAP) — [`docs/diagrams/game-state-machine.md`](../diagrams/game-state-machine.md) (máquina de estados `pending → active → finished` con los guards exactos de `games/service.go`, más el sub-estado de eliminación de jugador de `game-actions/service.go`) y [`docs/diagrams/android-navigation-flow.md`](../diagrams/android-navigation-flow.md) (grafo real de `AppNavigation.kt`/`Routes.kt`)
+- [x] ADRs de las decisiones fundacionales del proyecto (anteriores a esta sesión, sin contexto propio para redactarlas honestamente): elección de Go+Fiber, PostgreSQL, sqlc+goose, Android nativo (Kotlin/Compose) vs. cross-platform, monolito modular vs. microservicios — redactadas retroactivamente como "decisión heredada, contexto reconstruido" (2026-07-27), numeradas 0006-0010 para evitar colisión con un `0005-websocket-protocol.md` en curso en paralelo en otro worktree:
+  - [ADR-0006](../decisions/0006-go-fiber-backend.md): Go + Fiber para el backend
+  - [ADR-0007](../decisions/0007-postgresql.md): PostgreSQL como base de datos principal
+  - [ADR-0008](../decisions/0008-sqlc-goose.md): sqlc para acceso a datos tipado + goose para migraciones
+  - [ADR-0009](../decisions/0009-android-nativo-vs-crossplatform.md): Android nativo (Kotlin + Compose) vs. cross-platform
+  - [ADR-0010](../decisions/0010-monolito-modular-vs-microservicios.md): monolito modular vs. microservicios
 - [x] ADRs de las decisiones técnicas tomadas en esta sesión, en `docs/decisions/`:
   - [ADR-0001](../decisions/0001-auth-jwt-refresh-token-strategy.md): estrategia de auth (JWT HS256 + refresh token opaco rotativo)
   - [ADR-0002](../decisions/0002-google-sign-in.md): Google Sign-In (auto-vinculación por email verificado, librería `go-oidc`)
