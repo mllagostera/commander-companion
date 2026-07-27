@@ -5,15 +5,19 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun DashboardScreen(
     onNewGame: () -> Unit,
-    onViewHistory: () -> Unit
+    onViewHistory: () -> Unit,
+    onLogout: () -> Unit,
+    viewModel: DashboardViewModel = hiltViewModel()
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -37,6 +41,10 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) {
             Text("HISTORIAL")
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        TextButton(onClick = { viewModel.logout(onLogout) }) {
+            Text("Cerrar sesión")
         }
     }
 }
