@@ -105,6 +105,9 @@ No habrá microservicios.
 ## Stage 8: Importación Moxfield
 - Sincronización.
 
+## Stage 9: Social — amigos, grupos y torneos
+- No estaba en el roadmap original (agregado 2026-07-27, a definir en detalle). Sistema de amigos (más allá de los `playgroups` ya implementados en Stage 1), y creación de torneos entre amigos, entre grupos o abiertos a desconocidos que se apunten.
+
 ---
 
 # Definición de la API
@@ -123,6 +126,20 @@ Módulos principales:
 - `/playgroups`
 - `/statistics`
 - `/sync`
+
+---
+
+# Infraestructura de despliegue (pendiente de decisión)
+
+No estaba en el roadmap original (agregado 2026-07-27). Hoy el proyecto corre solo vía `docker-compose.yml` local; falta decidir dónde se despliega en un entorno real. Opciones a evaluar (ver checklist en [TASKS.md](TASKS.md)):
+
+### Opción 1: PaaS Moderna / Serverless (Recomendada para MVP rápido y coste cero)
+- **Frontend:** Vercel o Cloudflare Pages (despliegue estático, CDN global, GitOps automático).
+- **Backend:** Fly.io o Render (despliegue mediante contenedor Docker o binario nativo de Go, capa gratuita inicial).
+- **Base de datos:** Neon o Supabase (PostgreSQL serverless administrado).
+- **Ventajas:** Despliegue inmediato, cero mantenimiento de infraestructura, capa gratuita generosa.
+
+Faltan por documentar otras opciones alternativas (ej. VPS único, otros proveedores) antes de tomar la decisión final. Una vez decidido, registrar como ADR en `docs/decisions/`.
 
 ---
 
