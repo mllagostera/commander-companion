@@ -72,7 +72,6 @@ func run() error {
 	registerModules(app, db, cfg.Auth)
 
 	// 4. Arrancar Servidor
-	//nolint:gosec // port viene de una env var del operador, no de un usuario final
 	log.Printf("Iniciando servidor en el puerto %s...", cfg.Port)
 	if err := app.Listen(":" + cfg.Port); err != nil {
 		return fmt.Errorf("error al arrancar el servidor: %w", err)

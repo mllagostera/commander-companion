@@ -48,7 +48,6 @@ func dbURL() string {
 		return v
 	}
 	// Credencial de desarrollo local por defecto; se sobreescribe con DB_URL en cualquier otro entorno.
-	//nolint:gosec // dev-only default, not a real secret
 	return "postgres://postgres:postgres@localhost:5432/commander?sslmode=disable"
 }
 
