@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -23,6 +24,11 @@ const (
 	// imageURLTemplate arma el art crop de la carta "principal" del deck (la misma
 	// que Moxfield usa como su propio og:image), a partir del id corto de esa carta.
 	imageURLTemplate = "https://assets.moxfield.net/cards/card-%s-art_crop.jpg"
+
+	// maxAttempts: 1 intento inicial + 2 reintentos ante errores transitorios
+	// (red/timeout, 5xx, 429). Un 404 nunca se reintenta, no es transitorio.
+	maxAttempts       = 3
+	initialRetryDelay = 200 * time.Millisecond
 )
 
 var (
@@ -34,6 +40,9 @@ var (
 	ErrMissingIdentifier = errors.New("moxfield url or id is required")
 	// ErrIDNotFoundInURL indica que la URL dada no tiene la forma esperada (.../decks/{id}).
 	ErrIDNotFoundInURL = errors.New("could not find a deck id in the moxfield url")
+	// ErrUpstreamUnavailable indica que Moxfield siguió fallando (red/timeout, 5xx,
+	// 429) después de agotar los reintentos de GetDeck.
+	ErrUpstreamUnavailable = errors.New("moxfield unavailable after retries")
 )
 
 // Deck son los datos de un deck de Moxfield relevantes para la importación.
@@ -49,11 +58,14 @@ type Deck struct {
 // Client es un cliente HTTP para la API pública de Moxfield.
 type Client struct {
 	httpClient *http.Client
+	// baseURL es apiBaseURL en producción; los tests lo apuntan a un
+	// httptest.Server para simular respuestas de Moxfield sin red real.
+	baseURL string
 }
 
 // NewClient crea un nuevo cliente de Moxfield.
 func NewClient() *Client {
-	return &Client{httpClient: &http.Client{Timeout: requestTimeout}}
+	return &Client{httpClient: &http.Client{Timeout: requestTimeout}, baseURL: apiBaseURL}
 }
 
 type deckResponse struct {
@@ -82,13 +94,52 @@ type cardInfo struct {
 	Name string `json:"name"`
 }
 
-// GetDeck consulta un deck público de Moxfield por su ID.
+// GetDeck consulta un deck público de Moxfield por su ID. Reintenta ante
+// errores transitorios (red/timeout, 5xx, 429) con backoff exponencial; un 404
+// nunca se reintenta. Si se agotan los reintentos, devuelve un error que
+// envuelve ErrUpstreamUnavailable.
 func (c *Client) GetDeck(ctx context.Context, publicID string) (*Deck, error) {
-	reqURL := fmt.Sprintf("%s/%s", apiBaseURL, url.PathEscape(publicID))
+	var lastErr error
+	delay := initialRetryDelay
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		deck, retryAfter, err := c.getDeckOnce(ctx, publicID)
+		if err == nil {
+			return deck, nil
+		}
+		if errors.Is(err, ErrDeckNotFound) {
+			return nil, err
+		}
+
+		lastErr = err
+		if attempt == maxAttempts {
+			break
+		}
+
+		wait := delay
+		if retryAfter > 0 {
+			wait = retryAfter
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+		delay *= 2
+	}
+
+	return nil, fmt.Errorf("%w: %w", ErrUpstreamUnavailable, lastErr)
+}
+
+// getDeckOnce hace un único intento de traer el deck. retryAfter viene
+// distinto de cero solo cuando Moxfield responde 429 con el header
+// Retry-After, para que GetDeck lo respete en vez del backoff fijo.
+func (c *Client) getDeckOnce(ctx context.Context, publicID string) (*Deck, time.Duration, error) {
+	reqURL := fmt.Sprintf("%s/%s", c.baseURL, url.PathEscape(publicID))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, http.NoBody)
 	if err != nil {
-		return nil, fmt.Errorf("building moxfield request: %w", err)
+		return nil, 0, fmt.Errorf("building moxfield request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", userAgent)
@@ -96,20 +147,24 @@ func (c *Client) GetDeck(ctx context.Context, publicID string) (*Deck, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("calling moxfield: %w", err)
+		return nil, 0, fmt.Errorf("calling moxfield: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, ErrDeckNotFound
+		return nil, 0, ErrDeckNotFound
+	}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		retryAfter := retryAfterDuration(resp.Header.Get("Retry-After"))
+		return nil, retryAfter, fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
+		return nil, 0, fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
 	}
 
 	var parsed deckResponse
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return nil, fmt.Errorf("decoding moxfield response: %w", err)
+		return nil, 0, fmt.Errorf("decoding moxfield response: %w", err)
 	}
 
 	return &Deck{
@@ -117,7 +172,20 @@ func (c *Client) GetDeck(ctx context.Context, publicID string) (*Deck, error) {
 		Name:      parsed.Name,
 		Commander: commanderNames(parsed.Boards.Commanders.Cards),
 		ImageURL:  mainImageURL(parsed.Main),
-	}, nil
+	}, 0, nil
+}
+
+// retryAfterDuration parsea el header Retry-After (solo la forma en segundos,
+// la única que Moxfield usa en la práctica) y devuelve 0 si falta o es inválido.
+func retryAfterDuration(header string) time.Duration {
+	if header == "" {
+		return 0
+	}
+	seconds, err := strconv.Atoi(header)
+	if err != nil || seconds < 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func mainImageURL(main *cardInfo) string {
