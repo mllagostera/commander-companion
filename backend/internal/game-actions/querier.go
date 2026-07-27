@@ -17,6 +17,9 @@ type Querier interface {
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
 	GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer, error)
 	ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error)
+	// current_turn_player_id nullable: TurnStart lo fija al actor, TurnEnd lo limpia
+	// (pasando NULL). Ver internal/game-actions/service.go.
+	SetCurrentTurnPlayer(ctx context.Context, arg SetCurrentTurnPlayerParams) (Game, error)
 	SetGamePlayerEliminated(ctx context.Context, arg SetGamePlayerEliminatedParams) (GamePlayer, error)
 	UpsertCommanderDamage(ctx context.Context, arg UpsertCommanderDamageParams) (CommanderDamage, error)
 }

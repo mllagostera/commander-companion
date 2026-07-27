@@ -47,6 +47,7 @@ const (
 	actionTypeCommanderDamage = "CommanderDamage"
 	actionTypePoisonCounter   = "PoisonCounter"
 	actionTypeTurnStart       = "TurnStart"
+	actionTypeTurnEnd         = "TurnEnd"
 	actionTypeElimination     = "Elimination"
 
 	payloadAmountKey = "amount"
@@ -444,6 +445,48 @@ func TestRecordAction_Elimination_MarksSelfEliminated(t *testing.T) {
 	}
 	if !playerByID(t, game.Players, player1ID).IsEliminated {
 		t.Fatalf("Elimination sin target debería marcar al propio actor como eliminado")
+	}
+}
+
+func TestRecordAction_TurnStart_SetsCurrentTurnPlayer(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	gamesSvc, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID:    player1ID,
+		ActionType: actionTypeTurnStart,
+	})
+
+	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	if game.CurrentTurnPlayerID == nil || *game.CurrentTurnPlayerID != player1ID {
+		t.Fatalf("CurrentTurnPlayerID = %v, want %q", game.CurrentTurnPlayerID, player1ID)
+	}
+}
+
+func TestRecordAction_TurnEnd_ClearsCurrentTurnPlayer(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	gamesSvc, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID:    player1ID,
+		ActionType: actionTypeTurnStart,
+	})
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID:    player1ID,
+		ActionType: actionTypeTurnEnd,
+	})
+
+	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	if game.CurrentTurnPlayerID != nil {
+		t.Fatalf("CurrentTurnPlayerID tras TurnEnd = %v, want nil", *game.CurrentTurnPlayerID)
 	}
 }
 

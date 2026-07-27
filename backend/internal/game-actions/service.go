@@ -256,9 +256,10 @@ func (s *service) applyAction(
 		return s.adjustPoison(ctx, q, player.ID, amount)
 	case actionElimination:
 		return s.eliminate(ctx, q, player.ID)
-	case actionTurnStart, actionTurnEnd:
-		// Marcadores de log puro: el esquema no trackea de quién es el turno actual.
-		return nil
+	case actionTurnStart:
+		return s.setCurrentTurn(ctx, q, gid, actorID)
+	case actionTurnEnd:
+		return s.clearCurrentTurn(ctx, q, gid)
 	default:
 		return ErrInvalidActionType
 	}
@@ -347,6 +348,29 @@ func (s *service) eliminate(ctx context.Context, q *Queries, playerID pgtype.UUI
 	})
 	if err != nil {
 		return fmt.Errorf("eliminating player: %w", err)
+	}
+	return nil
+}
+
+// setCurrentTurn fija de quién es el turno ahora (TurnStart). No modela orden de
+// turno (quién sigue) — solo responde "de quién es el turno ahora".
+func (s *service) setCurrentTurn(ctx context.Context, q *Queries, gid, playerID pgtype.UUID) error {
+	_, err := q.SetCurrentTurnPlayer(ctx, SetCurrentTurnPlayerParams{
+		ID:                  gid,
+		CurrentTurnPlayerID: playerID,
+	})
+	if err != nil {
+		return fmt.Errorf("setting current turn player: %w", err)
+	}
+	return nil
+}
+
+// clearCurrentTurn limpia de quién es el turno (TurnEnd); el siguiente TurnStart lo
+// vuelve a fijar.
+func (s *service) clearCurrentTurn(ctx context.Context, q *Queries, gid pgtype.UUID) error {
+	_, err := q.SetCurrentTurnPlayer(ctx, SetCurrentTurnPlayerParams{ID: gid})
+	if err != nil {
+		return fmt.Errorf("clearing current turn player: %w", err)
 	}
 	return nil
 }
