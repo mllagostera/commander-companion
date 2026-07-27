@@ -23,20 +23,31 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      backend_workflow: ${{ steps.filter.outputs.backend_workflow }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # 'every': un archivo cambiado cuenta para el filtro 'backend' solo si
+          # matchea 'backend/**' Y NO matchea ninguna de las exclusiones de .md
+          # (así un README-only change no dispara build+test+lint+Postgres).
+          # El propio workflow file va en un filtro aparte ('backend_workflow')
+          # porque bajo 'every' no puede compartir lista con 'backend/**' (son
+          # rutas mutuamente excluyentes; ver docs/roadmap/TASKS.md).
+          predicate-quantifier: 'every'
           filters: |
             backend:
               - 'backend/**'
+              - '!backend/README.md'
+              - '!backend/**/*.md'
+            backend_workflow:
               - '.github/workflows/backend-ci.yml'
 
   fmt-vet:
     name: gofmt / go vet
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +68,7 @@ jobs:
   lint:
     name: golangci-lint
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +84,7 @@ jobs:
   sqlc-diff:
     name: sqlc generate (sin diffs pendientes)
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +105,7 @@ jobs:
   build-test-migrate:
     name: build, test y migraciones contra PostgreSQL
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -133,7 +144,7 @@ jobs:
   dockerfile-lint:
     name: hadolint (Dockerfile)
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

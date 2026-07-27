@@ -22,20 +22,31 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       web: ${{ steps.filter.outputs.web }}
+      web_workflow: ${{ steps.filter.outputs.web_workflow }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # 'every': un archivo cambiado cuenta para el filtro 'web' solo si
+          # matchea 'web/**' Y NO matchea ninguna de las exclusiones de .md
+          # (así un README-only change no dispara eslint/typecheck/nuxt build).
+          # El propio workflow file va en un filtro aparte ('web_workflow')
+          # porque bajo 'every' no puede compartir lista con 'web/**' (son
+          # rutas mutuamente excluyentes; ver docs/roadmap/TASKS.md).
+          predicate-quantifier: 'every'
           filters: |
             web:
               - 'web/**'
+              - '!web/README.md'
+              - '!web/**/*.md'
+            web_workflow:
               - '.github/workflows/web-ci.yml'
 
   lint-typecheck-build:
     name: eslint, typecheck y nuxt build
     needs: changes
-    if: needs.changes.outputs.web == 'true'
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.web_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +73,7 @@ jobs:
   dockerfile-lint:
     name: hadolint (Dockerfile)
     needs: changes
-    if: needs.changes.outputs.web == 'true'
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.web_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

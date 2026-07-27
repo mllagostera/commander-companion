@@ -57,9 +57,7 @@ commander-companion/
 │   └── frontend/          # notas específicas de cliente (vacío por ahora)
 ├── tools/
 │   └── auth-test/        # página HTML standalone para probar el flujo de auth a mano (no es parte del producto)
-├── docker/               # (vacío por ahora)
-├── docker-compose.yml    # db + api + web, para probar el stack completo local
-└── scripts/              # (vacío por ahora)
+└── docker-compose.yml    # db + api + web, para probar el stack completo local
 ```
 
 ## 3. Las 4 fuentes de verdad

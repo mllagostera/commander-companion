@@ -22,20 +22,31 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       android: ${{ steps.filter.outputs.android }}
+      android_workflow: ${{ steps.filter.outputs.android_workflow }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # 'every': un archivo cambiado cuenta para el filtro 'android' solo si
+          # matchea 'android/**' Y NO matchea ninguna de las exclusiones de .md
+          # (así un README-only change no dispara lint/tests/assembleDebug).
+          # El propio workflow file va en un filtro aparte ('android_workflow')
+          # porque bajo 'every' no puede compartir lista con 'android/**' (son
+          # rutas mutuamente excluyentes; ver docs/roadmap/TASKS.md).
+          predicate-quantifier: 'every'
           filters: |
             android:
               - 'android/**'
+              - '!android/README.md'
+              - '!android/**/*.md'
+            android_workflow:
               - '.github/workflows/android-ci.yml'
 
   lint-test-build:
     name: lint, unit tests y assembleDebug
     needs: changes
-    if: needs.changes.outputs.android == 'true'
+    if: needs.changes.outputs.android == 'true' || needs.changes.outputs.android_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
