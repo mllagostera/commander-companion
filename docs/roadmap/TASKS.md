@@ -109,7 +109,7 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - [x] Migración: `users.google_id varchar unique nullable` + `users.password_hash` nullable (`migrations/00002_auth.sql`, `docs/database/schema.dbml` actualizado) + tabla `refresh_tokens` (`token_hash` único, `expires_at`, `revoked_at`)
 - [x] Constraint a nivel de BD: `CHECK (password_hash IS NOT NULL OR google_id IS NOT NULL)` en `users`
 - [x] Diagrama ER visual exportado a `docs/diagrams/` (`docs/diagrams/er-diagram.md`, Mermaid `erDiagram` con las 11 tablas del esquema real, atributos, PK/FK/UK y notas de los índices/constraints de `00003`/`00004`; sintaxis validada renderizando con `@mermaid-js/mermaid-cli`)
-- [ ] Estrategia de migraciones futuras (naming, cómo versionar cambios de estadísticas pre-calculadas)
+- [x] Estrategia de migraciones futuras (naming, cómo versionar cambios de estadísticas pre-calculadas) — [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md): formaliza el naming ya usado de facto (`%05d_slug.sql`, secuencia plana, `Up`/`Down` simétricos) y propone (sin implementar todavía) un comando `recalculate-stats` para re-derivar `user_statistics_summary`/`deck_statistics_summary` si cambia la fórmula de agregación, señalando la invariante que debe respetar (`RecalculateForGame` es incremental, no idempotente — cada partida debe procesarse exactamente una vez)
 
 ## Stage 3: API (contrato OpenAPI)
 
