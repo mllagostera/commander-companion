@@ -16,6 +16,7 @@ import com.commandercompanion.data.remote.dto.GamePlayerDto
 import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
 import com.commandercompanion.data.remote.dto.JoinGameRequest
+import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import kotlinx.coroutines.flow.Flow
@@ -86,9 +87,9 @@ class FakeCommanderApi : CommanderApi {
 
     override suspend fun checkHealth(): String = "ok"
 
-    override suspend fun listDecks(): List<DeckDto> {
+    override suspend fun listDecks(): PagedResponse<DeckDto> {
         calls += "listDecks"
-        return onListDecks()
+        return PagedResponse(items = onListDecks())
     }
 
     override suspend fun createDeck(request: CreateDeckRequest): DeckDto =
@@ -106,7 +107,7 @@ class FakeCommanderApi : CommanderApi {
         return onImportMoxfield(request)
     }
 
-    override suspend fun listGames(): List<GameDto> = listOf(gameDto())
+    override suspend fun listGames(): PagedResponse<GameDto> = PagedResponse(items = listOf(gameDto()))
 
     override suspend fun createGame(request: CreateGameRequest): GameDto {
         calls += "createGame"

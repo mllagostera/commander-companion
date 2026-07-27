@@ -1,10 +1,12 @@
-import type { Deck } from '~/types/api'
+import type { Deck, PaginatedResponse } from '~/types/api'
 
 export function useDecks() {
   const { apiFetch } = useApi()
 
-  function listDecks() {
-    return apiFetch<Deck[]>('/decks')
+  /** Devuelve la primera página entera (default 20 decks); no hay UI de paginación todavía. */
+  async function listDecks(): Promise<Deck[]> {
+    const page = await apiFetch<PaginatedResponse<Deck>>('/decks')
+    return page.items
   }
 
   /** `input` acepta la URL completa de Moxfield o solo el ID público. */

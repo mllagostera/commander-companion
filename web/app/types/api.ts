@@ -1,5 +1,15 @@
 // Tipos de la API Go. Espejo de los schemas de docs/api/openapi.yaml.
 
+/**
+ * Envoltorio de paginación cursor-based de `GET /decks` y `GET /games`
+ * (`DeckListResponse`/`GameListResponse`). `next_cursor` es `null` en la última página.
+ * Ningún consumidor de este cliente pagina todavía — se lee siempre `items` entero.
+ */
+export interface PaginatedResponse<T> {
+  items: T[]
+  next_cursor: string | null
+}
+
 export interface Deck {
   id: string
   user_id: string

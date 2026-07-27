@@ -10,6 +10,7 @@ import com.commandercompanion.data.remote.dto.GameDto
 import com.commandercompanion.data.remote.dto.GamePlayerDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
 import com.commandercompanion.data.remote.dto.JoinGameRequest
+import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import retrofit2.http.Body
@@ -36,8 +37,9 @@ interface CommanderApi {
 
     // ---------------------------------------------------------------- decks
 
+    /** Paginado cursor-based server-side; se pide siempre la primera página (default 20 items). */
     @GET("api/v1/decks")
-    suspend fun listDecks(): List<DeckDto>
+    suspend fun listDecks(): PagedResponse<DeckDto>
 
     @POST("api/v1/decks")
     suspend fun createDeck(@Body request: CreateDeckRequest): DeckDto
@@ -53,8 +55,9 @@ interface CommanderApi {
 
     // ---------------------------------------------------------------- games
 
+    /** Paginado cursor-based server-side; se pide siempre la primera página (default 20 items). */
     @GET("api/v1/games")
-    suspend fun listGames(): List<GameDto>
+    suspend fun listGames(): PagedResponse<GameDto>
 
     @POST("api/v1/games")
     suspend fun createGame(@Body request: CreateGameRequest): GameDto

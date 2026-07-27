@@ -124,7 +124,7 @@ class GameRepository @Inject constructor(
 
     // ----------------------------------------------------------- remote (API)
 
-    suspend fun listGames(): Result<List<GameDto>> = apiCall { api.listGames() }
+    suspend fun listGames(): Result<List<GameDto>> = apiCall { api.listGames().items }
 
     suspend fun getGame(gameId: String): Result<GameDto> = apiCall { api.getGame(gameId) }
 

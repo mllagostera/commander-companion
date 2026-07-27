@@ -21,7 +21,7 @@ class DeckRepository @Inject constructor(
     private val api: CommanderApi
 ) {
 
-    suspend fun listDecks(): Result<List<DeckDto>> = apiCall { api.listDecks() }
+    suspend fun listDecks(): Result<List<DeckDto>> = apiCall { api.listDecks().items }
 
     suspend fun getDeck(deckId: String): Result<DeckDto> = apiCall { api.getDeck(deckId) }
 
