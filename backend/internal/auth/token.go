@@ -5,17 +5,18 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 const refreshTokenBytes = 32
 
 // ErrInvalidToken indica que un access o refresh token es inválido, expiró o fue revocado.
-var ErrInvalidToken = errors.New("invalid or expired token")
+var ErrInvalidToken = common.Unauthorized("invalid or expired token")
 
 // generateAccessToken firma un JWT de vida corta con el ID de usuario como subject.
 func generateAccessToken(secret []byte, userID string, ttl time.Duration) (string, time.Time, error) {

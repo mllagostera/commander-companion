@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,8 +22,12 @@ const (
 	actionElimination     = "Elimination"
 )
 
-// ErrDeckNotFound indica que el deck no existe o no pertenece al usuario autenticado.
-var ErrDeckNotFound = errors.New("deck not found")
+var (
+	// ErrDeckNotFound indica que el deck no existe o no pertenece al usuario autenticado.
+	ErrDeckNotFound = common.NotFound("deck not found")
+	// ErrInvalidPlaygroupID indica que el ID de grupo recibido no es un UUID válido.
+	ErrInvalidPlaygroupID = common.InvalidInput("invalid playgroup id")
+)
 
 // Service define la lógica de negocio del módulo statistics.
 type Service interface {
@@ -51,7 +54,7 @@ func NewService(db *pgxpool.Pool) Service {
 func (s *service) GetUserStats(ctx context.Context, userID string) (*UserStatsResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
-		return nil, fiber.NewError(fiber.StatusUnauthorized, "invalid user")
+		return nil, common.ErrInvalidUser
 	}
 
 	stats, err := s.repo.GetUserStatistics(ctx, uid)
@@ -98,7 +101,7 @@ func (s *service) GetDeckStats(ctx context.Context, userID, deckID string) (*Dec
 func (s *service) GetPlaygroupStats(ctx context.Context, playgroupID string) (*PlaygroupStatsResponse, error) {
 	pid, err := common.ParseUUID(playgroupID)
 	if err != nil {
-		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid playgroup id")
+		return nil, ErrInvalidPlaygroupID
 	}
 
 	gamesPlayed, err := s.repo.CountFinishedGamesForPlaygroup(ctx, pid)

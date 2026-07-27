@@ -15,6 +15,14 @@ type GameResponse struct {
 	Players     []GamePlayerResponse `json:"players,omitempty"`
 }
 
+// GameListResponse es una página del historial de partidas. NextCursor es el
+// cursor a pasar como query param `cursor` para pedir la página siguiente, o null
+// si esta era la última. El cursor es opaco: el cliente lo devuelve tal cual.
+type GameListResponse struct {
+	Items      []GameResponse `json:"items"`
+	NextCursor *string        `json:"next_cursor"`
+}
+
 // JoinGameRequest es el payload para unirse a una partida. El jugador es
 // siempre el usuario autenticado (vía JWT); solo hace falta indicar el deck.
 type JoinGameRequest struct {

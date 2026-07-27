@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
@@ -27,6 +28,13 @@ import (
 const (
 	defaultAccessTokenTTL  = 15 * time.Minute
 	defaultRefreshTokenTTL = 30 * 24 * time.Hour
+
+	// Rate limit de los endpoints públicos de auth. 20 req/min por IP deja
+	// holgura de sobra para un humano equivocándose de contraseña o para el
+	// refresh automático de varios dispositivos detrás de un mismo NAT, pero
+	// corta en seco el credential stuffing.
+	authRateLimitMax    = 20
+	authRateLimitWindow = time.Minute
 )
 
 func main() {
@@ -113,6 +121,27 @@ func loadAuthConfig() (auth.Config, error) {
 	}, nil
 }
 
+// newAuthRateLimiter construye el middleware de rate limiting por IP de los
+// endpoints públicos de auth. El contador vive en memoria del proceso: alcanza
+// para una instancia única (el despliegue actual, ver docker-compose.yml); con
+// varias réplicas habría que moverlo a un Storage compartido (Redis).
+//
+// Nota: la IP sale de fiber.Ctx.IP(), que detrás de un proxy/ingress devuelve la
+// del proxy salvo que se configure ProxyHeader en fiber.Config. Cuando se
+// despliegue detrás de uno, hay que setearlo o el límite sería global.
+func newAuthRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        authRateLimitMax,
+		Expiration: authRateLimitWindow,
+		LimitReached: func(_ *fiber.Ctx) error {
+			// Devolver el error (en vez de escribir la respuesta acá) lo hace pasar
+			// por common.ErrorHandler, así un 429 tiene el mismo cuerpo que
+			// cualquier otro error de la API.
+			return fiber.NewError(fiber.StatusTooManyRequests, "too many authentication requests, try again later")
+		},
+	})
+}
+
 // corsAllowedOrigins lee los orígenes permitidos para CORS. Por defecto, en
 // desarrollo se permite cualquier origen (no se usan cookies/credentials, solo
 // Bearer tokens); en cualquier otro entorno hay que restringirlo explícitamente.
@@ -142,13 +171,19 @@ func parseDurationEnv(name string, fallback time.Duration) (time.Duration, error
 func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	api := app.Group("/api/v1")
 
+	// El rate limit se pasa a cada endpoint público de auth en vez de montarlo como
+	// middleware del grupo: en Fiber, un Group con middleware aplica a todo lo que
+	// comparta el prefijo (incluido /auth/me y el resto de la API), y acá solo
+	// queremos acotar los endpoints sin JWT.
+	authRateLimit := newAuthRateLimiter()
+
 	usersService := users.NewService(db.Pool)
 	usersHandler := users.NewHandler(usersService)
-	usersHandler.RegisterRoutes(api) // POST /auth/register
+	usersHandler.RegisterRoutes(api, authRateLimit) // POST /auth/register
 
 	authService := auth.NewService(db.Pool, usersService, authCfg)
 	authHandler := auth.NewHandler(authService)
-	authHandler.RegisterPublicRoutes(api) // login, google, refresh, logout
+	authHandler.RegisterPublicRoutes(api, authRateLimit) // login, google, refresh, logout
 
 	protected := api.Group("", auth.RequireAuth(authCfg.JWTSecret))
 	authHandler.RegisterProtectedRoutes(protected) // GET /auth/me
@@ -176,6 +211,8 @@ func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	gameActionsService := gameactions.NewService(db.Pool, wsHub)
 	gameactions.NewHandler(gameActionsService).RegisterRoutes(protected)
 
-	syncService := sync.NewService(db.Pool)
+	// sync no habla con la BD ni con Moxfield por su cuenta: delega en decks, que
+	// es el dueño de la tabla y del cliente (ver internal/sync/service.go).
+	syncService := sync.NewService(decksService)
 	sync.NewHandler(syncService).RegisterRoutes(protected)
 }

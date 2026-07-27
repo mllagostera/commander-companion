@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/playgroups"
 	"github.com/usuario/commander-companion-backend/internal/testutil"
 	"github.com/usuario/commander-companion-backend/internal/users"
@@ -42,10 +43,14 @@ func mustCreatePlaygroup(t *testing.T, svc playgroups.Service, userID, name stri
 	return res
 }
 
+// asFiberError traduce el error de dominio que devuelve el service a su equivalente
+// HTTP con common.MapError (los services ya no dependen de fiber, ver
+// internal/common/errors.go), para poder seguir verificando el status code que ve
+// el cliente.
 func asFiberError(t *testing.T, err error) *fiber.Error {
 	t.Helper()
 	var fiberErr *fiber.Error
-	if !errors.As(err, &fiberErr) {
+	if !errors.As(common.MapError(err), &fiberErr) {
 		t.Fatalf("error = %v (%T), want *fiber.Error", err, err)
 	}
 	return fiberErr

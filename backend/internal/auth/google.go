@@ -2,17 +2,18 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 const googleIssuer = "https://accounts.google.com"
 
 // ErrGoogleAuthNotConfigured indica que el servidor no tiene GOOGLE_CLIENT_ID configurado.
-var ErrGoogleAuthNotConfigured = errors.New("google sign-in is not configured on this server")
+var ErrGoogleAuthNotConfigured = common.NotImplemented("google sign-in is not configured on this server")
 
 // GoogleClaims son los datos relevantes extraídos de un id_token de Google ya verificado.
 type GoogleClaims struct {

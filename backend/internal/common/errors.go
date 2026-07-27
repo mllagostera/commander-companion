@@ -6,23 +6,112 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// Kinds de error de dominio. Los servicios NO importan fiber: devuelven errores
+// de negocio construidos con los helpers de abajo (o sentinelas propios del
+// módulo que los envuelven), y el transporte HTTP los traduce a un status code
+// con MapError. Así el mapeo error-de-dominio → HTTP vive en un solo lugar y
+// todos los módulos devuelven los mismos códigos para los mismos casos.
+var (
+	// ErrInvalidInput agrupa los errores de validación de entrada → HTTP 400.
+	ErrInvalidInput = errors.New("invalid input")
+	// ErrUnauthorized agrupa los errores de autenticación → HTTP 401.
+	ErrUnauthorized = errors.New("unauthorized")
+	// ErrNotFound agrupa los errores de recurso inexistente o ajeno → HTTP 404.
+	ErrNotFound = errors.New("not found")
+	// ErrConflict agrupa los errores de estado incompatible con la operación → HTTP 409.
+	ErrConflict = errors.New("conflict")
+	// ErrNotImplemented agrupa lo no configurado o no disponible → HTTP 501.
+	ErrNotImplemented = errors.New("not implemented")
+)
+
+// ErrInvalidUser indica que el ID de usuario propagado por el middleware de auth
+// no es un UUID válido (token corrupto o emitido contra otro esquema). Es común a
+// todos los módulos que leen common.UserIDKey, por eso vive acá.
+var ErrInvalidUser = Unauthorized("invalid user")
+
+// DomainError es un error de negocio: lleva su propio mensaje (el que ve el
+// cliente) y un kind que determina a qué status HTTP se traduce. Implementa
+// Unwrap, así que errors.Is(err, common.ErrNotFound) y errors.Is(err, ErrDeckNotFound)
+// funcionan sobre el mismo valor.
+type DomainError struct {
+	kind error
+	msg  string
+}
+
+// Error implementa la interfaz error devolviendo el mensaje de negocio.
+func (e *DomainError) Error() string { return e.msg }
+
+// Unwrap expone el kind del error, para que errors.Is lo compare contra los
+// sentinelas de arriba.
+func (e *DomainError) Unwrap() error { return e.kind }
+
+// InvalidInput crea un error de validación de entrada (→ HTTP 400).
+func InvalidInput(msg string) *DomainError { return &DomainError{kind: ErrInvalidInput, msg: msg} }
+
+// Unauthorized crea un error de autenticación (→ HTTP 401).
+func Unauthorized(msg string) *DomainError { return &DomainError{kind: ErrUnauthorized, msg: msg} }
+
+// NotFound crea un error de recurso inexistente o ajeno al usuario (→ HTTP 404).
+func NotFound(msg string) *DomainError { return &DomainError{kind: ErrNotFound, msg: msg} }
+
+// Conflict crea un error de estado incompatible con la operación pedida (→ HTTP 409).
+func Conflict(msg string) *DomainError { return &DomainError{kind: ErrConflict, msg: msg} }
+
+// NotImplemented crea un error de funcionalidad no configurada o no disponible (→ HTTP 501).
+func NotImplemented(msg string) *DomainError {
+	return &DomainError{kind: ErrNotImplemented, msg: msg}
+}
+
+// MapError traduce un error de dominio al *fiber.Error con el status HTTP que le
+// corresponde. Los errores que ya son *fiber.Error (los que produce el propio
+// transporte, p. ej. un body mal formado) y los inesperados —que el ErrorHandler
+// global convierte en 500— pasan tal cual, así que aplicarla dos veces sobre el
+// mismo error es inocuo.
+func MapError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var fiberErr *fiber.Error
+	if errors.As(err, &fiberErr) {
+		return err
+	}
+
+	switch {
+	case errors.Is(err, ErrInvalidInput):
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	case errors.Is(err, ErrUnauthorized):
+		return fiber.NewError(fiber.StatusUnauthorized, err.Error())
+	case errors.Is(err, ErrNotFound):
+		return fiber.NewError(fiber.StatusNotFound, err.Error())
+	case errors.Is(err, ErrConflict):
+		return fiber.NewError(fiber.StatusConflict, err.Error())
+	case errors.Is(err, ErrNotImplemented):
+		return fiber.NewError(fiber.StatusNotImplemented, err.Error())
+	default:
+		return err
+	}
+}
+
 // ErrorResponse representa la estructura estándar de errores.
 type ErrorResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
-// ErrorHandler es el middleware global para manejar errores en Fiber.
+// ErrorHandler es el middleware global para manejar errores en Fiber. Aplica el
+// mismo mapeo dominio → HTTP que MapError, para que un error de negocio que
+// llegue sin haber pasado por el handler no se degrade a un 500.
 func ErrorHandler(c *fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
 	message := "Internal Server Error"
 
-	// Si es un error de Fiber, extraer código y mensaje
 	var fiberErr *fiber.Error
-	if errors.As(err, &fiberErr) {
+	switch {
+	case errors.As(MapError(err), &fiberErr):
 		code = fiberErr.Code
 		message = fiberErr.Message
-	} else if err != nil {
+	case err != nil:
 		// Loguear el error real internamente
 		// log.Printf("Error no controlado: %v", err)
 		message = err.Error() // Para desarrollo, mostramos el error

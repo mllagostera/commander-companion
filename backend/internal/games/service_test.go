@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	"github.com/usuario/commander-companion-backend/internal/games"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
@@ -72,10 +73,14 @@ func createUserAndDeck(t *testing.T, pool *pgxpool.Pool, email string) (userID, 
 	return user.ID, deck.ID
 }
 
+// asFiberError traduce el error de dominio que devuelve el service a su equivalente
+// HTTP con common.MapError (los services ya no dependen de fiber, ver
+// internal/common/errors.go), para poder seguir verificando el status code que ve
+// el cliente.
 func asFiberError(t *testing.T, err error) *fiber.Error {
 	t.Helper()
 	var fiberErr *fiber.Error
-	if !errors.As(err, &fiberErr) {
+	if !errors.As(common.MapError(err), &fiberErr) {
 		t.Fatalf("error = %v (%T), want *fiber.Error", err, err)
 	}
 	return fiberErr

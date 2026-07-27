@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,14 +24,17 @@ const (
 
 var (
 	// ErrInvalidCredentials indica que el email no existe o el password no coincide.
-	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrInvalidCredentials = common.Unauthorized("invalid email or password")
 	// ErrGoogleOnlyAccount indica que la cuenta no tiene password (se registró con Google).
-	ErrGoogleOnlyAccount = errors.New("account has no password set, sign in with google instead")
+	ErrGoogleOnlyAccount = common.Unauthorized("account has no password set, sign in with google instead")
 	// ErrUserNotFound indica que no existe un usuario con el ID indicado.
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound = common.NotFound("user not found")
 	// ErrEmailNotVerified indica que Google no confirma el email asociado a la cuenta.
-	ErrEmailNotVerified = errors.New("google email not verified")
+	ErrEmailNotVerified = common.InvalidInput("google email not verified")
+	// ErrUserAlreadyExists indica que el username o el email ya están tomados.
+	ErrUserAlreadyExists = common.Conflict("User already exists")
 	// ErrUsernameExhausted indica que no se pudo generar un username único para una cuenta de Google.
+	// No es un error de dominio traducible: sale como 500, porque implica un problema del servidor.
 	ErrUsernameExhausted = errors.New("could not allocate a unique username for google user")
 )
 
@@ -70,7 +72,7 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 	if err != nil {
 		//nolint:godox // Deferido a la fase de refinamiento: distinguir username vs. email duplicado.
 		// TODO: inspeccionar pgErr.ConstraintName para devolver un mensaje más preciso.
-		return nil, fiber.NewError(fiber.StatusConflict, "User already exists")
+		return nil, ErrUserAlreadyExists
 	}
 
 	return toUserResponse(&user), nil

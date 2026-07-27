@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,8 +21,30 @@ const (
 	statusFinished = "finished"
 )
 
-// ErrGameNotFound indica que la partida no existe.
-var ErrGameNotFound = errors.New("game not found")
+var (
+	// ErrGameNotFound indica que la partida no existe.
+	ErrGameNotFound = common.NotFound("game not found")
+	// ErrDeckNotFound indica que el deck no existe o no pertenece al jugador que se une.
+	ErrDeckNotFound = common.NotFound("deck not found")
+	// ErrNotAMember indica que el usuario no tiene asiento en la partida.
+	ErrNotAMember = common.NotFound("not a member of this game")
+	// ErrInvalidPlaygroupID indica que el playgroup_id recibido no es un UUID válido.
+	ErrInvalidPlaygroupID = common.InvalidInput("invalid playgroup_id")
+	// ErrInvalidDeckID indica que el deck_id recibido no es un UUID válido.
+	ErrInvalidDeckID = common.InvalidInput("invalid deck_id")
+	// ErrGameClosedToPlayers indica que la partida ya no admite nuevos jugadores.
+	ErrGameClosedToPlayers = common.Conflict("game is not accepting new players")
+	// ErrAlreadyJoined indica que el usuario ya está en la partida.
+	ErrAlreadyJoined = common.Conflict("already joined this game")
+	// ErrGameAlreadyStarted indica que la partida ya arrancó o terminó.
+	ErrGameAlreadyStarted = common.Conflict("game already started or finished")
+	// ErrCannotLeaveStartedGame indica que no se puede abandonar una partida ya iniciada.
+	ErrCannotLeaveStartedGame = common.Conflict("cannot leave a game that already started")
+	// ErrNotEnoughPlayers indica que la partida no llega al mínimo de jugadores para arrancar.
+	ErrNotEnoughPlayers = common.Conflict("not enough players to start")
+	// ErrGameNotActive indica que solo una partida activa puede finalizarse.
+	ErrGameNotActive = common.Conflict("only an active game can be finished")
+)
 
 // StatisticsRecalculator es lo que games necesita del módulo de estadísticas para
 // disparar el recálculo al finalizar una partida (permite mockearlo en tests).
@@ -43,7 +64,7 @@ type Broadcaster interface {
 type Service interface {
 	CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error)
 	GetGame(ctx context.Context, id string) (*GameResponse, error)
-	ListGames(ctx context.Context) ([]GameResponse, error)
+	ListGames(ctx context.Context, page common.PageRequest) (*GameListResponse, error)
 	JoinGame(ctx context.Context, gameID, userID string, req JoinGameRequest) (*GamePlayerResponse, error)
 	LeaveGame(ctx context.Context, gameID, userID string) error
 	StartGame(ctx context.Context, gameID string) (*GameResponse, error)
@@ -67,7 +88,7 @@ func (s *service) CreateGame(ctx context.Context, req CreateGameRequest) (*GameR
 	if req.PlaygroupID != "" {
 		pid, err := common.ParseUUID(req.PlaygroupID)
 		if err != nil {
-			return nil, fiber.NewError(fiber.StatusBadRequest, "invalid playgroup_id")
+			return nil, ErrInvalidPlaygroupID
 		}
 		playgroupID = pid
 	}
@@ -94,18 +115,52 @@ func (s *service) GetGame(ctx context.Context, id string) (*GameResponse, error)
 	return toGameResponse(game, players), nil
 }
 
-// ListGames devuelve el historial de partidas.
-func (s *service) ListGames(ctx context.Context) ([]GameResponse, error) {
-	list, err := s.repo.ListGames(ctx)
+// ListGames devuelve una página del historial de partidas, de la más reciente a la
+// más vieja. Ver internal/common/pagination.go para el esquema de cursor.
+func (s *service) ListGames(ctx context.Context, page common.PageRequest) (*GameListResponse, error) {
+	// Se pide una fila de más que el límite: si vuelve, es que hay página
+	// siguiente. Evita un COUNT(*) aparte solo para saber si seguir paginando.
+	params := ListGamesPageParams{PageLimit: page.Limit + 1}
+	if page.Cursor != "" {
+		cursorCreatedAt, cursorID, err := decodeCursor(page.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		params.CursorCreatedAt = cursorCreatedAt
+		params.CursorID = cursorID
+	}
+
+	rows, err := s.repo.ListGamesPage(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("listing games: %w", err)
 	}
 
-	result := make([]GameResponse, 0, len(list))
-	for i := range list {
-		result = append(result, *toGameResponse(&list[i], nil))
+	var nextCursor *string
+	if len(rows) > int(page.Limit) {
+		rows = rows[:page.Limit]
+		last := rows[len(rows)-1]
+		encoded := common.EncodeCursor(common.Cursor{CreatedAt: last.CreatedAt.Time, ID: last.ID.String()})
+		nextCursor = &encoded
 	}
-	return result, nil
+
+	items := make([]GameResponse, 0, len(rows))
+	for i := range rows {
+		items = append(items, *toGameResponse(&rows[i], nil))
+	}
+	return &GameListResponse{Items: items, NextCursor: nextCursor}, nil
+}
+
+// decodeCursor traduce el cursor opaco de la request a los parámetros de la query.
+func decodeCursor(encoded string) (pgtype.Timestamp, pgtype.UUID, error) {
+	cursor, err := common.DecodeCursor(encoded)
+	if err != nil {
+		return pgtype.Timestamp{}, pgtype.UUID{}, err
+	}
+	cursorID, err := common.ParseUUID(cursor.ID)
+	if err != nil {
+		return pgtype.Timestamp{}, pgtype.UUID{}, common.ErrInvalidCursor
+	}
+	return pgtype.Timestamp{Time: cursor.CreatedAt, Valid: true}, cursorID, nil
 }
 
 // JoinGame añade al usuario autenticado, con uno de sus decks, a una partida en estado pending.
@@ -117,12 +172,12 @@ func (s *service) JoinGame(
 		return nil, err
 	}
 	if game.Status != statusPending {
-		return nil, fiber.NewError(fiber.StatusConflict, "game is not accepting new players")
+		return nil, ErrGameClosedToPlayers
 	}
 
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
-		return nil, fiber.NewError(fiber.StatusUnauthorized, "invalid user")
+		return nil, common.ErrInvalidUser
 	}
 
 	deckID, err := s.resolveOwnedDeckID(ctx, userID, req.DeckID)
@@ -146,24 +201,24 @@ func (s *service) JoinGame(
 func (s *service) resolveOwnedDeckID(ctx context.Context, userID, deckID string) (pgtype.UUID, error) {
 	did, err := common.ParseUUID(deckID)
 	if err != nil {
-		return pgtype.UUID{}, fiber.NewError(fiber.StatusBadRequest, "invalid deck_id")
+		return pgtype.UUID{}, ErrInvalidDeckID
 	}
 
 	deck, err := s.repo.GetDeckByID(ctx, did)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pgtype.UUID{}, fiber.NewError(fiber.StatusNotFound, "deck not found")
+			return pgtype.UUID{}, ErrDeckNotFound
 		}
 		return pgtype.UUID{}, fmt.Errorf("looking up deck: %w", err)
 	}
 	if deck.UserID.String() != userID {
 		// No se distingue "no existe" de "no es tuyo": evita revelar que el deck existe.
-		return pgtype.UUID{}, fiber.NewError(fiber.StatusNotFound, "deck not found")
+		return pgtype.UUID{}, ErrDeckNotFound
 	}
 	return did, nil
 }
 
-// ensureNotAlreadyJoined devuelve un 409 si el usuario ya tiene un asiento en la partida.
+// ensureNotAlreadyJoined devuelve ErrAlreadyJoined si el usuario ya tiene un asiento en la partida.
 func (s *service) ensureNotAlreadyJoined(ctx context.Context, gameID pgtype.UUID, userID string) error {
 	players, err := s.repo.ListGamePlayers(ctx, gameID)
 	if err != nil {
@@ -171,7 +226,7 @@ func (s *service) ensureNotAlreadyJoined(ctx context.Context, gameID pgtype.UUID
 	}
 	for i := range players {
 		if players[i].UserID.String() == userID {
-			return fiber.NewError(fiber.StatusConflict, "already joined this game")
+			return ErrAlreadyJoined
 		}
 	}
 	return nil
@@ -184,12 +239,12 @@ func (s *service) LeaveGame(ctx context.Context, gameID, userID string) error {
 		return err
 	}
 	if game.Status != statusPending {
-		return fiber.NewError(fiber.StatusConflict, "cannot leave a game that already started")
+		return ErrCannotLeaveStartedGame
 	}
 
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
-		return fiber.NewError(fiber.StatusUnauthorized, "invalid user")
+		return common.ErrInvalidUser
 	}
 
 	players, err := s.repo.ListGamePlayers(ctx, game.ID)
@@ -204,7 +259,7 @@ func (s *service) LeaveGame(ctx context.Context, gameID, userID string) error {
 		}
 	}
 	if !member {
-		return fiber.NewError(fiber.StatusNotFound, "not a member of this game")
+		return ErrNotAMember
 	}
 
 	if err := s.repo.RemoveGamePlayer(ctx, RemoveGamePlayerParams{GameID: game.ID, UserID: uid}); err != nil {
@@ -220,7 +275,7 @@ func (s *service) StartGame(ctx context.Context, gameID string) (*GameResponse, 
 		return nil, err
 	}
 	if game.Status != statusPending {
-		return nil, fiber.NewError(fiber.StatusConflict, "game already started or finished")
+		return nil, ErrGameAlreadyStarted
 	}
 
 	players, err := s.repo.ListGamePlayers(ctx, game.ID)
@@ -228,7 +283,7 @@ func (s *service) StartGame(ctx context.Context, gameID string) (*GameResponse, 
 		return nil, fmt.Errorf("listing game players: %w", err)
 	}
 	if len(players) < minPlayersToStart {
-		return nil, fiber.NewError(fiber.StatusConflict, "not enough players to start")
+		return nil, ErrNotEnoughPlayers
 	}
 
 	started, err := s.repo.StartGame(ctx, game.ID)
@@ -245,7 +300,7 @@ func (s *service) FinishGame(ctx context.Context, gameID string) (*GameResponse,
 		return nil, err
 	}
 	if game.Status != statusActive {
-		return nil, fiber.NewError(fiber.StatusConflict, "only an active game can be finished")
+		return nil, ErrGameNotActive
 	}
 
 	finished, err := s.repo.FinishGame(ctx, game.ID)

@@ -1,8 +1,6 @@
 package playgroups
 
 import (
-	"errors"
-
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
@@ -36,7 +34,7 @@ func (h *Handler) CreatePlaygroup(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.CreatePlaygroup(c.Context(), userID, req)
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
@@ -46,7 +44,7 @@ func (h *Handler) ListPlaygroups(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.ListPlaygroups(c.Context(), userID)
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.JSON(res)
 }
@@ -56,7 +54,7 @@ func (h *Handler) GetPlaygroup(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetPlaygroup(c.Context(), userID, c.Params("id"))
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.JSON(res)
 }
@@ -71,14 +69,7 @@ func (h *Handler) AddMember(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.AddMember(c.Context(), c.Params("id"), userID, req)
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
-}
-
-func mapError(err error) error {
-	if errors.Is(err, ErrPlaygroupNotFound) {
-		return fiber.NewError(fiber.StatusNotFound, err.Error())
-	}
-	return err
 }

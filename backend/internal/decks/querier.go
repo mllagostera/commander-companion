@@ -14,7 +14,17 @@ type Querier interface {
 	CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, error)
 	DeleteDeck(ctx context.Context, id pgtype.UUID) error
 	GetDeck(ctx context.Context, id pgtype.UUID) (Deck, error)
-	ListDecks(ctx context.Context, userID pgtype.UUID) ([]Deck, error)
+	// Resuelve el deck ya importado de un usuario a partir de su ID público de
+	// Moxfield (ver internal/sync). Un mismo deck de Moxfield puede estar importado
+	// por varios usuarios, por eso el filtro por user_id.
+	GetDeckByMoxfieldID(ctx context.Context, arg GetDeckByMoxfieldIDParams) (Deck, error)
+	// Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
+	// devuelve la primera página; con cursor, las filas estrictamente posteriores en
+	// el orden de la lista. Ver internal/common/pagination.go.
+	ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([]Deck, error)
+	// Re-sincroniza nombre y comandante de un deck ya importado con lo que devuelve
+	// Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
+	UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFromMoxfieldParams) (Deck, error)
 }
 
 var _ Querier = (*Queries)(nil)

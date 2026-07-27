@@ -6,15 +6,24 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// ErrPlaygroupNotFound indica que el grupo no existe o el usuario no es miembro de él.
-var ErrPlaygroupNotFound = errors.New("playgroup not found")
+var (
+	// ErrPlaygroupNotFound indica que el grupo no existe o el usuario no es miembro de él.
+	ErrPlaygroupNotFound = common.NotFound("playgroup not found")
+	// ErrUserNotFound indica que el usuario a añadir al grupo no existe.
+	ErrUserNotFound = common.NotFound("user not found")
+	// ErrNameRequired indica que se intentó crear un grupo sin nombre.
+	ErrNameRequired = common.InvalidInput("name is required")
+	// ErrInvalidUserID indica que el user_id recibido no es un UUID válido.
+	ErrInvalidUserID = common.InvalidInput("invalid user_id")
+	// ErrAlreadyMember indica que el usuario ya pertenece al grupo.
+	ErrAlreadyMember = common.Conflict("user is already a member")
+)
 
 // Service define la lógica de negocio del módulo playgroups.
 type Service interface {
@@ -39,12 +48,12 @@ func (s *service) CreatePlaygroup(
 ) (*PlaygroupResponse, error) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		return nil, fiber.NewError(fiber.StatusBadRequest, "name is required")
+		return nil, ErrNameRequired
 	}
 
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
-		return nil, fiber.NewError(fiber.StatusUnauthorized, "invalid user")
+		return nil, common.ErrInvalidUser
 	}
 
 	playgroup, err := s.repo.CreatePlaygroup(ctx, name)
@@ -82,7 +91,7 @@ func (s *service) GetPlaygroup(ctx context.Context, userID, id string) (*Playgro
 func (s *service) ListPlaygroups(ctx context.Context, userID string) ([]PlaygroupResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
-		return nil, fiber.NewError(fiber.StatusUnauthorized, "invalid user")
+		return nil, common.ErrInvalidUser
 	}
 
 	list, err := s.repo.ListPlaygroupsForUser(ctx, uid)
@@ -109,20 +118,20 @@ func (s *service) AddMember(
 
 	targetUID, err := common.ParseUUID(req.UserID)
 	if err != nil {
-		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid user_id")
+		return nil, ErrInvalidUserID
 	}
 
 	_, err = s.repo.GetUserByID(ctx, targetUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fiber.NewError(fiber.StatusNotFound, "user not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("looking up user: %w", err)
 	}
 
 	_, err = s.repo.GetPlaygroupMember(ctx, GetPlaygroupMemberParams{PlaygroupID: playgroup.ID, UserID: targetUID})
 	if err == nil {
-		return nil, fiber.NewError(fiber.StatusConflict, "user is already a member")
+		return nil, ErrAlreadyMember
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("checking membership: %w", err)

@@ -2,6 +2,8 @@ package users
 
 import (
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 // Handler contiene las dependencias del transporte HTTP para usuarios.
@@ -16,9 +18,12 @@ func NewHandler(svc Service) *Handler {
 	}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo users/auth.
-func (h *Handler) RegisterRoutes(router fiber.Router) {
-	router.Post("/auth/register", h.Register)
+// RegisterRoutes registra todos los endpoints del módulo users/auth. rateLimit es el
+// mismo middleware por IP que protege los demás endpoints públicos de auth (ver
+// auth.Handler.RegisterPublicRoutes): register es público y hace un hash bcrypt por
+// request, así que también hay que acotarlo.
+func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {
+	router.Post("/auth/register", rateLimit, h.Register)
 }
 
 // Register maneja la petición de registro.
@@ -35,7 +40,7 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 
 	res, err := h.svc.RegisterUser(c.Context(), req)
 	if err != nil {
-		return err // Será manejado por el ErrorHandler global
+		return common.MapError(err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(res)

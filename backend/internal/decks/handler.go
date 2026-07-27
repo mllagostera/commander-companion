@@ -1,8 +1,6 @@
 package decks
 
 import (
-	"errors"
-
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
@@ -37,7 +35,7 @@ func (h *Handler) CreateDeck(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.CreateDeck(c.Context(), userID, req)
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
@@ -52,17 +50,23 @@ func (h *Handler) ImportMoxfield(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.ImportFromMoxfield(c.Context(), userID, req)
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// ListDecks devuelve los decks del usuario autenticado.
+// ListDecks devuelve una página de los decks del usuario autenticado. Acepta los
+// query params `cursor` y `limit` (ver internal/common/pagination.go).
 func (h *Handler) ListDecks(c *fiber.Ctx) error {
-	userID, _ := c.Locals(common.UserIDKey).(string)
-	res, err := h.svc.ListDecks(c.Context(), userID)
+	page, err := common.ParsePageRequest(c)
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
+	}
+
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.ListDecks(c.Context(), userID, page)
+	if err != nil {
+		return common.MapError(err)
 	}
 	return c.JSON(res)
 }
@@ -72,7 +76,7 @@ func (h *Handler) GetDeck(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetDeck(c.Context(), userID, c.Params("id"))
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.JSON(res)
 }
@@ -81,14 +85,7 @@ func (h *Handler) GetDeck(c *fiber.Ctx) error {
 func (h *Handler) DeleteDeck(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	if err := h.svc.DeleteDeck(c.Context(), userID, c.Params("id")); err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
-}
-
-func mapError(err error) error {
-	if errors.Is(err, ErrDeckNotFound) {
-		return fiber.NewError(fiber.StatusNotFound, err.Error())
-	}
-	return err
 }
