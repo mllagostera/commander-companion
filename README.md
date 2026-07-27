@@ -28,6 +28,11 @@ commander-companion/
 │       ├── domain/       # casos de uso e interfaces de repos (por crear)
 │       ├── presentation/ # screens, viewmodels, navegación, tema
 │       └── core/         # DI (Hilt) y utilidades
+├── web/                  # Cliente web (Nuxt 4 SSR + Tailwind), ver ADR-0004
+│   └── app/              # srcDir de Nuxt 4
+│       ├── pages/        # login.vue (email/password + Google), index.vue (protegida)
+│       ├── composables/  # useAuth.ts (sesión), useGoogleIdentity.ts
+│       └── middleware/   # auth.global.ts (guard de rutas)
 ├── docs/
 │   ├── roadmap/          # ROADMAP.md (visión/etapas) y TASKS.md (checklist de progreso)
 │   ├── architecture/     # ARCHITECTURE.md (principios y patrones)

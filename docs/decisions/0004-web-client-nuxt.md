@@ -1,6 +1,6 @@
-# ADR-0004: Segundo cliente web con Nuxt 3 + Tailwind, desacoplado del backend
+# ADR-0004: Segundo cliente web con Nuxt 4 + Tailwind, desacoplado del backend
 
-**Estado:** Aceptada, no iniciada (2026-07-26)
+**Estado:** Aceptada, esqueleto iniciado (2026-07-26, actualizada 2026-07-27)
 
 ## Contexto
 
@@ -13,7 +13,13 @@ más cómoda en pantallas grandes).
 
 ## Decisión
 
-- Framework: **Nuxt 3 + Tailwind CSS**.
+- Framework: **Nuxt 4 + Tailwind CSS**. Se optó por la última versión mayor
+  disponible en vez de fijarse en Nuxt 3 — criterio general del proyecto:
+  arrancar cada dependencia nueva en su versión más actualizada posible en
+  vez de una anterior "más probada", salvo que haya una razón concreta para
+  no hacerlo. Nuxt 4 cambia principalmente la convención de estructura de
+  carpetas (todo el código de la app vive bajo `app/`) respecto a Nuxt 3; no
+  afecta ninguna de las demás decisiones de este ADR.
 - **100% desacoplado del backend**: solo consume la API REST vía HTTP (la
   misma API que usa Android), sin lógica compartida ni acoplamiento de
   despliegue. Esto ya estaba habilitado por [ADR-0003](0003-cors-permisivo-en-dev.md)
@@ -27,10 +33,15 @@ más cómoda en pantallas grandes).
 - Gestor de paquetes: **npm** (ya es la herramienta que usan los workflows de
   CI existentes para Spectral y `@dbml/cli` — cero herramienta nueva que
   instalar/aprender en el pipeline).
-- **Orden de trabajo**: primero el backend real de lo que este cliente va a
-  mostrar, después el scaffolding de Nuxt. Se evaluó scaffoldear en paralelo
-  con datos mockeados, pero se descartó para no duplicar trabajo (mock →
-  reemplazar por real).
+- **Orden de trabajo original**: primero el backend real de lo que este
+  cliente va a mostrar, después el scaffolding de Nuxt. Se evaluó
+  scaffoldear en paralelo con datos mockeados, pero se descartó para no
+  duplicar trabajo (mock → reemplazar por real). **Adelantado parcialmente
+  el 2026-07-27** a pedido explícito del usuario: se scaffoldeó ya el
+  esqueleto de auth (login email/password + Google), porque ese flujo no
+  depende del motor de partida/estadísticas pendiente en el backend. El
+  resto (import de Moxfield, estadísticas) sigue esperando ese trabajo de
+  backend antes de construirse.
 
 ## Alternativas consideradas
 
@@ -45,6 +56,12 @@ más cómoda en pantallas grandes).
   tareas de gestión/consulta.
 - **pnpm** en vez de npm: más rápido/liviano, pero se priorizó no introducir
   una herramienta nueva en el toolchain de CI ya existente.
+- **Nuxt 3** (versión originalmente decidida el 2026-07-26): se cambió a
+  Nuxt 4 al día siguiente porque el criterio del proyecto es arrancar con la
+  versión mayor más actualizada de cada librería nueva, no la anterior más
+  probada — no hubo ningún problema técnico con Nuxt 3, fue puramente
+  alinear la decisión con ese criterio antes de que hubiera más código
+  construido encima.
 
 ## Consecuencias
 
@@ -52,10 +69,11 @@ más cómoda en pantallas grandes).
   SPA estático) — hay que decidir dónde/cómo correrlo en producción (Docker
   propio, similar al de `backend/`, es la opción más consistente con el resto
   del repo, pero no está decidido todavía).
-- Nada de esto está creado aún: ni `web/`, ni el scaffolding de Nuxt. El
-  trabajo previo (backend de decks + import de Moxfield) ya está resuelto;
-  falta el motor de partida + estadísticas reales antes de que la pantalla de
-  estadísticas de este cliente tenga datos reales que mostrar.
+- Esqueleto inicial ya creado en `web/` (2026-07-27): Nuxt 4 + Tailwind +
+  login (email/password + Google) + una pantalla protegida mínima. Sigue
+  pendiente lo que dependía del backend de partidas/estadísticas: import de
+  Moxfield y la pantalla de estadísticas, que esperan el motor de partida +
+  estadísticas reales antes de tener datos que mostrar.
 
 ## Referencias
 
