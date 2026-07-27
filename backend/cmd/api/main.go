@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/usuario/commander-companion-backend/internal/auth"
 	"github.com/usuario/commander-companion-backend/internal/common"
+	"github.com/usuario/commander-companion-backend/internal/config"
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
@@ -26,9 +26,6 @@ import (
 )
 
 const (
-	defaultAccessTokenTTL  = 15 * time.Minute
-	defaultRefreshTokenTTL = 30 * 24 * time.Hour
-
 	// Rate limit de los endpoints públicos de auth. 20 req/min por IP deja
 	// holgura de sobra para un humano equivocándose de contraseña o para el
 	// refresh automático de varios dispositivos detrás de un mismo NAT, pero
@@ -44,25 +41,18 @@ func main() {
 }
 
 func run() error {
-	// 1. Conexión a BD
-	dbURL := os.Getenv("DB_URL")
-	if dbURL == "" {
-		// Credencial de desarrollo local por defecto; se sobreescribe con DB_URL en cualquier otro entorno.
-		//nolint:gosec // dev-only default, not a real secret
-		dbURL = "postgres://postgres:postgres@localhost:5432/commander?sslmode=disable"
+	// 1. Cargar configuración y conectar a BD
+	cfg, err := config.Load()
+	if err != nil {
+		return err
 	}
 
-	db, err := common.NewDB(dbURL)
+	db, err := common.NewDB(cfg.DBURL)
 	if err != nil {
 		return fmt.Errorf("no se pudo conectar a la base de datos: %w", err)
 	}
 	defer db.Close()
 	log.Println("Conectado a PostgreSQL exitosamente.")
-
-	authCfg, err := loadAuthConfig()
-	if err != nil {
-		return err
-	}
 
 	// 2. Inicializar Fiber
 	app := fiber.New(fiber.Config{
@@ -74,51 +64,19 @@ func run() error {
 	app.Use(logger.New())
 	app.Use(recover.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: corsAllowedOrigins(),
+		AllowOrigins: cfg.CORSAllowedOrigins,
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 	}))
 
-	registerModules(app, db, authCfg)
+	registerModules(app, db, cfg.Auth)
 
 	// 4. Arrancar Servidor
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	//nolint:gosec // port viene de una env var del operador, no de un usuario final
-	log.Printf("Iniciando servidor en el puerto %s...", port)
-	if err := app.Listen(":" + port); err != nil {
+	log.Printf("Iniciando servidor en el puerto %s...", cfg.Port)
+	if err := app.Listen(":" + cfg.Port); err != nil {
 		return fmt.Errorf("error al arrancar el servidor: %w", err)
 	}
 	return nil
-}
-
-// loadAuthConfig lee la configuración de auth desde variables de entorno.
-func loadAuthConfig() (auth.Config, error) {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		// Secreto de desarrollo local por defecto; se sobreescribe con JWT_SECRET en cualquier otro entorno.
-		//nolint:gosec // dev-only default, not a real secret
-		secret = "dev-insecure-jwt-secret-change-me"
-	}
-
-	accessTTL, err := parseDurationEnv("ACCESS_TOKEN_TTL", defaultAccessTokenTTL)
-	if err != nil {
-		return auth.Config{}, err
-	}
-
-	refreshTTL, err := parseDurationEnv("REFRESH_TOKEN_TTL", defaultRefreshTokenTTL)
-	if err != nil {
-		return auth.Config{}, err
-	}
-
-	return auth.Config{
-		JWTSecret:       []byte(secret),
-		AccessTokenTTL:  accessTTL,
-		RefreshTokenTTL: refreshTTL,
-		GoogleClientID:  os.Getenv("GOOGLE_CLIENT_ID"),
-	}, nil
 }
 
 // newAuthRateLimiter construye el middleware de rate limiting por IP de los
@@ -140,30 +98,6 @@ func newAuthRateLimiter() fiber.Handler {
 			return fiber.NewError(fiber.StatusTooManyRequests, "too many authentication requests, try again later")
 		},
 	})
-}
-
-// corsAllowedOrigins lee los orígenes permitidos para CORS. Por defecto, en
-// desarrollo se permite cualquier origen (no se usan cookies/credentials, solo
-// Bearer tokens); en cualquier otro entorno hay que restringirlo explícitamente.
-func corsAllowedOrigins() string {
-	origins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if origins == "" {
-		return "*"
-	}
-	return origins
-}
-
-func parseDurationEnv(name string, fallback time.Duration) (time.Duration, error) {
-	raw := os.Getenv(name)
-	if raw == "" {
-		return fallback, nil
-	}
-
-	d, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, fmt.Errorf("parsing %s: %w", name, err)
-	}
-	return d, nil
 }
 
 // registerModules instancia repositorios, servicios y handlers, y registra las
