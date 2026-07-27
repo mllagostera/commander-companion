@@ -7,12 +7,13 @@ type CreateGameRequest struct {
 
 // GameResponse es el DTO de una partida enviado al cliente.
 type GameResponse struct {
-	ID          string               `json:"id"`
-	PlaygroupID *string              `json:"playgroup_id,omitempty"`
-	Status      string               `json:"status"`
-	StartedAt   *string              `json:"started_at,omitempty"`
-	FinishedAt  *string              `json:"finished_at,omitempty"`
-	Players     []GamePlayerResponse `json:"players,omitempty"`
+	ID                  string               `json:"id"`
+	PlaygroupID         *string              `json:"playgroup_id,omitempty"`
+	Status              string               `json:"status"`
+	StartedAt           *string              `json:"started_at,omitempty"`
+	FinishedAt          *string              `json:"finished_at,omitempty"`
+	CurrentTurnPlayerID *string              `json:"current_turn_player_id,omitempty"`
+	Players             []GamePlayerResponse `json:"players,omitempty"`
 }
 
 // GameListResponse es una página del historial de partidas. NextCursor es el

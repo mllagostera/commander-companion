@@ -63,6 +63,7 @@ Table games {
   started_at timestamp
   finished_at timestamp
   created_at timestamp [default: `now()`]
+  current_turn_player_id uuid [ref: > game_players.id, null, note: 'De quién es el turno ahora (no modela orden de turno). Migración 00008_current_turn.sql']
 
   Note: 'CHECK: status IN (\'pending\', \'active\', \'finished\') (migración 00004_status_constraints.sql)'
 }

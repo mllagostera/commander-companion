@@ -105,7 +105,7 @@ func (q *Queries) CreateGameAction(ctx context.Context, arg CreateGameActionPara
 }
 
 const getGame = `-- name: GetGame :one
-SELECT id, playgroup_id, status, started_at, finished_at, created_at FROM games WHERE id = $1 LIMIT 1
+SELECT id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id FROM games WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetGame(ctx context.Context, id pgtype.UUID) (Game, error) {
@@ -118,6 +118,7 @@ func (q *Queries) GetGame(ctx context.Context, id pgtype.UUID) (Game, error) {
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.CreatedAt,
+		&i.CurrentTurnPlayerID,
 	)
 	return i, err
 }
@@ -173,6 +174,35 @@ func (q *Queries) ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]Ga
 		return nil, err
 	}
 	return items, nil
+}
+
+const setCurrentTurnPlayer = `-- name: SetCurrentTurnPlayer :one
+UPDATE games
+SET current_turn_player_id = $1
+WHERE id = $2
+RETURNING id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id
+`
+
+type SetCurrentTurnPlayerParams struct {
+	CurrentTurnPlayerID pgtype.UUID `json:"current_turn_player_id"`
+	ID                  pgtype.UUID `json:"id"`
+}
+
+// current_turn_player_id nullable: TurnStart lo fija al actor, TurnEnd lo limpia
+// (pasando NULL). Ver internal/game-actions/service.go.
+func (q *Queries) SetCurrentTurnPlayer(ctx context.Context, arg SetCurrentTurnPlayerParams) (Game, error) {
+	row := q.db.QueryRow(ctx, setCurrentTurnPlayer, arg.CurrentTurnPlayerID, arg.ID)
+	var i Game
+	err := row.Scan(
+		&i.ID,
+		&i.PlaygroupID,
+		&i.Status,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.CreatedAt,
+		&i.CurrentTurnPlayerID,
+	)
+	return i, err
 }
 
 const setGamePlayerEliminated = `-- name: SetGamePlayerEliminated :one

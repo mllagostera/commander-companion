@@ -209,6 +209,11 @@ components:
           type: string
           format: date-time
           nullable: true
+        current_turn_player_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: De quién es el turno ahora (game_players.id). Null hasta el primer TurnStart.
         players:
           type: array
           items:

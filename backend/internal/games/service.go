@@ -350,6 +350,10 @@ func toGameResponse(game *Game, players []GamePlayer) *GameResponse {
 		t := game.FinishedAt.Time.Format(time.RFC3339)
 		res.FinishedAt = &t
 	}
+	if game.CurrentTurnPlayerID.Valid {
+		tid := game.CurrentTurnPlayerID.String()
+		res.CurrentTurnPlayerID = &tid
+	}
 	if players != nil {
 		res.Players = make([]GamePlayerResponse, 0, len(players))
 		for i := range players {

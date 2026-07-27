@@ -36,12 +36,13 @@ type DeckStatisticsSummary struct {
 }
 
 type Game struct {
-	ID          pgtype.UUID      `json:"id"`
-	PlaygroupID pgtype.UUID      `json:"playgroup_id"`
-	Status      string           `json:"status"`
-	StartedAt   pgtype.Timestamp `json:"started_at"`
-	FinishedAt  pgtype.Timestamp `json:"finished_at"`
-	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	ID                  pgtype.UUID      `json:"id"`
+	PlaygroupID         pgtype.UUID      `json:"playgroup_id"`
+	Status              string           `json:"status"`
+	StartedAt           pgtype.Timestamp `json:"started_at"`
+	FinishedAt          pgtype.Timestamp `json:"finished_at"`
+	CreatedAt           pgtype.Timestamp `json:"created_at"`
+	CurrentTurnPlayerID pgtype.UUID      `json:"current_turn_player_id"`
 }
 
 type GameAction struct {
