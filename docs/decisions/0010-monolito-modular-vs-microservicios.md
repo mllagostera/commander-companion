@@ -50,12 +50,14 @@ como diseño inicial.
   mockearla en tests) ya funciona como frontera modular clara incluso
   dentro de un único proceso, y es lo que permitiría extraer un módulo a su
   propio servicio más adelante sin rediseñar su lógica interna.
-- **Extraer el Websocket/Match Engine como servicio aparte desde ya**
-  (Stage 6, todavía no implementado): se decidió no adelantarlo — el
-  ROADMAP lo deja para "fases posteriores" explícitamente, y hoy
-  `internal/websocket/` está vacío. Adelantar esa separación sin tener
-  siquiera el protocolo de mensajes diseñado (pendiente en `TASKS.md`,
-  Stage 6) sería resolver un problema de escala que todavía no existe.
+- **Extraer el Websocket/Match Engine como servicio aparte desde ya**: se
+  decidió no adelantarlo — el ROADMAP lo deja para "fases posteriores"
+  explícitamente. **Nota (2026-07-27)**: `internal/websocket/` ya no está
+  vacío — el servidor de Stage 6 está implementado
+  ([ADR-0005](0005-websocket-protocol.md)) como un módulo más dentro del
+  mismo monolito (`Hub` en memoria de un único proceso), no como servicio
+  aparte; la decisión de esta ADR sigue siendo la misma, solo cambió el
+  estado de "sin código" a "implementado, pero todavía dentro del monolito".
 
 ## Consecuencias
 
@@ -77,11 +79,13 @@ como diseño inicial.
   branch protection: "No se exige aprobación de PR").
 - Si el proyecto necesita microservicios reales en el futuro (el segundo
   diagrama de `ROADMAP.md` ya lo prevé), la migración más natural es
-  extraer primero `websocket`/Match Engine (Stage 6, todavía sin código) y
-  `statistics` (Stage 7, ya tiene una interfaz de desacople,
-  `StatisticsRecalculator`, lista para convertirse en un cliente HTTP/gRPC
-  en vez de una llamada en-proceso) — son los dos módulos que el propio
-  ROADMAP ya dibuja como servicios separados a futuro.
+  extraer primero `websocket`/Match Engine (Stage 6, servidor ya
+  implementado — ver [ADR-0005](0005-websocket-protocol.md), desacoplado de
+  `games`/`game-actions` vía la interfaz `Broadcaster`, mismo patrón que
+  `StatisticsRecalculator`) y `statistics` (Stage 7, ya tiene esa interfaz
+  de desacople lista para convertirse en un cliente HTTP/gRPC en vez de una
+  llamada en-proceso) — son los dos módulos que el propio ROADMAP ya dibuja
+  como servicios separados a futuro.
 
 ## Referencias
 

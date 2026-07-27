@@ -23,7 +23,7 @@ func (q *Queries) CountFinishedGamesForPlaygroup(ctx context.Context, playgroupI
 }
 
 const getDeckByID = `-- name: GetDeckByID :one
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks WHERE id = $1 LIMIT 1
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error) {
@@ -37,6 +37,7 @@ func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 		&i.MoxfieldID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImageUrl,
 	)
 	return i, err
 }

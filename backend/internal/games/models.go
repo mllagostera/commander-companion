@@ -16,6 +16,7 @@ type Deck struct {
 	MoxfieldID pgtype.Text      `json:"moxfield_id"`
 	CreatedAt  pgtype.Timestamp `json:"created_at"`
 	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
+	ImageUrl   pgtype.Text      `json:"image_url"`
 }
 
 type DeckStatisticsSummary struct {

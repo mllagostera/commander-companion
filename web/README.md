@@ -5,8 +5,9 @@ Cliente web, desacoplado del backend (solo consume la API REST vía HTTP, ver
 para el contexto de la decisión.
 
 Estado actual: registro y login (email/password + Google Sign-In), sesión con
-refresh automático, import de decks de Moxfield y pantallas de estadísticas
-(globales del usuario y por deck).
+refresh automático, import de decks de Moxfield (con thumbnail del art crop
+del comandante, y botón para re-sincronizar un deck ya importado contra
+Moxfield) y pantallas de estadísticas (globales del usuario y por deck).
 
 ## Stack
 
@@ -128,13 +129,13 @@ web/
     │   ├── useAuth.ts            # register/login/loginWithGoogle/logout/fetchSession
     │   ├── useNitroFetch.ts      # fetch a /api/* con cookie jar por request (SSR)
     │   ├── useApi.ts             # cliente del proxy + helpers de error
-    │   ├── useDecks.ts           # listado e import de Moxfield
+    │   ├── useDecks.ts           # listado, import y re-sync (POST /sync/moxfield) de Moxfield
     │   ├── useStatistics.ts      # /statistics/user y /statistics/deck/{id}
     │   └── useGoogleIdentity.ts  # script de Google Identity Services
     ├── plugins/session.ts        # hidrata el usuario antes del middleware
     ├── middleware/auth.global.ts # gating de rutas (/login y /register públicas)
     └── types/
-        ├── api.ts                # Deck, UserStats, DeckStats, PlaygroupStats
+        ├── api.ts                # Deck (con image_url), SyncResponse, UserStats, DeckStats, PlaygroupStats
         └── google-identity.d.ts  # tipado mínimo de window.google
 ```
 

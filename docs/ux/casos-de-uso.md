@@ -8,12 +8,22 @@ partida, finalizar partida y ver estadísticas.
 columnas — **"Hoy"** (lo que el código hace ahora mismo, verificado leyendo
 `backend/internal/games/service.go`, `backend/internal/game-actions/service.go`
 y las pantallas Android en `presentation/screens/`) y **"Objetivo"** (el flujo
-end-to-end que el ROADMAP prevé una vez Android hable con el backend, Stage
-5). Hoy ambos existen en paralelo pero **desconectados**: el backend ya
-implementa la máquina de estados completa de una partida multi-usuario
-autenticada; el cliente Android es un life tracker 100% local (Room), de un
-solo dispositivo, sin sesión de usuario ni llamada de red alguna al backend
-de `games`/`game-actions`. Ver `docs/roadmap/TASKS.md`, Stage 4 y 5.
+end-to-end completo, multi-dispositivo, que el ROADMAP prevé). **Actualizado
+2026-07-27**: Android ya no es 100% local — autentica de verdad
+(`LoginViewModel` contra `POST /auth/login`/`/auth/google`) y, desde
+`GameRepository.bootstrapRemoteGame()`, espeja **best-effort** el asiento
+local (asiento 1, el único con identidad server-side) contra el backend real:
+`POST /games` + `POST /games/{id}/join` + intento de `POST /games/{id}/start`
+al crear la partida, `POST /games/{id}/actions` en cada cambio de vida de ese
+asiento (`mirrorLifeChange`), y `POST /games/{id}/finish` al finalizar. Es
+"best-effort y aditivo" (comentario de `GameRepository.kt`): si falla (sin
+red, sin sesión, sin decks) o si la partida no llega a tener 2 jugadores
+unidos desde el backend, el tracker local sigue jugándose igual — el motivo
+se refleja en el banner de `GameTrackerScreen` (`RemoteSyncBanner`,
+`GameState.remoteSync`: `Disabled`/`WaitingForPlayers`/`Synced`/`Failed`), no
+bloquea nada. El daño de comandante (otros asientos) y todo lo demás sigue
+siendo puramente local — ver el detalle de qué se espeja y qué no en cada
+caso de uso abajo. Ver `docs/roadmap/TASKS.md`, Stage 4 y 5.
 
 ---
 
@@ -22,13 +32,15 @@ de `games`/`game-actions`. Ver `docs/roadmap/TASKS.md`, Stage 4 y 5.
 **Actor:** cualquier usuario (hoy: cualquiera con el dispositivo Android en
 la mano; objetivo: usuario autenticado).
 
-### Hoy (Android, 100% local)
+### Hoy (Android, pass-and-play local + espejo best-effort del asiento 1)
 
-1. Usuario abre la app → `LoginRoute` (pantalla de login, ver más abajo) →
-   toca "INICIAR SESIÓN" o "Continuar con Google" → navega a
-   `DashboardRoute` sin autenticar realmente contra nada (`LoginScreen.kt`
-   no llama a ningún backend todavía; ambos botones solo disparan la
-   navegación).
+1. Usuario abre la app → `LoginRoute` → autentica de verdad: "INICIAR
+   SESIÓN" llama `LoginViewModel` → `POST /auth/login` (email/password), o
+   "Continuar con Google" → Credential Manager obtiene un `id_token` real →
+   `POST /auth/google`. Tokens guardados en `SessionManager` (DataStore). Solo
+   entonces navega a `DashboardRoute` (con `popUpTo(LoginRoute) { inclusive =
+   true }`). `DashboardScreen` también tiene un botón "Cerrar sesión"
+   (`DashboardViewModel.logout()`, revoca el refresh token best-effort).
 2. En `DashboardScreen`, toca **"NEW GAME"** → navega a `PlayerSetupRoute`.
 3. En `PlayerSetupScreen` (`PlayerSetupScreen.kt`):
    - Elige la cantidad de jugadores con `FilterChip` (2 a 6, constantes
@@ -50,11 +62,18 @@ la mano; objetivo: usuario autenticado).
    - Toca **"EMPEZAR PARTIDA"** de nuevo → navega a `GameTrackerRoute`,
      haciendo `popUpTo(DashboardRoute)` (setup y pre-partida salen del
      back stack).
-6. Al entrar a `GameTrackerScreen`, `GameViewModel.persistNewGame()` inserta
-   en Room (Hilt `DatabaseModule`, `GameDao`) un `GameEntity` con
-   `status = "IN_PROGRESS"` y un `PlayerResultEntity` por jugador (vida
-   inicial 40, color, mulligans). **Este es el único punto de persistencia
-   de "crear partida" hoy**: no hay ninguna request HTTP.
+6. Al entrar a `GameTrackerScreen`, `GameViewModel.init` dispara dos cosas en
+   paralelo: `persistNewGame()` inserta en Room (Hilt `DatabaseModule`,
+   `GameDao`) un `GameEntity` con `status = "IN_PROGRESS"` y un
+   `PlayerResultEntity` por jugador (vida inicial 40, color, mulligans) —
+   esto es siempre local e incondicional; y `bootstrapRemoteGame()` (best-effort,
+   ver nota al principio del documento) llama `POST /games` y sienta al
+   asiento 1 (el usuario autenticado) con su primer deck vía
+   `POST /games/{id}/join`, intentando además `POST /games/{id}/start` (que
+   queda en `pending` con `409` si nadie más se unió desde el backend — no es
+   un error, ver `GameRepository.bootstrapRemoteGame`). Si el usuario no tiene
+   decks o falla la llamada, la partida se sigue jugando 100% local sin más
+   consecuencia que el banner de estado.
 
 ### Objetivo (backend real, Stage 5)
 
@@ -157,11 +176,19 @@ vía backend/Websocket).
    si queda exactamente 1 jugador con `life > 0` (y hay más de 1 jugador en
    la partida), se finaliza automáticamente esa partida con ese jugador como
    ganador (ver caso de uso 4).
-6. Nada de esto genera una request HTTP ni un registro en una tabla de
-   acciones — todo vive en `_state: MutableState<GameState>` en memoria hasta
-   que se finaliza la partida (ver caso de uso 4). Si el proceso muere antes
-   de finalizar, se pierde el estado de vida en curso (documentado como fuera
-   de alcance en `TASKS.md`).
+6. Todo vive en `_state: MutableState<GameState>` en memoria hasta que se
+   finaliza la partida (ver caso de uso 4); si el proceso muere antes de
+   finalizar, se pierde el estado de vida en curso (documentado como fuera de
+   alcance en `TASKS.md`). **Excepción real**: cada cambio de vida del
+   **asiento 1** (el usuario autenticado) sí genera una request —
+   `adjustLife` llama `mirrorLifeChange(amount)` →
+   `POST /games/{id}/actions` (`action_type: LifeChange`, sin `target_id`,
+   ver `GameRepository.recordLifeChange`) si la sesión remota está `active`;
+   si falla o no hay sesión activa, es no-op silencioso salvo actualizar el
+   banner de estado. Los demás asientos (2-6) y el daño de comandante de
+   **cualquier** asiento nunca se espejan (ver el comentario de
+   `adjustCommanderDamage` en `GameViewModel.kt`: atribuir ese daño al asiento
+   local como `actor_id` acreditaría `total_commander_damage_dealt` ajeno).
 
 ### Objetivo (backend real, `game-actions/service.go`)
 
@@ -191,8 +218,12 @@ vía backend/Websocket).
    cronológicamente, para reconstruir la partida (usado también por
    `statistics.RecalculateForGame`, ver caso de uso 5).
 4. Retransmitir estos eventos en tiempo real a todos los dispositivos
-   sentados en la partida es Stage 6 (Websocket), todavía sin implementar
-   (`internal/websocket/` está vacío).
+   sentados en la partida es Stage 6 (Websocket): el servidor
+   (`internal/websocket/`) ya retransmite las 7 acciones vía
+   `GET /api/v1/ws/games/{id}` (ver [ADR-0005](../decisions/0005-websocket-protocol.md));
+   lo que falta es el cliente Android que se conecte a ese socket — hoy el
+   espejo del asiento local (arriba) es solo REST unidireccional, sin
+   suscripción a los cambios de otros jugadores.
 
 **Divergencia clave:** hoy la vida vive solo en memoria del dispositivo que
 la está tocando, sin registro de acciones individuales ni de quién causó
@@ -230,6 +261,11 @@ no hay un rol de "host").
    finalizada" si no hay ganador, y el detalle de vida final de cada
    jugador. "Volver al inicio" hace `onFinish()` →
    `navController.popBackStack(DashboardRoute, inclusive = false)`.
+   En paralelo, `finishRemoteGame()` llama `POST /games/{id}/finish` sobre la
+   sesión remota si estaba `active` (best-effort, mismo criterio que el resto
+   del espejo) — esto es lo que dispara el recálculo real de estadísticas del
+   lado del backend para el asiento 1, aunque la UI de Android no muestre
+   ese resultado todavía (ver caso de uso 5).
 5. Una vez `isFinished = true`, tanto `adjustLife` como
    `adjustCommanderDamage` y `finishGame` vuelven a ejecutarse como no-op (se
    chequea `if (_state.value.isFinished) return` al principio) — la partida
@@ -290,8 +326,13 @@ usuario, solo de dispositivo.
 ### Objetivo (backend real, `internal/statistics`)
 
 Tres endpoints ya implementados y con tests de integración, pero **sin
-ninguna pantalla de Android que los consuma todavía** (bloqueado por Stage
-4/5 — Android no habla con el backend):
+ninguna pantalla de Android que los consuma todavía** — a diferencia de los
+casos de uso 1-4, esto no está bloqueado por falta de conexión al backend
+(Android ya habla con `games`/`game-actions`, ver arriba): es simplemente que
+todavía no existe una pantalla que llame `CommanderApi.getUserStats`/
+`getDeckStats`/`getPlaygroupStats` (los tres métodos ya están en la interfaz,
+ver Stage 4 de `TASKS.md`), ni un `StatisticsRepository`. El cliente web
+(Nuxt) sí los consume ya (`app/pages/statistics.vue`):
 
 - `GET /statistics/user/{id}`: `games_played`, `games_won`,
   `total_damage_dealt`, `total_commander_damage_dealt`, `total_eliminations`
@@ -314,9 +355,10 @@ ninguna pantalla de Android que los consuma todavía** (bloqueado por Stage
 **Divergencia clave:** "ver estadísticas" hoy en Android es en realidad "ver
 historial local de partidas" (sin agregación, sin usuario, sin red); el
 backend ya tiene motor de estadísticas agregadas reales por usuario/deck/
-grupo, pero es funcionalidad completamente invisible para quien usa la app
-móvil hasta que se conecte Android al backend (Stage 5) y se construya la UI
-correspondiente (pendiente también en Stage 7).
+grupo, y Android ya lo llama para otros fines (games/game-actions), pero
+todavía no existe la pantalla ni el repositorio que consuman
+`/statistics/*` — pendiente en Stage 7, ya no bloqueado por Stage 5 (que en
+la práctica ya se resolvió parcialmente vía el espejo best-effort).
 
 ---
 
@@ -324,13 +366,18 @@ correspondiente (pendiente también en Stage 7).
 
 | Caso de uso | Backend (`internal/games`, `internal/game-actions`, `internal/statistics`) | Android (hoy) |
 |---|---|---|
-| Crear partida | `POST /games` → `pending`, multi-usuario, requiere auth | Local, un solo dispositivo, sin auth, `gameId` = UUID aleatorio |
-| Unirse | `POST /games/{id}/join`, ownership de deck, scoping por `pending` | No existe: "unirse" = agregar un jugador más en el setup local |
-| Trackear vida | `POST /games/{id}/actions`, timeline auditable, auto-eliminación server-side | En memoria (`GameViewModel`), sin log de acciones, sin red |
-| Finalizar | `POST /games/{id}/finish`, solo desde `active`, ganador derivado post-hoc | Botón manual o automático, ganador decidido en el cliente |
-| Ver estadísticas | `GET /statistics/{user,deck,playgroup}/{id}`, agregados reales | `HistoryScreen`, historial crudo de Room, sin agregación |
+| Crear partida | `POST /games` → `pending`, multi-usuario, requiere auth | Local (`gameId` = UUID aleatorio) **+** espejo best-effort: `POST /games`+`join`+`start` para el asiento 1 |
+| Unirse | `POST /games/{id}/join`, ownership de deck, scoping por `pending` | No existe UI de invitar/unirse: "unirse" en la UI = agregar un jugador más en el setup local; el único `join` real es el automático del asiento 1 en el bootstrap |
+| Trackear vida | `POST /games/{id}/actions`, timeline auditable, auto-eliminación server-side | En memoria (`GameViewModel`) para todos los asientos; **solo el asiento 1** también espeja `LifeChange` vía `POST /games/{id}/actions` |
+| Finalizar | `POST /games/{id}/finish`, solo desde `active`, ganador derivado post-hoc | Ganador decidido en el cliente **+** `POST /games/{id}/finish` best-effort para la sesión remota del asiento 1 |
+| Ver estadísticas | `GET /statistics/{user,deck,playgroup}/{id}`, agregados reales | `HistoryScreen`: historial crudo de Room, sin agregación; sin pantalla ni repositorio para `/statistics/*` todavía (el cliente web sí los consume) |
 
-La unificación de ambas columnas es, según `docs/roadmap/TASKS.md` ("Orden
-de trabajo sugerido", punto 6), la mayor brecha pendiente del proyecto:
-capas de dominio/datos en Android, autenticación real, y `CommanderApi.kt`
-con los endpoints reales de `games`/`game-actions`/`statistics`.
+La brecha que queda no es "Android no habla con el backend" (ya lo hace,
+best-effort, para el asiento 1) sino: (1) sincronización en vivo de lo que
+hacen **otros** dispositivos/jugadores en la misma partida — requiere el
+cliente WebSocket de Stage 6, que consume un protocolo ya implementado del
+lado servidor ([ADR-0005](../decisions/0005-websocket-protocol.md)); (2) una
+pantalla de selección de deck real en vez de "usar el primer deck del
+usuario" (`DeckRepository.firstDeckId`, marcado como simplificación
+temporal); y (3) una pantalla de estadísticas en Android. Ver
+`docs/roadmap/TASKS.md`, Stage 4/5/6, para el detalle pieza por pieza.

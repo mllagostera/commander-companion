@@ -71,6 +71,16 @@ _schema.sql`, `00002_auth.sql`).
   instancia de Postgres sin una capa de replicación o sharding — aceptable
   mientras el proyecto siga siendo un monolito modular de un solo
   mantenedor (ver ADR-0010).
+- La versión mayor de Postgres queda fijada en dos lugares que deben
+  mantenerse en sync manualmente (no hay una única fuente de verdad para
+  esto): la imagen del servicio `db` en `docker-compose.yml` y la imagen del
+  servicio `postgres` en `backend-ci.yml` (2026-07-27: ambas actualizadas a
+  **18**, `postgres:18-alpine`; antes estaban desalineadas entre sí,
+  `15-alpine` y `16-alpine` respectivamente). Un salto de versión mayor no es
+  compatible con el volumen de datos de una versión anterior (formato en
+  disco distinto) y, desde las imágenes 18+, tampoco con el layout previo de
+  mount (`/var/lib/postgresql/data`): requiere recrear el volumen de dev o
+  migrar con `pg_upgrade`, y ajustar el mount a `/var/lib/postgresql`.
 
 ## Referencias
 

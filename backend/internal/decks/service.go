@@ -65,12 +65,17 @@ func (s *service) CreateDeck(ctx context.Context, userID string, req CreateDeckR
 	if req.MoxfieldID != "" {
 		moxfieldID = pgtype.Text{String: req.MoxfieldID, Valid: true}
 	}
+	var imageURL pgtype.Text
+	if req.ImageURL != "" {
+		imageURL = pgtype.Text{String: req.ImageURL, Valid: true}
+	}
 
 	deck, err := s.repo.CreateDeck(ctx, CreateDeckParams{
 		UserID:     uid,
 		Name:       req.Name,
 		Commander:  req.Commander,
 		MoxfieldID: moxfieldID,
+		ImageUrl:   imageURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating deck: %w", err)
@@ -185,11 +190,17 @@ func (s *service) ImportFromMoxfield(
 		return nil, ErrNoCommander
 	}
 
+	var imageURL pgtype.Text
+	if moxDeck.ImageURL != "" {
+		imageURL = pgtype.Text{String: moxDeck.ImageURL, Valid: true}
+	}
+
 	deck, err := s.repo.CreateDeck(ctx, CreateDeckParams{
 		UserID:     uid,
 		Name:       moxDeck.Name,
 		Commander:  moxDeck.Commander,
 		MoxfieldID: pgtype.Text{String: moxDeck.PublicID, Valid: true},
+		ImageUrl:   imageURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("saving imported deck: %w", err)
@@ -225,12 +236,18 @@ func (s *service) ResyncFromMoxfield(
 		return nil, ErrNoCommander
 	}
 
-	changed := moxDeck.Name != deck.Name || moxDeck.Commander != deck.Commander
+	changed := moxDeck.Name != deck.Name || moxDeck.Commander != deck.Commander || moxDeck.ImageURL != deck.ImageUrl.String
+
+	var imageURL pgtype.Text
+	if moxDeck.ImageURL != "" {
+		imageURL = pgtype.Text{String: moxDeck.ImageURL, Valid: true}
+	}
 
 	updated, err := s.repo.UpdateDeckFromMoxfield(ctx, UpdateDeckFromMoxfieldParams{
 		ID:        deck.ID,
 		Name:      moxDeck.Name,
 		Commander: moxDeck.Commander,
+		ImageUrl:  imageURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("updating deck from moxfield: %w", err)
@@ -320,5 +337,6 @@ func toDeckResponse(deck *Deck) *DeckResponse {
 		Name:       deck.Name,
 		Commander:  deck.Commander,
 		MoxfieldID: deck.MoxfieldID.String,
+		ImageURL:   deck.ImageUrl.String,
 	}
 }

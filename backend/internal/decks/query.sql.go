@@ -12,9 +12,9 @@ import (
 )
 
 const createDeck = `-- name: CreateDeck :one
-INSERT INTO decks (user_id, name, commander, moxfield_id)
-VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at
+INSERT INTO decks (user_id, name, commander, moxfield_id, image_url)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url
 `
 
 type CreateDeckParams struct {
@@ -22,6 +22,7 @@ type CreateDeckParams struct {
 	Name       string      `json:"name"`
 	Commander  string      `json:"commander"`
 	MoxfieldID pgtype.Text `json:"moxfield_id"`
+	ImageUrl   pgtype.Text `json:"image_url"`
 }
 
 func (q *Queries) CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, error) {
@@ -30,6 +31,7 @@ func (q *Queries) CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, e
 		arg.Name,
 		arg.Commander,
 		arg.MoxfieldID,
+		arg.ImageUrl,
 	)
 	var i Deck
 	err := row.Scan(
@@ -40,6 +42,7 @@ func (q *Queries) CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, e
 		&i.MoxfieldID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImageUrl,
 	)
 	return i, err
 }
@@ -54,7 +57,7 @@ func (q *Queries) DeleteDeck(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getDeck = `-- name: GetDeck :one
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks WHERE id = $1 LIMIT 1
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDeck(ctx context.Context, id pgtype.UUID) (Deck, error) {
@@ -68,12 +71,13 @@ func (q *Queries) GetDeck(ctx context.Context, id pgtype.UUID) (Deck, error) {
 		&i.MoxfieldID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImageUrl,
 	)
 	return i, err
 }
 
 const getDeckByMoxfieldID = `-- name: GetDeckByMoxfieldID :one
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks
 WHERE user_id = $1 AND moxfield_id = $2
 ORDER BY created_at ASC
 LIMIT 1
@@ -98,12 +102,13 @@ func (q *Queries) GetDeckByMoxfieldID(ctx context.Context, arg GetDeckByMoxfield
 		&i.MoxfieldID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImageUrl,
 	)
 	return i, err
 }
 
 const listDecksPage = `-- name: ListDecksPage :many
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks
 WHERE user_id = $1
   AND (
     $2::timestamp IS NULL
@@ -145,6 +150,7 @@ func (q *Queries) ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([
 			&i.MoxfieldID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ImageUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -158,21 +164,27 @@ func (q *Queries) ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([
 
 const updateDeckFromMoxfield = `-- name: UpdateDeckFromMoxfield :one
 UPDATE decks
-SET name = $2, commander = $3, updated_at = now()
+SET name = $2, commander = $3, image_url = $4, updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at
+RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url
 `
 
 type UpdateDeckFromMoxfieldParams struct {
 	ID        pgtype.UUID `json:"id"`
 	Name      string      `json:"name"`
 	Commander string      `json:"commander"`
+	ImageUrl  pgtype.Text `json:"image_url"`
 }
 
-// Re-sincroniza nombre y comandante de un deck ya importado con lo que devuelve
-// Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
+// Re-sincroniza nombre, comandante e imagen de un deck ya importado con lo que
+// devuelve Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
 func (q *Queries) UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFromMoxfieldParams) (Deck, error) {
-	row := q.db.QueryRow(ctx, updateDeckFromMoxfield, arg.ID, arg.Name, arg.Commander)
+	row := q.db.QueryRow(ctx, updateDeckFromMoxfield,
+		arg.ID,
+		arg.Name,
+		arg.Commander,
+		arg.ImageUrl,
+	)
 	var i Deck
 	err := row.Scan(
 		&i.ID,
@@ -182,6 +194,7 @@ func (q *Queries) UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFrom
 		&i.MoxfieldID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImageUrl,
 	)
 	return i, err
 }

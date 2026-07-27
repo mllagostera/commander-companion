@@ -30,6 +30,7 @@ Table decks {
   name varchar [not null]
   commander varchar [not null]
   moxfield_id varchar
+  image_url varchar [note: 'Art crop del comandante (Moxfield), migración 00006_deck_image_url.sql']
   created_at timestamp [default: `now()`]
   updated_at timestamp
 
