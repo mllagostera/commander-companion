@@ -19,8 +19,12 @@ captures/
 .DS_Store
 Thumbs.db
 
-# --- Claude Code local settings ---
-.claude/settings.local.json
+# --- Herramientas de IA (config local, no se comparte vía git) ---
+.claude/
+.codegraph/
+.gemini/
+.mcp.json
+GEMINI.md
 
 # --- Entornos ---
 .env

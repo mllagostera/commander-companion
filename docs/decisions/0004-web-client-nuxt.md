@@ -66,9 +66,23 @@ más cómoda en pantallas grandes).
 ## Consecuencias
 
 - El cliente Nuxt necesita su propio proceso desplegado (a diferencia de un
-  SPA estático) — hay que decidir dónde/cómo correrlo en producción (Docker
-  propio, similar al de `backend/`, es la opción más consistente con el resto
-  del repo, pero no está decidido todavía).
+  SPA estático). **Resuelto (2026-07-27)**: `web/Dockerfile` (build Node 24
+  multi-stage, corre `node .output/server/index.mjs`) + `docker-compose.yml`
+  centralizado en la raíz del repo (antes vivía en `backend/`), con
+  servicios `db`/`api`/`web`. Verificado end-to-end: `docker compose up
+  --build`, migrar, registrar usuario, login y render SSR autenticado
+  funcionando contra la API real dentro de la red de Compose.
+  - Gotcha real encontrado y corregido: las llamadas SSR (ej. `GET /auth/me`
+    al cargar `/`) corren *dentro* del contenedor `web`, donde
+    `localhost:8080` no resuelve a la API — se separó `NUXT_API_BASE`
+    (hostname interno `http://api:8080/api/v1`, solo servidor) de
+    `NUXT_PUBLIC_API_BASE` (navegador, `http://localhost:8080/api/v1`).
+  - Gotcha real encontrado y corregido: `api` no esperaba a que Postgres
+    estuviera listo (`depends_on` sin condición) y crasheaba en un arranque
+    en frío — se agregó healthcheck (`pg_isready`) + `condition:
+    service_healthy`.
+  - Producción real (más allá de probar el stack en local) sigue sin
+    decidirse: dónde desplegar estos contenedores, TLS, dominio, etc.
 - Esqueleto inicial ya creado en `web/` (2026-07-27): Nuxt 4 + Tailwind +
   login (email/password + Google) + una pantalla protegida mínima. Sigue
   pendiente lo que dependía del backend de partidas/estadísticas: import de
