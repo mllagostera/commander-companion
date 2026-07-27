@@ -145,6 +145,7 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - [x] `.github/workflows/web-ci.yml` (2026-07-27): mismo patrón que `backend-ci.yml`/`android-ci.yml` — job `changes` con `dorny/paths-filter` sin filtro de path + `needs`/`if` en el resto, para que siempre reporte un check y pueda marcarse como required. Jobs: `eslint + typecheck + nuxt build` y `hadolint` sobre `web/Dockerfile` (verificado localmente, sale limpio)
 - [ ] Orden original acordado con el usuario (ya adelantado arriba): las pantallas de estadísticas muestran ceros hasta que haya partidas finalizadas reales (ver nota de alcance en Stage 7 y en "Wiring real" más abajo)
 - [ ] Pantallas de playgroups en el cliente web (y con ellas, `GET /statistics/playgroup/{id}`)
+- [ ] Mejoras visuales de la web (agregado 2026-07-27): pulir estilos y consistencia visual del cliente Nuxt (hoy funcional pero sin pasada de diseño dedicada) — sin alcance detallado todavía
 
 ## Stage 4: Cliente Android (base)
 
@@ -183,6 +184,7 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - [x] **`CommanderApi.kt` con endpoints reales** (2026-07-27, antes solo tenía `GET /health`): 15 métodos — `decks` (list/create/get/delete/import Moxfield), `games` (list/create/get/join/leave/start/finish), `game-actions` (recordAction/getTimeline), `statistics` (user/deck/playgroup). Usa el cliente HTTP autenticado de `NetworkModule` (`AuthInterceptor` + `AuthAuthenticator`, ver Stage 5). Los repositorios (`GameRepository`/`DeckRepository`) envuelven cada llamada con `apiCall { }` para traducir `HttpException`/`IOException` a `ApiError`
 - [x] `AuthApi.kt` nuevo (`data/remote/api/AuthApi.kt`), separado de `CommanderApi.kt` a propósito (evitar conflictos de merge con quien extienda decks/games/etc. en paralelo): cubre `login`/`google`/`refresh`/`logout`/`me` de `docs/api/openapi.yaml`, con sus DTOs en `data/remote/dto/AuthDto.kt`
 - [x] `GameState.kt` — modela vida, turno y daño de comandante por oponente para N jugadores (2-6). Veneno/energía/experiencia siguen sin modelar (no forman parte del alcance de esta pasada)
+- [ ] Mejora de la UI de la app Android (agregado 2026-07-27): revisión de diseño visual/Material 3 theming y consistencia entre pantallas — sin alcance detallado todavía
 
 ## Stage 5: Integración Android ↔ Backend
 
@@ -214,6 +216,15 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - [x] Endpoint `POST /decks/import/moxfield` implementado end-to-end: resuelve el ID (URL o bare ID), llama a Moxfield, crea el deck con `name`/`commander` reales y `moxfield_id` seteado. 404 si el deck de Moxfield no existe, 400 si no tiene comandante (deck no es de formato Commander). Probado contra la API real (dos decks públicos distintos, uno vía URL completa y otro vía ID)
 - [x] Imagen del deck importado (`decks.image_url`, migración `00006_deck_image_url.sql`): `internal/moxfield/client.go` toma el campo `main.id` de la respuesta de Moxfield (la carta que Moxfield destaca como portada del deck, normalmente el comandante) y arma `https://assets.moxfield.net/cards/card-{id}-art_crop.jpg` — el mismo art crop que Moxfield expone como su propio `og:image`. Persistido en `CreateDeck`/`UpdateDeckFromMoxfield`, expuesto en `DeckResponse.image_url` y mostrado como thumbnail en `web/app/pages/decks.vue` (deck importado y lista de decks guardados). Verificado end-to-end contra un deck público real (Playwright, captura del thumbnail renderizado)
 - [ ] Manejo de errores, rate limiting y reintentos ante la API externa — hoy cualquier error de red/parseo de Moxfield se propaga como 500 genérico; no hay retry ni backoff
+- [ ] Perfil de usuario: campo de usuario/username de Moxfield vinculado a la cuenta (agregado 2026-07-27) — hoy el import es deck por deck vía URL/ID pública, no hay un username de Moxfield guardado en el perfil del usuario
+- [ ] Tarea en background para importar todos los decks del usuario de forma asíncrona (agregado 2026-07-27): dado el username de Moxfield del perfil, traer y sincronizar todos sus decks públicos sin bloquear al usuario — candidato natural para el "Background Workers" que menciona la arquitectura aspiracional del [ROADMAP](ROADMAP.md), hoy sin implementar (las estadísticas se recalculan en-proceso, ver [ADR-0010](../decisions/0010-monolito-modular-vs-microservicios.md))
+
+## Stage 9: Social — amigos, grupos y torneos
+
+- [ ] Sistema de amigos: enviar/aceptar/rechazar solicitudes, listado de amigos — distinto de los `playgroups` ya implementados en Stage 1 (que son grupos de partida, no relaciones de amistad)
+- [ ] Agregar grupos más allá de los `playgroups` existentes, o extenderlos, según lo que requiera el flujo de torneos
+- [ ] Creación de torneos: entre amigos, entre grupos, o abiertos a desconocidos que se apunten (inscripción abierta)
+- [ ] Definir formato de torneo (bracket, suizo, liga, etc.) y el modelo de datos asociado antes de implementar
 
 ## Transversal (calidad, infraestructura, seguridad)
 
@@ -235,6 +246,10 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - [ ] Rate limiting en endpoints de auth
 - [ ] Registrar ADRs en `docs/decisions/` a medida que se tomen decisiones técnicas nuevas — práctica iniciada 2026-07-26 (ver ADR-0001 a 0004 en Stage 0), mantenerla para decisiones futuras
 - [ ] Limpieza de carpetas vacías/residuales: `docker/`, `scripts/`
+- [ ] Dependabot (agregado 2026-07-27): configurar `.github/dependabot.yml` para revisión automática de vulnerabilidades/actualizaciones en las 4 fuentes de dependencias del repo (Go modules en `backend/`, npm en `web/`, Gradle en `android/`, GitHub Actions)
+- [ ] Revisar los workflows de GitHub Actions para que un cambio que solo toca documentación no dispare las validaciones de backend/Android/web (agregado 2026-07-27) — hoy los 4 workflows usan el mismo patrón `changes` (`dorny/paths-filter`) + `needs`/`if` por job (ver nota en este mismo apartado más arriba); falta confirmar/ajustar que un PR que solo toca `docs/**`/`*.md` corra únicamente los checks de `docs-ci.yml` y no también los de `backend-ci.yml`/`android-ci.yml`/`web-ci.yml`
+- [ ] Actualización y simplificación de la documentación de `docs/` (agregado 2026-07-27): auditar y reducir duplicación/extensión entre ROADMAP, TASKS, ADRs y diagramas (hoy hay bastante redundancia acumulada entre revisiones) sin perder la trazabilidad histórica de decisiones ya tomadas
+- [ ] Definir stack de infraestructura de despliegue (agregado 2026-07-27) — evaluar opciones y documentar la decisión final como ADR en `docs/decisions/`. Propuesta inicial (Opción 1, ver [ROADMAP.md](ROADMAP.md#infraestructura-de-despliegue-pendiente-de-decisión)): PaaS moderna/serverless — frontend en Vercel/Cloudflare Pages, backend en Fly.io/Render, base de datos en Neon/Supabase (Postgres serverless); recomendada para MVP rápido y coste cero. Faltan comparar alternativas antes de decidir
 
 ---
 
