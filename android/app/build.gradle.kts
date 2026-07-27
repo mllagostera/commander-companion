@@ -67,6 +67,14 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    testOptions {
+        unitTests {
+            // Los tests unitarios tocan tipos con dependencias sueltas del framework
+            // (p. ej. android.util.Log vía Room/Compose); sin esto lanzan RuntimeException
+            // "not mocked" en vez de devolver el default del tipo.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -110,6 +118,8 @@ dependencies {
     implementation(libs.googleid)
 
     testImplementation(libs.junit)
+    // runTest + Dispatchers.setMain para testear ViewModels y repositorios con corrutinas.
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -52,6 +52,8 @@ fun GameTrackerScreen(
             }
         }
 
+        RemoteSyncBanner(state.remoteSync)
+
         // Dynamic player grid: rows of up to 2 players, works for 2-6 players
         Column(modifier = Modifier.weight(1f)) {
             state.players.chunked(2).forEach { row ->
@@ -107,4 +109,40 @@ fun GameTrackerScreen(
             }
         )
     }
+}
+
+/**
+ * Franja informativa del estado de sincronización con el backend.
+ *
+ * Deliberadamente no bloquea nada: la partida se juega igual en local, así que solo se muestra
+ * cuando hay algo que contar (no en [RemoteSyncStatus.Synced], que es el caso silencioso).
+ */
+@Composable
+private fun RemoteSyncBanner(remoteSync: RemoteSyncState) {
+    val label = when (remoteSync.status) {
+        RemoteSyncStatus.Connecting -> "Creando la partida en el servidor…"
+        RemoteSyncStatus.Synced -> null
+        RemoteSyncStatus.Disabled,
+        RemoteSyncStatus.WaitingForPlayers,
+        RemoteSyncStatus.Failed -> remoteSync.message
+    } ?: return
+
+    val container = when (remoteSync.status) {
+        RemoteSyncStatus.Failed -> MaterialTheme.colorScheme.errorContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val content = when (remoteSync.status) {
+        RemoteSyncStatus.Failed -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Text(
+        text = label,
+        style = MaterialTheme.typography.bodySmall,
+        color = content,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(container)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    )
 }
