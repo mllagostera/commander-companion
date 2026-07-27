@@ -8,6 +8,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CommanderDamage struct {
+	GameID     pgtype.UUID `json:"game_id"`
+	AttackerID pgtype.UUID `json:"attacker_id"`
+	DefenderID pgtype.UUID `json:"defender_id"`
+	Amount     int32       `json:"amount"`
+}
+
 type Deck struct {
 	ID         pgtype.UUID      `json:"id"`
 	UserID     pgtype.UUID      `json:"user_id"`
