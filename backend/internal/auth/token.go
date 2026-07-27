@@ -58,6 +58,16 @@ func parseAccessToken(secret []byte, tokenString string) (string, error) {
 	return claims.Subject, nil
 }
 
+// VerifyAccessToken valida la firma y expiración de un access token JWT y devuelve el
+// user ID (subject). Expuesto (a diferencia de parseAccessToken) para que módulos que no
+// pueden autenticar vía el header Authorization de una request HTTP normal —como
+// internal/websocket, donde el handshake lo hace el propio navegador y no puede
+// adjuntar headers custom— puedan validar el mismo access token sin reimplementar la
+// verificación de firma/expiración. Ver ADR-0005.
+func VerifyAccessToken(secret []byte, tokenString string) (string, error) {
+	return parseAccessToken(secret, tokenString)
+}
+
 // newRefreshTokenPlain genera un refresh token opaco (no JWT) criptográficamente aleatorio.
 func newRefreshTokenPlain() (string, error) {
 	buf := make([]byte, refreshTokenBytes)

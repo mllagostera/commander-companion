@@ -21,6 +21,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/statistics"
 	"github.com/usuario/commander-companion-backend/internal/sync"
 	"github.com/usuario/commander-companion-backend/internal/users"
+	"github.com/usuario/commander-companion-backend/internal/websocket"
 )
 
 const (
@@ -161,10 +162,18 @@ func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	statisticsService := statistics.NewService(db.Pool)
 	statistics.NewHandler(statisticsService).RegisterRoutes(protected)
 
-	gamesService := games.NewService(db.Pool, statisticsService)
+	// wsHub retransmite en vivo los game_actions de una partida a todos los clientes
+	// conectados a ella (ver ADR-0005). Se inyecta en games/game-actions como
+	// Broadcaster, sin que esos paquetes dependan de internal/websocket (mismo patrón
+	// que statisticsService como StatisticsRecalculator). La ruta de WebSocket es
+	// pública (sin auth.RequireAuth): autentica por mensaje inicial, no por header.
+	wsHub := websocket.NewHub()
+	websocket.RegisterRoutes(api, wsHub, authCfg.JWTSecret)
+
+	gamesService := games.NewService(db.Pool, statisticsService, wsHub)
 	games.NewHandler(gamesService).RegisterRoutes(protected)
 
-	gameActionsService := gameactions.NewService(db.Pool)
+	gameActionsService := gameactions.NewService(db.Pool, wsHub)
 	gameactions.NewHandler(gameActionsService).RegisterRoutes(protected)
 
 	syncService := sync.NewService(db.Pool)
