@@ -44,6 +44,16 @@ func isValidActionType(actionType string) bool {
 // ErrGameNotFound indica que la partida no existe.
 var ErrGameNotFound = errors.New("game not found")
 
+// Broadcaster es lo que game-actions necesita para retransmitir en vivo, por
+// WebSocket, una acción recién registrada a los clientes conectados a esa partida
+// (permite mockearlo en tests y evita que este paquete dependa de internal/websocket,
+// mismo patrón que games.StatisticsRecalculator). El broadcast es best-effort y
+// asíncrono: la implementación nunca debe bloquear ni fallar RecordAction. Ver
+// ADR-0005 (docs/decisions/0005-websocket-protocol.md).
+type Broadcaster interface {
+	BroadcastAction(gameID string, action *GameActionResponse)
+}
+
 // Service define la lógica de negocio del módulo game-actions.
 type Service interface {
 	RecordAction(ctx context.Context, gameID string, req CreateActionRequest) (*GameActionResponse, error)
@@ -51,12 +61,13 @@ type Service interface {
 }
 
 type service struct {
-	repo *Queries
+	repo        *Queries
+	broadcaster Broadcaster
 }
 
 // NewService crea un nuevo servicio de game-actions.
-func NewService(db *pgxpool.Pool) Service {
-	return &service{repo: New(db)}
+func NewService(db *pgxpool.Pool, broadcaster Broadcaster) Service {
+	return &service{repo: New(db), broadcaster: broadcaster}
 }
 
 // RecordAction registra una nueva acción (LifeChange, CombatDamage, CommanderDamage,
@@ -100,7 +111,9 @@ func (s *service) RecordAction(
 		return nil, fmt.Errorf("recording action: %w", err)
 	}
 
-	return toGameActionResponse(&action), nil
+	res := toGameActionResponse(&action)
+	s.broadcaster.BroadcastAction(gameID, res)
+	return res, nil
 }
 
 // resolveActiveGame valida que la partida exista y esté activa, y devuelve su ID parseado.

@@ -17,10 +17,24 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
+// noopBroadcaster satisface tanto games.Broadcaster como gameactions.Broadcaster sin
+// retransmitir nada de verdad: estos tests no ejercitan internal/websocket, solo
+// necesitan que la dependencia esté presente para poder construir los servicios.
+type noopBroadcaster struct{}
+
+func (noopBroadcaster) BroadcastGameFinished(_ string)                              {}
+func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionResponse) {}
+
 // newGamesSvc crea un games.Service con el recalculador de estadísticas real
 // (sobre el mismo pool), así FinishGame ejercita el flujo completo en los tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
-	return games.NewService(pool, statistics.NewService(pool))
+	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{})
+}
+
+// newActionsSvc crea un gameactions.Service con un Broadcaster noop (estos tests no
+// ejercitan internal/websocket).
+func newActionsSvc(pool *pgxpool.Pool) gameactions.Service {
+	return gameactions.NewService(pool, noopBroadcaster{})
 }
 
 // Vocabulario de action_type que entiende el motor (ver game-actions/service.go);
@@ -90,7 +104,7 @@ func setupActiveGame(t *testing.T, pool *pgxpool.Pool) (
 	usersSvc := users.NewService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	gamesSvc = newGamesSvc(pool)
-	actionsSvc = gameactions.NewService(pool)
+	actionsSvc = newActionsSvc(pool)
 
 	user1, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "p1-" + t.Name(), Email: "p1-" + t.Name() + "@example.com", Password: testPassword,
@@ -305,7 +319,7 @@ func TestRecordAction_GameNotActive_ReturnsConflict(t *testing.T) {
 	usersSvc := users.NewService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	gamesSvc := newGamesSvc(pool)
-	actionsSvc := gameactions.NewService(pool)
+	actionsSvc := newActionsSvc(pool)
 
 	user, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "pending-actor", Email: "pending-actor@example.com", Password: testPassword,
@@ -339,7 +353,7 @@ func TestRecordAction_UnknownGame_ReturnsNotFound(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
 
-	actionsSvc := gameactions.NewService(pool)
+	actionsSvc := newActionsSvc(pool)
 	req := gameactions.CreateActionRequest{
 		ActorID:    "00000000-0000-0000-0000-000000000000",
 		ActionType: actionTypeTurnStart,
@@ -398,7 +412,7 @@ func TestGetTimeline_UnknownGame_ReturnsNotFound(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
 
-	actionsSvc := gameactions.NewService(pool)
+	actionsSvc := newActionsSvc(pool)
 	_, err := actionsSvc.GetTimeline(context.Background(), "00000000-0000-0000-0000-000000000000")
 	if !errors.Is(err, gameactions.ErrGameNotFound) {
 		t.Fatalf("GetTimeline() en partida inexistente: error = %v, want ErrGameNotFound", err)

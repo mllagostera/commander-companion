@@ -27,6 +27,14 @@ func (noopMoxfieldClient) GetDeck(_ context.Context, _ string) (*moxfield.Deck, 
 	return nil, nil //nolint:nilnil // stub nunca invocado en estos tests
 }
 
+// noopBroadcaster satisface tanto games.Broadcaster como gameactions.Broadcaster sin
+// retransmitir nada de verdad: estos tests no ejercitan internal/websocket, solo
+// necesitan que la dependencia esté presente para poder construir los servicios.
+type noopBroadcaster struct{}
+
+func (noopBroadcaster) BroadcastGameFinished(_ string)                              {}
+func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionResponse) {}
+
 func truncateStatsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	// "games"/"playgroups" limpian por CASCADE game_players/game_actions/playgroup_members;
@@ -56,8 +64,8 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, playgroupID string) *t
 	usersSvc := users.NewService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	statsSvc := statistics.NewService(pool)
-	gamesSvc := games.NewService(pool, statsSvc)
-	actionsSvc := gameactions.NewService(pool)
+	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{})
+	actionsSvc := gameactions.NewService(pool, noopBroadcaster{})
 
 	user1, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "p1-" + t.Name(), Email: "p1-" + t.Name() + "@example.com", Password: testPassword,
@@ -288,7 +296,7 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	usersSvc := users.NewService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	statsSvc := statistics.NewService(pool)
-	gamesSvc := games.NewService(pool, statsSvc)
+	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{})
 
 	opponent, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "opponent-" + t.Name(), Email: "opponent-" + t.Name() + "@example.com", Password: testPassword,

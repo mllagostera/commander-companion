@@ -27,10 +27,17 @@ func (m noopMoxfieldClient) GetDeck(_ context.Context, _ string) (*moxfield.Deck
 	return m.deck, m.err
 }
 
+// noopBroadcaster satisface games.Broadcaster sin retransmitir nada de verdad: estos
+// tests no ejercitan internal/websocket, solo necesitan que la dependencia esté
+// presente para poder construir el servicio.
+type noopBroadcaster struct{}
+
+func (noopBroadcaster) BroadcastGameFinished(_ string) {}
+
 // newGamesSvc crea un games.Service con el recalculador de estadísticas real
 // (sobre el mismo pool), así FinishGame ejercita el flujo completo en los tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
-	return games.NewService(pool, statistics.NewService(pool))
+	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{})
 }
 
 func truncateGamesTables(t *testing.T, pool *pgxpool.Pool) {

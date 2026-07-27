@@ -31,6 +31,14 @@ type StatisticsRecalculator interface {
 	RecalculateForGame(ctx context.Context, gameID string) error
 }
 
+// Broadcaster es lo que games necesita para avisar en vivo, por WebSocket, que una
+// partida terminó (permite mockearlo en tests y evita que este paquete dependa de
+// internal/websocket, mismo patrón que StatisticsRecalculator). Ver ADR-0005
+// (docs/decisions/0005-websocket-protocol.md).
+type Broadcaster interface {
+	BroadcastGameFinished(gameID string)
+}
+
 // Service define la lógica de negocio del módulo games.
 type Service interface {
 	CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error)
@@ -43,13 +51,14 @@ type Service interface {
 }
 
 type service struct {
-	repo  *Queries
-	stats StatisticsRecalculator
+	repo        *Queries
+	stats       StatisticsRecalculator
+	broadcaster Broadcaster
 }
 
 // NewService crea un nuevo servicio de games.
-func NewService(db *pgxpool.Pool, stats StatisticsRecalculator) Service {
-	return &service{repo: New(db), stats: stats}
+func NewService(db *pgxpool.Pool, stats StatisticsRecalculator, broadcaster Broadcaster) Service {
+	return &service{repo: New(db), stats: stats, broadcaster: broadcaster}
 }
 
 // CreateGame crea una nueva partida en estado pending.
@@ -247,6 +256,8 @@ func (s *service) FinishGame(ctx context.Context, gameID string) (*GameResponse,
 	if err := s.stats.RecalculateForGame(ctx, gameID); err != nil {
 		return nil, fmt.Errorf("recalculating statistics: %w", err)
 	}
+
+	s.broadcaster.BroadcastGameFinished(gameID)
 
 	return toGameResponse(&finished, nil), nil
 }
