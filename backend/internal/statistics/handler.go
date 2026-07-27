@@ -1,8 +1,6 @@
 package statistics
 
 import (
-	"errors"
-
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
@@ -30,7 +28,7 @@ func (h *Handler) GetUserStats(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetUserStats(c.Context(), userID)
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.JSON(res)
 }
@@ -40,7 +38,7 @@ func (h *Handler) GetDeckStats(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetDeckStats(c.Context(), userID, c.Params("id"))
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.JSON(res)
 }
@@ -49,14 +47,7 @@ func (h *Handler) GetDeckStats(c *fiber.Ctx) error {
 func (h *Handler) GetPlaygroupStats(c *fiber.Ctx) error {
 	res, err := h.svc.GetPlaygroupStats(c.Context(), c.Params("id"))
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.JSON(res)
-}
-
-func mapError(err error) error {
-	if errors.Is(err, ErrDeckNotFound) {
-		return fiber.NewError(fiber.StatusNotFound, err.Error())
-	}
-	return err
 }

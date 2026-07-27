@@ -1,6 +1,8 @@
 package com.commandercompanion.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.ExperimentalSafeArgsApi
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -17,18 +19,23 @@ import com.commandercompanion.presentation.screens.setup.PlayerSetupScreen
 @OptIn(ExperimentalSafeArgsApi::class)
 @Composable
 fun AppNavigation(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    sessionViewModel: SessionViewModel = hiltViewModel()
 ) {
+    // Refresh de token fallido (token robado/expirado/revocado) en cualquier pantalla -> Login.
+    LaunchedEffect(Unit) {
+        sessionViewModel.forcedLogoutEvents.collect {
+            navController.navigate(LoginRoute) { popUpTo(0) { inclusive = true } }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = LoginRoute
     ) {
         composable<LoginRoute> {
             LoginScreen(
-                onLoginWithPassword = { _, _ ->
-                    navController.navigate(DashboardRoute) { popUpTo(LoginRoute) { inclusive = true } }
-                },
-                onLoginWithGoogle = {
+                onLoginSuccess = {
                     navController.navigate(DashboardRoute) { popUpTo(LoginRoute) { inclusive = true } }
                 }
             )
@@ -36,7 +43,10 @@ fun AppNavigation(
         composable<DashboardRoute> {
             DashboardScreen(
                 onNewGame = { navController.navigate(PlayerSetupRoute) },
-                onViewHistory = { navController.navigate(HistoryRoute) }
+                onViewHistory = { navController.navigate(HistoryRoute) },
+                onLogout = {
+                    navController.navigate(LoginRoute) { popUpTo(0) { inclusive = true } }
+                }
             )
         }
         composable<PlayerSetupRoute> {

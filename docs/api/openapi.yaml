@@ -12,6 +12,28 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    CursorParam:
+      in: query
+      name: cursor
+      required: false
+      description: >-
+        Cursor opaco devuelto como `next_cursor` por la página anterior. Se
+        devuelve tal cual, sin interpretarlo. Omitirlo pide la primera página.
+      schema:
+        type: string
+    LimitParam:
+      in: query
+      name: limit
+      required: false
+      description: >-
+        Cantidad máxima de elementos por página. Por encima del máximo se recorta
+        en silencio.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
   schemas:
     User:
       type: object
@@ -99,6 +121,20 @@ components:
         moxfield_id:
           type: string
           nullable: true
+    DeckListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Deck'
+        next_cursor:
+          type: string
+          nullable: true
+          description: >-
+            Cursor a pasar como query param `cursor` para pedir la página
+            siguiente. Es null en la última página.
     CreateDeckRequest:
       type: object
       required: [name, commander]
@@ -109,6 +145,34 @@ components:
           type: string
         moxfield_id:
           type: string
+    SyncRequest:
+      type: object
+      required: [moxfield_id]
+      properties:
+        moxfield_id:
+          type: string
+          description: ID público del deck en Moxfield, o su URL completa.
+    SyncResponse:
+      type: object
+      required: [status, deck, last_synced_at]
+      properties:
+        status:
+          type: string
+          enum: [updated, unchanged, synced, never_synced]
+          description: >-
+            En POST /sync/moxfield: `updated` si Moxfield traía cambios,
+            `unchanged` si no. En GET /sync/status: `synced` si el deck tiene un
+            sync previo registrado, `never_synced` si se importó y nunca se
+            re-sincronizó.
+        deck:
+          $ref: '#/components/schemas/Deck'
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Momento del último sync exitoso. Es null solo cuando el deck se
+            importó y nunca se re-sincronizó.
     ImportMoxfieldRequest:
       type: object
       required: [url]
@@ -141,6 +205,20 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GamePlayer'
+    GameListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Game'
+        next_cursor:
+          type: string
+          nullable: true
+          description: >-
+            Cursor a pasar como query param `cursor` para pedir la página
+            siguiente. Es null en la última página.
     CreateGameRequest:
       type: object
       properties:
@@ -333,6 +411,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/login:
     post:
       summary: Iniciar sesión con email y password
@@ -352,6 +436,12 @@ paths:
                 $ref: '#/components/schemas/TokenResponse'
         '401':
           description: Credenciales inválidas, o la cuenta usa Google sign-in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
           content:
             application/json:
               schema:
@@ -385,6 +475,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/refresh:
     post:
       summary: Refrescar token
@@ -404,6 +500,12 @@ paths:
                 $ref: '#/components/schemas/TokenResponse'
         '401':
           description: Refresh token inválido, expirado o ya revocado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
           content:
             application/json:
               schema:
@@ -553,15 +655,26 @@ paths:
   /decks:
     get:
       summary: Listar decks
+      description: >-
+        Devuelve una página de los decks del usuario autenticado, del más reciente
+        al más viejo. La paginación es cursor-based (keyset sobre created_at + id):
+        se sigue `next_cursor` hasta que venga null.
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
       responses:
         '200':
-          description: Lista de decks del usuario autenticado
+          description: Página de decks del usuario autenticado
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Deck'
+                $ref: '#/components/schemas/DeckListResponse'
+        '400':
+          description: cursor o limit inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Crear deck manualmente
       requestBody:
@@ -662,9 +775,26 @@ paths:
   /games:
     get:
       summary: Listar partidas
+      description: >-
+        Devuelve una página del historial de partidas, de la más reciente a la más
+        vieja. La paginación es cursor-based (keyset sobre created_at + id): se
+        sigue `next_cursor` hasta que venga null.
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
       responses:
         '200':
-          description: Historial de partidas
+          description: Página del historial de partidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameListResponse'
+        '400':
+          description: cursor o limit inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Crear partida
       requestBody:
@@ -916,13 +1046,72 @@ paths:
 
   /sync/moxfield:
     post:
-      summary: Iniciar sincronización con Moxfield
-      responses:
-        '202':
-          description: Sincronización en proceso
-  /sync/status:
-    get:
-      summary: Obtener estado de la sincronización
+      summary: Re-sincronizar un deck ya importado con Moxfield
+      description: >-
+        Vuelve a consultar Moxfield para un deck que el usuario YA importó y
+        actualiza su nombre y comandante si cambiaron. Es la contraparte de
+        `/decks/import/moxfield`, que crea un deck nuevo.
+
+
+        La operación es síncrona: responde 200 con el resultado ya aplicado, no
+        202 con un job. No existe un modelo de jobs en background (ver
+        `internal/sync/service.go`), por eso tampoco hay `job_id`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncRequest'
       responses:
         '200':
-          description: Estado actual
+          description: Sincronización aplicada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+        '400':
+          description: moxfield_id faltante o mal formado, o el deck de Moxfield ya no tiene comandante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: >-
+            El usuario autenticado no tiene importado ningún deck con ese
+            moxfield_id, o el deck ya no existe en Moxfield
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /sync/status:
+    get:
+      summary: Obtener el estado de sincronización de un deck
+      description: >-
+        Devuelve el estado guardado del deck importado, sin llamar a Moxfield:
+        cómo está guardado ahora y cuándo fue su último sync.
+      parameters:
+        - in: query
+          name: moxfield_id
+          required: true
+          description: ID público del deck en Moxfield (o su URL completa).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Estado de sincronización del deck
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+        '400':
+          description: moxfield_id faltante o mal formado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El usuario autenticado no tiene importado ningún deck con ese moxfield_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

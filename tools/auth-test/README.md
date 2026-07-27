@@ -11,7 +11,8 @@ desde la app Android/web real.
 ## Cómo usarla
 
 1. Levantá el backend (con Postgres migrado) y anotá su URL, por ejemplo
-   `http://localhost:8080`. Ver `backend/README` / `backend/docker-compose.yml`.
+   `http://localhost:8080`. Ver `backend/README.md` o el `docker-compose.yml`
+   en la raíz del repo.
 
 2. Servila con cualquier servidor estático simple (Google Identity Services
    no funciona abriendo el archivo directo con `file://`, necesita un origin

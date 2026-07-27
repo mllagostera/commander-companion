@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -41,8 +40,34 @@ func isValidActionType(actionType string) bool {
 	}
 }
 
-// ErrGameNotFound indica que la partida no existe.
-var ErrGameNotFound = errors.New("game not found")
+var (
+	// ErrGameNotFound indica que la partida no existe.
+	ErrGameNotFound = common.NotFound("game not found")
+	// ErrPlayerNotInGame indica que el actor/target indicado no tiene asiento en esa partida.
+	ErrPlayerNotInGame = common.NotFound("player not found in this game")
+	// ErrInvalidActionType indica que el action_type no pertenece al vocabulario soportado.
+	ErrInvalidActionType = common.InvalidInput("invalid action_type")
+	// ErrInvalidActorID indica que el actor_id recibido no es un UUID válido.
+	ErrInvalidActorID = common.InvalidInput("invalid actor_id")
+	// ErrInvalidTargetID indica que el target_id recibido no es un UUID válido.
+	ErrInvalidTargetID = common.InvalidInput("invalid target_id")
+	// ErrAmountRequired indica que la acción necesita un payload.amount y no lo trae.
+	ErrAmountRequired = common.InvalidInput("payload.amount is required")
+	// ErrAmountNotNumeric indica que payload.amount no es un número.
+	ErrAmountNotNumeric = common.InvalidInput("payload.amount must be a number")
+	// ErrGameNotActive indica que solo se pueden registrar acciones en una partida activa.
+	ErrGameNotActive = common.Conflict("game is not active")
+)
+
+// Broadcaster es lo que game-actions necesita para retransmitir en vivo, por
+// WebSocket, una acción recién registrada a los clientes conectados a esa partida
+// (permite mockearlo en tests y evita que este paquete dependa de internal/websocket,
+// mismo patrón que games.StatisticsRecalculator). El broadcast es best-effort y
+// asíncrono: la implementación nunca debe bloquear ni fallar RecordAction. Ver
+// ADR-0005 (docs/decisions/0005-websocket-protocol.md).
+type Broadcaster interface {
+	BroadcastAction(gameID string, action *GameActionResponse)
+}
 
 // Service define la lógica de negocio del módulo game-actions.
 type Service interface {
@@ -51,12 +76,13 @@ type Service interface {
 }
 
 type service struct {
-	repo *Queries
+	repo        *Queries
+	broadcaster Broadcaster
 }
 
 // NewService crea un nuevo servicio de game-actions.
-func NewService(db *pgxpool.Pool) Service {
-	return &service{repo: New(db)}
+func NewService(db *pgxpool.Pool, broadcaster Broadcaster) Service {
+	return &service{repo: New(db), broadcaster: broadcaster}
 }
 
 // RecordAction registra una nueva acción (LifeChange, CombatDamage, CommanderDamage,
@@ -66,7 +92,7 @@ func (s *service) RecordAction(
 	ctx context.Context, gameID string, req CreateActionRequest,
 ) (*GameActionResponse, error) {
 	if !isValidActionType(req.ActionType) {
-		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid action_type")
+		return nil, ErrInvalidActionType
 	}
 
 	gid, err := s.resolveActiveGame(ctx, gameID)
@@ -100,7 +126,9 @@ func (s *service) RecordAction(
 		return nil, fmt.Errorf("recording action: %w", err)
 	}
 
-	return toGameActionResponse(&action), nil
+	res := toGameActionResponse(&action)
+	s.broadcaster.BroadcastAction(gameID, res)
+	return res, nil
 }
 
 // resolveActiveGame valida que la partida exista y esté activa, y devuelve su ID parseado.
@@ -118,7 +146,7 @@ func (s *service) resolveActiveGame(ctx context.Context, gameID string) (pgtype.
 		return pgtype.UUID{}, fmt.Errorf("looking up game: %w", err)
 	}
 	if game.Status != statusActive {
-		return pgtype.UUID{}, fiber.NewError(fiber.StatusConflict, "game is not active")
+		return pgtype.UUID{}, ErrGameNotActive
 	}
 	return gid, nil
 }
@@ -131,7 +159,7 @@ func (s *service) resolveActionSubject(
 ) (actorID pgtype.UUID, subject *GamePlayer, targetID pgtype.UUID, err error) {
 	actorID, err = common.ParseUUID(req.ActorID)
 	if err != nil {
-		return pgtype.UUID{}, nil, pgtype.UUID{}, fiber.NewError(fiber.StatusBadRequest, "invalid actor_id")
+		return pgtype.UUID{}, nil, pgtype.UUID{}, ErrInvalidActorID
 	}
 	actor, err := s.getGamePlayer(ctx, gid, actorID)
 	if err != nil {
@@ -144,7 +172,7 @@ func (s *service) resolveActionSubject(
 
 	targetID, err = common.ParseUUID(req.TargetID)
 	if err != nil {
-		return pgtype.UUID{}, nil, pgtype.UUID{}, fiber.NewError(fiber.StatusBadRequest, "invalid target_id")
+		return pgtype.UUID{}, nil, pgtype.UUID{}, ErrInvalidTargetID
 	}
 	target, err := s.getGamePlayer(ctx, gid, targetID)
 	if err != nil {
@@ -212,7 +240,7 @@ func (s *service) applyAction(
 		// Marcadores de log puro: el esquema no trackea de quién es el turno actual.
 		return nil
 	default:
-		return fiber.NewError(fiber.StatusBadRequest, "invalid action_type")
+		return ErrInvalidActionType
 	}
 }
 
@@ -253,12 +281,12 @@ func (s *service) getGamePlayer(ctx context.Context, gameID, playerID pgtype.UUI
 	player, err := s.repo.GetGamePlayer(ctx, playerID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fiber.NewError(fiber.StatusNotFound, "player not found in this game")
+			return nil, ErrPlayerNotInGame
 		}
 		return nil, fmt.Errorf("looking up game player: %w", err)
 	}
 	if player.GameID != gameID {
-		return nil, fiber.NewError(fiber.StatusNotFound, "player not found in this game")
+		return nil, ErrPlayerNotInGame
 	}
 	return &player, nil
 }
@@ -266,11 +294,11 @@ func (s *service) getGamePlayer(ctx context.Context, gameID, playerID pgtype.UUI
 func payloadAmount(payload map[string]interface{}) (int32, error) {
 	raw, ok := payload["amount"]
 	if !ok {
-		return 0, fiber.NewError(fiber.StatusBadRequest, "payload.amount is required")
+		return 0, ErrAmountRequired
 	}
 	amount, ok := raw.(float64)
 	if !ok {
-		return 0, fiber.NewError(fiber.StatusBadRequest, "payload.amount must be a number")
+		return 0, ErrAmountNotNumeric
 	}
 	return int32(amount), nil
 }

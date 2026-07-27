@@ -17,7 +17,10 @@ type Querier interface {
 	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
 	ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
-	ListGames(ctx context.Context) ([]Game, error)
+	// Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
+	// devuelve la primera página; con cursor, las filas estrictamente posteriores en
+	// el orden de la lista. Ver internal/common/pagination.go.
+	ListGamesPage(ctx context.Context, arg ListGamesPageParams) ([]Game, error)
 	RemoveGamePlayer(ctx context.Context, arg RemoveGamePlayerParams) error
 	StartGame(ctx context.Context, id pgtype.UUID) (Game, error)
 }

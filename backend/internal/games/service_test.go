@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	"github.com/usuario/commander-companion-backend/internal/games"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
@@ -27,10 +28,17 @@ func (m noopMoxfieldClient) GetDeck(_ context.Context, _ string) (*moxfield.Deck
 	return m.deck, m.err
 }
 
+// noopBroadcaster satisface games.Broadcaster sin retransmitir nada de verdad: estos
+// tests no ejercitan internal/websocket, solo necesitan que la dependencia esté
+// presente para poder construir el servicio.
+type noopBroadcaster struct{}
+
+func (noopBroadcaster) BroadcastGameFinished(_ string) {}
+
 // newGamesSvc crea un games.Service con el recalculador de estadísticas real
 // (sobre el mismo pool), así FinishGame ejercita el flujo completo en los tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
-	return games.NewService(pool, statistics.NewService(pool))
+	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{})
 }
 
 func truncateGamesTables(t *testing.T, pool *pgxpool.Pool) {
@@ -65,10 +73,14 @@ func createUserAndDeck(t *testing.T, pool *pgxpool.Pool, email string) (userID, 
 	return user.ID, deck.ID
 }
 
+// asFiberError traduce el error de dominio que devuelve el service a su equivalente
+// HTTP con common.MapError (los services ya no dependen de fiber, ver
+// internal/common/errors.go), para poder seguir verificando el status code que ve
+// el cliente.
 func asFiberError(t *testing.T, err error) *fiber.Error {
 	t.Helper()
 	var fiberErr *fiber.Error
-	if !errors.As(err, &fiberErr) {
+	if !errors.As(common.MapError(err), &fiberErr) {
 		t.Fatalf("error = %v (%T), want *fiber.Error", err, err)
 	}
 	return fiberErr

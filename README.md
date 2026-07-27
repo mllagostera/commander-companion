@@ -28,6 +28,11 @@ commander-companion/
 │       ├── domain/       # casos de uso e interfaces de repos (por crear)
 │       ├── presentation/ # screens, viewmodels, navegación, tema
 │       └── core/         # DI (Hilt) y utilidades
+├── web/                  # Cliente web (Nuxt 4 SSR + Tailwind), ver ADR-0004
+│   └── app/              # srcDir de Nuxt 4
+│       ├── pages/        # login.vue (email/password + Google), index.vue (protegida)
+│       ├── composables/  # useAuth.ts (sesión), useGoogleIdentity.ts
+│       └── middleware/   # auth.global.ts (guard de rutas)
 ├── docs/
 │   ├── roadmap/          # ROADMAP.md (visión/etapas) y TASKS.md (checklist de progreso)
 │   ├── architecture/     # ARCHITECTURE.md (principios y patrones)
@@ -35,9 +40,10 @@ commander-companion/
 │   ├── api/               # openapi.yaml (fuente de verdad del contrato REST)
 │   ├── decisions/        # ADRs (decisiones técnicas)
 │   ├── diagrams/         # diagramas Mermaid adicionales
-│   ├── ux/                # wireframes
-│   └── frontend/          # notas específicas de cliente
-├── docker/               # (vacío por ahora; docker-compose vive en backend/)
+│   ├── ux/                # casos-de-uso.md, wireframes.md
+│   └── frontend/          # notas específicas de cliente (vacío por ahora)
+├── docker/               # (vacío por ahora)
+├── docker-compose.yml    # db + api + web, para probar el stack completo local
 └── scripts/              # (vacío por ahora)
 ```
 
@@ -80,13 +86,22 @@ Regla: si vas a cambiar cómo se comunican backend y Android, edita primero `ope
 
 En `.github/workflows/` hay tres pipelines que corren en cada push/PR (filtrados por path, solo se disparan si tocas la carpeta relevante):
 
-- **`backend-ci.yml`**: gofmt + `go vet`, `golangci-lint`, verifica que `sqlc generate` no deje diffs sin commitear, build + `go test -race` + aplica las migraciones goose contra un Postgres real del job, y `hadolint` sobre el `Dockerfile`.
+- **`backend-ci.yml`**: gofmt + `go vet`, `golangci-lint`, verifica que `sqlc generate` no deje diffs sin commitear, build + `go test -race` + aplica las migraciones goose contra un Postgres real del job, y `hadolint` sobre `backend/Dockerfile`.
 - **`android-ci.yml`**: Android Lint, tests unitarios (`testDebugUnitTest`), `assembleDebug`.
 - **`docs-ci.yml`**: valida que las fuentes de verdad sigan siendo válidas — Spectral lint sobre `openapi.yaml` y `schema.dbml` compilando a SQL.
+
+No existe todavía un `web-ci.yml`: `web/Dockerfile` no tiene lint (`hadolint`) ni build check en CI, a diferencia de `backend/Dockerfile`.
 
 Antes de dar una tarea por terminada, estos gates deben pasar en local (o al menos no introducir issues nuevos) para lo que toques: `make lint` / `make test` en backend, `./gradlew lintDebug testDebugUnitTest` en Android. Requieren que el repo esté conectado a GitHub para ejecutarse; localmente son solo los comandos del Makefile / Gradle.
 
 ## 7. Comandos útiles
+
+**Todo el stack** (desde la raíz, requiere Docker):
+```
+docker compose up --build   # db + api + web en contenedores (ver web/README.md)
+```
+La primera vez hay que aplicar las migraciones del backend (no corren solas
+dentro del contenedor), ver `backend/Makefile` (`make migrate-up`).
 
 **Backend** (`cd backend`):
 ```
@@ -95,7 +110,12 @@ make test                # go test -race ./...
 make lint                # golangci-lint
 make generate-sql        # regenerar repos con sqlc tras editar query.sql
 make migrate-up          # aplicar migraciones goose
-docker-compose up        # API + PostgreSQL en contenedores
+```
+
+**Web** (`cd web`):
+```
+npm install
+npm run dev              # http://localhost:3000, requiere la API corriendo aparte
 ```
 
 **Android** (`cd android`):

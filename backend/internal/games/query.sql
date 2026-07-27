@@ -6,8 +6,17 @@ RETURNING *;
 -- name: GetGame :one
 SELECT * FROM games WHERE id = $1 LIMIT 1;
 
--- name: ListGames :many
-SELECT * FROM games ORDER BY created_at DESC;
+-- name: ListGamesPage :many
+-- Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
+-- devuelve la primera página; con cursor, las filas estrictamente posteriores en
+-- el orden de la lista. Ver internal/common/pagination.go.
+SELECT * FROM games
+WHERE (
+    sqlc.narg('cursor_created_at')::timestamp IS NULL
+    OR (created_at, id) < (sqlc.narg('cursor_created_at')::timestamp, sqlc.narg('cursor_id')::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg('page_limit');
 
 -- name: StartGame :one
 UPDATE games

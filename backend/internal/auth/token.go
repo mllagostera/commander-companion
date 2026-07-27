@@ -5,17 +5,18 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 const refreshTokenBytes = 32
 
 // ErrInvalidToken indica que un access o refresh token es inválido, expiró o fue revocado.
-var ErrInvalidToken = errors.New("invalid or expired token")
+var ErrInvalidToken = common.Unauthorized("invalid or expired token")
 
 // generateAccessToken firma un JWT de vida corta con el ID de usuario como subject.
 func generateAccessToken(secret []byte, userID string, ttl time.Duration) (string, time.Time, error) {
@@ -56,6 +57,16 @@ func parseAccessToken(secret []byte, tokenString string) (string, error) {
 	}
 
 	return claims.Subject, nil
+}
+
+// VerifyAccessToken valida la firma y expiración de un access token JWT y devuelve el
+// user ID (subject). Expuesto (a diferencia de parseAccessToken) para que módulos que no
+// pueden autenticar vía el header Authorization de una request HTTP normal —como
+// internal/websocket, donde el handshake lo hace el propio navegador y no puede
+// adjuntar headers custom— puedan validar el mismo access token sin reimplementar la
+// verificación de firma/expiración. Ver ADR-0005.
+func VerifyAccessToken(secret []byte, tokenString string) (string, error) {
+	return parseAccessToken(secret, tokenString)
 }
 
 // newRefreshTokenPlain genera un refresh token opaco (no JWT) criptográficamente aleatorio.

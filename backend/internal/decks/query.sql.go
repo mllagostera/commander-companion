@@ -72,12 +72,64 @@ func (q *Queries) GetDeck(ctx context.Context, id pgtype.UUID) (Deck, error) {
 	return i, err
 }
 
-const listDecks = `-- name: ListDecks :many
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks WHERE user_id = $1 ORDER BY created_at DESC
+const getDeckByMoxfieldID = `-- name: GetDeckByMoxfieldID :one
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks
+WHERE user_id = $1 AND moxfield_id = $2
+ORDER BY created_at ASC
+LIMIT 1
 `
 
-func (q *Queries) ListDecks(ctx context.Context, userID pgtype.UUID) ([]Deck, error) {
-	rows, err := q.db.Query(ctx, listDecks, userID)
+type GetDeckByMoxfieldIDParams struct {
+	UserID     pgtype.UUID `json:"user_id"`
+	MoxfieldID pgtype.Text `json:"moxfield_id"`
+}
+
+// Resuelve el deck ya importado de un usuario a partir de su ID público de
+// Moxfield (ver internal/sync). Un mismo deck de Moxfield puede estar importado
+// por varios usuarios, por eso el filtro por user_id.
+func (q *Queries) GetDeckByMoxfieldID(ctx context.Context, arg GetDeckByMoxfieldIDParams) (Deck, error) {
+	row := q.db.QueryRow(ctx, getDeckByMoxfieldID, arg.UserID, arg.MoxfieldID)
+	var i Deck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Commander,
+		&i.MoxfieldID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listDecksPage = `-- name: ListDecksPage :many
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at FROM decks
+WHERE user_id = $1
+  AND (
+    $2::timestamp IS NULL
+    OR (created_at, id) < ($2::timestamp, $3::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $4
+`
+
+type ListDecksPageParams struct {
+	UserID          pgtype.UUID      `json:"user_id"`
+	CursorCreatedAt pgtype.Timestamp `json:"cursor_created_at"`
+	CursorID        pgtype.UUID      `json:"cursor_id"`
+	PageLimit       int32            `json:"page_limit"`
+}
+
+// Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
+// devuelve la primera página; con cursor, las filas estrictamente posteriores en
+// el orden de la lista. Ver internal/common/pagination.go.
+func (q *Queries) ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([]Deck, error) {
+	rows, err := q.db.Query(ctx, listDecksPage,
+		arg.UserID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -102,4 +154,34 @@ func (q *Queries) ListDecks(ctx context.Context, userID pgtype.UUID) ([]Deck, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateDeckFromMoxfield = `-- name: UpdateDeckFromMoxfield :one
+UPDATE decks
+SET name = $2, commander = $3, updated_at = now()
+WHERE id = $1
+RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at
+`
+
+type UpdateDeckFromMoxfieldParams struct {
+	ID        pgtype.UUID `json:"id"`
+	Name      string      `json:"name"`
+	Commander string      `json:"commander"`
+}
+
+// Re-sincroniza nombre y comandante de un deck ya importado con lo que devuelve
+// Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
+func (q *Queries) UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFromMoxfieldParams) (Deck, error) {
+	row := q.db.QueryRow(ctx, updateDeckFromMoxfield, arg.ID, arg.Name, arg.Commander)
+	var i Deck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Commander,
+		&i.MoxfieldID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

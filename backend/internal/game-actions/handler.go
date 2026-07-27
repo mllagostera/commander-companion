@@ -1,9 +1,9 @@
 package gameactions
 
 import (
-	"errors"
-
 	"github.com/gofiber/fiber/v2"
+
+	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
 // Handler contiene las dependencias del transporte HTTP para game-actions.
@@ -31,7 +31,7 @@ func (h *Handler) CreateAction(c *fiber.Ctx) error {
 
 	res, err := h.svc.RecordAction(c.Context(), c.Params("id"), req)
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
@@ -40,14 +40,7 @@ func (h *Handler) CreateAction(c *fiber.Ctx) error {
 func (h *Handler) GetTimeline(c *fiber.Ctx) error {
 	res, err := h.svc.GetTimeline(c.Context(), c.Params("id"))
 	if err != nil {
-		return mapError(err)
+		return common.MapError(err)
 	}
 	return c.JSON(res)
-}
-
-func mapError(err error) error {
-	if errors.Is(err, ErrGameNotFound) {
-		return fiber.NewError(fiber.StatusNotFound, err.Error())
-	}
-	return err
 }

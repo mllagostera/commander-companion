@@ -157,12 +157,27 @@ func (q *Queries) ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]Ga
 	return items, nil
 }
 
-const listGames = `-- name: ListGames :many
-SELECT id, playgroup_id, status, started_at, finished_at, created_at FROM games ORDER BY created_at DESC
+const listGamesPage = `-- name: ListGamesPage :many
+SELECT id, playgroup_id, status, started_at, finished_at, created_at FROM games
+WHERE (
+    $1::timestamp IS NULL
+    OR (created_at, id) < ($1::timestamp, $2::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $3
 `
 
-func (q *Queries) ListGames(ctx context.Context) ([]Game, error) {
-	rows, err := q.db.Query(ctx, listGames)
+type ListGamesPageParams struct {
+	CursorCreatedAt pgtype.Timestamp `json:"cursor_created_at"`
+	CursorID        pgtype.UUID      `json:"cursor_id"`
+	PageLimit       int32            `json:"page_limit"`
+}
+
+// Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
+// devuelve la primera página; con cursor, las filas estrictamente posteriores en
+// el orden de la lista. Ver internal/common/pagination.go.
+func (q *Queries) ListGamesPage(ctx context.Context, arg ListGamesPageParams) ([]Game, error) {
+	rows, err := q.db.Query(ctx, listGamesPage, arg.CursorCreatedAt, arg.CursorID, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}

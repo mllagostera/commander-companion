@@ -1,0 +1,49 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_URL=postgres://postgres:postgres@db:5432/commander?sslmode=disable
+      - JWT_SECRET=dev-insecure-jwt-secret-change-me
+      - ACCESS_TOKEN_TTL=15m
+      - REFRESH_TOKEN_TTL=720h
+      - GOOGLE_CLIENT_ID=
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=commander
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  web:
+    build: ./web
+    ports:
+      - "3000:3000"
+    environment:
+      # Alcanzable desde el navegador del host (llamadas hechas desde el cliente).
+      - NUXT_PUBLIC_API_BASE=http://localhost:8080/api/v1
+      # Alcanzable solo desde dentro de la red de Compose (llamadas SSR, ver
+      # web/nuxt.config.ts). Sin esta variable, el render en servidor
+      # intentaría resolver "localhost:8080" dentro del propio contenedor web.
+      - NUXT_API_BASE=http://api:8080/api/v1
+      - NUXT_PUBLIC_GOOGLE_CLIENT_ID=
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
