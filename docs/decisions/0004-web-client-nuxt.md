@@ -84,10 +84,14 @@ más cómoda en pantallas grandes).
   - Producción real (más allá de probar el stack en local) sigue sin
     decidirse: dónde desplegar estos contenedores, TLS, dominio, etc.
 - Esqueleto inicial ya creado en `web/` (2026-07-27): Nuxt 4 + Tailwind +
-  login (email/password + Google) + una pantalla protegida mínima. Sigue
-  pendiente lo que dependía del backend de partidas/estadísticas: import de
-  Moxfield y la pantalla de estadísticas, que esperan el motor de partida +
-  estadísticas reales antes de tener datos que mostrar.
+  login (email/password + Google) + una pantalla protegida mínima.
+  **Completado el mismo día**: registro de usuario (`register.vue`), tokens
+  en cookies `httpOnly` vía Nitro (BFF) con refresh automático, import de
+  Moxfield (`decks.vue`, con thumbnail del art crop del comandante e imagen
+  actualizable vía `POST /sync/moxfield`) y estadísticas (`statistics.vue`,
+  globales y por deck) — ver `docs/roadmap/TASKS.md`, Stage 4b, para el
+  detalle completo pieza por pieza. `web-ci.yml` (ESLint + typecheck + `nuxt
+  build` + hadolint) agregado el mismo día.
 
 ## Referencias
 

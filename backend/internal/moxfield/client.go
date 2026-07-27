@@ -20,6 +20,9 @@ const (
 	// Moxfield está detrás de Cloudflare y bloquea clientes sin un
 	// User-Agent que parezca un navegador real.
 	userAgent = "Mozilla/5.0 (compatible; CommanderCompanion/1.0; +https://github.com/mllagostera/commander-companion)"
+	// imageURLTemplate arma el art crop de la carta "principal" del deck (la misma
+	// que Moxfield usa como su propio og:image), a partir del id corto de esa carta.
+	imageURLTemplate = "https://assets.moxfield.net/cards/card-%s-art_crop.jpg"
 )
 
 var (
@@ -38,6 +41,9 @@ type Deck struct {
 	PublicID  string
 	Name      string
 	Commander string
+	// ImageURL es el art crop de la carta principal del deck (normalmente el
+	// comandante), o "" si Moxfield no informó ninguna.
+	ImageURL string
 }
 
 // Client es un cliente HTTP para la API pública de Moxfield.
@@ -54,6 +60,9 @@ type deckResponse struct {
 	Name     string     `json:"name"`
 	PublicID string     `json:"publicId"`
 	Boards   deckBoards `json:"boards"`
+	// Main es la carta que Moxfield destaca como portada del deck (normalmente el
+	// comandante); su Id es el que arma la URL del art crop mostrado como og:image.
+	Main *cardInfo `json:"main"`
 }
 
 type deckBoards struct {
@@ -69,6 +78,7 @@ type boardCard struct {
 }
 
 type cardInfo struct {
+	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
@@ -106,7 +116,15 @@ func (c *Client) GetDeck(ctx context.Context, publicID string) (*Deck, error) {
 		PublicID:  parsed.PublicID,
 		Name:      parsed.Name,
 		Commander: commanderNames(parsed.Boards.Commanders.Cards),
+		ImageURL:  mainImageURL(parsed.Main),
 	}, nil
+}
+
+func mainImageURL(main *cardInfo) string {
+	if main == nil || main.ID == "" {
+		return ""
+	}
+	return fmt.Sprintf(imageURLTemplate, main.ID)
 }
 
 func commanderNames(cards map[string]boardCard) string {

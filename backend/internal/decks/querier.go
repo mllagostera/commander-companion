@@ -22,8 +22,8 @@ type Querier interface {
 	// devuelve la primera página; con cursor, las filas estrictamente posteriores en
 	// el orden de la lista. Ver internal/common/pagination.go.
 	ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([]Deck, error)
-	// Re-sincroniza nombre y comandante de un deck ya importado con lo que devuelve
-	// Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
+	// Re-sincroniza nombre, comandante e imagen de un deck ya importado con lo que
+	// devuelve Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
 	UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFromMoxfieldParams) (Deck, error)
 }
 

@@ -1,6 +1,6 @@
 -- name: CreateDeck :one
-INSERT INTO decks (user_id, name, commander, moxfield_id)
-VALUES ($1, $2, $3, $4)
+INSERT INTO decks (user_id, name, commander, moxfield_id, image_url)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetDeck :one
@@ -29,10 +29,10 @@ ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg('page_limit');
 
 -- name: UpdateDeckFromMoxfield :one
--- Re-sincroniza nombre y comandante de un deck ya importado con lo que devuelve
--- Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
+-- Re-sincroniza nombre, comandante e imagen de un deck ya importado con lo que
+-- devuelve Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
 UPDATE decks
-SET name = $2, commander = $3, updated_at = now()
+SET name = $2, commander = $3, image_url = $4, updated_at = now()
 WHERE id = $1
 RETURNING *;
 

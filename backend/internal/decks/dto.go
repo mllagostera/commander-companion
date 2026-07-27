@@ -7,6 +7,7 @@ type CreateDeckRequest struct {
 	Name       string `json:"name"`
 	Commander  string `json:"commander"`
 	MoxfieldID string `json:"moxfield_id,omitempty"`
+	ImageURL   string `json:"image_url,omitempty"`
 }
 
 // ImportMoxfieldRequest es el payload para importar un deck desde Moxfield.
@@ -23,6 +24,7 @@ type DeckResponse struct {
 	Name       string `json:"name"`
 	Commander  string `json:"commander"`
 	MoxfieldID string `json:"moxfield_id,omitempty"`
+	ImageURL   string `json:"image_url,omitempty"`
 }
 
 // DeckListResponse es una página de decks. NextCursor es el cursor a pasar como

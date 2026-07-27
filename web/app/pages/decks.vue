@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Deck } from '~/types/api'
 
-const { listDecks, importFromMoxfield } = useDecks()
+const { listDecks, importFromMoxfield, syncFromMoxfield } = useDecks()
 
 const { data: decks, refresh, error: listError } = await useAsyncData<Deck[]>(
   'decks',
@@ -26,6 +26,31 @@ async function handleImport() {
     importError.value = moxfieldImportError(err)
   } finally {
     isImporting.value = false
+  }
+}
+
+// Estado de sincronización por deck (id → mensaje/loading/error), independiente
+// entre filas: sincronizar un deck no debe bloquear ni pisar el estado de otro.
+const syncState = reactive<Record<string, { loading: boolean, message: string, isError: boolean }>>({})
+
+async function handleSync(deck: Deck) {
+  if (!deck.moxfield_id) return
+  syncState[deck.id] = { loading: true, message: '', isError: false }
+  try {
+    const res = await syncFromMoxfield(deck.moxfield_id)
+    const idx = decks.value?.findIndex(d => d.id === deck.id) ?? -1
+    if (idx !== -1 && decks.value) decks.value[idx] = res.deck
+    syncState[deck.id] = {
+      loading: false,
+      isError: false,
+      message: res.status === 'updated' ? 'Actualizado desde Moxfield' : 'Ya estaba al día',
+    }
+  } catch (err) {
+    syncState[deck.id] = {
+      loading: false,
+      isError: true,
+      message: apiErrorMessage(err, 'No se pudo sincronizar con Moxfield.'),
+    }
   }
 }
 </script>
@@ -64,11 +89,19 @@ async function handleImport() {
 
       <div
         v-if="importedDeck"
-        class="mt-4 rounded-lg border border-emerald-800 bg-emerald-950/40 p-4"
+        class="mt-4 flex gap-4 rounded-lg border border-emerald-800 bg-emerald-950/40 p-4"
       >
-        <p class="text-sm text-emerald-400">Deck importado</p>
-        <p class="mt-1 font-medium">{{ importedDeck.name }}</p>
-        <p class="text-sm text-slate-400">Comandante: {{ importedDeck.commander }}</p>
+        <img
+          v-if="importedDeck.image_url"
+          :src="importedDeck.image_url"
+          :alt="importedDeck.commander"
+          class="h-16 w-16 shrink-0 rounded-lg object-cover"
+        >
+        <div>
+          <p class="text-sm text-emerald-400">Deck importado</p>
+          <p class="mt-1 font-medium">{{ importedDeck.name }}</p>
+          <p class="text-sm text-slate-400">Comandante: {{ importedDeck.commander }}</p>
+        </div>
       </div>
     </section>
 
@@ -87,18 +120,40 @@ async function handleImport() {
         <li
           v-for="deck in decks"
           :key="deck.id"
-          class="rounded-lg border border-slate-800 bg-slate-900/40 p-4"
+          class="flex gap-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4"
         >
-          <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <span class="font-medium">{{ deck.name }}</span>
-            <span
-              v-if="deck.moxfield_id"
-              class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400"
+          <img
+            v-if="deck.image_url"
+            :src="deck.image_url"
+            :alt="deck.commander"
+            class="h-16 w-16 shrink-0 rounded-lg object-cover"
+          >
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <span class="font-medium">{{ deck.name }}</span>
+              <div v-if="deck.moxfield_id" class="flex items-center gap-2">
+                <span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
+                  Moxfield · {{ deck.moxfield_id }}
+                </span>
+                <button
+                  type="button"
+                  :disabled="syncState[deck.id]?.loading"
+                  class="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                  @click="handleSync(deck)"
+                >
+                  {{ syncState[deck.id]?.loading ? 'Sincronizando…' : 'Actualizar' }}
+                </button>
+              </div>
+            </div>
+            <p class="mt-1 text-sm text-slate-400">Comandante: {{ deck.commander }}</p>
+            <p
+              v-if="syncState[deck.id]?.message"
+              class="mt-1 text-xs"
+              :class="syncState[deck.id]?.isError ? 'text-red-400' : 'text-emerald-400'"
             >
-              Moxfield · {{ deck.moxfield_id }}
-            </span>
+              {{ syncState[deck.id]?.message }}
+            </p>
           </div>
-          <p class="mt-1 text-sm text-slate-400">Comandante: {{ deck.commander }}</p>
         </li>
       </ul>
     </section>

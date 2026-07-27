@@ -31,8 +31,9 @@ Preview. Este documento sirve para entender *qué* hay en cada pantalla y
 │  ┌─────────────────────────────────┐ │
 │  │ Contraseña            ●●●●●●●●   │ │  ← OutlinedTextField, oculta
 │  └─────────────────────────────────┘ │
+│  (error de login, si lo hay)          │  ← Text, color error, bodySmall
 │  ┌─────────────────────────────────┐ │
-│  │        INICIAR SESIÓN            │ │  ← Button, fillMaxWidth, 56dp
+│  │  INICIAR SESIÓN / ⟳ (loading)    │ │  ← Button, fillMaxWidth, 56dp
 │  └─────────────────────────────────┘ │
 │                                       │
 │  ──────────────  o  ──────────────  │  ← HorizontalDivider + texto
@@ -46,19 +47,28 @@ Preview. Este documento sirve para entender *qué* hay en cada pantalla y
 
 **Jerarquía:** `Column` (centrado vertical y horizontal, padding 24dp) →
 título → spacer → `OutlinedTextField` email → `OutlinedTextField` password
-(`PasswordVisualTransformation`) → `Button` sólido → separador (`Row` con 2
-`HorizontalDivider` + texto "o") → `OutlinedButton` outline.
+(`PasswordVisualTransformation`) → mensaje de error condicional
+(`uiState.error`) → `Button` sólido (con `CircularProgressIndicator` en vez
+de texto mientras `uiState.isLoading`) → separador (`Row` con 2
+`HorizontalDivider` + texto "o") → `OutlinedButton` outline. Ambos campos y
+ambos botones se deshabilitan (`enabled = !uiState.isLoading`) durante el
+login.
 
 **Interactivo:**
 - Campo Email (texto libre, `singleLine`).
 - Campo Contraseña (texto oculto, `singleLine`).
-- Botón **"INICIAR SESIÓN"** → `onLoginWithPassword(email, password)`.
-- Botón **"Continuar con Google"** → `onLoginWithGoogle()`.
+- Botón **"INICIAR SESIÓN"** → `LoginViewModel.loginWithPassword(email,
+  password)` → `POST /auth/login` real.
+- Botón **"Continuar con Google"** → `LoginViewModel.loginWithGoogle(context)`
+  → Credential Manager → `POST /auth/google` real.
+- `LaunchedEffect(uiState.loginSucceeded)` dispara `onLoginSuccess()` (un solo
+  callback, no uno por método de login) apenas cualquiera de los dos
+  autentica correctamente.
 
-**Nota de fidelidad:** ninguno de los dos botones autentica todavía contra
-el backend — ambos navegan directo a `DashboardRoute` (ver
-`AppNavigation.kt`). Es un shell de navegación, no un login funcional
-(documentado explícitamente en el comentario KDoc del archivo).
+**Nota de fidelidad (actualizada 2026-07-27):** este ya NO es un shell de
+navegación — ambos botones autentican de verdad contra el backend real vía
+`LoginViewModel` (antes navegaban directo a `DashboardRoute` sin llamar a
+nada; ver `docs/roadmap/TASKS.md`, Stage 4, para el historial del cambio).
 
 ---
 
@@ -80,21 +90,27 @@ el backend — ambos navegan directo a `DashboardRoute` (ver
 │  │          HISTORIAL                │ │  ← OutlinedButton, fillMaxWidth, 48dp
 │  └─────────────────────────────────┘ │
 │                                       │
+│           Cerrar sesión               │  ← TextButton
 │                                       │
 └─────────────────────────────────────┘
 ```
 
 **Jerarquía:** `Column` (centrado, padding 16dp) → título → `Button` "NEW
-GAME" → `OutlinedButton` "HISTORIAL". Es la pantalla más simple del proyecto:
-sin barra superior, sin menú, sin estado.
+GAME" → `OutlinedButton` "HISTORIAL" → `TextButton` "Cerrar sesión". Sigue
+siendo la pantalla más simple del proyecto: sin barra superior, sin menú, sin
+estado propio más allá del logout.
 
 **Interactivo:**
 - Botón **"NEW GAME"** → `onNewGame()` → navega a `PlayerSetupRoute`.
 - Botón **"HISTORIAL"** → `onViewHistory()` → navega a `HistoryRoute`.
+- `TextButton` **"Cerrar sesión"** → `DashboardViewModel.logout(onLogout)`:
+  revoca el refresh token contra `POST /auth/logout` (best-effort), limpia
+  `SessionManager`/`clearCredentialState` de Google y vuelve a `LoginRoute`.
 
-**Nota de fidelidad:** no hay saludo personalizado, avatar de usuario, ni
-ningún dato que dependa de sesión — coherente con que el login todavía no
-autentica nada.
+**Nota de fidelidad (actualizada 2026-07-27):** sigue sin haber saludo
+personalizado ni avatar — pero ya no es cierto que "no hay ningún dato que
+dependa de sesión": el botón de logout sí, y su existencia es la prueba de
+que ahora hay una sesión real que cerrar (login real, ver `LoginScreen`).
 
 ---
 
@@ -220,7 +236,8 @@ continuar — se puede tocar "EMPEZAR PARTIDA" con `startingSeat = -1` (nadie
 ```
 ┌─────────────────────────────────────┐
 │ [<]      Turn: 3       [>] [Finalizar]│  ← header: Row SpaceBetween
-├───────────────────┬───────────────────┤
+│ Creando la partida en el servidor…    │  ← RemoteSyncBanner (condicional,
+├───────────────────┬───────────────────┤     ver nota debajo del diagrama)
 │                   │                   │
 │ Jugador 1 · empieza│    Jugador 2      │  ← PlayerCard (color de fondo
 │                   │                   │     = color del jugador)
@@ -258,18 +275,24 @@ la pantalla completa sin importar la cantidad de jugadores.
 `Column` raíz →
 1. Header `Row` (SpaceBetween): `Button "<"` (turno -1) — `Text "Turn: N"` —
    `Row` (`Button ">"` turno +1, `OutlinedButton "Finalizar"`).
-2. `Column` (weight 1f) con filas (`Row`, weight 1f) de `PlayerCard`
+2. **`RemoteSyncBanner` (nuevo, 2026-07-27)**: franja de texto de ancho
+   completo, condicional — no ocupa espacio si `remoteSync.status ==
+   Synced` (caso silencioso, todo salió bien) o no hay mensaje. Con
+   `Connecting`/`Disabled`/`WaitingForPlayers` muestra el mensaje en
+   `surfaceVariant`; con `Failed`, en `errorContainer` (rojo). Ver caso de
+   uso 1 en `docs/ux/casos-de-uso.md` para qué dispara cada estado.
+3. `Column` (weight 1f) con filas (`Row`, weight 1f) de `PlayerCard`
    (weight 1f cada una).
-3. Cada `PlayerCard` (`Surface` clicable, color = color del jugador) →
+4. Cada `PlayerCard` (`Surface` clicable, color = color del jugador) →
    `Column` centrado: nombre (+ "· empieza" si aplica) → badge de mulligans
    condicional → `Row` de vida (`IconButton "-"`, número grande, `IconButton
    "+"`) → hint "Commander Damage" (solo si el panel no está abierto).
    Si `showCommanderDamage` es true, se reemplaza por un `Surface` overlay
    con grid de `CommanderDamageItem` (dot de color del atacante, número,
    `IconButton -`/`+`) por cada oponente.
-4. Condicional: `AlertDialog` de confirmación de "Finalizar" (si
+5. Condicional: `AlertDialog` de confirmación de "Finalizar" (si
    `showFinishConfirm`).
-5. Condicional: `AlertDialog` final de resultado (si `state.isFinished`) —
+6. Condicional: `AlertDialog` final de resultado (si `state.isFinished`) —
    título con el ganador o "Partida finalizada", lista de vida final de cada
    jugador, botón "Volver al inicio".
 

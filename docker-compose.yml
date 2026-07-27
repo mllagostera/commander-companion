@@ -8,14 +8,14 @@ services:
       - JWT_SECRET=dev-insecure-jwt-secret-change-me
       - ACCESS_TOKEN_TTL=15m
       - REFRESH_TOKEN_TTL=720h
-      - GOOGLE_CLIENT_ID=
+      - GOOGLE_CLIENT_ID=908385413195-ktblog02ecjj78f8ghffamuid3iaj6cu.apps.googleusercontent.com
       - CORS_ALLOWED_ORIGINS=http://localhost:3000
     depends_on:
       db:
         condition: service_healthy
 
   db:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     ports:
       - "5432:5432"
     environment:
@@ -23,7 +23,10 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=commander
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ espera un único mount en /var/lib/postgresql (no en
+      # .../data): el propio entrypoint arma un subdirectorio versionado
+      # adentro para dejar el terreno listo para pg_upgrade --link.
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 2s
@@ -41,7 +44,7 @@ services:
       # web/nuxt.config.ts). Sin esta variable, el render en servidor
       # intentaría resolver "localhost:8080" dentro del propio contenedor web.
       - NUXT_API_BASE=http://api:8080/api/v1
-      - NUXT_PUBLIC_GOOGLE_CLIENT_ID=
+      - NUXT_PUBLIC_GOOGLE_CLIENT_ID=908385413195-ktblog02ecjj78f8ghffamuid3iaj6cu.apps.googleusercontent.com
     depends_on:
       - api
 

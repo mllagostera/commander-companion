@@ -37,10 +37,17 @@ Todo el diseño gira alrededor de tres pilares:
 ```mermaid
 graph TD
     Android["Android (Kotlin + Compose)"] -->|REST| APIGo["API Go"]
+    Web["Web (Nuxt, ver Stage 4b)"] -->|REST| APIGo
     APIGo -->|SQL| PostgreSQL["PostgreSQL"]
     APIGo --> BackgroundWorkers["Background Workers"]
     BackgroundWorkers --> StatisticsEngine["Statistics Engine"]
 ```
+
+Nota: el cliente Web no estaba en el roadmap original — se agregó después
+(ver Stage 4b). "Background Workers"/"Statistics Engine" son la aspiración
+original; hoy las estadísticas se recalculan en-proceso dentro del mismo
+monolito (`internal/statistics`), no como worker separado — ver
+[ADR-0010](../decisions/0010-monolito-modular-vs-microservicios.md).
 
 En fases posteriores:
 
@@ -82,6 +89,10 @@ No habrá microservicios.
 - Proyecto separado. Tecnologías: Kotlin, Compose, Material 3, Navigation, Hilt, Retrofit, Room, DataStore.
 - Arquitectura: Clean Architecture + MVVM + UDF.
 
+## Stage 4b: Cliente Web (Nuxt)
+- No estaba en el roadmap original (agregado 2026-07-26, ver [ADR-0004](../decisions/0004-web-client-nuxt.md)): segundo cliente, desacoplado, mismo contrato REST que Android. Cubre import de Moxfield y estadísticas — casos de uso más cómodos en desktop que en el life tracker móvil.
+- Tecnologías: Nuxt 4 (SSR), Tailwind CSS, npm.
+
 ## Stage 5: Integración
 - Conectar Android con Backend.
 
@@ -109,6 +120,7 @@ Módulos principales:
 - `/decks`
 - `/games`
 - `/game-actions`
+- `/playgroups`
 - `/statistics`
 - `/sync`
 

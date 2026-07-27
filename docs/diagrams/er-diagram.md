@@ -2,7 +2,8 @@
 
 Diagrama entidad-relación generado a partir del esquema real (`docs/database/schema.dbml`,
 compilado a SQL en `backend/migrations/00001_initial_schema.sql` +
-`00002_auth.sql` + `00003_indices.sql` + `00004_status_constraints.sql`).
+`00002_auth.sql` + `00003_indices.sql` + `00004_status_constraints.sql` +
+`00005_pagination_indices.sql` + `00006_deck_image_url.sql`).
 Mantener sincronizado con el DBML cada vez que cambie el esquema.
 
 ```mermaid
@@ -46,6 +47,7 @@ erDiagram
         varchar name
         varchar commander
         varchar moxfield_id "indexed (00003): lookup/de-dup de imports"
+        varchar image_url "nullable (00006): art crop del comandante desde Moxfield"
         timestamp created_at
         timestamp updated_at
     }
@@ -126,5 +128,13 @@ erDiagram
   `game_actions.game_id`, `game_players.game_id`) y los `CHECK` de
   `games.status` / `game_actions.action_type` se agregaron en
   `backend/migrations/00003_indices.sql` y
-  `backend/migrations/00004_status_constraints.sql` respectivamente — ver
-  `docs/roadmap/TASKS.md` Stage 2.
+  `backend/migrations/00004_status_constraints.sql` respectivamente;
+  `00005_pagination_indices.sql` agrega índices compuestos de apoyo al
+  paginado keyset de `/decks` y `/games` — ver `docs/roadmap/TASKS.md`
+  Stage 2.
+- `decks.image_url` (`00006_deck_image_url.sql`) se completa en el import/
+  resync de Moxfield (`internal/moxfield/client.go`), a partir del campo
+  `main.id` de la respuesta de Moxfield (arma
+  `https://assets.moxfield.net/cards/card-{id}-art_crop.jpg`, el mismo art
+  crop que Moxfield usa como su propio `og:image`) — no es una URL
+  arbitraria del cliente. Ver `docs/api/openapi.yaml` (`Deck.image_url`).

@@ -22,11 +22,16 @@ cross-platform que comparta código con un eventual cliente iOS.
 **Android nativo con Kotlin + Jetpack Compose**, Material 3, Navigation
 Compose (con `kotlinx.serialization` para rutas tipadas, ver
 `Routes.kt`/`AppNavigation.kt`), Hilt para inyección de dependencias, Room
-para persistencia local, y Retrofit para el consumo futuro de la API REST
+para persistencia local, y Retrofit para el consumo de la API REST
 (`android/app/build.gradle.kts`). Arquitectura declarada: Clean Architecture
-+ MVVM + UDF (unidirectional data flow), aunque en la práctica actual el
-life tracker todavía no tiene capa de dominio/repositorio separada (`GameDao`
-se inyecta directo en los `ViewModel`, ver `TASKS.md` Stage 4).
++ MVVM + UDF (unidirectional data flow).
+
+**Actualizado 2026-07-27**: `CommanderApi.kt` ya tiene los endpoints reales de
+`decks`/`games`/`game-actions`/`statistics` (15 métodos, ver
+`data/remote/api/CommanderApi.kt`), y ya existe una capa de repositorio
+(`data/repository/GameRepository.kt`, `DeckRepository.kt`) entre los
+`ViewModel` y `CommanderApi`/`GameDao` — ver Consecuencias, actualizada
+también.
 
 ## Alternativas consideradas
 
@@ -75,14 +80,14 @@ se inyecta directo en los `ViewModel`, ver `TASKS.md` Stage 4).
   Compose Preview, `androidx.lifecycle`), lo cual explica por qué la
   velocidad de desarrollo del life tracker local fue alta (life tracker
   completo con persistencia en una sola sesión, según `TASKS.md`).
-- Sin capa de dominio/repositorio (todavía pendiente, ver `TASKS.md` Stage
-  4: "Repositorios reales en `data/repository/` — no existe todavía"), el
-  acoplamiento actual entre `ViewModel` y `GameDao` (Room) es aceptable
-  mientras el life tracker sea 100% local, pero es deuda técnica explícita
-  a resolver cuando se integre el backend real (Stage 5) — mezclar fuente
-  local (Room) y remota (Retrofit) sin una capa de repositorio que decida
-  cuál usar sería más costoso de deshacer cuanto más código dependa
-  directamente de `GameDao`.
+- **Resuelto parcialmente (2026-07-27)**: `GameRepository` ya es el punto
+  único que decide qué va a Room (historial local, siempre) y qué va al
+  backend (espejo best-effort del asiento del usuario autenticado —
+  `bootstrapRemoteGame`/`recordLifeChange`/`finishGame`); `DeckRepository`
+  es 100% remoto. Sigue sin existir una capa de `domain/` con casos de uso
+  propios (`GameViewModel`/`LoginViewModel` siguen llamando el repositorio
+  directo) — aceptable mientras el alcance sea el actual, revisar si se
+  justifica un `domain/` separado más adelante (ver `TASKS.md` Stage 4).
 
 ## Referencias
 

@@ -16,6 +16,19 @@ export interface Deck {
   name: string
   commander: string
   moxfield_id: string | null
+  image_url: string | null
+}
+
+/**
+ * Respuesta de `POST /sync/moxfield` y `GET /sync/status`.
+ * status: "updated"/"unchanged" en el POST (según Moxfield trajo cambios o
+ * no), "synced"/"never_synced" en el GET (según el deck tenga o no un sync
+ * previo registrado).
+ */
+export interface SyncResponse {
+  status: 'updated' | 'unchanged' | 'synced' | 'never_synced'
+  deck: Deck
+  last_synced_at: string | null
 }
 
 export interface UserStats {

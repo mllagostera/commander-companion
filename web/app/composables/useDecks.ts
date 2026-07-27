@@ -1,4 +1,4 @@
-import type { Deck, PaginatedResponse } from '~/types/api'
+import type { Deck, PaginatedResponse, SyncResponse } from '~/types/api'
 
 export function useDecks() {
   const { apiFetch } = useApi()
@@ -17,7 +17,19 @@ export function useDecks() {
     })
   }
 
-  return { listDecks, importFromMoxfield }
+  /**
+   * Re-sincroniza un deck ya importado con su versión actual en Moxfield
+   * (nombre, comandante e imagen). `moxfieldId` acepta tanto el ID público
+   * como la URL completa, igual que el import.
+   */
+  function syncFromMoxfield(moxfieldId: string) {
+    return apiFetch<SyncResponse>('/sync/moxfield', {
+      method: 'POST',
+      body: { moxfield_id: moxfieldId },
+    })
+  }
+
+  return { listDecks, importFromMoxfield, syncFromMoxfield }
 }
 
 /**

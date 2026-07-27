@@ -11,10 +11,11 @@ presentation/navigation/AppNavigation.kt` (grafo real del `NavHost`) y
 flowchart TD
     Start([App inicia]) --> Login[LoginRoute\nLoginScreen]
 
-    Login -->|onLoginWithPassword\no onLoginWithGoogle\npopUpTo LoginRoute inclusive=true| Dashboard[DashboardRoute\nDashboardScreen]
+    Login -->|onLoginSuccess tras login real\nPOST /auth/login o /auth/google\npopUpTo LoginRoute inclusive=true| Dashboard[DashboardRoute\nDashboardScreen]
 
     Dashboard -->|onNewGame| Setup[PlayerSetupRoute\nPlayerSetupScreen]
     Dashboard -->|onViewHistory| History[HistoryRoute\nHistoryScreen]
+    Dashboard -->|onLogout\npopUpTo 0 inclusive=true| Login
 
     Setup -->|onStartGame gameId, playersEncoded| PreGame["PreGameRoute(gameId, playersEncoded)\nPreGameScreen"]
 
@@ -23,14 +24,16 @@ flowchart TD
     Tracker -->|onFinish\npopBackStack DashboardRoute inclusive=false| Dashboard
 
     History -->|onBack\npopBackStack| Dashboard
+
+    SessionViewModel["SessionViewModel.forcedLogoutEvents\n(refresh fallido en CUALQUIER pantalla)"] -.->|popUpTo 0 inclusive=true| Login
 ```
 
 ## Detalle de cada ruta
 
 | Ruta | Tipo | Argumentos | Pantalla | Notas |
 |---|---|---|---|---|
-| `LoginRoute` | `object` | ninguno | `LoginScreen` | `startDestination` del `NavHost` |
-| `DashboardRoute` | `object` | ninguno | `DashboardScreen` | hub central; se llega acá tras login y tras terminar cualquier partida |
+| `LoginRoute` | `object` | ninguno | `LoginScreen` | `startDestination` del `NavHost`; login real (password o Google) vía `LoginViewModel`, un solo callback `onLoginSuccess` (no uno por método) |
+| `DashboardRoute` | `object` | ninguno | `DashboardScreen` | hub central; se llega acá tras login y tras terminar cualquier partida; expone `onLogout` (`popUpTo(0) { inclusive = true }`, vuelve a `LoginRoute` limpiando todo el back stack) |
 | `PlayerSetupRoute` | `object` | ninguno | `PlayerSetupScreen` | genera el `gameId` (UUID local) y codifica los jugadores antes de navegar |
 | `PreGameRoute` | `data class` | `gameId: String`, `playersEncoded: String` | `PreGameScreen` | agrega sorteo de turno + mulligans a los `PlayerConfig` recibidos |
 | `GameTrackerRoute` | `data class` | `gameId: String`, `playersEncoded: String`, `startingPlayerSeat: Int` | `GameTrackerScreen` | consumido por `GameViewModel` vía `SavedStateHandle` |
@@ -60,16 +63,25 @@ todavía no manda ese tercer campo.
 
 Este grafo es la **estructura** de navegación, ya considerada "definida"
 como decisión de diseño (`TASKS.md`, Stage 4: "Flujo de navegación de la app
-definido"). Lo que falta para que sea el flujo real de producto, no solo el
-esqueleto:
+definido"). **Actualizado 2026-07-27:** `LoginRoute` ya autentica de verdad
+(ver tabla arriba) y el sub-grafo `PlayerSetupRoute → PreGameRoute →
+GameTrackerRoute` ya no es 100% local — `GameTrackerScreen` espeja
+best-effort el asiento del usuario autenticado contra `games`/`game-actions`
+reales (`GameRepository.bootstrapRemoteGame`/`recordLifeChange`/`finishGame`,
+ver `docs/ux/casos-de-uso.md`), aunque sigue sin haber ninguna ruta/pantalla
+*dedicada* a esa integración (no hay indicador visual más allá del
+`RemoteSyncBanner` en el propio tracker, ver `docs/ux/wireframes.md`). Lo
+que falta realmente:
 
-- `LoginRoute` no autentica — ambos callbacks (`onLoginWithPassword`,
-  `onLoginWithGoogle`) navegan directo a `DashboardRoute` sin llamar a
-  `POST /auth/login` ni a Credential Manager/Google Identity Services.
-- No hay ninguna ruta ni pantalla que hable con `games`/`game-actions`/
-  `statistics` del backend — todo el sub-grafo `PlayerSetupRoute →
-  PreGameRoute → GameTrackerRoute` opera 100% en local (Room), como se
-  detalla en `docs/ux/casos-de-uso.md`.
-- No existe todavía una ruta de "unirse a una partida existente" (join por
-  código/invitación) ni de "estadísticas" — ambas son funcionalidad de
-  backend ya implementada sin UI Android correspondiente.
+- Ruta de "unirse a una partida existente" (join por código/invitación desde
+  otro dispositivo) — hoy el único `join` real es automático, del asiento 1
+  contra la partida que él mismo crea.
+- Ruta de selección de deck — `bootstrapRemoteGame` usa
+  `DeckRepository.firstDeckId()` (el primero de la lista) en vez de dejar
+  elegir.
+- Ruta de "estadísticas" — `/statistics/*` ya está implementado en el
+  backend y ya tiene los tres métodos en `CommanderApi.kt`, pero no hay
+  pantalla ni repositorio en Android que los consuma.
+- Cliente WebSocket (Stage 6) para ver en vivo lo que hacen *otros*
+  dispositivos sentados en la misma partida — el espejo de hoy es solo REST
+  unidireccional (Android → backend), no hay suscripción de entrada.

@@ -121,6 +121,12 @@ components:
         moxfield_id:
           type: string
           nullable: true
+        image_url:
+          type: string
+          nullable: true
+          description: >-
+            Art crop de la carta principal del deck (normalmente el
+            comandante), tomado de Moxfield en el import/resync.
     DeckListResponse:
       type: object
       required: [items, next_cursor]
@@ -144,6 +150,8 @@ components:
         commander:
           type: string
         moxfield_id:
+          type: string
+        image_url:
           type: string
     SyncRequest:
       type: object
