@@ -32,6 +32,10 @@ Table decks {
   moxfield_id varchar
   created_at timestamp [default: `now()`]
   updated_at timestamp
+
+  indexes {
+    moxfield_id [note: 'Lookup/de-dup de imports de Moxfield (migración 00003_indices.sql)']
+  }
 }
 
 Table playgroups {
@@ -58,6 +62,8 @@ Table games {
   started_at timestamp
   finished_at timestamp
   created_at timestamp [default: `now()`]
+
+  Note: 'CHECK: status IN (\'pending\', \'active\', \'finished\') (migración 00004_status_constraints.sql)'
 }
 
 Table game_players {
@@ -70,6 +76,10 @@ Table game_players {
   energy_counters int [default: 0]
   experience_counters int [default: 0]
   is_eliminated boolean [default: false]
+
+  indexes {
+    game_id [note: 'Hot path de lectura de jugadores de una partida (migración 00003_indices.sql)']
+  }
 }
 
 Table game_actions {
@@ -80,6 +90,12 @@ Table game_actions {
   action_type varchar [not null, note: 'Ej: LifeChange, CombatDamage, CommanderDamage, PoisonCounter, TurnStart, TurnEnd, Elimination']
   payload jsonb [note: 'Ej para CommanderDamage: {"amount": 7, "commander_deck_id": "uuid"}']
   created_at timestamp [default: `now()`]
+
+  indexes {
+    game_id [note: 'Hot path de lectura del timeline de una partida (migración 00003_indices.sql)']
+  }
+
+  Note: 'CHECK: action_type IN (\'LifeChange\', \'CombatDamage\', \'CommanderDamage\', \'PoisonCounter\', \'TurnStart\', \'TurnEnd\', \'Elimination\') (migración 00004_status_constraints.sql)'
 }
 
 // Estadísticas pre-calculadas (se recalculan si una partida histórica se modifica)
