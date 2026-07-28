@@ -19,6 +19,7 @@ const testWebAppURL = "http://localhost:3000"
 // mandado, para poder probar VerifyEmail.
 type noopMailer struct{}
 
+// SendVerificationEmail no hace nada (ver noopMailer).
 func (noopMailer) SendVerificationEmail(context.Context, string, string, string) error {
 	return nil
 }
@@ -38,7 +39,8 @@ func NewUsersService(pool *pgxpool.Pool) users.Service {
 // están probando el flujo de verificación en sí.
 func VerifyUserEmail(t *testing.T, pool *pgxpool.Pool, userID string) {
 	t.Helper()
-	if _, err := pool.Exec(context.Background(), "UPDATE users SET email_verified = true WHERE id = $1", userID); err != nil {
+	const query = "UPDATE users SET email_verified = true WHERE id = $1"
+	if _, err := pool.Exec(context.Background(), query, userID); err != nil {
 		t.Fatalf("marcando email verificado para %s: %v", userID, err)
 	}
 }

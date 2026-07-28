@@ -71,7 +71,7 @@ func run() error {
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 	}))
 
-	registerModules(app, db, cfg)
+	registerModules(app, db, &cfg)
 
 	// 4. Arrancar Servidor
 	log.Printf("Iniciando servidor en el puerto %s...", cfg.Port)
@@ -104,7 +104,7 @@ func newAuthRateLimiter() fiber.Handler {
 
 // registerModules instancia repositorios, servicios y handlers, y registra las
 // rutas de todos los módulos bajo /api/v1 (públicas y protegidas por JWT).
-func registerModules(app *fiber.App, db *common.DB, cfg config.Config) {
+func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	api := app.Group("/api/v1")
 
 	// El rate limit se pasa a cada endpoint público de auth en vez de montarlo como

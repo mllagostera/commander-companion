@@ -84,6 +84,10 @@ func UpstreamUnavailable(msg string) *DomainError {
 // transporte, p. ej. un body mal formado) y los inesperados —que el ErrorHandler
 // global convierte en 500— pasan tal cual, así que aplicarla dos veces sobre el
 // mismo error es inocuo.
+//
+// Recorre una tabla en vez de un switch/case por kind: con 7 kinds, el switch supera
+// el límite de complejidad ciclomática del linter (cyclop) sin aportar nada — es el
+// mismo mapeo 1 a 1 kind → status en cualquiera de las dos formas.
 func MapError(err error) error {
 	if err == nil {
 		return nil
@@ -94,24 +98,26 @@ func MapError(err error) error {
 		return err
 	}
 
-	switch {
-	case errors.Is(err, ErrInvalidInput):
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
-	case errors.Is(err, ErrUnauthorized):
-		return fiber.NewError(fiber.StatusUnauthorized, err.Error())
-	case errors.Is(err, ErrNotFound):
-		return fiber.NewError(fiber.StatusNotFound, err.Error())
-	case errors.Is(err, ErrConflict):
-		return fiber.NewError(fiber.StatusConflict, err.Error())
-	case errors.Is(err, ErrForbidden):
-		return fiber.NewError(fiber.StatusForbidden, err.Error())
-	case errors.Is(err, ErrNotImplemented):
-		return fiber.NewError(fiber.StatusNotImplemented, err.Error())
-	case errors.Is(err, ErrUpstreamUnavailable):
-		return fiber.NewError(fiber.StatusServiceUnavailable, err.Error())
-	default:
-		return err
+	statusByKind := []struct {
+		kind   error
+		status int
+	}{
+		{ErrInvalidInput, fiber.StatusBadRequest},
+		{ErrUnauthorized, fiber.StatusUnauthorized},
+		{ErrNotFound, fiber.StatusNotFound},
+		{ErrConflict, fiber.StatusConflict},
+		{ErrForbidden, fiber.StatusForbidden},
+		{ErrNotImplemented, fiber.StatusNotImplemented},
+		{ErrUpstreamUnavailable, fiber.StatusServiceUnavailable},
 	}
+
+	for _, m := range statusByKind {
+		if errors.Is(err, m.kind) {
+			return fiber.NewError(m.status, err.Error())
+		}
+	}
+
+	return err
 }
 
 // ErrorResponse representa la estructura estándar de errores.

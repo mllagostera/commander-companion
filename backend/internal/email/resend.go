@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -22,6 +23,10 @@ import (
 const resendEmailsURL = "https://api.resend.com/emails"
 
 const httpTimeout = 10 * time.Second
+
+// ErrResendRequestFailed indica que Resend respondió con un status de error al mandar
+// el mail (API key inválida, template no publicado, etc.).
+var ErrResendRequestFailed = errors.New("resend request failed")
 
 // Config agrupa los parámetros de configuración del envío de mail transaccional.
 type Config struct {
@@ -54,6 +59,8 @@ func NewResendClient(cfg Config) Sender {
 
 type consoleClient struct{}
 
+// SendVerificationEmail loguea el link de verificación en vez de mandarlo (ver
+// NewResendClient).
 func (c *consoleClient) SendVerificationEmail(_ context.Context, to, username, verifyURL string) error {
 	log.Printf("[email consola] verificación para %s (%s): %s", username, to, verifyURL)
 	return nil
@@ -77,6 +84,8 @@ type resendSendRequest struct {
 	Template resendTemplate `json:"template"`
 }
 
+// SendVerificationEmail manda el mail vía el Template de Resend configurado (ver
+// Config.VerifyEmailTemplateID).
 func (c *resendClient) SendVerificationEmail(ctx context.Context, to, username, verifyURL string) error {
 	payload, err := json.Marshal(resendSendRequest{
 		From: c.from,
@@ -104,11 +113,13 @@ func (c *resendClient) SendVerificationEmail(ctx context.Context, to, username, 
 	if err != nil {
 		return fmt.Errorf("calling resend: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode >= http.StatusMultipleChoices {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("resend respondió %d: %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("%w: status %d: %s", ErrResendRequestFailed, resp.StatusCode, respBody)
 	}
 
 	return nil
