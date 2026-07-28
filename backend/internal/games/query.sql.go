@@ -43,7 +43,7 @@ func (q *Queries) AddGamePlayer(ctx context.Context, arg AddGamePlayerParams) (G
 const createGame = `-- name: CreateGame :one
 INSERT INTO games (playgroup_id, status)
 VALUES ($1, $2)
-RETURNING id, playgroup_id, status, started_at, finished_at, created_at
+RETURNING id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id
 `
 
 type CreateGameParams struct {
@@ -61,6 +61,7 @@ func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) (Game, e
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.CreatedAt,
+		&i.CurrentTurnPlayerID,
 	)
 	return i, err
 }
@@ -69,7 +70,7 @@ const finishGame = `-- name: FinishGame :one
 UPDATE games
 SET status = 'finished', finished_at = now()
 WHERE id = $1
-RETURNING id, playgroup_id, status, started_at, finished_at, created_at
+RETURNING id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id
 `
 
 func (q *Queries) FinishGame(ctx context.Context, id pgtype.UUID) (Game, error) {
@@ -82,6 +83,7 @@ func (q *Queries) FinishGame(ctx context.Context, id pgtype.UUID) (Game, error) 
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.CreatedAt,
+		&i.CurrentTurnPlayerID,
 	)
 	return i, err
 }
@@ -107,7 +109,7 @@ func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 }
 
 const getGame = `-- name: GetGame :one
-SELECT id, playgroup_id, status, started_at, finished_at, created_at FROM games WHERE id = $1 LIMIT 1
+SELECT id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id FROM games WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetGame(ctx context.Context, id pgtype.UUID) (Game, error) {
@@ -120,6 +122,7 @@ func (q *Queries) GetGame(ctx context.Context, id pgtype.UUID) (Game, error) {
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.CreatedAt,
+		&i.CurrentTurnPlayerID,
 	)
 	return i, err
 }
@@ -159,7 +162,7 @@ func (q *Queries) ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]Ga
 }
 
 const listGamesPage = `-- name: ListGamesPage :many
-SELECT id, playgroup_id, status, started_at, finished_at, created_at FROM games
+SELECT id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id FROM games
 WHERE (
     $1::timestamp IS NULL
     OR (created_at, id) < ($1::timestamp, $2::uuid)
@@ -193,6 +196,7 @@ func (q *Queries) ListGamesPage(ctx context.Context, arg ListGamesPageParams) ([
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.CreatedAt,
+			&i.CurrentTurnPlayerID,
 		); err != nil {
 			return nil, err
 		}
@@ -222,7 +226,7 @@ const startGame = `-- name: StartGame :one
 UPDATE games
 SET status = 'active', started_at = now()
 WHERE id = $1
-RETURNING id, playgroup_id, status, started_at, finished_at, created_at
+RETURNING id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id
 `
 
 func (q *Queries) StartGame(ctx context.Context, id pgtype.UUID) (Game, error) {
@@ -235,6 +239,7 @@ func (q *Queries) StartGame(ctx context.Context, id pgtype.UUID) (Game, error) {
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.CreatedAt,
+		&i.CurrentTurnPlayerID,
 	)
 	return i, err
 }

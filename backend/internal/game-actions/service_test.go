@@ -3,6 +3,7 @@ package gameactions_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -41,11 +42,13 @@ func newActionsSvc(pool *pgxpool.Pool) gameactions.Service {
 // Vocabulario de action_type que entiende el motor (ver game-actions/service.go);
 // como constantes acá porque el paquete real no las exporta.
 const (
-	actionTypeLifeChange    = "LifeChange"
-	actionTypeCombatDamage  = "CombatDamage"
-	actionTypePoisonCounter = "PoisonCounter"
-	actionTypeTurnStart     = "TurnStart"
-	actionTypeElimination   = "Elimination"
+	actionTypeLifeChange      = "LifeChange"
+	actionTypeCombatDamage    = "CombatDamage"
+	actionTypeCommanderDamage = "CommanderDamage"
+	actionTypePoisonCounter   = "PoisonCounter"
+	actionTypeTurnStart       = "TurnStart"
+	actionTypeTurnEnd         = "TurnEnd"
+	actionTypeElimination     = "Elimination"
 
 	payloadAmountKey = "amount"
 
@@ -154,6 +157,53 @@ func setupActiveGame(t *testing.T, pool *pgxpool.Pool) (
 	return gamesSvc, actionsSvc, game.ID, p1.ID, p2.ID
 }
 
+// setupActiveGameWithPlayers crea n usuarios+decks, los une a una partida (en orden,
+// mientras sigue pending) y la inicia. Usado por los tests de CommanderDamage que
+// necesitan más de 2 asientos para verificar que el daño se trackea por par
+// atacante-defensor, no agregado entre distintos atacantes.
+func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
+	gamesSvc games.Service, actionsSvc gameactions.Service, gameID string, playerIDs []string,
+) {
+	t.Helper()
+	ctx := context.Background()
+
+	usersSvc := users.NewService(pool)
+	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
+	gamesSvc = newGamesSvc(pool)
+	actionsSvc = newActionsSvc(pool)
+
+	game, err := gamesSvc.CreateGame(ctx, games.CreateGameRequest{})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+
+	playerIDs = make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		suffix := fmt.Sprintf("%s-%d", t.Name(), i)
+		user, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
+			Username: "u-" + suffix, Email: "u-" + suffix + "@example.com", Password: testPassword,
+		})
+		if err != nil {
+			t.Fatalf("registrando usuario %d: %v", i, err)
+		}
+		deck, err := decksSvc.CreateDeck(ctx, user.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
+		if err != nil {
+			t.Fatalf("creando deck %d: %v", i, err)
+		}
+		player, err := gamesSvc.JoinGame(ctx, game.ID, user.ID, games.JoinGameRequest{DeckID: deck.ID})
+		if err != nil {
+			t.Fatalf("JoinGame(%d) error = %v", i, err)
+		}
+		playerIDs = append(playerIDs, player.ID)
+	}
+
+	if _, err := gamesSvc.StartGame(ctx, game.ID); err != nil {
+		t.Fatalf("StartGame() error = %v", err)
+	}
+
+	return gamesSvc, actionsSvc, game.ID, playerIDs
+}
+
 func playerByID(t *testing.T, players []games.GamePlayerResponse, id string) *games.GamePlayerResponse {
 	t.Helper()
 	for i := range players {
@@ -235,6 +285,117 @@ func TestRecordAction_CombatDamage_AutoEliminatesAtZeroLife(t *testing.T) {
 	}
 }
 
+func TestRecordAction_CommanderDamage_AccumulatesAndReducesLife(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	gamesSvc, actionsSvc, gameID, player1ID, player2ID := setupActiveGame(t, pool)
+
+	for range 2 {
+		mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+			ActorID:    player1ID,
+			TargetID:   player2ID,
+			ActionType: actionTypeCommanderDamage,
+			Payload:    amountPayload(5),
+		})
+	}
+
+	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	target := playerByID(t, game.Players, player2ID)
+	if target.LifeTotal != 30 {
+		t.Fatalf("LifeTotal tras 2x CommanderDamage(5) = %d, want 30", target.LifeTotal)
+	}
+	if target.IsEliminated {
+		t.Fatalf("10 de daño de comandante acumulado no debería eliminar (umbral es 21)")
+	}
+}
+
+func TestRecordAction_CommanderDamage_MissingTarget_ReturnsBadRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	_, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+
+	_, err := actionsSvc.RecordAction(context.Background(), gameID, gameactions.CreateActionRequest{
+		ActorID:    player1ID,
+		ActionType: actionTypeCommanderDamage,
+		Payload:    amountPayload(5),
+		// Sin target_id: CommanderDamage no tiene sentido sin un defensor identificado.
+	})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("RecordAction(CommanderDamage) sin target_id: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+func TestRecordAction_CommanderDamage_SelfTarget_ReturnsBadRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	_, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+
+	_, err := actionsSvc.RecordAction(context.Background(), gameID, gameactions.CreateActionRequest{
+		ActorID:    player1ID,
+		TargetID:   player1ID,
+		ActionType: actionTypeCommanderDamage,
+		Payload:    amountPayload(5),
+	})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("RecordAction(CommanderDamage) con target == actor: code = %d, want %d",
+			fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+func TestRecordAction_CommanderDamage_EliminatesAt21FromSingleSourceWithPositiveLife(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	gamesSvc, actionsSvc, gameID, player1ID, player2ID := setupActiveGame(t, pool)
+
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID: player1ID, TargetID: player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(15),
+	})
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID: player1ID, TargetID: player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(6),
+	})
+
+	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	target := playerByID(t, game.Players, player2ID)
+	if target.LifeTotal != 19 {
+		t.Fatalf("LifeTotal tras 21 de comandante = %d, want 19 (vida positiva)", target.LifeTotal)
+	}
+	if !target.IsEliminated {
+		t.Fatalf("21 de daño de comandante de una misma fuente debería eliminar aunque quede vida positiva")
+	}
+}
+
+func TestRecordAction_CommanderDamage_DistinctAttackersDoNotCombine(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	gamesSvc, actionsSvc, gameID, playerIDs := setupActiveGameWithPlayers(t, pool, 3)
+	attackerA, attackerB, defender := playerIDs[0], playerIDs[1], playerIDs[2]
+
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID: attackerA, TargetID: defender, ActionType: actionTypeCommanderDamage, Payload: amountPayload(15),
+	})
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID: attackerB, TargetID: defender, ActionType: actionTypeCommanderDamage, Payload: amountPayload(15),
+	})
+
+	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	target := playerByID(t, game.Players, defender)
+	if target.LifeTotal != 10 {
+		t.Fatalf("LifeTotal tras 15+15 de dos atacantes distintos = %d, want 10", target.LifeTotal)
+	}
+	if target.IsEliminated {
+		t.Fatalf("15+15 de DOS atacantes distintos no debería eliminar (ninguno llega a 21 por sí solo)")
+	}
+}
+
 func TestRecordAction_PoisonCounter_AutoEliminatesAtThreshold(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
@@ -284,6 +445,48 @@ func TestRecordAction_Elimination_MarksSelfEliminated(t *testing.T) {
 	}
 	if !playerByID(t, game.Players, player1ID).IsEliminated {
 		t.Fatalf("Elimination sin target debería marcar al propio actor como eliminado")
+	}
+}
+
+func TestRecordAction_TurnStart_SetsCurrentTurnPlayer(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	gamesSvc, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID:    player1ID,
+		ActionType: actionTypeTurnStart,
+	})
+
+	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	if game.CurrentTurnPlayerID == nil || *game.CurrentTurnPlayerID != player1ID {
+		t.Fatalf("CurrentTurnPlayerID = %v, want %q", game.CurrentTurnPlayerID, player1ID)
+	}
+}
+
+func TestRecordAction_TurnEnd_ClearsCurrentTurnPlayer(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	gamesSvc, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID:    player1ID,
+		ActionType: actionTypeTurnStart,
+	})
+	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+		ActorID:    player1ID,
+		ActionType: actionTypeTurnEnd,
+	})
+
+	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	if game.CurrentTurnPlayerID != nil {
+		t.Fatalf("CurrentTurnPlayerID tras TurnEnd = %v, want nil", *game.CurrentTurnPlayerID)
 	}
 }
 

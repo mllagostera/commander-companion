@@ -29,3 +29,18 @@ UPDATE game_players
 SET is_eliminated = sqlc.arg(is_eliminated)
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: UpsertCommanderDamage :one
+INSERT INTO commander_damage (game_id, attacker_id, defender_id, amount)
+VALUES (sqlc.arg(game_id), sqlc.arg(attacker_id), sqlc.arg(defender_id), sqlc.arg(delta))
+ON CONFLICT (attacker_id, defender_id)
+DO UPDATE SET amount = commander_damage.amount + EXCLUDED.amount
+RETURNING *;
+
+-- name: SetCurrentTurnPlayer :one
+-- current_turn_player_id nullable: TurnStart lo fija al actor, TurnEnd lo limpia
+-- (pasando NULL). Ver internal/game-actions/service.go.
+UPDATE games
+SET current_turn_player_id = sqlc.narg(current_turn_player_id)
+WHERE id = sqlc.arg(id)
+RETURNING *;

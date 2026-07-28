@@ -184,11 +184,6 @@ de un módulo nuevo), agregalo también a esta lista en el mismo cambio.
 **READMEs por módulo:**
 
 - [backend/README.md](backend/README.md) — setup, comandos (`make`), stack del backend.
+- [android/README.md](android/README.md) — setup, JDK requerido, Google Sign-In, estructura del cliente Android.
 - [web/README.md](web/README.md) — setup, sesión vía Nitro/BFF, estructura del cliente Nuxt.
 - [tools/auth-test/README.md](tools/auth-test/README.md) — herramienta HTML standalone para probar el flujo de auth a mano (no es parte del producto).
-
-No hay un README propio para `android/` todavía — su documentación vive
-repartida entre [docs/ux/wireframes.md](docs/ux/wireframes.md),
-[docs/diagrams/android-navigation-flow.md](docs/diagrams/android-navigation-flow.md),
-[ADR-0009](docs/decisions/0009-android-nativo-vs-crossplatform.md) y
-`docs/roadmap/TASKS.md` (Stage 4/5).

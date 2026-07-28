@@ -8,6 +8,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CommanderDamage struct {
+	GameID     pgtype.UUID `json:"game_id"`
+	AttackerID pgtype.UUID `json:"attacker_id"`
+	DefenderID pgtype.UUID `json:"defender_id"`
+	Amount     int32       `json:"amount"`
+}
+
 type Deck struct {
 	ID         pgtype.UUID      `json:"id"`
 	UserID     pgtype.UUID      `json:"user_id"`
@@ -29,12 +36,13 @@ type DeckStatisticsSummary struct {
 }
 
 type Game struct {
-	ID          pgtype.UUID      `json:"id"`
-	PlaygroupID pgtype.UUID      `json:"playgroup_id"`
-	Status      string           `json:"status"`
-	StartedAt   pgtype.Timestamp `json:"started_at"`
-	FinishedAt  pgtype.Timestamp `json:"finished_at"`
-	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	ID                  pgtype.UUID      `json:"id"`
+	PlaygroupID         pgtype.UUID      `json:"playgroup_id"`
+	Status              string           `json:"status"`
+	StartedAt           pgtype.Timestamp `json:"started_at"`
+	FinishedAt          pgtype.Timestamp `json:"finished_at"`
+	CreatedAt           pgtype.Timestamp `json:"created_at"`
+	CurrentTurnPlayerID pgtype.UUID      `json:"current_turn_player_id"`
 }
 
 type GameAction struct {
@@ -57,6 +65,20 @@ type GamePlayer struct {
 	EnergyCounters     pgtype.Int4 `json:"energy_counters"`
 	ExperienceCounters pgtype.Int4 `json:"experience_counters"`
 	IsEliminated       pgtype.Bool `json:"is_eliminated"`
+}
+
+type MoxfieldImportJob struct {
+	ID               pgtype.UUID      `json:"id"`
+	UserID           pgtype.UUID      `json:"user_id"`
+	MoxfieldUsername string           `json:"moxfield_username"`
+	Status           string           `json:"status"`
+	TotalDecks       pgtype.Int4      `json:"total_decks"`
+	ImportedCount    int32            `json:"imported_count"`
+	FailedCount      int32            `json:"failed_count"`
+	ErrorMessage     pgtype.Text      `json:"error_message"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	FinishedAt       pgtype.Timestamp `json:"finished_at"`
 }
 
 type Playgroup struct {
@@ -82,13 +104,14 @@ type RefreshToken struct {
 }
 
 type User struct {
-	ID           pgtype.UUID      `json:"id"`
-	Username     string           `json:"username"`
-	Email        string           `json:"email"`
-	PasswordHash pgtype.Text      `json:"password_hash"`
-	CreatedAt    pgtype.Timestamp `json:"created_at"`
-	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
-	GoogleID     pgtype.Text      `json:"google_id"`
+	ID               pgtype.UUID      `json:"id"`
+	Username         string           `json:"username"`
+	Email            string           `json:"email"`
+	PasswordHash     pgtype.Text      `json:"password_hash"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	GoogleID         pgtype.Text      `json:"google_id"`
+	MoxfieldUsername pgtype.Text      `json:"moxfield_username"`
 }
 
 type UserStatisticsSummary struct {

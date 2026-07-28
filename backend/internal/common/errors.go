@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -22,6 +23,9 @@ var (
 	ErrConflict = errors.New("conflict")
 	// ErrNotImplemented agrupa lo no configurado o no disponible → HTTP 501.
 	ErrNotImplemented = errors.New("not implemented")
+	// ErrUpstreamUnavailable agrupa los fallos de una dependencia externa (p. ej.
+	// Moxfield) tras agotar los reintentos → HTTP 503.
+	ErrUpstreamUnavailable = errors.New("upstream unavailable")
 )
 
 // ErrInvalidUser indica que el ID de usuario propagado por el middleware de auth
@@ -62,6 +66,12 @@ func NotImplemented(msg string) *DomainError {
 	return &DomainError{kind: ErrNotImplemented, msg: msg}
 }
 
+// UpstreamUnavailable crea un error de dependencia externa no disponible tras
+// agotar los reintentos (→ HTTP 503).
+func UpstreamUnavailable(msg string) *DomainError {
+	return &DomainError{kind: ErrUpstreamUnavailable, msg: msg}
+}
+
 // MapError traduce un error de dominio al *fiber.Error con el status HTTP que le
 // corresponde. Los errores que ya son *fiber.Error (los que produce el propio
 // transporte, p. ej. un body mal formado) y los inesperados —que el ErrorHandler
@@ -88,6 +98,8 @@ func MapError(err error) error {
 		return fiber.NewError(fiber.StatusConflict, err.Error())
 	case errors.Is(err, ErrNotImplemented):
 		return fiber.NewError(fiber.StatusNotImplemented, err.Error())
+	case errors.Is(err, ErrUpstreamUnavailable):
+		return fiber.NewError(fiber.StatusServiceUnavailable, err.Error())
 	default:
 		return err
 	}
@@ -112,9 +124,11 @@ func ErrorHandler(c *fiber.Ctx, err error) error {
 		code = fiberErr.Code
 		message = fiberErr.Message
 	case err != nil:
-		// Loguear el error real internamente
-		// log.Printf("Error no controlado: %v", err)
-		message = err.Error() // Para desarrollo, mostramos el error
+		// Error no mapeado a un DomainError: no se filtra el detalle interno al
+		// cliente (podría ser un error de driver de BD, de una dependencia
+		// externa, etc.), pero sí se loguea del lado servidor para no perder
+		// visibilidad.
+		log.Printf("error no controlado: %v", err)
 	}
 
 	return c.Status(code).JSON(ErrorResponse{

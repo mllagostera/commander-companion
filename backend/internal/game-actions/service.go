@@ -20,6 +20,9 @@ const (
 	// Umbrales de eliminación automática según las reglas estándar de Commander.
 	eliminationLifeTotal      = 0
 	eliminationPoisonCounters = 10
+	// eliminationCommanderDamage: 21+ de daño de comandante de una misma fuente
+	// elimina, independiente del life_total agregado (ver applyCommanderDamage).
+	eliminationCommanderDamage = 21
 
 	actionLifeChange      = "LifeChange"
 	actionCombatDamage    = "CombatDamage"
@@ -57,6 +60,10 @@ var (
 	ErrAmountNotNumeric = common.InvalidInput("payload.amount must be a number")
 	// ErrGameNotActive indica que solo se pueden registrar acciones en una partida activa.
 	ErrGameNotActive = common.Conflict("game is not active")
+	// ErrCommanderDamageTargetRequired indica que CommanderDamage necesita un
+	// target_id distinto del actor (no tiene sentido sin un defensor identificado,
+	// ya que el daño se trackea por par atacante-defensor).
+	ErrCommanderDamageTargetRequired = common.InvalidInput("commander damage requires a target_id different from actor_id")
 )
 
 // Broadcaster es lo que game-actions necesita para retransmitir en vivo, por
@@ -77,17 +84,24 @@ type Service interface {
 
 type service struct {
 	repo        *Queries
+	pool        *pgxpool.Pool
 	broadcaster Broadcaster
 }
 
 // NewService crea un nuevo servicio de game-actions.
 func NewService(db *pgxpool.Pool, broadcaster Broadcaster) Service {
-	return &service{repo: New(db), broadcaster: broadcaster}
+	return &service{repo: New(db), pool: db, broadcaster: broadcaster}
 }
 
 // RecordAction registra una nueva acción (LifeChange, CombatDamage, CommanderDamage,
 // PoisonCounter, TurnStart, TurnEnd, Elimination) dentro de una partida activa, y
 // aplica sus efectos sobre el estado del jugador afectado (vida, veneno, eliminación).
+//
+// El camino de escritura completo (resolución de actor/target, mutación de estado, y
+// el log de la acción) corre dentro de una única transacción: antes de CommanderDamage
+// (que necesita dos escrituras atómicas — la tabla de daño por fuente y life_total)
+// cada paso era una llamada independiente, con la posibilidad de que un crash a mitad
+// de camino dejara un cambio de vida aplicado sin su entrada de log correspondiente.
 func (s *service) RecordAction(
 	ctx context.Context, gameID string, req CreateActionRequest,
 ) (*GameActionResponse, error) {
@@ -95,17 +109,24 @@ func (s *service) RecordAction(
 		return nil, ErrInvalidActionType
 	}
 
-	gid, err := s.resolveActiveGame(ctx, gameID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.repo.WithTx(tx)
+
+	gid, err := s.resolveActiveGame(ctx, q, gameID)
 	if err != nil {
 		return nil, err
 	}
 
-	actorID, subject, targetID, err := s.resolveActionSubject(ctx, gid, req)
+	actorID, subject, targetID, err := s.resolveActionSubject(ctx, q, gid, req)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.applyAction(ctx, req.ActionType, subject, req.Payload)
+	err = s.applyAction(ctx, q, req.ActionType, gid, actorID, targetID.Valid, subject, req.Payload)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +136,7 @@ func (s *service) RecordAction(
 		return nil, fmt.Errorf("encoding payload: %w", err)
 	}
 
-	action, err := s.repo.CreateGameAction(ctx, CreateGameActionParams{
+	action, err := q.CreateGameAction(ctx, CreateGameActionParams{
 		GameID:     gid,
 		ActorID:    actorID,
 		TargetID:   targetID,
@@ -126,19 +147,23 @@ func (s *service) RecordAction(
 		return nil, fmt.Errorf("recording action: %w", err)
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("committing transaction: %w", err)
+	}
+
 	res := toGameActionResponse(&action)
 	s.broadcaster.BroadcastAction(gameID, res)
 	return res, nil
 }
 
 // resolveActiveGame valida que la partida exista y esté activa, y devuelve su ID parseado.
-func (s *service) resolveActiveGame(ctx context.Context, gameID string) (pgtype.UUID, error) {
+func (s *service) resolveActiveGame(ctx context.Context, q *Queries, gameID string) (pgtype.UUID, error) {
 	gid, err := common.ParseUUID(gameID)
 	if err != nil {
 		return pgtype.UUID{}, ErrGameNotFound
 	}
 
-	game, err := s.repo.GetGame(ctx, gid)
+	game, err := q.GetGame(ctx, gid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return pgtype.UUID{}, ErrGameNotFound
@@ -155,13 +180,13 @@ func (s *service) resolveActiveGame(ctx context.Context, gameID string) (pgtype.
 // sujeto sobre el que se aplican los efectos es el target si se indicó uno; si no, el
 // propio actor (p. ej. LifeChange sobre uno mismo, o Elimination por rendición voluntaria).
 func (s *service) resolveActionSubject(
-	ctx context.Context, gid pgtype.UUID, req CreateActionRequest,
+	ctx context.Context, q *Queries, gid pgtype.UUID, req CreateActionRequest,
 ) (actorID pgtype.UUID, subject *GamePlayer, targetID pgtype.UUID, err error) {
 	actorID, err = common.ParseUUID(req.ActorID)
 	if err != nil {
 		return pgtype.UUID{}, nil, pgtype.UUID{}, ErrInvalidActorID
 	}
-	actor, err := s.getGamePlayer(ctx, gid, actorID)
+	actor, err := s.getGamePlayer(ctx, q, gid, actorID)
 	if err != nil {
 		return pgtype.UUID{}, nil, pgtype.UUID{}, err
 	}
@@ -174,7 +199,7 @@ func (s *service) resolveActionSubject(
 	if err != nil {
 		return pgtype.UUID{}, nil, pgtype.UUID{}, ErrInvalidTargetID
 	}
-	target, err := s.getGamePlayer(ctx, gid, targetID)
+	target, err := s.getGamePlayer(ctx, q, gid, targetID)
 	if err != nil {
 		return pgtype.UUID{}, nil, pgtype.UUID{}, err
 	}
@@ -207,67 +232,117 @@ func (s *service) GetTimeline(ctx context.Context, gameID string) ([]GameActionR
 	return result, nil
 }
 
-// applyAction muta el estado del jugador afectado según el tipo de acción.
+// applyAction muta el estado del jugador afectado según el tipo de acción. player es
+// el sujeto de la mutación (target si se indicó, si no el propio actor); actorID y
+// hasTarget se necesitan aparte para CommanderDamage, que trackea daño por par
+// atacante-defensor y por eso sí distingue al actor del sujeto (a diferencia del
+// resto de las acciones, para las que alcanza con el sujeto).
 func (s *service) applyAction(
-	ctx context.Context, actionType string, player *GamePlayer, payload map[string]interface{},
+	ctx context.Context, q *Queries, actionType string, gid, actorID pgtype.UUID, hasTarget bool,
+	player *GamePlayer, payload map[string]interface{},
 ) error {
 	switch actionType {
 	case actionLifeChange:
-		amount, err := payloadAmount(payload)
-		if err != nil {
-			return err
-		}
-		return s.adjustLife(ctx, player.ID, amount)
-	case actionCombatDamage, actionCommanderDamage:
-		// Nota: no se distingue el origen del daño de comandante por oponente
-		// (regla de 21 letal de una sola fuente); el esquema hoy solo trackea
-		// life_total agregado. Deferido: requeriría una tabla de daño por par
-		// jugador-comandante, fuera de alcance de esta pasada.
-		amount, err := payloadAmount(payload)
-		if err != nil {
-			return err
-		}
-		return s.adjustLife(ctx, player.ID, -amount)
+		return s.applyLifeDelta(ctx, q, player.ID, payload, 1)
+	case actionCombatDamage:
+		return s.applyLifeDelta(ctx, q, player.ID, payload, -1)
+	case actionCommanderDamage:
+		return s.applyCommanderDamage(ctx, q, gid, actorID, player.ID, hasTarget, payload)
 	case actionPoisonCounter:
 		amount, err := payloadAmount(payload)
 		if err != nil {
 			return err
 		}
-		return s.adjustPoison(ctx, player.ID, amount)
+		return s.adjustPoison(ctx, q, player.ID, amount)
 	case actionElimination:
-		return s.eliminate(ctx, player.ID)
-	case actionTurnStart, actionTurnEnd:
-		// Marcadores de log puro: el esquema no trackea de quién es el turno actual.
-		return nil
+		return s.eliminate(ctx, q, player.ID)
+	case actionTurnStart:
+		return s.setCurrentTurn(ctx, q, gid, actorID)
+	case actionTurnEnd:
+		return s.clearCurrentTurn(ctx, q, gid)
 	default:
 		return ErrInvalidActionType
 	}
 }
 
-func (s *service) adjustLife(ctx context.Context, playerID pgtype.UUID, delta int32) error {
-	updated, err := s.repo.AdjustGamePlayerLife(ctx, AdjustGamePlayerLifeParams{ID: playerID, Delta: delta})
+func (s *service) adjustLife(ctx context.Context, q *Queries, playerID pgtype.UUID, delta int32) error {
+	updated, err := q.AdjustGamePlayerLife(ctx, AdjustGamePlayerLifeParams{ID: playerID, Delta: delta})
 	if err != nil {
 		return fmt.Errorf("adjusting life total: %w", err)
 	}
 	if !updated.IsEliminated.Bool && updated.LifeTotal.Int32 <= eliminationLifeTotal {
-		return s.eliminate(ctx, updated.ID)
+		return s.eliminate(ctx, q, updated.ID)
 	}
 	return nil
 }
 
-func (s *service) adjustPoison(ctx context.Context, playerID pgtype.UUID, delta int32) error {
-	updated, err := s.repo.AdjustGamePlayerPoison(ctx, AdjustGamePlayerPoisonParams{ID: playerID, Delta: delta})
+// applyLifeDelta lee payload.amount y lo aplica a life_total multiplicado por sign:
+// 1 para LifeChange (el amount ya viene con el signo que quiere el cliente), -1 para
+// CombatDamage (amount es siempre "cuánto daño", nunca negativo).
+func (s *service) applyLifeDelta(
+	ctx context.Context, q *Queries, playerID pgtype.UUID, payload map[string]interface{}, sign int32,
+) error {
+	amount, err := payloadAmount(payload)
+	if err != nil {
+		return err
+	}
+	return s.adjustLife(ctx, q, playerID, sign*amount)
+}
+
+// applyCommanderDamage acumula el daño de comandante del atacante contra el defensor
+// (commander_damage.amount, upsert atómico) y aplica la misma cantidad a life_total
+// como cualquier otro daño. Elimina al defensor si su vida llega a 0, igual que
+// adjustLife, o si el daño acumulado de ESTE atacante llega a 21 (regla real de
+// Commander), aunque le quede vida positiva de otras fuentes. Requiere un target_id
+// distinto del actor (no tiene sentido trackear daño de comandante sin un defensor
+// identificado).
+func (s *service) applyCommanderDamage(
+	ctx context.Context, q *Queries, gid, attackerID, defenderID pgtype.UUID, hasTarget bool,
+	payload map[string]interface{},
+) error {
+	if !hasTarget || defenderID == attackerID {
+		return ErrCommanderDamageTargetRequired
+	}
+	amount, err := payloadAmount(payload)
+	if err != nil {
+		return err
+	}
+
+	cd, err := q.UpsertCommanderDamage(ctx, UpsertCommanderDamageParams{
+		GameID:     gid,
+		AttackerID: attackerID,
+		DefenderID: defenderID,
+		Delta:      amount,
+	})
+	if err != nil {
+		return fmt.Errorf("recording commander damage: %w", err)
+	}
+
+	updated, err := q.AdjustGamePlayerLife(ctx, AdjustGamePlayerLifeParams{ID: defenderID, Delta: -amount})
+	if err != nil {
+		return fmt.Errorf("adjusting life total: %w", err)
+	}
+
+	if !updated.IsEliminated.Bool &&
+		(updated.LifeTotal.Int32 <= eliminationLifeTotal || cd.Amount >= eliminationCommanderDamage) {
+		return s.eliminate(ctx, q, defenderID)
+	}
+	return nil
+}
+
+func (s *service) adjustPoison(ctx context.Context, q *Queries, playerID pgtype.UUID, delta int32) error {
+	updated, err := q.AdjustGamePlayerPoison(ctx, AdjustGamePlayerPoisonParams{ID: playerID, Delta: delta})
 	if err != nil {
 		return fmt.Errorf("adjusting poison counters: %w", err)
 	}
 	if !updated.IsEliminated.Bool && updated.PoisonCounters.Int32 >= eliminationPoisonCounters {
-		return s.eliminate(ctx, updated.ID)
+		return s.eliminate(ctx, q, updated.ID)
 	}
 	return nil
 }
 
-func (s *service) eliminate(ctx context.Context, playerID pgtype.UUID) error {
-	_, err := s.repo.SetGamePlayerEliminated(ctx, SetGamePlayerEliminatedParams{
+func (s *service) eliminate(ctx context.Context, q *Queries, playerID pgtype.UUID) error {
+	_, err := q.SetGamePlayerEliminated(ctx, SetGamePlayerEliminatedParams{
 		ID:           playerID,
 		IsEliminated: pgtype.Bool{Bool: true, Valid: true},
 	})
@@ -277,8 +352,31 @@ func (s *service) eliminate(ctx context.Context, playerID pgtype.UUID) error {
 	return nil
 }
 
-func (s *service) getGamePlayer(ctx context.Context, gameID, playerID pgtype.UUID) (*GamePlayer, error) {
-	player, err := s.repo.GetGamePlayer(ctx, playerID)
+// setCurrentTurn fija de quién es el turno ahora (TurnStart). No modela orden de
+// turno (quién sigue) — solo responde "de quién es el turno ahora".
+func (s *service) setCurrentTurn(ctx context.Context, q *Queries, gid, playerID pgtype.UUID) error {
+	_, err := q.SetCurrentTurnPlayer(ctx, SetCurrentTurnPlayerParams{
+		ID:                  gid,
+		CurrentTurnPlayerID: playerID,
+	})
+	if err != nil {
+		return fmt.Errorf("setting current turn player: %w", err)
+	}
+	return nil
+}
+
+// clearCurrentTurn limpia de quién es el turno (TurnEnd); el siguiente TurnStart lo
+// vuelve a fijar.
+func (s *service) clearCurrentTurn(ctx context.Context, q *Queries, gid pgtype.UUID) error {
+	_, err := q.SetCurrentTurnPlayer(ctx, SetCurrentTurnPlayerParams{ID: gid})
+	if err != nil {
+		return fmt.Errorf("clearing current turn player: %w", err)
+	}
+	return nil
+}
+
+func (s *service) getGamePlayer(ctx context.Context, q *Queries, gameID, playerID pgtype.UUID) (*GamePlayer, error) {
+	player, err := q.GetGamePlayer(ctx, playerID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrPlayerNotInGame

@@ -17,6 +17,7 @@ type Querier interface {
 	GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (User, error)
+	UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfieldUsernameParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)
