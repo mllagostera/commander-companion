@@ -25,7 +25,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       backend_workflow: ${{ steps.filter.outputs.backend_workflow }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -50,7 +50,7 @@ jobs:
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
@@ -71,7 +71,7 @@ jobs:
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
@@ -87,7 +87,7 @@ jobs:
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: sqlc-dev/setup-sqlc@v4
         with:
           sqlc-version: "1.27.0"
@@ -124,7 +124,7 @@ jobs:
     env:
       DB_URL: postgres://postgres:postgres@localhost:5432/commander_test?sslmode=disable
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
@@ -147,7 +147,7 @@ jobs:
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: backend/Dockerfile
