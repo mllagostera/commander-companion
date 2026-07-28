@@ -58,7 +58,7 @@ jobs:
           java-version: "21"
 
       - name: Configurar Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           build-root-directory: android
 
