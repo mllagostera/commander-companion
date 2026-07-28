@@ -49,6 +49,9 @@ components:
         created_at:
           type: string
           format: date-time
+        moxfield_username:
+          type: string
+          nullable: true
     RegisterRequest:
       type: object
       required: [username, email, password]
@@ -61,6 +64,12 @@ components:
         password:
           type: string
           format: password
+    UpdateProfileRequest:
+      type: object
+      properties:
+        moxfield_username:
+          type: string
+          description: Username de Moxfield a vincular al perfil (sin validar contra Moxfield).
     LoginRequest:
       type: object
       required: [email, password]
@@ -561,7 +570,10 @@ paths:
         '200':
           description: Detalle del usuario
     patch:
-      summary: Actualizar usuario
+      summary: Actualizar el perfil propio (hoy, solo moxfield_username)
+      description: >-
+        id debe ser el propio usuario autenticado (vía JWT) — 404 en cualquier otro
+        caso, sin distinguir "no existe" de "no es tuyo".
       parameters:
         - in: path
           name: id
@@ -569,9 +581,23 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
       responses:
         '200':
           description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Body inválido
+        '404':
+          description: id no es el del usuario autenticado
 
   /playgroups:
     get:

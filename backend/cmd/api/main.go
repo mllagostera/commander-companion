@@ -120,7 +120,8 @@ func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	authHandler.RegisterPublicRoutes(api, authRateLimit) // login, google, refresh, logout
 
 	protected := api.Group("", auth.RequireAuth(authCfg.JWTSecret))
-	authHandler.RegisterProtectedRoutes(protected) // GET /auth/me
+	authHandler.RegisterProtectedRoutes(protected)  // GET /auth/me
+	usersHandler.RegisterProtectedRoutes(protected) // PATCH /users/:id
 
 	decksService := decks.NewService(db.Pool, moxfield.NewClient())
 	decks.NewHandler(decksService).RegisterRoutes(protected)

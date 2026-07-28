@@ -90,13 +90,14 @@ type RefreshToken struct {
 }
 
 type User struct {
-	ID           pgtype.UUID      `json:"id"`
-	Username     string           `json:"username"`
-	Email        string           `json:"email"`
-	PasswordHash pgtype.Text      `json:"password_hash"`
-	CreatedAt    pgtype.Timestamp `json:"created_at"`
-	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
-	GoogleID     pgtype.Text      `json:"google_id"`
+	ID               pgtype.UUID      `json:"id"`
+	Username         string           `json:"username"`
+	Email            string           `json:"email"`
+	PasswordHash     pgtype.Text      `json:"password_hash"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	GoogleID         pgtype.Text      `json:"google_id"`
+	MoxfieldUsername pgtype.Text      `json:"moxfield_username"`
 }
 
 type UserStatisticsSummary struct {

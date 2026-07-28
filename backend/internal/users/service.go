@@ -44,6 +44,7 @@ type Service interface {
 	GetUser(ctx context.Context, id string) (*UserResponse, error)
 	VerifyCredentials(ctx context.Context, email, password string) (*UserResponse, error)
 	FindOrCreateGoogleUser(ctx context.Context, googleID, email string, emailVerified bool) (*UserResponse, error)
+	UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUsername string) (*UserResponse, error)
 }
 
 type service struct {
@@ -91,6 +92,29 @@ func (s *service) GetUser(ctx context.Context, id string) (*UserResponse, error)
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("looking up user by id: %w", err)
+	}
+
+	return toUserResponse(&user), nil
+}
+
+// UpdateMoxfieldUsername vincula (o cambia) el username de Moxfield del perfil. No
+// valida contra la API de Moxfield que el username exista de verdad — eso queda para
+// cuando se use (ver internal/moxfieldimport).
+func (s *service) UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUsername string) (*UserResponse, error) {
+	uid, err := common.ParseUUID(id)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	user, err := s.repo.UpdateMoxfieldUsername(ctx, UpdateMoxfieldUsernameParams{
+		ID:               uid,
+		MoxfieldUsername: pgtype.Text{String: moxfieldUsername, Valid: moxfieldUsername != ""},
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, fmt.Errorf("updating moxfield username: %w", err)
 	}
 
 	return toUserResponse(&user), nil
@@ -196,10 +220,14 @@ func toUserResponse(user *User) *UserResponse {
 		createdAt = user.CreatedAt.Time
 	}
 
-	return &UserResponse{
+	res := &UserResponse{
 		ID:        user.ID.String(),
 		Username:  user.Username,
 		Email:     user.Email,
 		CreatedAt: createdAt,
 	}
+	if user.MoxfieldUsername.Valid {
+		res.MoxfieldUsername = &user.MoxfieldUsername.String
+	}
+	return res
 }
