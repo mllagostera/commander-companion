@@ -298,3 +298,54 @@ func TestFindOrCreateGoogleUser_ResolvesUsernameCollision(t *testing.T) {
 		t.Fatalf("FindOrCreateGoogleUser() username = %q, colisiona con el de la primera cuenta", second.Username)
 	}
 }
+
+func TestUpdateMoxfieldUsername_Success(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "moxfield-profile@example.com")
+
+	updated, err := svc.UpdateMoxfieldUsername(context.Background(), user.ID, "MyMoxfieldHandle")
+	if err != nil {
+		t.Fatalf("UpdateMoxfieldUsername() error = %v, want nil", err)
+	}
+	if updated.MoxfieldUsername == nil || *updated.MoxfieldUsername != "MyMoxfieldHandle" {
+		t.Fatalf("UpdateMoxfieldUsername() MoxfieldUsername = %v, want %q", updated.MoxfieldUsername, "MyMoxfieldHandle")
+	}
+
+	// Se refleja en una lectura posterior, no solo en la respuesta de la propia
+	// escritura.
+	fetched, err := svc.GetUser(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("GetUser() error = %v", err)
+	}
+	if fetched.MoxfieldUsername == nil || *fetched.MoxfieldUsername != "MyMoxfieldHandle" {
+		t.Fatalf("GetUser() MoxfieldUsername = %v, want %q", fetched.MoxfieldUsername, "MyMoxfieldHandle")
+	}
+}
+
+func TestUpdateMoxfieldUsername_Idempotent(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "moxfield-idempotent@example.com")
+
+	for range 2 {
+		_, err := svc.UpdateMoxfieldUsername(context.Background(), user.ID, "SameHandle")
+		if err != nil {
+			t.Fatalf("UpdateMoxfieldUsername() error = %v, want nil", err)
+		}
+	}
+}
+
+// El handler HTTP responde 404 si :id no es el del usuario autenticado, sin llamar
+// al service con un id ajeno. El mismo ErrUserNotFound que backea ese 404 también
+// es lo que devuelve el service ante cualquier id inexistente, así que este test
+// ejercita ese camino común.
+func TestUpdateMoxfieldUsername_UnknownUser_ReturnsNotFound(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	_, err := svc.UpdateMoxfieldUsername(context.Background(), "00000000-0000-0000-0000-000000000000", "Handle")
+	if !errors.Is(err, users.ErrUserNotFound) {
+		t.Fatalf("UpdateMoxfieldUsername() con usuario inexistente: error = %v, want ErrUserNotFound", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("UpdateMoxfieldUsername() con usuario inexistente: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+}

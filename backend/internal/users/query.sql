@@ -30,3 +30,8 @@ RETURNING *;
 UPDATE users SET google_id = $2
 WHERE id = $1
 RETURNING *;
+
+-- name: UpdateMoxfieldUsername :one
+UPDATE users SET moxfield_username = $2
+WHERE id = $1
+RETURNING *;

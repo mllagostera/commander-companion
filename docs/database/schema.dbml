@@ -11,6 +11,7 @@ Table users {
   google_id varchar [unique, note: 'Sub de Google (id_token). Nullable: cuentas email/password no lo tienen']
   created_at timestamp [default: `now()`]
   updated_at timestamp
+  moxfield_username varchar [note: 'Username de Moxfield vinculado (opcional, sin unicidad). Migración 00009_moxfield_username.sql']
 
   Note: 'CHECK: password_hash IS NOT NULL OR google_id IS NOT NULL'
 }
@@ -63,6 +64,7 @@ Table games {
   started_at timestamp
   finished_at timestamp
   created_at timestamp [default: `now()`]
+  current_turn_player_id uuid [ref: > game_players.id, null, note: 'De quién es el turno ahora (no modela orden de turno). Migración 00008_current_turn.sql']
 
   Note: 'CHECK: status IN (\'pending\', \'active\', \'finished\') (migración 00004_status_constraints.sql)'
 }
@@ -99,6 +101,20 @@ Table game_actions {
   Note: 'CHECK: action_type IN (\'LifeChange\', \'CombatDamage\', \'CommanderDamage\', \'PoisonCounter\', \'TurnStart\', \'TurnEnd\', \'Elimination\') (migración 00004_status_constraints.sql)'
 }
 
+Table commander_damage {
+  game_id uuid [ref: > games.id]
+  attacker_id uuid [ref: > game_players.id, note: 'Jugador cuyo comandante infligió el daño']
+  defender_id uuid [ref: > game_players.id, note: 'Jugador que recibió el daño']
+  amount int [not null, default: 0, note: 'Acumulado de daño de este atacante a este defensor en la partida']
+
+  indexes {
+    (attacker_id, defender_id) [pk]
+    game_id [note: 'Migración 00007_commander_damage.sql']
+  }
+
+  Note: 'CHECK: attacker_id <> defender_id, amount >= 0 (migración 00007_commander_damage.sql). 21+ de un mismo attacker_id elimina al defender_id (regla real de Commander), independiente de game_players.life_total'
+}
+
 // Estadísticas pre-calculadas (se recalculan si una partida histórica se modifica)
 Table user_statistics_summary {
   user_id uuid [primary key, ref: - users.id]
@@ -117,4 +133,26 @@ Table deck_statistics_summary {
   highest_life_total_achieved int [default: 0]
   total_commander_damage_dealt int [default: 0]
   last_recalculated_at timestamp [default: `now()`]
+}
+
+// Import masivo y asíncrono de todos los decks públicos de un usuario de Moxfield
+// (ver internal/moxfieldimport). Contadores agregados, no un ítem por deck.
+Table moxfield_import_jobs {
+  id uuid [primary key]
+  user_id uuid [ref: > users.id]
+  moxfield_username varchar [not null]
+  status varchar [not null, default: 'pending', note: 'pending, in_progress, completed, failed']
+  total_decks int [null]
+  imported_count int [default: 0]
+  failed_count int [default: 0]
+  error_message varchar [null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+  finished_at timestamp
+
+  indexes {
+    (user_id) [name: 'moxfield_import_jobs_active_user_idx', note: 'UNIQUE parcial WHERE status IN (pending, in_progress) -- un solo job activo por usuario. Migración 00010_moxfield_import_jobs.sql']
+  }
+
+  Note: 'CHECK: status IN (\'pending\', \'in_progress\', \'completed\', \'failed\') (migración 00010_moxfield_import_jobs.sql)'
 }
