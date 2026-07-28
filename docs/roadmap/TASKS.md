@@ -60,6 +60,18 @@ Checklist operativa de todo el trabajo pendiente, organizada por las **Etapas** 
 - [x] Variable de entorno `GOOGLE_CLIENT_ID` documentada en `.env.example`
 - [x] Manejo de errores específicos: token inválido/expirado → 401, `email_verified: false` → 400, `GOOGLE_CLIENT_ID` no configurado → 501
 
+### Auth — verificación de email
+- [x] ADR: decisión de bloquear login hasta confirmar el email, y de usar Resend con templates de dashboard (no HTML en el backend) — [ADR-0012](../decisions/0012-verificacion-email-resend.md)
+- [x] Migración `00011_email_verification.sql`: `users.email_verified` (default `true`; solo `CreateUser` fuerza `false`), tabla `email_verification_tokens` (mismo patrón hash+TTL que `refresh_tokens`)
+- [x] `users.RegisterUser` genera el token, lo persiste hasheado (TTL 24h) y dispara el mail vía `users.Mailer` (interfaz angosta, mismo patrón que `decks.MoxfieldClient`); un fallo de envío no revierte el registro
+- [x] `users.VerifyCredentials` (de la que depende `auth.Login`) devuelve `403 ErrEmailNotConfirmed` si el password es correcto pero el email no está confirmado
+- [x] `POST /auth/verify-email` y `POST /auth/resend-verification` (`internal/users/handler.go`), ambos bajo el mismo rate limit por IP que el resto de los endpoints públicos de auth; `ResendVerification` nunca revela si el email existe o ya está verificado
+- [x] `LinkGoogleID` marca `email_verified = true` al vincular una cuenta de Google a una cuenta email/password existente (Google ya confirmó ese email en `FindOrCreateGoogleUser` antes de llegar a este punto)
+- [x] `internal/email`: cliente de Resend (`template: { id, variables }`, sin HTML/texto embebido en Go) + mailer "de consola" cuando `RESEND_API_KEY` está vacío, para que desarrollo local y tests no dependan de una cuenta de Resend
+- [x] Frontend web: `register.vue` ya no auto-loguea (muestra "revisá tu email"), `login.vue` ofrece reenviar verificación ante un `403`, página nueva `verify-email.vue`
+- [x] Flag `REQUIRE_EMAIL_VERIFICATION` (`config.Config.RequireEmailVerification`, default `false`): en `false`, fase alpha actual, `RegisterUser` crea la cuenta ya verificada y no genera token ni llama al `Mailer` — no se gasta el envío mientras nadie va a exigir el click. Todo lo de arriba queda construido pero inactivo hasta prender el flag
+- [ ] **Salir de alpha: prender `REQUIRE_EMAIL_VERIFICATION=true`**, y antes de eso, **verificar un dominio propio en el dashboard de Resend** (SPF/DKIM/DMARC) y crear ahí el Template de verificación (variables `USERNAME`/`VERIFY_URL`, publicado, `VERIFY_URL` como texto plano por el bug de Resend documentado en el ADR) — paso manual externo, requiere acceso al dominio y a la cuenta de Resend del proyecto; sin `RESEND_API_KEY`/`RESEND_VERIFY_EMAIL_TEMPLATE_ID` configurados, el link de verificación se loguea por consola en vez de mandarse
+
 ### Games / game-actions — motor de partida
 - [x] `games` conectado a `Queries` reales (sqlc): `CreateGame`, `GetGame`/`ListGames` (con `players` embebido en el detalle), `JoinGame`, `LeaveGame`, `StartGame`, `FinishGame`
 - [x] Máquina de estados `pending → active → finished` aplicada server-side: `join`/`leave` solo en `pending`, `start` requiere ≥2 jugadores (`minPlayersToStart`) y solo desde `pending`, `finish` solo desde `active`, cualquier transición inválida devuelve 409

@@ -15,6 +15,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/config"
 	"github.com/usuario/commander-companion-backend/internal/decks"
+	"github.com/usuario/commander-companion-backend/internal/email"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
@@ -70,7 +71,7 @@ func run() error {
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 	}))
 
-	registerModules(app, db, cfg.Auth)
+	registerModules(app, db, cfg)
 
 	// 4. Arrancar Servidor
 	log.Printf("Iniciando servidor en el puerto %s...", cfg.Port)
@@ -103,7 +104,7 @@ func newAuthRateLimiter() fiber.Handler {
 
 // registerModules instancia repositorios, servicios y handlers, y registra las
 // rutas de todos los módulos bajo /api/v1 (públicas y protegidas por JWT).
-func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
+func registerModules(app *fiber.App, db *common.DB, cfg config.Config) {
 	api := app.Group("/api/v1")
 
 	// El rate limit se pasa a cada endpoint público de auth en vez de montarlo como
@@ -112,15 +113,18 @@ func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	// queremos acotar los endpoints sin JWT.
 	authRateLimit := newAuthRateLimiter()
 
-	usersService := users.NewService(db.Pool)
+	// emailClient manda el mail de verificación de cuenta. Sin RESEND_API_KEY (dev sin
+	// cuenta de Resend) loguea el link por consola en vez de mandarlo (ver internal/email).
+	emailClient := email.NewResendClient(cfg.Email)
+	usersService := users.NewService(db.Pool, emailClient, cfg.WebAppURL, cfg.RequireEmailVerification)
 	usersHandler := users.NewHandler(usersService)
-	usersHandler.RegisterRoutes(api, authRateLimit) // POST /auth/register
+	usersHandler.RegisterRoutes(api, authRateLimit) // POST /auth/register, verify-email, resend-verification
 
-	authService := auth.NewService(db.Pool, usersService, authCfg)
+	authService := auth.NewService(db.Pool, usersService, cfg.Auth)
 	authHandler := auth.NewHandler(authService)
 	authHandler.RegisterPublicRoutes(api, authRateLimit) // login, google, refresh, logout
 
-	protected := api.Group("", auth.RequireAuth(authCfg.JWTSecret))
+	protected := api.Group("", auth.RequireAuth(cfg.Auth.JWTSecret))
 	authHandler.RegisterProtectedRoutes(protected)  // GET /auth/me
 	usersHandler.RegisterProtectedRoutes(protected) // PATCH /users/:id
 
@@ -140,7 +144,7 @@ func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	// que statisticsService como StatisticsRecalculator). La ruta de WebSocket es
 	// pública (sin auth.RequireAuth): autentica por mensaje inicial, no por header.
 	wsHub := websocket.NewHub()
-	websocket.RegisterRoutes(api, wsHub, authCfg.JWTSecret)
+	websocket.RegisterRoutes(api, wsHub, cfg.Auth.JWTSecret)
 
 	gamesService := games.NewService(db.Pool, statisticsService, wsHub)
 	games.NewHandler(gamesService).RegisterRoutes(protected)

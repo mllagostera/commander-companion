@@ -1,10 +1,6 @@
 package auth
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -71,16 +67,11 @@ func VerifyAccessToken(secret []byte, tokenString string) (string, error) {
 
 // newRefreshTokenPlain genera un refresh token opaco (no JWT) criptográficamente aleatorio.
 func newRefreshTokenPlain() (string, error) {
-	buf := make([]byte, refreshTokenBytes)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("generating refresh token: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
+	return common.NewOpaqueToken(refreshTokenBytes)
 }
 
 // hashRefreshToken calcula el hash que se persiste en base de datos; el token en
 // claro nunca se guarda, solo se entrega una vez al cliente.
 func hashRefreshToken(plain string) string {
-	sum := sha256.Sum256([]byte(plain))
-	return hex.EncodeToString(sum[:])
+	return common.HashToken(plain)
 }

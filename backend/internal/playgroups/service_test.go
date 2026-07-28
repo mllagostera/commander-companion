@@ -22,7 +22,7 @@ func truncatePlaygroupsTables(t *testing.T, pool *pgxpool.Pool) {
 
 func createTestUser(t *testing.T, pool *pgxpool.Pool, email string) *users.UserResponse {
 	t.Helper()
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
 		Username: "user-" + email,
 		Email:    email,

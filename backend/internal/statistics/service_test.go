@@ -61,7 +61,7 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, playgroupID string) *t
 	t.Helper()
 	ctx := context.Background()
 
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	statsSvc := statistics.NewService(pool)
 	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{})
@@ -172,7 +172,7 @@ func mustGetDeckStats(t *testing.T, svc statistics.Service, userID, deckID strin
 
 func createFounder(t *testing.T, pool *pgxpool.Pool) *users.UserResponse {
 	t.Helper()
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
 		Username: "founder-" + t.Name(), Email: "founder-" + t.Name() + "@example.com", Password: testPassword,
 	})
@@ -186,7 +186,7 @@ func TestGetUserStats_NoGamesYet_ReturnsZeroValues(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateStatsTables(t, pool)
 
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
 		Username: "fresh-user", Email: "fresh-user@example.com", Password: testPassword,
 	})
@@ -205,7 +205,7 @@ func TestGetDeckStats_OwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 	truncateStatsTables(t, pool)
 	ctx := context.Background()
 
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	owner, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "deck-owner", Email: "deck-owner@example.com", Password: testPassword,
@@ -293,7 +293,7 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	// setupTwoPlayerGame crea usuarios nuevos en cada llamada; para probar la
 	// acumulación real hace falta jugar 2 veces con el MISMO usuario, así que la
 	// segunda partida se arma a mano reutilizando g1.user1/g1.deck1ID.
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	statsSvc := statistics.NewService(pool)
 	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{})

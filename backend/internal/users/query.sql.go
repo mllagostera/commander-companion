@@ -11,23 +11,62 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (
-  username, email, password_hash
+const createEmailVerificationToken = `-- name: CreateEmailVerificationToken :one
+INSERT INTO email_verification_tokens (
+  user_id, token_hash, expires_at
 ) VALUES (
   $1, $2, $3
 )
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username
+RETURNING id, user_id, token_hash, expires_at, created_at, used_at
+`
+
+type CreateEmailVerificationTokenParams struct {
+	UserID    pgtype.UUID      `json:"user_id"`
+	TokenHash string           `json:"token_hash"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+}
+
+func (q *Queries) CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error) {
+	row := q.db.QueryRow(ctx, createEmailVerificationToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
+	var i EmailVerificationToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UsedAt,
+	)
+	return i, err
+}
+
+const createUser = `-- name: CreateUser :one
+INSERT INTO users (
+  username, email, password_hash, email_verified
+) VALUES (
+  $1, $2, $3, $4
+)
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified
 `
 
 type CreateUserParams struct {
-	Username     string      `json:"username"`
-	Email        string      `json:"email"`
-	PasswordHash pgtype.Text `json:"password_hash"`
+	Username      string      `json:"username"`
+	Email         string      `json:"email"`
+	PasswordHash  pgtype.Text `json:"password_hash"`
+	EmailVerified bool        `json:"email_verified"`
 }
 
+// email_verified es explícito (no el default de la columna): RegisterUser decide su
+// valor según config.RequireEmailVerification (ver ADR-0012). CreateUserWithGoogle no
+// lo toca a propósito, así que usa el default de la columna (true) — Google ya confirma
+// el email en su id_token.
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Username, arg.Email, arg.PasswordHash)
+	row := q.db.QueryRow(ctx, createUser,
+		arg.Username,
+		arg.Email,
+		arg.PasswordHash,
+		arg.EmailVerified,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -38,6 +77,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.GoogleID,
 		&i.MoxfieldUsername,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -48,7 +88,7 @@ INSERT INTO users (
 ) VALUES (
   $1, $2, $3
 )
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified
 `
 
 type CreateUserWithGoogleParams struct {
@@ -69,12 +109,32 @@ func (q *Queries) CreateUserWithGoogle(ctx context.Context, arg CreateUserWithGo
 		&i.UpdatedAt,
 		&i.GoogleID,
 		&i.MoxfieldUsername,
+		&i.EmailVerified,
+	)
+	return i, err
+}
+
+const getEmailVerificationTokenByHash = `-- name: GetEmailVerificationTokenByHash :one
+SELECT id, user_id, token_hash, expires_at, created_at, used_at FROM email_verification_tokens
+WHERE token_hash = $1 LIMIT 1
+`
+
+func (q *Queries) GetEmailVerificationTokenByHash(ctx context.Context, tokenHash string) (EmailVerificationToken, error) {
+	row := q.db.QueryRow(ctx, getEmailVerificationTokenByHash, tokenHash)
+	var i EmailVerificationToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UsedAt,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified FROM users
 WHERE email = $1 LIMIT 1
 `
 
@@ -90,12 +150,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 		&i.GoogleID,
 		&i.MoxfieldUsername,
+		&i.EmailVerified,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified FROM users
 WHERE google_id = $1 LIMIT 1
 `
 
@@ -111,12 +172,13 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (
 		&i.UpdatedAt,
 		&i.GoogleID,
 		&i.MoxfieldUsername,
+		&i.EmailVerified,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified FROM users
 WHERE id = $1 LIMIT 1
 `
 
@@ -132,14 +194,15 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.UpdatedAt,
 		&i.GoogleID,
 		&i.MoxfieldUsername,
+		&i.EmailVerified,
 	)
 	return i, err
 }
 
 const linkGoogleID = `-- name: LinkGoogleID :one
-UPDATE users SET google_id = $2
+UPDATE users SET google_id = $2, email_verified = true
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified
 `
 
 type LinkGoogleIDParams struct {
@@ -147,6 +210,9 @@ type LinkGoogleIDParams struct {
 	GoogleID pgtype.Text `json:"google_id"`
 }
 
+// email_verified se fuerza a true al vincular: FindOrCreateGoogleUser ya comprobó que
+// Google confirma este email antes de llamar a esta query, así que una cuenta
+// email/password todavía no verificada queda verificada por esta vía también.
 func (q *Queries) LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (User, error) {
 	row := q.db.QueryRow(ctx, linkGoogleID, arg.ID, arg.GoogleID)
 	var i User
@@ -159,6 +225,40 @@ func (q *Queries) LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (Use
 		&i.UpdatedAt,
 		&i.GoogleID,
 		&i.MoxfieldUsername,
+		&i.EmailVerified,
+	)
+	return i, err
+}
+
+const markEmailVerificationTokenUsed = `-- name: MarkEmailVerificationTokenUsed :exec
+UPDATE email_verification_tokens SET used_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) MarkEmailVerificationTokenUsed(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markEmailVerificationTokenUsed, id)
+	return err
+}
+
+const setUserEmailVerified = `-- name: SetUserEmailVerified :one
+UPDATE users SET email_verified = true
+WHERE id = $1
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified
+`
+
+func (q *Queries) SetUserEmailVerified(ctx context.Context, id pgtype.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, setUserEmailVerified, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GoogleID,
+		&i.MoxfieldUsername,
+		&i.EmailVerified,
 	)
 	return i, err
 }
@@ -166,7 +266,7 @@ func (q *Queries) LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (Use
 const updateMoxfieldUsername = `-- name: UpdateMoxfieldUsername :one
 UPDATE users SET moxfield_username = $2
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified
 `
 
 type UpdateMoxfieldUsernameParams struct {
@@ -186,6 +286,7 @@ func (q *Queries) UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfield
 		&i.UpdatedAt,
 		&i.GoogleID,
 		&i.MoxfieldUsername,
+		&i.EmailVerified,
 	)
 	return i, err
 }

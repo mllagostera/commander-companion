@@ -21,6 +21,10 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrConflict agrupa los errores de estado incompatible con la operación → HTTP 409.
 	ErrConflict = errors.New("conflict")
+	// ErrForbidden agrupa los errores de acción no permitida para un sujeto ya
+	// autenticado/identificado (distinto de ErrUnauthorized: acá se sabe quién es, pero
+	// no puede hacer esto todavía) → HTTP 403.
+	ErrForbidden = errors.New("forbidden")
 	// ErrNotImplemented agrupa lo no configurado o no disponible → HTTP 501.
 	ErrNotImplemented = errors.New("not implemented")
 	// ErrUpstreamUnavailable agrupa los fallos de una dependencia externa (p. ej.
@@ -61,6 +65,9 @@ func NotFound(msg string) *DomainError { return &DomainError{kind: ErrNotFound, 
 // Conflict crea un error de estado incompatible con la operación pedida (→ HTTP 409).
 func Conflict(msg string) *DomainError { return &DomainError{kind: ErrConflict, msg: msg} }
 
+// Forbidden crea un error de acción no permitida para un sujeto identificado (→ HTTP 403).
+func Forbidden(msg string) *DomainError { return &DomainError{kind: ErrForbidden, msg: msg} }
+
 // NotImplemented crea un error de funcionalidad no configurada o no disponible (→ HTTP 501).
 func NotImplemented(msg string) *DomainError {
 	return &DomainError{kind: ErrNotImplemented, msg: msg}
@@ -96,6 +103,8 @@ func MapError(err error) error {
 		return fiber.NewError(fiber.StatusNotFound, err.Error())
 	case errors.Is(err, ErrConflict):
 		return fiber.NewError(fiber.StatusConflict, err.Error())
+	case errors.Is(err, ErrForbidden):
+		return fiber.NewError(fiber.StatusForbidden, err.Error())
 	case errors.Is(err, ErrNotImplemented):
 		return fiber.NewError(fiber.StatusNotImplemented, err.Error())
 	case errors.Is(err, ErrUpstreamUnavailable):

@@ -7,15 +7,18 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/usuario/commander-companion-backend/internal/auth"
+	"github.com/usuario/commander-companion-backend/internal/email"
 )
 
 const (
 	defaultAccessTokenTTL  = 15 * time.Minute
 	defaultRefreshTokenTTL = 30 * 24 * time.Hour
 	defaultPort            = "8080"
+	defaultWebAppURL       = "http://localhost:3000"
 )
 
 // Config agrupa toda la configuración del servidor leída de variables de
@@ -24,7 +27,16 @@ type Config struct {
 	DBURL              string
 	Port               string
 	CORSAllowedOrigins string
-	Auth               auth.Config
+	// WebAppURL es la URL pública del cliente web (Nuxt), usada para armar links que
+	// mandan los mails transaccionales (ej. verificación de email).
+	WebAppURL string
+	// RequireEmailVerification controla si el registro exige confirmar el email antes
+	// de poder loguearse (ver ADR-0012). Default false: en fase alpha no tiene sentido
+	// ni mandar el mail ni bloquear el login por esto, así que las cuentas nuevas
+	// quedan verificadas de alta y RegisterUser ni genera el token ni llama al mailer.
+	RequireEmailVerification bool
+	Auth                     auth.Config
+	Email                    email.Config
 }
 
 // Load lee la configuración completa desde variables de entorno, con los
@@ -36,10 +48,13 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		DBURL:              dbURL(),
-		Port:               port(),
-		CORSAllowedOrigins: corsAllowedOrigins(),
-		Auth:               authCfg,
+		DBURL:                    dbURL(),
+		Port:                     port(),
+		CORSAllowedOrigins:       corsAllowedOrigins(),
+		WebAppURL:                webAppURL(),
+		RequireEmailVerification: boolEnv("REQUIRE_EMAIL_VERIFICATION", false),
+		Auth:                     authCfg,
+		Email:                    loadEmailConfig(),
 	}, nil
 }
 
@@ -69,6 +84,24 @@ func corsAllowedOrigins() string {
 	return "*"
 }
 
+func webAppURL() string {
+	if v := os.Getenv("WEB_APP_URL"); v != "" {
+		return v
+	}
+	return defaultWebAppURL
+}
+
+// loadEmailConfig lee la configuración de Resend. Si RESEND_API_KEY está vacío (dev
+// sin cuenta de Resend), email.NewResendClient usa un mailer de consola en su lugar
+// (ver internal/email), así que no hace falta validar nada acá.
+func loadEmailConfig() email.Config {
+	return email.Config{
+		APIKey:                os.Getenv("RESEND_API_KEY"),
+		FromAddress:           os.Getenv("EMAIL_FROM"),
+		VerifyEmailTemplateID: os.Getenv("RESEND_VERIFY_EMAIL_TEMPLATE_ID"),
+	}
+}
+
 func loadAuthConfig() (auth.Config, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -93,6 +126,22 @@ func loadAuthConfig() (auth.Config, error) {
 		RefreshTokenTTL: refreshTTL,
 		GoogleClientID:  os.Getenv("GOOGLE_CLIENT_ID"),
 	}, nil
+}
+
+// boolEnv lee una variable de entorno booleana ("true"/"false", case-insensitive vía
+// strconv.ParseBool que también acepta "1"/"0"). Cualquier valor que no parsee cae al
+// default en vez de fallar el arranque: no vale la pena bloquear el servidor por un
+// typo en un flag de este tipo.
+func boolEnv(name string, fallback bool) bool {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
 }
 
 func parseDurationEnv(name string, fallback time.Duration) (time.Duration, error) {

@@ -11,12 +11,23 @@ import (
 )
 
 type Querier interface {
+	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
+	// email_verified es explícito (no el default de la columna): RegisterUser decide su
+	// valor según config.RequireEmailVerification (ver ADR-0012). CreateUserWithGoogle no
+	// lo toca a propósito, así que usa el default de la columna (true) — Google ya confirma
+	// el email en su id_token.
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserWithGoogle(ctx context.Context, arg CreateUserWithGoogleParams) (User, error)
+	GetEmailVerificationTokenByHash(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	// email_verified se fuerza a true al vincular: FindOrCreateGoogleUser ya comprobó que
+	// Google confirma este email antes de llamar a esta query, así que una cuenta
+	// email/password todavía no verificada queda verificada por esta vía también.
 	LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (User, error)
+	MarkEmailVerificationTokenUsed(ctx context.Context, id pgtype.UUID) error
+	SetUserEmailVerified(ctx context.Context, id pgtype.UUID) (User, error)
 	UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfieldUsernameParams) (User, error)
 }
 

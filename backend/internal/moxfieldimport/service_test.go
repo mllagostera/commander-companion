@@ -70,7 +70,7 @@ func (f *fakeDeckImporter) ImportFromMoxfield(
 func newTestSvc(
 	pool *pgxpool.Pool, mox moxfieldimport.MoxfieldClient, imp moxfieldimport.DeckImporter,
 ) moxfieldimport.Service {
-	return moxfieldimport.NewService(pool, users.NewService(pool), imp, mox)
+	return moxfieldimport.NewService(pool, testutil.NewUsersService(pool), imp, mox)
 }
 
 func truncateImportTables(t *testing.T, pool *pgxpool.Pool) {
@@ -82,7 +82,7 @@ func registerUserWithMoxfieldUsername(
 	t *testing.T, pool *pgxpool.Pool, email, moxfieldUsername string,
 ) *users.UserResponse {
 	t.Helper()
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
 		Username: "user-" + email, Email: email, Password: testPassword,
 	})
@@ -156,7 +156,7 @@ func TestStartImport_NoMoxfieldUsername_ReturnsBadRequest(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateImportTables(t, pool)
 
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
 		Username: "sin-username", Email: "sin-username@example.com", Password: testPassword,
 	})

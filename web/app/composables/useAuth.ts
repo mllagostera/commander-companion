@@ -58,13 +58,30 @@ export function useAuth() {
     )
   }
 
+  /**
+   * Registra la cuenta. No deja sesión iniciada: hasta no verificar el email,
+   * `login()` responde 403 (ver server/api/auth/login.post.ts), así que la pantalla de
+   * registro muestra un "revisá tu email" en vez de navegar al dashboard.
+   */
   async function register(username: string, email: string, password: string) {
-    return applySession(
-      await nitroFetch<SessionResponse>('/api/auth/register', {
-        method: 'POST',
-        body: { username, email, password },
-      }),
-    )
+    await nitroFetch('/api/auth/register', {
+      method: 'POST',
+      body: { username, email, password },
+    })
+  }
+
+  async function verifyEmail(token: string) {
+    await nitroFetch('/api/auth/verify-email', {
+      method: 'POST',
+      body: { token },
+    })
+  }
+
+  async function resendVerification(email: string) {
+    await nitroFetch('/api/auth/resend-verification', {
+      method: 'POST',
+      body: { email },
+    })
   }
 
   async function loginWithGoogle(idToken: string) {
@@ -103,6 +120,8 @@ export function useAuth() {
     isAuthenticated,
     login,
     register,
+    verifyEmail,
+    resendVerification,
     loginWithGoogle,
     logout,
     fetchSession,
