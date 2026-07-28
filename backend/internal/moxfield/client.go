@@ -43,6 +43,14 @@ var (
 	// ErrUpstreamUnavailable indica que Moxfield siguió fallando (red/timeout, 5xx,
 	// 429) después de agotar los reintentos de GetDeck.
 	ErrUpstreamUnavailable = errors.New("moxfield unavailable after retries")
+	// ErrListDecksByUsernameNotImplemented indica que ListDecksByUsername es un
+	// stub: no hay evidencia verificada de qué endpoint de Moxfield lista los decks
+	// públicos de un usuario (este sandbox bloquea la red hacia api2.moxfield.com,
+	// así que no se pudo investigar como sí se hizo para GetDeck — ver
+	// docs/roadmap/TASKS.md, Stage 8). Confirmar el endpoint real (path, forma de
+	// paginación, si necesita el mismo User-Agent/Referer que GetDeck) en un
+	// entorno con acceso de red antes de implementarlo de verdad.
+	ErrListDecksByUsernameNotImplemented = errors.New("listing a moxfield user's decks is not implemented yet")
 )
 
 // Deck son los datos de un deck de Moxfield relevantes para la importación.
@@ -230,4 +238,11 @@ func ExtractPublicID(input string) (string, error) {
 		}
 	}
 	return "", ErrIDNotFoundInURL
+}
+
+// ListDecksByUsername debería devolver los IDs públicos de todos los decks
+// públicos de un usuario de Moxfield (dado su username, no su ID). STUB: ver
+// ErrListDecksByUsernameNotImplemented para el motivo.
+func (c *Client) ListDecksByUsername(_ context.Context, _ string) ([]string, error) {
+	return nil, ErrListDecksByUsernameNotImplemented
 }
