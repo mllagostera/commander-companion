@@ -141,6 +141,9 @@ func (s *service) StartImport(ctx context.Context, userID string) (*JobResponse,
 		return nil, err
 	}
 
+	//nolint:gosec // G118: intencional, no un descuido -- runImport usa
+	// context.Background() a propósito porque ctx (el del request) deja de ser
+	// válido en cuanto el handler retorna, ver el doc de runImport.
 	go s.runImport(job.ID, userID, publicIDs)
 
 	return toJobResponse(&job), nil

@@ -23,6 +23,9 @@ const testPassword = "correct-horse-battery-staple"
 const (
 	jobStatusCompleted = "completed"
 	jobStatusFailed    = "failed"
+
+	testDeckA = "deck-a"
+	testDeckB = "deck-b"
 )
 
 var errSimulatedImportFailure = errors.New("simulated import failure")
@@ -173,7 +176,7 @@ func TestStartImport_Success_CompletesJob(t *testing.T) {
 	truncateImportTables(t, pool)
 	user := registerUserWithMoxfieldUsername(t, pool, "success@example.com", "handle1")
 
-	mox := fakeMoxfieldClient{publicIDs: []string{"deck-a", "deck-b"}}
+	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA, testDeckB}}
 	imp := &fakeDeckImporter{}
 	svc := newTestSvc(pool, mox, imp)
 
@@ -247,7 +250,7 @@ func TestStartImport_AlreadyInProgress_ReturnsConflict(t *testing.T) {
 
 	// delay generoso para que el primer job siga in_progress cuando llega el
 	// segundo StartImport, sin depender de timing ajustado.
-	mox := fakeMoxfieldClient{publicIDs: []string{"deck-a", "deck-b"}}
+	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA, testDeckB}}
 	imp := &fakeDeckImporter{delay: 500 * time.Millisecond}
 	svc := newTestSvc(pool, mox, imp)
 
@@ -284,7 +287,7 @@ func TestGetJobStatus_OtherUsersJob_ReturnsNotFound(t *testing.T) {
 	owner := registerUserWithMoxfieldUsername(t, pool, "owner@example.com", "handle6")
 	other := registerUserWithMoxfieldUsername(t, pool, "other@example.com", "handle7")
 
-	mox := fakeMoxfieldClient{publicIDs: []string{"deck-a"}}
+	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA}}
 	svc := newTestSvc(pool, mox, &fakeDeckImporter{})
 
 	job, err := svc.StartImport(context.Background(), owner.ID)
