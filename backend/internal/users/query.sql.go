@@ -17,7 +17,7 @@ INSERT INTO users (
 ) VALUES (
   $1, $2, $3
 )
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username
 `
 
 type CreateUserParams struct {
@@ -37,6 +37,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GoogleID,
+		&i.MoxfieldUsername,
 	)
 	return i, err
 }
@@ -47,7 +48,7 @@ INSERT INTO users (
 ) VALUES (
   $1, $2, $3
 )
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username
 `
 
 type CreateUserWithGoogleParams struct {
@@ -67,12 +68,13 @@ func (q *Queries) CreateUserWithGoogle(ctx context.Context, arg CreateUserWithGo
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GoogleID,
+		&i.MoxfieldUsername,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username FROM users
 WHERE email = $1 LIMIT 1
 `
 
@@ -87,12 +89,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GoogleID,
+		&i.MoxfieldUsername,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username FROM users
 WHERE google_id = $1 LIMIT 1
 `
 
@@ -107,12 +110,13 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GoogleID,
+		&i.MoxfieldUsername,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username FROM users
 WHERE id = $1 LIMIT 1
 `
 
@@ -127,6 +131,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GoogleID,
+		&i.MoxfieldUsername,
 	)
 	return i, err
 }
@@ -134,7 +139,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 const linkGoogleID = `-- name: LinkGoogleID :one
 UPDATE users SET google_id = $2
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username
 `
 
 type LinkGoogleIDParams struct {
@@ -153,6 +158,34 @@ func (q *Queries) LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (Use
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.GoogleID,
+		&i.MoxfieldUsername,
+	)
+	return i, err
+}
+
+const updateMoxfieldUsername = `-- name: UpdateMoxfieldUsername :one
+UPDATE users SET moxfield_username = $2
+WHERE id = $1
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username
+`
+
+type UpdateMoxfieldUsernameParams struct {
+	ID               pgtype.UUID `json:"id"`
+	MoxfieldUsername pgtype.Text `json:"moxfield_username"`
+}
+
+func (q *Queries) UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfieldUsernameParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateMoxfieldUsername, arg.ID, arg.MoxfieldUsername)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GoogleID,
+		&i.MoxfieldUsername,
 	)
 	return i, err
 }

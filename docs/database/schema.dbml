@@ -11,6 +11,7 @@ Table users {
   google_id varchar [unique, note: 'Sub de Google (id_token). Nullable: cuentas email/password no lo tienen']
   created_at timestamp [default: `now()`]
   updated_at timestamp
+  moxfield_username varchar [note: 'Username de Moxfield vinculado (opcional, sin unicidad). Migración 00009_moxfield_username.sql']
 
   Note: 'CHECK: password_hash IS NOT NULL OR google_id IS NOT NULL'
 }

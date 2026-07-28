@@ -9,10 +9,17 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
+// UpdateProfileRequest es el payload para actualizar el perfil propio. Por ahora
+// solo cubre el username de Moxfield; futuros campos de perfil se agregan acá.
+type UpdateProfileRequest struct {
+	MoxfieldUsername string `json:"moxfield_username"`
+}
+
 // UserResponse es el DTO que se envía al cliente, sin datos sensibles (como el hash de contraseña).
 type UserResponse struct {
-	ID        string    `json:"id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
+	ID               string    `json:"id"`
+	Username         string    `json:"username"`
+	Email            string    `json:"email"`
+	CreatedAt        time.Time `json:"created_at"`
+	MoxfieldUsername *string   `json:"moxfield_username,omitempty"`
 }
