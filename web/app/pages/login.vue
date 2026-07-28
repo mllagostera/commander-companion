@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: false })
 
-const { login, loginWithGoogle } = useAuth()
+const { login, loginWithGoogle, resendVerification } = useAuth()
 const { renderButton } = useGoogleIdentity()
 
 const email = ref('')
@@ -9,17 +9,39 @@ const password = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
 const googleButtonRef = ref<HTMLElement | null>(null)
+// 403 de /auth/login: la cuenta existe y la contraseña es correcta, pero el email
+// todavía no se confirmó (ver server/api/auth/login.post.ts).
+const needsVerification = ref(false)
+const isResending = ref(false)
+const resendSent = ref(false)
 
 async function handleSubmit() {
   errorMessage.value = ''
+  needsVerification.value = false
+  resendSent.value = false
   isSubmitting.value = true
   try {
     await login(email.value, password.value)
     await navigateTo('/')
   } catch (err) {
+    if (apiErrorStatus(err) === 403) {
+      needsVerification.value = true
+    }
     errorMessage.value = apiErrorMessage(err, 'No se pudo iniciar sesión.')
   } finally {
     isSubmitting.value = false
+  }
+}
+
+async function handleResendVerification() {
+  isResending.value = true
+  try {
+    await resendVerification(email.value)
+    resendSent.value = true
+  } catch (err) {
+    errorMessage.value = apiErrorMessage(err, 'No se pudo reenviar el email de verificación.')
+  } finally {
+    isResending.value = false
   }
 }
 
@@ -71,6 +93,21 @@ onMounted(() => {
         </div>
 
         <p v-if="errorMessage" class="text-sm text-red-400">{{ errorMessage }}</p>
+
+        <div v-if="needsVerification" class="text-sm">
+          <p v-if="resendSent" class="text-slate-400">
+            Listo, revisá tu bandeja de entrada.
+          </p>
+          <button
+            v-else
+            type="button"
+            :disabled="isResending"
+            class="text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+            @click="handleResendVerification"
+          >
+            {{ isResending ? 'Reenviando…' : 'Reenviar email de verificación' }}
+          </button>
+        </div>
 
         <button
           type="submit"

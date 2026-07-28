@@ -35,6 +35,15 @@ type DeckStatisticsSummary struct {
 	LastRecalculatedAt        pgtype.Timestamp `json:"last_recalculated_at"`
 }
 
+type EmailVerificationToken struct {
+	ID        pgtype.UUID      `json:"id"`
+	UserID    pgtype.UUID      `json:"user_id"`
+	TokenHash string           `json:"token_hash"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UsedAt    pgtype.Timestamp `json:"used_at"`
+}
+
 type Game struct {
 	ID                  pgtype.UUID      `json:"id"`
 	PlaygroupID         pgtype.UUID      `json:"playgroup_id"`
@@ -112,6 +121,7 @@ type User struct {
 	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
 	GoogleID         pgtype.Text      `json:"google_id"`
 	MoxfieldUsername pgtype.Text      `json:"moxfield_username"`
+	EmailVerified    bool             `json:"email_verified"`
 }
 
 type UserStatisticsSummary struct {

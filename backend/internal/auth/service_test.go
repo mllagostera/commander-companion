@@ -19,7 +19,7 @@ const testPassword = "correct-horse-battery-staple"
 // una configuración de test razonable (TTLs cortos, sin Google configurado).
 func newAuthSvc(t *testing.T, pool *pgxpool.Pool, cfg auth.Config) (authSvc auth.Service, usersSvc users.Service) {
 	t.Helper()
-	usersSvc = users.NewService(pool)
+	usersSvc = testutil.NewUsersService(pool)
 	authSvc = auth.NewService(pool, usersSvc, cfg)
 	return authSvc, usersSvc
 }
@@ -33,8 +33,11 @@ func defaultTestConfig() auth.Config {
 }
 
 // registerUser crea un usuario de test vía el servicio real de users (no INSERT
-// crudo), así los tests de auth ejercitan el mismo camino que produce el backend.
-func registerUser(t *testing.T, usersSvc users.Service, email string) *users.UserResponse {
+// crudo), así los tests de auth ejercitan el mismo camino que produce el backend, y lo
+// deja verificado: estos tests ejercitan auth.Login (rotación de tokens, TTLs, etc.),
+// no el flujo de verificación de email en sí (ver internal/users/service_test.go para
+// ese).
+func registerUser(t *testing.T, pool *pgxpool.Pool, usersSvc users.Service, email string) *users.UserResponse {
 	t.Helper()
 	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
 		Username: "user-" + email,
@@ -44,6 +47,7 @@ func registerUser(t *testing.T, usersSvc users.Service, email string) *users.Use
 	if err != nil {
 		t.Fatalf("registrando usuario de test: %v", err)
 	}
+	testutil.VerifyUserEmail(t, pool, user.ID)
 	return user
 }
 
@@ -52,7 +56,7 @@ func TestLogin_Success(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	authSvc, usersSvc := newAuthSvc(t, pool, defaultTestConfig())
-	registerUser(t, usersSvc, "login-success@example.com")
+	registerUser(t, pool, usersSvc, "login-success@example.com")
 
 	res, err := authSvc.Login(context.Background(), "login-success@example.com", testPassword)
 	if err != nil {
@@ -71,7 +75,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	authSvc, usersSvc := newAuthSvc(t, pool, defaultTestConfig())
-	registerUser(t, usersSvc, "wrong-password@example.com")
+	registerUser(t, pool, usersSvc, "wrong-password@example.com")
 
 	_, err := authSvc.Login(context.Background(), "wrong-password@example.com", "not-the-password")
 	if !errors.Is(err, users.ErrInvalidCredentials) {
@@ -112,7 +116,7 @@ func TestRefresh_RotatesTokenAndInvalidatesThePrevious(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	authSvc, usersSvc := newAuthSvc(t, pool, defaultTestConfig())
-	registerUser(t, usersSvc, "refresh-rotate@example.com")
+	registerUser(t, pool, usersSvc, "refresh-rotate@example.com")
 
 	login, err := authSvc.Login(context.Background(), "refresh-rotate@example.com", testPassword)
 	if err != nil {
@@ -153,7 +157,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 	expiredCfg.RefreshTokenTTL = -1 * time.Minute // ya vencido en el momento de emitirlo
 
 	expiredSvc, usersSvc := newAuthSvc(t, pool, expiredCfg)
-	registerUser(t, usersSvc, "refresh-expired@example.com")
+	registerUser(t, pool, usersSvc, "refresh-expired@example.com")
 
 	login, err := expiredSvc.Login(context.Background(), "refresh-expired@example.com", testPassword)
 	if err != nil {
@@ -171,7 +175,7 @@ func TestLogout_RevokesRefreshToken(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	authSvc, usersSvc := newAuthSvc(t, pool, defaultTestConfig())
-	registerUser(t, usersSvc, "logout@example.com")
+	registerUser(t, pool, usersSvc, "logout@example.com")
 
 	login, err := authSvc.Login(context.Background(), "logout@example.com", testPassword)
 	if err != nil {
@@ -192,7 +196,7 @@ func TestMe_ReturnsAuthenticatedUser(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	authSvc, usersSvc := newAuthSvc(t, pool, defaultTestConfig())
-	created := registerUser(t, usersSvc, "me@example.com")
+	created := registerUser(t, pool, usersSvc, "me@example.com")
 
 	res, err := authSvc.Me(context.Background(), created.ID)
 	if err != nil {

@@ -80,6 +80,20 @@ components:
         password:
           type: string
           format: password
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: Token de verificación recibido por mail (query param `token` del link).
+    ResendVerificationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
     GoogleLoginRequest:
       type: object
       required: [id_token]
@@ -462,6 +476,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /auth/verify-email:
+    post:
+      summary: Confirmar la cuenta a partir del token de verificación mandado por mail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '204':
+          description: Email verificado
+        '400':
+          description: Token inválido, ya usado o vencido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/resend-verification:
+    post:
+      summary: Reenviar el mail de verificación de cuenta
+      description: >-
+        Siempre responde 204, exista o no el email, y esté o no ya verificado (no revela
+        nada, mismo criterio anti-enumeración que /auth/login).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendVerificationRequest'
+      responses:
+        '204':
+          description: Solicitud aceptada (no implica que se haya mandado un mail nuevo)
+        '429':
+          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/login:
     post:
       summary: Iniciar sesión con email y password
@@ -481,6 +542,12 @@ paths:
                 $ref: '#/components/schemas/TokenResponse'
         '401':
           description: Credenciales inválidas, o la cuenta usa Google sign-in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Credenciales correctas pero el email todavía no fue confirmado
           content:
             application/json:
               schema:

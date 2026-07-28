@@ -109,7 +109,7 @@ func setupActiveGame(t *testing.T, pool *pgxpool.Pool) (
 	t.Helper()
 	ctx := context.Background()
 
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	gamesSvc = newGamesSvc(pool)
 	actionsSvc = newActionsSvc(pool)
@@ -167,7 +167,7 @@ func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
 	t.Helper()
 	ctx := context.Background()
 
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	gamesSvc = newGamesSvc(pool)
 	actionsSvc = newActionsSvc(pool)
@@ -524,7 +524,7 @@ func TestRecordAction_GameNotActive_ReturnsConflict(t *testing.T) {
 	truncateGameActionsTables(t, pool)
 	ctx := context.Background()
 
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	gamesSvc := newGamesSvc(pool)
 	actionsSvc := newActionsSvc(pool)

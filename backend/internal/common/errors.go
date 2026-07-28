@@ -21,6 +21,10 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrConflict agrupa los errores de estado incompatible con la operación → HTTP 409.
 	ErrConflict = errors.New("conflict")
+	// ErrForbidden agrupa los errores de acción no permitida para un sujeto ya
+	// autenticado/identificado (distinto de ErrUnauthorized: acá se sabe quién es, pero
+	// no puede hacer esto todavía) → HTTP 403.
+	ErrForbidden = errors.New("forbidden")
 	// ErrNotImplemented agrupa lo no configurado o no disponible → HTTP 501.
 	ErrNotImplemented = errors.New("not implemented")
 	// ErrUpstreamUnavailable agrupa los fallos de una dependencia externa (p. ej.
@@ -61,6 +65,9 @@ func NotFound(msg string) *DomainError { return &DomainError{kind: ErrNotFound, 
 // Conflict crea un error de estado incompatible con la operación pedida (→ HTTP 409).
 func Conflict(msg string) *DomainError { return &DomainError{kind: ErrConflict, msg: msg} }
 
+// Forbidden crea un error de acción no permitida para un sujeto identificado (→ HTTP 403).
+func Forbidden(msg string) *DomainError { return &DomainError{kind: ErrForbidden, msg: msg} }
+
 // NotImplemented crea un error de funcionalidad no configurada o no disponible (→ HTTP 501).
 func NotImplemented(msg string) *DomainError {
 	return &DomainError{kind: ErrNotImplemented, msg: msg}
@@ -77,6 +84,10 @@ func UpstreamUnavailable(msg string) *DomainError {
 // transporte, p. ej. un body mal formado) y los inesperados —que el ErrorHandler
 // global convierte en 500— pasan tal cual, así que aplicarla dos veces sobre el
 // mismo error es inocuo.
+//
+// Recorre una tabla en vez de un switch/case por kind: con 7 kinds, el switch supera
+// el límite de complejidad ciclomática del linter (cyclop) sin aportar nada — es el
+// mismo mapeo 1 a 1 kind → status en cualquiera de las dos formas.
 func MapError(err error) error {
 	if err == nil {
 		return nil
@@ -87,22 +98,26 @@ func MapError(err error) error {
 		return err
 	}
 
-	switch {
-	case errors.Is(err, ErrInvalidInput):
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
-	case errors.Is(err, ErrUnauthorized):
-		return fiber.NewError(fiber.StatusUnauthorized, err.Error())
-	case errors.Is(err, ErrNotFound):
-		return fiber.NewError(fiber.StatusNotFound, err.Error())
-	case errors.Is(err, ErrConflict):
-		return fiber.NewError(fiber.StatusConflict, err.Error())
-	case errors.Is(err, ErrNotImplemented):
-		return fiber.NewError(fiber.StatusNotImplemented, err.Error())
-	case errors.Is(err, ErrUpstreamUnavailable):
-		return fiber.NewError(fiber.StatusServiceUnavailable, err.Error())
-	default:
-		return err
+	statusByKind := []struct {
+		kind   error
+		status int
+	}{
+		{ErrInvalidInput, fiber.StatusBadRequest},
+		{ErrUnauthorized, fiber.StatusUnauthorized},
+		{ErrNotFound, fiber.StatusNotFound},
+		{ErrConflict, fiber.StatusConflict},
+		{ErrForbidden, fiber.StatusForbidden},
+		{ErrNotImplemented, fiber.StatusNotImplemented},
+		{ErrUpstreamUnavailable, fiber.StatusServiceUnavailable},
 	}
+
+	for _, m := range statusByKind {
+		if errors.Is(err, m.kind) {
+			return fiber.NewError(m.status, err.Error())
+		}
+	}
+
+	return err
 }
 
 // ErrorResponse representa la estructura estándar de errores.

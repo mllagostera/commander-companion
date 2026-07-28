@@ -3,6 +3,7 @@ package users_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,14 +14,64 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
-const testPassword = "correct-horse-battery-staple"
+const (
+	testPassword  = "correct-horse-battery-staple"
+	testWebAppURL = "http://localhost:3000"
+)
 
 func newUsersSvc(t *testing.T) (users.Service, *pgxpool.Pool) {
 	t.Helper()
+	svc, pool, _ := newUsersSvcWithMailer(t)
+	return svc, pool
+}
+
+// fakeMailer registra el último link de verificación mandado a cada email, para poder
+// ejercitar VerifyEmail/ResendVerification sin depender de Resend real.
+type fakeMailer struct {
+	verifyURLByEmail map[string]string
+}
+
+func newFakeMailer() *fakeMailer {
+	return &fakeMailer{verifyURLByEmail: make(map[string]string)}
+}
+
+func (m *fakeMailer) SendVerificationEmail(_ context.Context, to, _, verifyURL string) error {
+	m.verifyURLByEmail[to] = verifyURL
+	return nil
+}
+
+// tokenFor extrae el token del último link mandado a ese email.
+func (m *fakeMailer) tokenFor(t *testing.T, email string) string {
+	t.Helper()
+	verifyURL, ok := m.verifyURLByEmail[email]
+	if !ok {
+		t.Fatalf("no se mandó ningún mail de verificación a %s", email)
+	}
+	_, token, found := strings.Cut(verifyURL, "token=")
+	if !found {
+		t.Fatalf("verifyURL sin token: %q", verifyURL)
+	}
+	return token
+}
+
+func newUsersSvcWithMailer(t *testing.T) (users.Service, *pgxpool.Pool, *fakeMailer) {
+	t.Helper()
 	pool := testutil.DB(t)
-	// "users" arrastra decks, refresh_tokens y demás por CASCADE.
+	// "users" arrastra decks, refresh_tokens, email_verification_tokens y demás por CASCADE.
 	testutil.Truncate(t, pool, "users")
-	return users.NewService(pool), pool
+	mailer := newFakeMailer()
+	return users.NewService(pool, mailer, testWebAppURL, true), pool, mailer
+}
+
+// newUsersSvcVerificationOff instancia el servicio con requireEmailVerification=false
+// (el default de producción en fase alpha, ver ADR-0012): el registro debe dejar la
+// cuenta ya verificada y el mailer no debe recibir ningún envío.
+func newUsersSvcVerificationOff(t *testing.T) (users.Service, *fakeMailer) {
+	t.Helper()
+	pool := testutil.DB(t)
+	testutil.Truncate(t, pool, "users")
+	mailer := newFakeMailer()
+	return users.NewService(pool, mailer, testWebAppURL, false), mailer
 }
 
 func registerUser(t *testing.T, svc users.Service, email string) *users.UserResponse {
@@ -154,10 +205,17 @@ func TestGetUser_MalformedID(t *testing.T) {
 	}
 }
 
+// VerifyCredentials solo tiene éxito con el email ya confirmado (ver
+// TestRegisterUser_LeavesEmailUnconfirmed): acá se verifica primero con el token que
+// capturó el fakeMailer, mismo camino que un usuario real haciendo click en el link.
 func TestVerifyCredentials_Success(t *testing.T) {
-	svc, _ := newUsersSvc(t)
+	svc, _, mailer := newUsersSvcWithMailer(t)
 
 	created := registerUser(t, svc, "verify-ok@example.com")
+	token := mailer.tokenFor(t, "verify-ok@example.com")
+	if err := svc.VerifyEmail(context.Background(), token); err != nil {
+		t.Fatalf("VerifyEmail() error = %v, want nil", err)
+	}
 
 	got, err := svc.VerifyCredentials(context.Background(), "verify-ok@example.com", testPassword)
 	if err != nil {
@@ -179,6 +237,148 @@ func TestVerifyCredentials_WrongPassword(t *testing.T) {
 	}
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusUnauthorized {
 		t.Fatalf("VerifyCredentials() con password incorrecta: code = %d, want %d", fiberErr.Code, fiber.StatusUnauthorized)
+	}
+}
+
+// El registro deja el email sin confirmar: no puede loguearse hasta hacer click en el
+// link mandado por mail (ver ADR-0012 — bloquear login hasta verificar).
+func TestVerifyCredentials_BlocksUnconfirmedEmail(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	registerUser(t, svc, "unconfirmed@example.com")
+
+	_, err := svc.VerifyCredentials(context.Background(), "unconfirmed@example.com", testPassword)
+	if !errors.Is(err, users.ErrEmailNotConfirmed) {
+		t.Fatalf("VerifyCredentials() con email sin confirmar: error = %v, want ErrEmailNotConfirmed", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusForbidden {
+		t.Fatalf("VerifyCredentials() con email sin confirmar: code = %d, want %d", fiberErr.Code, fiber.StatusForbidden)
+	}
+}
+
+func TestRegisterUser_SendsVerificationEmail(t *testing.T) {
+	svc, _, mailer := newUsersSvcWithMailer(t)
+
+	registerUser(t, svc, "sends-mail@example.com")
+
+	token := mailer.tokenFor(t, "sends-mail@example.com")
+	if token == "" {
+		t.Fatal("RegisterUser() no mandó un token de verificación")
+	}
+}
+
+func TestVerifyEmail_Success(t *testing.T) {
+	svc, _, mailer := newUsersSvcWithMailer(t)
+
+	registerUser(t, svc, "verify-email-ok@example.com")
+	token := mailer.tokenFor(t, "verify-email-ok@example.com")
+
+	if err := svc.VerifyEmail(context.Background(), token); err != nil {
+		t.Fatalf("VerifyEmail() error = %v, want nil", err)
+	}
+
+	if _, err := svc.VerifyCredentials(context.Background(), "verify-email-ok@example.com", testPassword); err != nil {
+		t.Fatalf("VerifyCredentials() tras verificar: error = %v, want nil", err)
+	}
+}
+
+func TestVerifyEmail_InvalidToken(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	err := svc.VerifyEmail(context.Background(), "no-existe")
+	if !errors.Is(err, users.ErrInvalidVerificationToken) {
+		t.Fatalf("VerifyEmail() con token inexistente: error = %v, want ErrInvalidVerificationToken", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("VerifyEmail() con token inexistente: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+// Un token ya usado no sirve una segunda vez: si no, alguien que interceptó el link una
+// vez podría reusarlo indefinidamente.
+func TestVerifyEmail_TokenAlreadyUsed(t *testing.T) {
+	svc, _, mailer := newUsersSvcWithMailer(t)
+
+	registerUser(t, svc, "verify-email-reuse@example.com")
+	token := mailer.tokenFor(t, "verify-email-reuse@example.com")
+
+	if err := svc.VerifyEmail(context.Background(), token); err != nil {
+		t.Fatalf("VerifyEmail() primera vez: error = %v, want nil", err)
+	}
+
+	err := svc.VerifyEmail(context.Background(), token)
+	if !errors.Is(err, users.ErrInvalidVerificationToken) {
+		t.Fatalf("VerifyEmail() reusando el token: error = %v, want ErrInvalidVerificationToken", err)
+	}
+}
+
+// ResendVerification nunca revela si el email existe: mismo criterio anti-enumeración
+// que VerifyCredentials con ErrInvalidCredentials.
+func TestResendVerification_UnknownEmail_DoesNotError(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	if err := svc.ResendVerification(context.Background(), "nadie@example.com"); err != nil {
+		t.Fatalf("ResendVerification() con email inexistente: error = %v, want nil", err)
+	}
+}
+
+func TestResendVerification_SendsNewToken(t *testing.T) {
+	svc, _, mailer := newUsersSvcWithMailer(t)
+
+	registerUser(t, svc, "resend@example.com")
+	firstToken := mailer.tokenFor(t, "resend@example.com")
+
+	if err := svc.ResendVerification(context.Background(), "resend@example.com"); err != nil {
+		t.Fatalf("ResendVerification() error = %v, want nil", err)
+	}
+	secondToken := mailer.tokenFor(t, "resend@example.com")
+
+	if secondToken == firstToken {
+		t.Fatal("ResendVerification() no generó un token nuevo")
+	}
+	if err := svc.VerifyEmail(context.Background(), secondToken); err != nil {
+		t.Fatalf("VerifyEmail() con el token reenviado: error = %v, want nil", err)
+	}
+}
+
+// Ya verificado, ResendVerification no hace nada (pero tampoco falla): no tiene sentido
+// mandar otro link.
+func TestResendVerification_AlreadyVerified_NoOp(t *testing.T) {
+	svc, _, mailer := newUsersSvcWithMailer(t)
+
+	registerUser(t, svc, "already-verified@example.com")
+	token := mailer.tokenFor(t, "already-verified@example.com")
+	if err := svc.VerifyEmail(context.Background(), token); err != nil {
+		t.Fatalf("VerifyEmail() error = %v, want nil", err)
+	}
+
+	if err := svc.ResendVerification(context.Background(), "already-verified@example.com"); err != nil {
+		t.Fatalf("ResendVerification() con email ya verificado: error = %v, want nil", err)
+	}
+}
+
+// Con requireEmailVerification=false (default de producción en fase alpha, ver
+// ADR-0012) el registro deja la cuenta verificada de entrada y puede loguearse
+// inmediatamente, sin pasar por ningún link.
+func TestRegisterUser_VerificationOff_LeavesAccountVerified(t *testing.T) {
+	svc, _ := newUsersSvcVerificationOff(t)
+
+	registerUser(t, svc, "alpha@example.com")
+
+	if _, err := svc.VerifyCredentials(context.Background(), "alpha@example.com", testPassword); err != nil {
+		t.Fatalf("VerifyCredentials() con verificación desactivada: error = %v, want nil", err)
+	}
+}
+
+// Con requireEmailVerification=false no hay que gastar un envío que nadie va a exigir:
+// RegisterUser ni siquiera debe llamar al mailer.
+func TestRegisterUser_VerificationOff_DoesNotSendMail(t *testing.T) {
+	svc, mailer := newUsersSvcVerificationOff(t)
+
+	registerUser(t, svc, "alpha-no-mail@example.com")
+
+	if _, sent := mailer.verifyURLByEmail["alpha-no-mail@example.com"]; sent {
+		t.Fatal("RegisterUser() mandó un mail de verificación con requireEmailVerification=false")
 	}
 }
 

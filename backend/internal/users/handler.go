@@ -24,6 +24,8 @@ func NewHandler(svc Service) *Handler {
 // request, así que también hay que acotarlo.
 func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {
 	router.Post("/auth/register", rateLimit, h.Register)
+	router.Post("/auth/verify-email", rateLimit, h.VerifyEmail)
+	router.Post("/auth/resend-verification", rateLimit, h.ResendVerification)
 }
 
 // RegisterProtectedRoutes registra los endpoints de usuarios que requieren sesión.
@@ -49,6 +51,42 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(res)
+}
+
+// VerifyEmail confirma la cuenta a partir del token mandado por mail. Es POST (no GET)
+// a propósito: el link del mail lleva a una página del cliente web, que es quien hace
+// este POST con el token en el body — así nunca queda en una query string que el
+// logger de acceso del servidor loguearía en texto plano.
+func (h *Handler) VerifyEmail(c *fiber.Ctx) error {
+	var req VerifyEmailRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+	if req.Token == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "token is required")
+	}
+
+	if err := h.svc.VerifyEmail(c.Context(), req.Token); err != nil {
+		return common.MapError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ResendVerification manda un nuevo mail de verificación si corresponde. Siempre
+// responde 204 (ver users.Service.ResendVerification: no revela si el email existe).
+func (h *Handler) ResendVerification(c *fiber.Ctx) error {
+	var req ResendVerificationRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+	if req.Email == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "email is required")
+	}
+
+	if err := h.svc.ResendVerification(c.Context(), req.Email); err != nil {
+		return common.MapError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // UpdateProfile actualiza el perfil propio (hoy, solo moxfield_username). Acotado a

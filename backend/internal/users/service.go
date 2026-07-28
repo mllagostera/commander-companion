@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -20,6 +21,14 @@ const (
 	maxUsernameAttempts = 3
 	googleIDSuffixLen   = 6
 	usernameConstraint  = "users_username_key"
+
+	// emailVerificationTokenBytes es la longitud en bytes del token opaco de
+	// verificación de email (antes de codificar), igual que el refresh token
+	// (ver internal/auth/token.go).
+	emailVerificationTokenBytes = 32
+	// emailVerificationTokenTTL es cuánto tarda en vencer un link de verificación
+	// mandado por mail antes de que haya que pedir un reenvío.
+	emailVerificationTokenTTL = 24 * time.Hour
 )
 
 var (
@@ -31,12 +40,26 @@ var (
 	ErrUserNotFound = common.NotFound("user not found")
 	// ErrEmailNotVerified indica que Google no confirma el email asociado a la cuenta.
 	ErrEmailNotVerified = common.InvalidInput("google email not verified")
+	// ErrEmailNotConfirmed indica que la cuenta es válida (password correcto) pero
+	// todavía no confirmó su propio email — distinto de ErrEmailNotVerified (que es
+	// sobre lo que afirma Google), y distinto de ErrInvalidCredentials (acá ya se sabe
+	// quién es). El cliente puede ofrecer reenviar el mail de verificación.
+	ErrEmailNotConfirmed = common.Forbidden("email not confirmed, check your inbox")
+	// ErrInvalidVerificationToken indica que el token de verificación de email no
+	// existe, ya se usó o venció.
+	ErrInvalidVerificationToken = common.InvalidInput("invalid or expired verification token")
 	// ErrUserAlreadyExists indica que el username o el email ya están tomados.
 	ErrUserAlreadyExists = common.Conflict("User already exists")
 	// ErrUsernameExhausted indica que no se pudo generar un username único para una cuenta de Google.
 	// No es un error de dominio traducible: sale como 500, porque implica un problema del servidor.
 	ErrUsernameExhausted = errors.New("could not allocate a unique username for google user")
 )
+
+// Mailer es lo que users necesita para mandar el mail de verificación de cuenta
+// (permite mockearlo en tests; ver decks.MoxfieldClient para el mismo patrón).
+type Mailer interface {
+	SendVerificationEmail(ctx context.Context, to, username, verifyURL string) error
+}
 
 // Service interface para la lógica de usuarios.
 type Service interface {
@@ -45,20 +68,39 @@ type Service interface {
 	VerifyCredentials(ctx context.Context, email, password string) (*UserResponse, error)
 	FindOrCreateGoogleUser(ctx context.Context, googleID, email string, emailVerified bool) (*UserResponse, error)
 	UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUsername string) (*UserResponse, error)
+	// VerifyEmail confirma la cuenta asociada al token de verificación mandado por mail.
+	VerifyEmail(ctx context.Context, token string) error
+	// ResendVerification manda un nuevo mail de verificación si corresponde. Nunca
+	// revela si el email existe, ya está verificado, o es una cuenta de Google: siempre
+	// "tiene éxito" desde la perspectiva del caller (mismo criterio anti-enumeración
+	// que VerifyCredentials).
+	ResendVerification(ctx context.Context, email string) error
 }
 
 type service struct {
-	repo *Queries
+	repo                     *Queries
+	mailer                   Mailer
+	webAppURL                string
+	requireEmailVerification bool
 }
 
-// NewService crea un nuevo servicio de usuarios.
-func NewService(db *pgxpool.Pool) Service {
+// NewService crea un nuevo servicio de usuarios. requireEmailVerification controla si
+// el alta por email/password exige confirmar el email antes de poder loguearse (ver
+// ADR-0012); en false (fase alpha) las cuentas nuevas quedan verificadas de entrada y
+// RegisterUser ni genera el token ni manda mail — no tiene sentido gastar ese envío si
+// nadie va a exigir el click.
+func NewService(db *pgxpool.Pool, mailer Mailer, webAppURL string, requireEmailVerification bool) Service {
 	return &service{
-		repo: New(db),
+		repo:                     New(db),
+		mailer:                   mailer,
+		webAppURL:                webAppURL,
+		requireEmailVerification: requireEmailVerification,
 	}
 }
 
-// RegisterUser crea un nuevo usuario con email y contraseña.
+// RegisterUser crea un nuevo usuario con email y contraseña. Si requireEmailVerification
+// está activo, queda sin confirmar y dispara el mail (ver sendVerificationEmail); si no,
+// queda verificada de entrada y no se manda nada.
 func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserResponse, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -66,9 +108,10 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 	}
 
 	user, err := s.repo.CreateUser(ctx, CreateUserParams{
-		Username:     req.Username,
-		Email:        req.Email,
-		PasswordHash: pgtype.Text{String: string(hash), Valid: true},
+		Username:      req.Username,
+		Email:         req.Email,
+		PasswordHash:  pgtype.Text{String: string(hash), Valid: true},
+		EmailVerified: !s.requireEmailVerification,
 	})
 	if err != nil {
 		//nolint:godox // Deferido a la fase de refinamiento: distinguir username vs. email duplicado.
@@ -76,7 +119,40 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 		return nil, ErrUserAlreadyExists
 	}
 
+	if !s.requireEmailVerification {
+		return toUserResponse(&user), nil
+	}
+
+	// La cuenta ya quedó creada: un mail que no sale no revierte el registro, el
+	// usuario puede pedir el reenvío desde /login.
+	if err := s.sendVerificationEmail(ctx, &user); err != nil {
+		log.Printf("no se pudo mandar el mail de verificación a %s: %v", user.Email, err)
+	}
+
 	return toUserResponse(&user), nil
+}
+
+// sendVerificationEmail genera un token de verificación nuevo, lo persiste hasheado y
+// dispara el mail con el link armado sobre webAppURL.
+func (s *service) sendVerificationEmail(ctx context.Context, user *User) error {
+	plain, err := common.NewOpaqueToken(emailVerificationTokenBytes)
+	if err != nil {
+		return err
+	}
+
+	if _, err := s.repo.CreateEmailVerificationToken(ctx, CreateEmailVerificationTokenParams{
+		UserID:    user.ID,
+		TokenHash: common.HashToken(plain),
+		ExpiresAt: pgtype.Timestamp{Time: time.Now().Add(emailVerificationTokenTTL), Valid: true},
+	}); err != nil {
+		return fmt.Errorf("storing verification token: %w", err)
+	}
+
+	verifyURL := s.webAppURL + "/verify-email?token=" + plain
+	if err := s.mailer.SendVerificationEmail(ctx, user.Email, user.Username, verifyURL); err != nil {
+		return fmt.Errorf("sending verification email: %w", err)
+	}
+	return nil
 }
 
 // GetUser devuelve un usuario por su ID.
@@ -136,6 +212,10 @@ func (s *service) VerifyCredentials(ctx context.Context, email, password string)
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash.String), []byte(password)); err != nil {
 		return nil, ErrInvalidCredentials
+	}
+
+	if !user.EmailVerified {
+		return nil, ErrEmailNotConfirmed
 	}
 
 	return toUserResponse(&user), nil
@@ -212,6 +292,55 @@ func usernameFromEmail(email string) string {
 		return "user"
 	}
 	return local
+}
+
+// VerifyEmail confirma la cuenta asociada al token de verificación mandado por mail.
+// Un token inexistente, ya usado o vencido devuelve el mismo error, para no filtrar
+// cuál de los tres casos es.
+func (s *service) VerifyEmail(ctx context.Context, token string) error {
+	record, err := s.repo.GetEmailVerificationTokenByHash(ctx, common.HashToken(token))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrInvalidVerificationToken
+		}
+		return fmt.Errorf("looking up verification token: %w", err)
+	}
+	if record.UsedAt.Valid || !record.ExpiresAt.Valid || record.ExpiresAt.Time.Before(time.Now()) {
+		return ErrInvalidVerificationToken
+	}
+
+	if err := s.repo.MarkEmailVerificationTokenUsed(ctx, record.ID); err != nil {
+		return fmt.Errorf("marking verification token used: %w", err)
+	}
+
+	if _, err := s.repo.SetUserEmailVerified(ctx, record.UserID); err != nil {
+		return fmt.Errorf("marking user verified: %w", err)
+	}
+
+	return nil
+}
+
+// ResendVerification manda un token de verificación nuevo si corresponde. Nunca revela
+// nada al caller (siempre "éxito"): si el email no existe, ya está verificado, o es una
+// cuenta sin password (Google-only, nunca hace login por password y por lo tanto nunca
+// se bloquea por esto), no hace nada.
+func (s *service) ResendVerification(ctx context.Context, email string) error {
+	user, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("looking up user by email: %w", err)
+	}
+
+	if user.EmailVerified || !user.PasswordHash.Valid {
+		return nil
+	}
+
+	if err := s.sendVerificationEmail(ctx, &user); err != nil {
+		log.Printf("no se pudo reenviar el mail de verificación a %s: %v", user.Email, err)
+	}
+	return nil
 }
 
 func toUserResponse(user *User) *UserResponse {

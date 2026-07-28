@@ -1,4 +1,4 @@
-const PUBLIC_ROUTES = ['/login', '/register']
+const PUBLIC_ROUTES = ['/login', '/register', '/verify-email']
 
 /**
  * Gating de rutas. Se apoya en la cookie marcador `cc_session` (no httpOnly,

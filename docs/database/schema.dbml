@@ -12,6 +12,7 @@ Table users {
   created_at timestamp [default: `now()`]
   updated_at timestamp
   moxfield_username varchar [note: 'Username de Moxfield vinculado (opcional, sin unicidad). Migración 00009_moxfield_username.sql']
+  email_verified boolean [default: true, note: 'Default true: cuentas existentes y altas de Google (ya confirmadas por su id_token) quedan verificadas. Solo el alta email/password fuerza false. Migración 00011_email_verification.sql']
 
   Note: 'CHECK: password_hash IS NOT NULL OR google_id IS NOT NULL'
 }
@@ -23,6 +24,15 @@ Table refresh_tokens {
   expires_at timestamp [not null]
   created_at timestamp [default: `now()`]
   revoked_at timestamp [note: 'Se setea en logout o al rotar el token']
+}
+
+Table email_verification_tokens {
+  id uuid [primary key]
+  user_id uuid [ref: > users.id]
+  token_hash varchar [unique, not null, note: 'SHA-256 del token de verificación; el token en claro nunca se persiste']
+  expires_at timestamp [not null]
+  created_at timestamp [default: `now()`]
+  used_at timestamp [note: 'Se setea al verificar el email con este token (uso único). Migración 00011_email_verification.sql']
 }
 
 Table decks {

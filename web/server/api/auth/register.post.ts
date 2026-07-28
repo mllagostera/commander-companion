@@ -1,12 +1,14 @@
-import type { AuthUser, TokenResponse } from '../../utils/backend'
+import type { AuthUser } from '../../utils/backend'
 
 /**
  * Alta de usuario nuevo.
  *
- * `POST /auth/register` de la API Go devuelve el User creado pero **no**
- * tokens, así que encadenamos un `POST /auth/login` con las mismas
- * credenciales para dejar la sesión iniciada y evitar que el usuario tenga que
- * escribir su password dos veces seguidas.
+ * `POST /auth/register` de la API Go crea la cuenta sin verificar el email y manda un
+ * mail de confirmación (ver internal/users/service.go: RegisterUser). Ya no encadenamos
+ * un login automático: hasta no verificar, `POST /auth/login` responde 403 (ver
+ * login.post.ts), así que dejar la sesión iniciada acá solo produciría una sesión que
+ * el resto de la API rechazaría igual. El cliente muestra un "revisá tu email" en vez
+ * de navegar al dashboard.
  */
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
@@ -25,11 +27,9 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const baseURL = backendBase(event)
-
   try {
     await $fetch<AuthUser>('/auth/register', {
-      baseURL,
+      baseURL: backendBase(event),
       method: 'POST',
       body: {
         username: body.username,
@@ -41,18 +41,5 @@ export default defineEventHandler(async (event) => {
     throw toBackendError(err)
   }
 
-  try {
-    const data = await $fetch<TokenResponse>('/auth/login', {
-      baseURL,
-      method: 'POST',
-      body: { email: body.email, password: body.password },
-    })
-    setSessionCookies(event, data)
-    return { user: data.user }
-  } catch (err) {
-    // La cuenta quedó creada pero el auto-login falló: el usuario puede
-    // entrar a mano desde /login.
-    clearSessionCookies(event)
-    throw toBackendError(err)
-  }
+  return { email: body.email }
 })

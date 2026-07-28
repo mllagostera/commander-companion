@@ -52,7 +52,7 @@ func createUserAndDeck(t *testing.T, pool *pgxpool.Pool, email string) (userID, 
 	t.Helper()
 	ctx := context.Background()
 
-	usersSvc := users.NewService(pool)
+	usersSvc := testutil.NewUsersService(pool)
 	user, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "user-" + email,
 		Email:    email,

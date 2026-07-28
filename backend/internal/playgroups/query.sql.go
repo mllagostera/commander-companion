@@ -80,7 +80,7 @@ func (q *Queries) GetPlaygroupMember(ctx context.Context, arg GetPlaygroupMember
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username FROM users WHERE id = $1 LIMIT 1
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified FROM users WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -95,6 +95,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.UpdatedAt,
 		&i.GoogleID,
 		&i.MoxfieldUsername,
+		&i.EmailVerified,
 	)
 	return i, err
 }

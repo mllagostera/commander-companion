@@ -15,6 +15,16 @@ type UpdateProfileRequest struct {
 	MoxfieldUsername string `json:"moxfield_username"`
 }
 
+// VerifyEmailRequest es el payload de POST /auth/verify-email.
+type VerifyEmailRequest struct {
+	Token string `json:"token"`
+}
+
+// ResendVerificationRequest es el payload de POST /auth/resend-verification.
+type ResendVerificationRequest struct {
+	Email string `json:"email"`
+}
+
 // UserResponse es el DTO que se envía al cliente, sin datos sensibles (como el hash de contraseña).
 type UserResponse struct {
 	ID               string    `json:"id"`
