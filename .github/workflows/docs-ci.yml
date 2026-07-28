@@ -23,7 +23,7 @@ jobs:
       openapi: ${{ steps.filter.outputs.openapi }}
       dbml: ${{ steps.filter.outputs.dbml }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -42,7 +42,7 @@ jobs:
     if: needs.changes.outputs.openapi == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -55,7 +55,7 @@ jobs:
     if: needs.changes.outputs.dbml == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
