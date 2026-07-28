@@ -18,6 +18,7 @@ import (
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
+	"github.com/usuario/commander-companion-backend/internal/moxfieldimport"
 	"github.com/usuario/commander-companion-backend/internal/playgroups"
 	"github.com/usuario/commander-companion-backend/internal/statistics"
 	"github.com/usuario/commander-companion-backend/internal/sync"
@@ -123,7 +124,8 @@ func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	authHandler.RegisterProtectedRoutes(protected)  // GET /auth/me
 	usersHandler.RegisterProtectedRoutes(protected) // PATCH /users/:id
 
-	decksService := decks.NewService(db.Pool, moxfield.NewClient())
+	moxfieldClient := moxfield.NewClient()
+	decksService := decks.NewService(db.Pool, moxfieldClient)
 	decks.NewHandler(decksService).RegisterRoutes(protected)
 
 	playgroupsService := playgroups.NewService(db.Pool)
@@ -150,4 +152,9 @@ func registerModules(app *fiber.App, db *common.DB, authCfg auth.Config) {
 	// es el dueño de la tabla y del cliente (ver internal/sync/service.go).
 	syncService := sync.NewService(decksService)
 	sync.NewHandler(syncService).RegisterRoutes(protected)
+
+	// moxfieldimport: import masivo en background, scaffold completo pero con
+	// ListDecksByUsername todavía stubbeado (ver internal/moxfieldimport).
+	moxfieldImportService := moxfieldimport.NewService(db.Pool, usersService, decksService, moxfieldClient)
+	moxfieldimport.NewHandler(moxfieldImportService).RegisterRoutes(protected)
 }

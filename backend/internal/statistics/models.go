@@ -67,6 +67,20 @@ type GamePlayer struct {
 	IsEliminated       pgtype.Bool `json:"is_eliminated"`
 }
 
+type MoxfieldImportJob struct {
+	ID               pgtype.UUID      `json:"id"`
+	UserID           pgtype.UUID      `json:"user_id"`
+	MoxfieldUsername string           `json:"moxfield_username"`
+	Status           string           `json:"status"`
+	TotalDecks       pgtype.Int4      `json:"total_decks"`
+	ImportedCount    int32            `json:"imported_count"`
+	FailedCount      int32            `json:"failed_count"`
+	ErrorMessage     pgtype.Text      `json:"error_message"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	FinishedAt       pgtype.Timestamp `json:"finished_at"`
+}
+
 type Playgroup struct {
 	ID        pgtype.UUID      `json:"id"`
 	Name      string           `json:"name"`

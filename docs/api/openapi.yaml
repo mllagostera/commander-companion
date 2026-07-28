@@ -190,6 +190,29 @@ components:
           description: >-
             Momento del último sync exitoso. Es null solo cuando el deck se
             importó y nunca se re-sincronizó.
+    MoxfieldImportJob:
+      type: object
+      required: [id, moxfield_username, status, imported_count, failed_count]
+      properties:
+        id:
+          type: string
+          format: uuid
+        moxfield_username:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed]
+        total_decks:
+          type: integer
+          nullable: true
+          description: Cantidad de decks públicos encontrados para este username. Null hasta resolverse.
+        imported_count:
+          type: integer
+        failed_count:
+          type: integer
+        error_message:
+          type: string
+          nullable: true
     ImportMoxfieldRequest:
       type: object
       required: [url]
@@ -1150,6 +1173,66 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: El usuario autenticado no tiene importado ningún deck con ese moxfield_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /moxfield-import:
+    post:
+      summary: Importar en background todos los decks públicos del username de Moxfield vinculado al perfil
+      description: >-
+        Contraparte masiva y asíncrona de `/decks/import/moxfield` (un deck
+        puntual, síncrono). La lista de decks se resuelve de forma síncrona
+        antes de crear el job: si Moxfield todavía no puede listarlos (ver
+        `internal/moxfieldimport`), responde 501 en el momento, sin crear
+        ningún job.
+      responses:
+        '202':
+          description: Job creado, import en curso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoxfieldImportJob'
+        '400':
+          description: El usuario no tiene un username de Moxfield vinculado al perfil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Ya hay un import pending/in_progress para este usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Listar los decks de un username de Moxfield todavía no está implementado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /moxfield-import/{jobId}:
+    get:
+      summary: Consultar el progreso de un job de import masivo
+      description: Acotado al usuario autenticado -- 404 si el job no es suyo, sin distinguir de "no existe".
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Estado del job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoxfieldImportJob'
+        '404':
+          description: El job no existe o no es del usuario autenticado
           content:
             application/json:
               schema:

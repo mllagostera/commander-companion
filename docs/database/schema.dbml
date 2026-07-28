@@ -134,3 +134,25 @@ Table deck_statistics_summary {
   total_commander_damage_dealt int [default: 0]
   last_recalculated_at timestamp [default: `now()`]
 }
+
+// Import masivo y asíncrono de todos los decks públicos de un usuario de Moxfield
+// (ver internal/moxfieldimport). Contadores agregados, no un ítem por deck.
+Table moxfield_import_jobs {
+  id uuid [primary key]
+  user_id uuid [ref: > users.id]
+  moxfield_username varchar [not null]
+  status varchar [not null, default: 'pending', note: 'pending, in_progress, completed, failed']
+  total_decks int [null]
+  imported_count int [default: 0]
+  failed_count int [default: 0]
+  error_message varchar [null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+  finished_at timestamp
+
+  indexes {
+    (user_id) [name: 'moxfield_import_jobs_active_user_idx', note: 'UNIQUE parcial WHERE status IN (pending, in_progress) -- un solo job activo por usuario. Migración 00010_moxfield_import_jobs.sql']
+  }
+
+  Note: 'CHECK: status IN (\'pending\', \'in_progress\', \'completed\', \'failed\') (migración 00010_moxfield_import_jobs.sql)'
+}
