@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: backend/go.mod
       - name: gofmt (fails on unformatted files)
@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: backend/go.mod
       - uses: golangci/golangci-lint-action@v9
@@ -125,13 +125,16 @@ jobs:
       DB_URL: postgres://postgres:postgres@localhost:5432/commander_test?sslmode=disable
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: backend/go.mod
       - name: go build
         run: go build ./...
       - name: Instalar goose
-        run: go install github.com/pressly/goose/v3/cmd/goose@latest
+        # Versión fijada (no @latest): v3.27.0 es la última compatible con el Go
+        # que fija backend/go.mod (1.25.0). v3.27.3 exige go >=1.25.7 y rompe este
+        # step con @latest.
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
       - name: Aplicar migraciones
         run: goose -dir migrations postgres "$DB_URL" up
       - name: go test
