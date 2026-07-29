@@ -54,7 +54,7 @@ func run() error {
 	// Migraciones antes de abrir el pool de la app (ver common.RunMigrations):
 	// deja el schema al día en cualquier entorno, incluidos los que no ofrecen
 	// un hook de "release/pre-deploy command" separado.
-	if err := common.RunMigrations(cfg.DBURL, migrationsDir); err != nil {
+	if err = common.RunMigrations(cfg.DBURL, migrationsDir); err != nil {
 		return err
 	}
 	log.Println("Migraciones aplicadas correctamente.")
