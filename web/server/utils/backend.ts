@@ -20,6 +20,7 @@ export interface AuthUser {
   username: string
   email: string
   created_at: string
+  moxfield_username?: string | null
 }
 
 export interface TokenResponse {

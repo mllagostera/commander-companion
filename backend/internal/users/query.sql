@@ -43,6 +43,11 @@ UPDATE users SET moxfield_username = $2
 WHERE id = $1
 RETURNING *;
 
+-- name: UpdatePasswordHash :one
+UPDATE users SET password_hash = $2
+WHERE id = $1
+RETURNING *;
+
 -- name: CreateEmailVerificationToken :one
 INSERT INTO email_verification_tokens (
   user_id, token_hash, expires_at

@@ -15,6 +15,12 @@ type UpdateProfileRequest struct {
 	MoxfieldUsername string `json:"moxfield_username"`
 }
 
+// ChangePasswordRequest es el payload de POST /users/:id/password.
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
 // VerifyEmailRequest es el payload de POST /auth/verify-email.
 type VerifyEmailRequest struct {
 	Token string `json:"token"`

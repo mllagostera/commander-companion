@@ -549,3 +549,75 @@ func TestUpdateMoxfieldUsername_UnknownUser_ReturnsNotFound(t *testing.T) {
 		t.Fatalf("UpdateMoxfieldUsername() con usuario inexistente: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
 	}
 }
+
+func TestChangePassword_Success(t *testing.T) {
+	svc, _ := newUsersSvcVerificationOff(t)
+	user := registerUser(t, svc, "change-password-ok@example.com")
+
+	if err := svc.ChangePassword(context.Background(), user.ID, testPassword, "new-correct-horse-battery"); err != nil {
+		t.Fatalf("ChangePassword() error = %v, want nil", err)
+	}
+
+	if _, err := svc.VerifyCredentials(context.Background(), "change-password-ok@example.com", "new-correct-horse-battery"); err != nil {
+		t.Fatalf("VerifyCredentials() con el password nuevo: error = %v, want nil", err)
+	}
+	if _, err := svc.VerifyCredentials(context.Background(), "change-password-ok@example.com", testPassword); !errors.Is(err, users.ErrInvalidCredentials) {
+		t.Fatalf("VerifyCredentials() con el password viejo: error = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestChangePassword_WrongCurrentPassword(t *testing.T) {
+	svc, _ := newUsersSvcVerificationOff(t)
+	user := registerUser(t, svc, "change-password-wrong@example.com")
+
+	err := svc.ChangePassword(context.Background(), user.ID, "not-the-current-password", "new-correct-horse-battery")
+	if !errors.Is(err, users.ErrInvalidCurrentPassword) {
+		t.Fatalf("ChangePassword() con password actual incorrecta: error = %v, want ErrInvalidCurrentPassword", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusUnauthorized {
+		t.Fatalf("ChangePassword() con password actual incorrecta: code = %d, want %d", fiberErr.Code, fiber.StatusUnauthorized)
+	}
+
+	// La password original sigue funcionando: el intento fallido no la tocó.
+	if _, err := svc.VerifyCredentials(context.Background(), "change-password-wrong@example.com", testPassword); err != nil {
+		t.Fatalf("VerifyCredentials() con el password original tras el intento fallido: error = %v, want nil", err)
+	}
+}
+
+func TestChangePassword_TooShort(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "change-password-short@example.com")
+
+	err := svc.ChangePassword(context.Background(), user.ID, testPassword, "short")
+	if !errors.Is(err, users.ErrPasswordTooShort) {
+		t.Fatalf("ChangePassword() con password nuevo corto: error = %v, want ErrPasswordTooShort", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("ChangePassword() con password nuevo corto: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+// Una cuenta de Google no tiene password propio: ChangePassword debe rechazarla con el
+// mismo error que VerifyCredentials, no con un 500 por password_hash nulo.
+func TestChangePassword_GoogleOnlyAccount(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	user, err := svc.FindOrCreateGoogleUser(context.Background(), "google-sub-change-password", "google-change-password@example.com", true)
+	if err != nil {
+		t.Fatalf("FindOrCreateGoogleUser() error = %v", err)
+	}
+
+	err = svc.ChangePassword(context.Background(), user.ID, "anything", "new-correct-horse-battery")
+	if !errors.Is(err, users.ErrGoogleOnlyAccount) {
+		t.Fatalf("ChangePassword() sobre cuenta de Google: error = %v, want ErrGoogleOnlyAccount", err)
+	}
+}
+
+func TestChangePassword_UnknownUser_ReturnsNotFound(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	err := svc.ChangePassword(context.Background(), "00000000-0000-0000-0000-000000000000", testPassword, "new-correct-horse-battery")
+	if !errors.Is(err, users.ErrUserNotFound) {
+		t.Fatalf("ChangePassword() con usuario inexistente: error = %v, want ErrUserNotFound", err)
+	}
+}

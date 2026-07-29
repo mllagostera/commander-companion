@@ -53,7 +53,15 @@ var (
 	// ErrUsernameExhausted indica que no se pudo generar un username único para una cuenta de Google.
 	// No es un error de dominio traducible: sale como 500, porque implica un problema del servidor.
 	ErrUsernameExhausted = errors.New("could not allocate a unique username for google user")
+	// ErrInvalidCurrentPassword indica que el password actual mandado en ChangePassword no coincide.
+	ErrInvalidCurrentPassword = common.Unauthorized("current password is incorrect")
+	// ErrPasswordTooShort indica que el password nuevo no cumple el largo mínimo.
+	ErrPasswordTooShort = common.InvalidInput("password must be at least 8 characters long")
 )
+
+// minPasswordLength es el largo mínimo del password nuevo en ChangePassword, igual al
+// mínimo que ya exige el form de registro del lado del cliente (ver web/app/pages/register.vue).
+const minPasswordLength = 8
 
 // Mailer es lo que users necesita para mandar el mail de verificación de cuenta
 // (permite mockearlo en tests; ver decks.MoxfieldClient para el mismo patrón).
@@ -68,6 +76,8 @@ type Service interface {
 	VerifyCredentials(ctx context.Context, email, password string) (*UserResponse, error)
 	FindOrCreateGoogleUser(ctx context.Context, googleID, email string, emailVerified bool) (*UserResponse, error)
 	UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUsername string) (*UserResponse, error)
+	// ChangePassword valida el password actual y, si coincide, lo reemplaza por el nuevo.
+	ChangePassword(ctx context.Context, id, currentPassword, newPassword string) error
 	// VerifyEmail confirma la cuenta asociada al token de verificación mandado por mail.
 	VerifyEmail(ctx context.Context, token string) error
 	// ResendVerification manda un nuevo mail de verificación si corresponde. Nunca
@@ -194,6 +204,50 @@ func (s *service) UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUserna
 	}
 
 	return toUserResponse(&user), nil
+}
+
+// ChangePassword valida currentPassword contra el hash guardado y, si coincide, lo
+// reemplaza por el hash de newPassword. Las cuentas de Google (sin password_hash)
+// no pueden usar este camino: deben seguir entrando por Google Sign-In.
+func (s *service) ChangePassword(ctx context.Context, id, currentPassword, newPassword string) error {
+	if len(newPassword) < minPasswordLength {
+		return ErrPasswordTooShort
+	}
+
+	uid, err := common.ParseUUID(id)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	user, err := s.repo.GetUserByID(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("looking up user by id: %w", err)
+	}
+
+	if !user.PasswordHash.Valid {
+		return ErrGoogleOnlyAccount
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash.String), []byte(currentPassword)); err != nil {
+		return ErrInvalidCurrentPassword
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hashing new password: %w", err)
+	}
+
+	if _, err := s.repo.UpdatePasswordHash(ctx, UpdatePasswordHashParams{
+		ID:           uid,
+		PasswordHash: pgtype.Text{String: string(hash), Valid: true},
+	}); err != nil {
+		return fmt.Errorf("updating password hash: %w", err)
+	}
+
+	return nil
 }
 
 // VerifyCredentials valida el email/password y devuelve el usuario si son correctos.
