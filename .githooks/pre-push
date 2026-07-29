@@ -55,9 +55,16 @@ fi
 
 echo "pre-push: corriendo localmente los checks de CI (backend=$backend_changed web=$web_changed)..."
 
-workdir=$(mktemp -d)
+# mktemp -d cae bajo /tmp, una ruta puramente MSYS que Docker Desktop (proceso
+# Windows nativo) no puede resolver como bind mount aunque MSYS_NO_PATHCONV
+# la deje "intacta" — termina montando un directorio vacío. Usamos en cambio
+# un directorio dentro del propio repo (ruta Windows real vía "pwd -W"), que
+# tanto MSYS bash como docker.exe entienden igual.
+repo_root=$(pwd -W 2>/dev/null || pwd)
+workdir="$repo_root/.git/pre-push-tmp-$$"
 cleanup() { rm -rf "$workdir"; }
 trap cleanup EXIT
+mkdir -p "$workdir"
 
 # Export limpio del árbol que se va a pushear (line endings tal cual están en
 # el blob de git, sin el core.autocrlf del checkout local de Windows — así
