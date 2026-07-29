@@ -1,0 +1,333 @@
+{
+  "common": {
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "saving": "Guardando…"
+  },
+  "nav": {
+    "home": "Inicio",
+    "decks": "Decks",
+    "statistics": "Estadísticas",
+    "playgroups": "Grupos",
+    "settings": "Configuración",
+    "logout": "Salir",
+    "darkTheme": "Tema oscuro",
+    "toggleTheme": "Cambiar tema"
+  },
+  "login": {
+    "tagline": "Tus partidas y decks de Commander, en un solo lugar.",
+    "emailLabel": "Email",
+    "emailPlaceholder": "tu\\@email.com",
+    "passwordLabel": "Contraseña",
+    "submit": "Iniciar sesión",
+    "submitting": "Ingresando…",
+    "divider": "o",
+    "verification": {
+      "checkInbox": "Listo, revisa tu bandeja de entrada.",
+      "resend": "Reenviar email de verificación",
+      "resending": "Reenviando…"
+    },
+    "noAccount": "¿No tienes cuenta?",
+    "registerLink": "Regístrate",
+    "errors": {
+      "loginFailed": "No se pudo iniciar sesión.",
+      "resendFailed": "No se pudo reenviar el email de verificación.",
+      "googleFailed": "No se pudo iniciar sesión con Google."
+    }
+  },
+  "register": {
+    "tagline": "Crea tu cuenta y empieza a trackear tus partidas.",
+    "usernameLabel": "Usuario",
+    "usernamePlaceholder": "tu_usuario",
+    "emailLabel": "Email",
+    "emailPlaceholder": "tu\\@email.com",
+    "passwordLabel": "Contraseña",
+    "passwordConfirmLabel": "Repetir contraseña",
+    "submit": "Crear cuenta",
+    "submitting": "Creando cuenta…",
+    "haveAccount": "¿Ya tienes cuenta?",
+    "loginLink": "Inicia sesión",
+    "checkEmail": {
+      "title": "Revisa tu email",
+      "bodyIntro": "Te mandamos un link de confirmación a",
+      "bodyOutro": "Tienes que confirmarlo antes de poder iniciar sesión.",
+      "goToLogin": "Ir a iniciar sesión"
+    },
+    "errors": {
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "registerFailed": "No se pudo crear la cuenta."
+    }
+  },
+  "verifyEmail": {
+    "invalidLink": "El link de verificación no es válido.",
+    "verifyFailed": "No se pudo verificar el email.",
+    "pending": "Verificando tu email…",
+    "success": {
+      "title": "Email confirmado",
+      "body": "Ya puedes iniciar sesión.",
+      "goToLogin": "Ir a iniciar sesión"
+    },
+    "error": {
+      "title": "No se pudo verificar",
+      "requestNewLinkIntro": "Puedes pedir un link nuevo desde",
+      "loginLink": "iniciar sesión"
+    }
+  },
+  "dashboard": {
+    "sessionAs": "Sesión iniciada como",
+    "greeting": "Hola, {username}",
+    "loadError": "No se pudo cargar el resumen.",
+    "stats": {
+      "games": "Partidas",
+      "wins": "Victorias",
+      "winRate": "Win rate",
+      "decks": "Decks"
+    },
+    "winLoss": {
+      "heading": "Victorias / derrotas",
+      "won": "{count} ganadas",
+      "lost": "{count} perdidas"
+    },
+    "bestDeck": {
+      "heading": "Tu mejor deck",
+      "summary": "{winRate} de win rate · {games} partidas",
+      "empty": "Todavía no hay partidas registradas."
+    },
+    "streak": {
+      "heading": "Racha actual",
+      "wins": "{count} victorias seguidas",
+      "losses": "{count} derrotas seguidas",
+      "sinceLast": "Contando desde tu última partida.",
+      "empty": "Sin partidas finalizadas todavía."
+    },
+    "groups": {
+      "heading": "Tus grupos",
+      "viewAll": "Ver todos",
+      "empty": "Todavía no eres miembro de ningún grupo.",
+      "summary": "{members} miembros · {games} partidas"
+    },
+    "decksSection": {
+      "heading": "Tus decks",
+      "viewStats": "Ver estadísticas",
+      "empty": "Todavía no tienes decks."
+    },
+    "recentGames": {
+      "heading": "Últimas partidas",
+      "empty": "Todavía no se registró ninguna partida finalizada.",
+      "won": "Ganada",
+      "lost": "Perdida"
+    }
+  },
+  "decks": {
+    "title": "Mis decks",
+    "subtitle": "Importados desde Moxfield.",
+    "addDeck": "+ Agregar deck",
+    "searchPlaceholder": "Buscar deck o comandante…",
+    "sort": {
+      "played": "Más jugados",
+      "won": "Más victorias",
+      "winrate": "Mejor win rate",
+      "name": "Nombre (A-Z)"
+    },
+    "loadError": "No se pudieron cargar los decks.",
+    "empty": "Todavía no tienes decks. Importa uno desde Moxfield para empezar.",
+    "stats": "{played} partidas · {won} victorias",
+    "sync": {
+      "action": "Actualizar",
+      "syncing": "Sincronizando…",
+      "updated": "Actualizado desde Moxfield",
+      "upToDate": "Ya estaba al día"
+    },
+    "import": {
+      "title": "Importar desde Moxfield",
+      "placeholder": "https://moxfield.com/decks/abc123 o abc123",
+      "submit": "Importar",
+      "submitting": "Importando…",
+      "commanderLabel": "Comandante: {commander}"
+    },
+    "errors": {
+      "syncFailed": "No se pudo sincronizar con Moxfield."
+    }
+  },
+  "statistics": {
+    "title": "Estadísticas",
+    "subtitle": "Se recalculan al finalizar cada partida.",
+    "loadError": "No se pudieron cargar las estadísticas.",
+    "global": {
+      "heading": "Globales",
+      "winLoss": "Victorias / derrotas",
+      "wonLost": "{won} ganadas · {lost} perdidas",
+      "games": "Partidas",
+      "wins": "Victorias",
+      "winRate": "Win rate",
+      "totalDamage": "Daño total",
+      "commanderDamage": "Daño de comandante",
+      "eliminations": "Eliminaciones"
+    },
+    "perDeck": {
+      "heading": "Por deck",
+      "noDecksIntro": "Todavía no tienes decks.",
+      "importLink": "Importa uno desde Moxfield",
+      "noDecksOutro": "para ver sus estadísticas.",
+      "noStats": "Sin estadísticas disponibles para este deck.",
+      "games": "Partidas",
+      "wins": "Victorias",
+      "maxLife": "Vida máxima",
+      "commanderDamage": "Daño comandante"
+    },
+    "perGroup": {
+      "heading": "Por grupo de juego",
+      "empty": "Todavía no eres miembro de ningún grupo.",
+      "summary": "{games} partidas · {members} miembros"
+    }
+  },
+  "settings": {
+    "title": "Configuración",
+    "subtitle": "Tu cuenta y sus integraciones.",
+    "memberSince": "Miembro desde {date}",
+    "moxfield": {
+      "heading": "Moxfield",
+      "description": "Vincula tu usuario de Moxfield para poder importar todos tus decks públicos en segundo plano.",
+      "placeholder": "Tu usuario de Moxfield",
+      "importAction": "Importar mis decks en segundo plano",
+      "starting": "Iniciando…",
+      "importing": "Importando… {done} / {total} decks procesados.",
+      "importingNoTotal": "Importando… {done} decks procesados.",
+      "completed": "Listo: {imported} decks importados, {failed} fallidos.",
+      "failed": "La importación falló. {message}"
+    },
+    "security": {
+      "heading": "Seguridad",
+      "currentPassword": "Contraseña actual",
+      "newPassword": "Contraseña nueva",
+      "confirmNewPassword": "Confirmar contraseña nueva",
+      "submit": "Cambiar contraseña",
+      "sessionInfo": "La sesión se administra vía email/contraseña o Google. Cerrar sesión revoca el acceso en este dispositivo.",
+      "logout": "Cerrar sesión"
+    },
+    "errors": {
+      "passwordMismatch": "Las contraseñas nuevas no coinciden."
+    }
+  },
+  "playgroups": {
+    "list": {
+      "title": "Grupos de juego",
+      "subtitle": "Mesas con las que juegas seguido.",
+      "create": "+ Crear grupo",
+      "loadError": "No se pudieron cargar los grupos.",
+      "empty": "Todavía no eres miembro de ningún grupo. Crea uno para empezar.",
+      "gamesPlayedCount": "{count} partida jugada | {count} partidas jugadas",
+      "memberCount": "{count} miembro | {count} miembros",
+      "modal": {
+        "title": "Crear grupo",
+        "placeholder": "Nombre del grupo",
+        "submit": "Crear",
+        "submitting": "Creando…"
+      }
+    },
+    "detail": {
+      "back": "← Grupos",
+      "rename": "Renombrar",
+      "memberCount": "{count} miembro | {count} miembros",
+      "stats": {
+        "gamesPlayed": "Partidas jugadas",
+        "members": "Miembros"
+      },
+      "ranking": {
+        "heading": "Ranking por win rate",
+        "addMember": "+ Agregar miembro",
+        "close": "Cerrar",
+        "searchPlaceholder": "Buscar por username o email exacto",
+        "add": "Agregar",
+        "adding": "Agregando…",
+        "searching": "Buscando…",
+        "columns": {
+          "player": "Jugador",
+          "games": "Partidas",
+          "wins": "Victorias",
+          "winRate": "Win rate"
+        },
+        "empty": "Sin partidas registradas todavía."
+      },
+      "members": {
+        "heading": "Miembros"
+      },
+      "history": {
+        "heading": "Historial de partidas",
+        "empty": "Todavía no se jugó ninguna partida en este grupo.",
+        "noPlayers": "Sin jugadores"
+      }
+    }
+  },
+  "toast": {
+    "passwordUpdated": "Contraseña actualizada",
+    "moxfieldLinked": "Cuenta de Moxfield vinculada",
+    "groupCreated": "Grupo creado",
+    "groupRenamed": "Grupo renombrado",
+    "deckImported": "Deck importado",
+    "memberAdded": "{username} agregado al grupo"
+  },
+  "gameStatus": {
+    "pending": "Pendiente",
+    "active": "En curso",
+    "finished": "Finalizada"
+  },
+  "errors": {
+    "auth": {
+      "noActiveSession": "No hay una sesión activa."
+    },
+    "moxfieldImport": {
+      "notFound": "No existe un deck público de Moxfield con ese ID. Revisa la URL y que el deck no sea privado.",
+      "notCommander": "Ese deck de Moxfield no tiene comandante: no parece ser un deck de formato Commander.",
+      "invalidUrl": "La URL o el ID de Moxfield no son válidos. Pega algo como https://moxfield.com/decks/abc123 o solo abc123.",
+      "generic": "No se pudo importar el deck desde Moxfield."
+    },
+    "changePassword": {
+      "tooShort": "La contraseña nueva debe tener al menos 8 caracteres.",
+      "googleAccount": "Esta cuenta inició sesión con Google y no tiene contraseña propia.",
+      "incorrect": "La contraseña actual no es correcta.",
+      "generic": "No se pudo cambiar la contraseña."
+    },
+    "updateMoxfieldUsername": {
+      "generic": "No se pudo guardar el usuario de Moxfield."
+    },
+    "startMoxfieldImport": {
+      "needUsername": "Primero guarda tu usuario de Moxfield.",
+      "inProgress": "Ya hay una importación en curso para tu cuenta.",
+      "notAvailable": "La importación masiva de Moxfield todavía no está disponible en el servidor.",
+      "generic": "No se pudo iniciar la importación."
+    },
+    "playgroups": {
+      "create": {
+        "needName": "El grupo necesita un nombre.",
+        "generic": "No se pudo crear el grupo."
+      },
+      "get": {
+        "notFoundOrNotMember": "El grupo no existe o no eres miembro.",
+        "generic": "No se pudo cargar el grupo."
+      },
+      "update": {
+        "needName": "El grupo necesita un nombre.",
+        "notFoundOrNotMember": "El grupo no existe o no eres miembro.",
+        "generic": "No se pudo renombrar el grupo."
+      },
+      "addMember": {
+        "invalidUserId": "Ese ID de usuario no es válido.",
+        "userNotFound": "No existe un usuario con ese ID.",
+        "alreadyMember": "Ese usuario ya es miembro del grupo.",
+        "generic": "No se pudo agregar al usuario."
+      }
+    },
+    "games": {
+      "notFoundOrNotMember": "El grupo no existe o no eres miembro.",
+      "generic": "No se pudo cargar el historial de partidas."
+    },
+    "users": {
+      "tooShort": "Escribe al menos 2 caracteres.",
+      "generic": "No se pudo buscar usuarios."
+    },
+    "googleIdentity": {
+      "loadFailed": "No se pudo cargar Google Identity Services."
+    }
+  }
+}

@@ -16,26 +16,28 @@ export function useGames() {
   return { listPlaygroupGames }
 }
 
-/** Traduce el status de una partida a una etiqueta legible en español. */
+/** Traduce el status de una partida a una etiqueta legible. */
 export function gameStatusLabel(status: Game['status']): string {
+  const { t } = useI18n()
   switch (status) {
     case 'pending':
-      return 'Pendiente'
+      return t('gameStatus.pending')
     case 'active':
-      return 'En curso'
+      return t('gameStatus.active')
     case 'finished':
-      return 'Finalizada'
+      return t('gameStatus.finished')
     default:
       return status
   }
 }
 
-/** 404 acá cubre tanto "el grupo no existe" como "no sos miembro" (ver games.ErrPlaygroupNotFound). */
+/** 404 acá cubre tanto "el grupo no existe" como "no eres miembro" (ver games.ErrPlaygroupNotFound). */
 export function listPlaygroupGamesError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 404:
-      return 'El grupo no existe o no sos miembro.'
+      return t('errors.games.notFoundOrNotMember')
     default:
-      return apiErrorMessage(err, 'No se pudo cargar el historial de partidas.')
+      return apiErrorMessage(err, t('errors.games.generic'))
   }
 }

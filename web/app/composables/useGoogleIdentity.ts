@@ -16,7 +16,7 @@ function loadScript(): Promise<void> {
     script.async = true
     script.defer = true
     script.onload = () => resolve()
-    script.onerror = () => reject(new Error('No se pudo cargar Google Identity Services'))
+    script.onerror = () => reject(new Error(useI18n().t('errors.googleIdentity.loadFailed')))
     document.head.appendChild(script)
   })
 }
@@ -24,7 +24,11 @@ function loadScript(): Promise<void> {
 export function useGoogleIdentity() {
   const config = useRuntimeConfig()
 
-  async function renderButton(container: HTMLElement, onCredential: (idToken: string) => void) {
+  async function renderButton(
+    container: HTMLElement,
+    onCredential: (idToken: string) => void,
+    options: { theme?: 'outline' | 'filled_black' | 'filled_blue' } = {},
+  ) {
     if (!config.public.googleClientId) return
 
     await loadScript()
@@ -34,7 +38,15 @@ export function useGoogleIdentity() {
       client_id: config.public.googleClientId,
       callback: (response) => onCredential(response.credential),
     })
-    window.google.accounts.id.renderButton(container, { theme: 'outline', size: 'large', width: 320 })
+    container.innerHTML = ''
+    window.google.accounts.id.renderButton(container, {
+      theme: options.theme ?? 'filled_black',
+      size: 'large',
+      shape: 'pill',
+      text: 'continue_with',
+      logo_alignment: 'left',
+      width: container.clientWidth || 320,
+    })
   }
 
   return { renderButton }

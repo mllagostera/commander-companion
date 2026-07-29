@@ -3,6 +3,7 @@ import type { Game, Playgroup, PlaygroupStats, UserSearchResult } from '~/types/
 
 const route = useRoute()
 const playgroupId = route.params.id as string
+const { t, d } = useI18n()
 
 const { getPlaygroup, updatePlaygroup, addMember } = usePlaygroups()
 const { playgroupStats } = useStatistics()
@@ -43,12 +44,12 @@ function usernameFor(userId: string): string {
 
 function gameDate(game: Game): string | null {
   const iso = game.finished_at ?? game.started_at
-  return iso ? new Date(iso).toLocaleDateString() : null
+  return iso ? d(new Date(iso), 'short') : null
 }
 
 function gamePlayerNames(game: Game): string {
   const names = (game.players ?? []).map((p) => usernameFor(p.user_id))
-  return names.length ? names.join(', ') : 'Sin jugadores'
+  return names.length ? names.join(', ') : t('playgroups.detail.history.noPlayers')
 }
 
 const rankedMembers = computed(() => {
@@ -77,7 +78,7 @@ async function handleRename() {
     await updatePlaygroup(playgroupId, editedName.value)
     isRenaming_.value = false
     await refresh()
-    showToast('Grupo renombrado')
+    showToast(t('toast.groupRenamed'))
   } catch (err) {
     renameError.value = updatePlaygroupError(err)
   } finally {
@@ -147,7 +148,7 @@ async function handleAddMember() {
     selectedUser.value = null
     isAddMemberOpen.value = false
     await refresh()
-    showToast(`${added.username} agregado al grupo`)
+    showToast(t('toast.memberAdded', { username: added.username }))
   } catch (err) {
     addError.value = addMemberError(err)
   } finally {
@@ -158,7 +159,7 @@ async function handleAddMember() {
 
 <template>
   <div class="flex flex-col gap-6">
-    <NuxtLink to="/playgroups" class="self-start text-[13px]" style="color: var(--accent-link);">← Grupos</NuxtLink>
+    <NuxtLink to="/playgroups" class="self-start text-[13px]" style="color: var(--accent-link);">{{ $t('playgroups.detail.back') }}</NuxtLink>
 
     <p v-if="loadError" class="text-sm" style="color: var(--lose);">{{ getPlaygroupError(loadError) }}</p>
 
@@ -167,7 +168,7 @@ async function handleAddMember() {
         <div v-if="!isRenaming_" class="flex flex-wrap items-center gap-3">
           <h1 class="text-2xl font-semibold sm:text-[26px]">{{ playgroup.name }}</h1>
           <button type="button" class="text-sm" style="color: var(--accent-link);" @click="startRename">
-            Renombrar
+            {{ $t('playgroups.detail.rename') }}
           </button>
         </div>
         <form v-else class="flex flex-wrap gap-2.5" @submit.prevent="handleRename">
@@ -185,7 +186,7 @@ async function handleAddMember() {
             class="rounded-full px-4 py-2 text-sm font-semibold text-[#0a0714] disabled:opacity-50"
             style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
           >
-            {{ isRenaming ? 'Guardando…' : 'Guardar' }}
+            {{ isRenaming ? $t('common.saving') : $t('common.save') }}
           </button>
           <button
             type="button"
@@ -193,22 +194,22 @@ async function handleAddMember() {
             style="border-color: var(--input-border); color: var(--text-muted);"
             @click="isRenaming_ = false"
           >
-            Cancelar
+            {{ $t('common.cancel') }}
           </button>
         </form>
         <p v-if="renameError" class="mt-2 text-sm" style="color: var(--lose);">{{ renameError }}</p>
-        <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ playgroup.members?.length ?? 0 }} miembros</p>
+        <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('playgroups.detail.memberCount', playgroup.members?.length ?? 0) }}</p>
       </section>
 
       <section class="flex flex-wrap gap-3.5">
         <StatCard
-          label="Partidas jugadas"
+          :label="$t('playgroups.detail.stats.gamesPlayed')"
           :value="stats?.games_played ?? 0"
           tint="rgba(139,92,246,0.18)"
           class="min-w-[180px] flex-1"
         />
         <StatCard
-          label="Miembros"
+          :label="$t('playgroups.detail.stats.members')"
           :value="playgroup.members?.length ?? 0"
           tint="rgba(168,85,247,0.15)"
           class="min-w-[180px] flex-1"
@@ -217,9 +218,9 @@ async function handleAddMember() {
 
       <section>
         <div class="mb-3.5 flex items-baseline justify-between">
-          <h2 class="text-[15px] font-medium">Ranking por win rate</h2>
+          <h2 class="text-[15px] font-medium">{{ $t('playgroups.detail.ranking.heading') }}</h2>
           <button type="button" class="text-[13px]" style="color: var(--accent-link);" @click="toggleAddMember">
-            {{ isAddMemberOpen ? 'Cerrar' : '+ Agregar miembro' }}
+            {{ isAddMemberOpen ? $t('playgroups.detail.ranking.close') : $t('playgroups.detail.ranking.addMember') }}
           </button>
         </div>
 
@@ -235,7 +236,7 @@ async function handleAddMember() {
               required
               autofocus
               autocomplete="off"
-              placeholder="Buscar por username o email exacto"
+              :placeholder="$t('playgroups.detail.ranking.searchPlaceholder')"
               class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
               style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
               @input="onQueryInput"
@@ -264,10 +265,10 @@ async function handleAddMember() {
               class="rounded-full px-5 py-2 text-[13px] font-semibold text-[#0a0714] disabled:opacity-50"
               style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
             >
-              {{ isAdding ? 'Agregando…' : 'Agregar' }}
+              {{ isAdding ? $t('playgroups.detail.ranking.adding') : $t('playgroups.detail.ranking.add') }}
             </button>
           </form>
-          <p v-if="isSearching" class="text-xs" style="color: var(--text-dim);">Buscando…</p>
+          <p v-if="isSearching" class="text-xs" style="color: var(--text-dim);">{{ $t('playgroups.detail.ranking.searching') }}</p>
           <p v-if="searchError" class="text-xs" style="color: var(--lose);">{{ searchError }}</p>
           <p v-if="addError" class="text-xs" style="color: var(--lose);">{{ addError }}</p>
         </div>
@@ -277,12 +278,12 @@ async function handleAddMember() {
             class="grid grid-cols-[32px_1fr_90px] gap-2 px-5 py-3 text-[11px] uppercase tracking-wide sm:grid-cols-[32px_1fr_90px_90px_90px]"
             style="background: rgba(255,255,255,0.05); color: var(--text-dim);"
           >
-            <span>#</span><span>Jugador</span>
-            <span class="hidden sm:inline">Partidas</span><span class="hidden sm:inline">Victorias</span>
-            <span>Win rate</span>
+            <span>#</span><span>{{ $t('playgroups.detail.ranking.columns.player') }}</span>
+            <span class="hidden sm:inline">{{ $t('playgroups.detail.ranking.columns.games') }}</span><span class="hidden sm:inline">{{ $t('playgroups.detail.ranking.columns.wins') }}</span>
+            <span>{{ $t('playgroups.detail.ranking.columns.winRate') }}</span>
           </div>
           <p v-if="!rankedMembers.length" class="px-5 py-4 text-sm" style="color: var(--text-muted);">
-            Sin partidas registradas todavía.
+            {{ $t('playgroups.detail.ranking.empty') }}
           </p>
           <div
             v-for="m in rankedMembers"
@@ -305,7 +306,7 @@ async function handleAddMember() {
       </section>
 
       <section>
-        <h2 class="mb-3.5 text-[15px] font-medium">Miembros</h2>
+        <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('playgroups.detail.members.heading') }}</h2>
         <div class="flex flex-wrap gap-2">
           <span
             v-for="member in playgroup.members"
@@ -319,13 +320,13 @@ async function handleAddMember() {
       </section>
 
       <section>
-        <h2 class="mb-3.5 text-[15px] font-medium">Historial de partidas</h2>
+        <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('playgroups.detail.history.heading') }}</h2>
 
         <p v-if="gamesError" class="text-sm" style="color: var(--lose);">
           {{ listPlaygroupGamesError(gamesError) }}
         </p>
         <p v-else-if="!games?.length" class="text-sm" style="color: var(--text-muted);">
-          Todavía no se jugó ninguna partida en este grupo.
+          {{ $t('playgroups.detail.history.empty') }}
         </p>
 
         <div v-else class="flex flex-col gap-2.5">

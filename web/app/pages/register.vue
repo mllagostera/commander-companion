@@ -2,6 +2,7 @@
 definePageMeta({ layout: false })
 
 const { register } = useAuth()
+const { t } = useI18n()
 
 const username = ref('')
 const email = ref('')
@@ -18,7 +19,7 @@ async function handleSubmit() {
   errorMessage.value = ''
 
   if (password.value !== passwordConfirm.value) {
-    errorMessage.value = 'Las contraseñas no coinciden.'
+    errorMessage.value = t('register.errors.passwordMismatch')
     return
   }
 
@@ -27,7 +28,7 @@ async function handleSubmit() {
     await register(username.value, email.value, password.value)
     registeredEmail.value = email.value
   } catch (err) {
-    errorMessage.value = apiErrorMessage(err, 'No se pudo crear la cuenta.')
+    errorMessage.value = apiErrorMessage(err, t('register.errors.registerFailed'))
   } finally {
     isSubmitting.value = false
   }
@@ -43,7 +44,7 @@ async function handleSubmit() {
       <template v-if="registeredEmail">
         <span class="flex flex-col items-center gap-3.5">
           <AppLogo size="lg" />
-          <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Revisá tu email</span>
+          <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">{{ $t('register.checkEmail.title') }}</span>
         </span>
 
         <div
@@ -51,8 +52,8 @@ async function handleSubmit() {
           style="background: var(--card-bg-strong); border-color: var(--card-border);"
         >
           <p class="text-sm" style="color: var(--text-muted);">
-            Te mandamos un link de confirmación a <strong style="color: var(--text);">{{ registeredEmail }}</strong>.
-            Tenés que confirmarlo antes de poder iniciar sesión.
+            {{ $t('register.checkEmail.bodyIntro') }} <strong style="color: var(--text);">{{ registeredEmail }}</strong>.
+            {{ $t('register.checkEmail.bodyOutro') }}
           </p>
 
           <NuxtLink
@@ -60,7 +61,7 @@ async function handleSubmit() {
             class="rounded-full px-5 py-3 text-center text-[13px] font-semibold text-[#0a0714]"
             style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
           >
-            Ir a iniciar sesión
+            {{ $t('register.checkEmail.goToLogin') }}
           </NuxtLink>
         </div>
       </template>
@@ -69,7 +70,7 @@ async function handleSubmit() {
         <span class="flex flex-col items-center gap-3.5">
           <AppLogo size="lg" />
           <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Commander Companion</span>
-          <span class="text-[13px]" style="color: var(--text-muted);">Creá tu cuenta y empezá a trackear tus partidas.</span>
+          <span class="text-[13px]" style="color: var(--text-muted);">{{ $t('register.tagline') }}</span>
         </span>
 
         <form
@@ -78,31 +79,31 @@ async function handleSubmit() {
           @submit.prevent="handleSubmit"
         >
           <label class="text-xs" style="color: var(--text-dim);">
-            Usuario
+            {{ $t('register.usernameLabel') }}
             <input
               v-model="username"
               type="text"
               autocomplete="username"
               required
-              placeholder="tu_usuario"
+              :placeholder="$t('register.usernamePlaceholder')"
               class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
               style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
             >
           </label>
           <label class="text-xs" style="color: var(--text-dim);">
-            Email
+            {{ $t('register.emailLabel') }}
             <input
               v-model="email"
               type="email"
               autocomplete="email"
               required
-              placeholder="tu@email.com"
+              :placeholder="$t('register.emailPlaceholder')"
               class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
               style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
             >
           </label>
           <label class="text-xs" style="color: var(--text-dim);">
-            Contraseña
+            {{ $t('register.passwordLabel') }}
             <input
               v-model="password"
               type="password"
@@ -115,7 +116,7 @@ async function handleSubmit() {
             >
           </label>
           <label class="text-xs" style="color: var(--text-dim);">
-            Repetir contraseña
+            {{ $t('register.passwordConfirmLabel') }}
             <input
               v-model="passwordConfirm"
               type="password"
@@ -135,12 +136,12 @@ async function handleSubmit() {
             class="mt-2 rounded-full px-5 py-3 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.02] disabled:opacity-50"
             style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
           >
-            {{ isSubmitting ? 'Creando cuenta…' : 'Crear cuenta' }}
+            {{ isSubmitting ? $t('register.submitting') : $t('register.submit') }}
           </button>
 
           <span class="text-center text-xs" style="color: var(--text-dim);">
-            ¿Ya tenés cuenta?
-            <NuxtLink to="/login" style="color: var(--accent-link);">Iniciá sesión</NuxtLink>
+            {{ $t('register.haveAccount') }}
+            <NuxtLink to="/login" style="color: var(--accent-link);">{{ $t('register.loginLink') }}</NuxtLink>
           </span>
         </form>
       </template>

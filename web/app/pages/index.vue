@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Deck, DeckStats, Game, Playgroup } from '~/types/api'
 
+const { d } = useI18n()
 const { user } = useAuth()
 const { userStats, deckStats } = useStatistics()
 const { listDecks } = useDecks()
@@ -84,70 +85,72 @@ onMounted(() => refresh())
 
 function gameDate(game: Game): string {
   const iso = game.finished_at ?? game.started_at
-  return iso ? new Date(iso).toLocaleDateString() : '—'
+  return iso ? d(new Date(iso), 'short') : '—'
 }
 </script>
 
 <template>
   <div class="flex flex-col gap-9">
     <section>
-      <p class="text-[13px]" style="color: var(--text-dim);">Sesión iniciada como</p>
-      <h1 class="mt-1.5 text-[26px] font-semibold sm:text-[30px]">Hola, {{ user?.username ?? '…' }}</h1>
+      <p class="text-[13px]" style="color: var(--text-dim);">{{ $t('dashboard.sessionAs') }}</p>
+      <h1 class="mt-1.5 text-[26px] font-semibold sm:text-[30px]">{{ $t('dashboard.greeting', { username: user?.username ?? '…' }) }}</h1>
       <p style="color: var(--text-muted);">{{ user?.email }}</p>
     </section>
 
-    <p v-if="error" class="text-sm" style="color: var(--lose);">No se pudo cargar el resumen.</p>
+    <p v-if="error" class="text-sm" style="color: var(--lose);">{{ $t('dashboard.loadError') }}</p>
 
     <template v-else-if="data">
       <section class="flex flex-wrap gap-3.5">
-        <StatCard label="Partidas" :value="data.stats.games_played" tint="rgba(139,92,246,0.22)" class="min-w-[160px] flex-1" />
-        <StatCard label="Victorias" :value="data.stats.games_won" tint="rgba(196,181,253,0.18)" value-color="var(--win)" class="min-w-[160px] flex-1" />
-        <StatCard label="Win rate" :value="winRate(data.stats.games_played, data.stats.games_won)" tint="rgba(168,85,247,0.18)" value-color="#e9b8fb" class="min-w-[160px] flex-1" />
-        <StatCard label="Decks" :value="data.decks.length" tint="rgba(216,180,254,0.16)" value-color="#ddd6fe" class="min-w-[160px] flex-1" />
+        <StatCard :label="$t('dashboard.stats.games')" :value="data.stats.games_played" tint="rgba(139,92,246,0.22)" class="min-w-[160px] flex-1" />
+        <StatCard :label="$t('dashboard.stats.wins')" :value="data.stats.games_won" tint="rgba(196,181,253,0.18)" value-color="var(--win)" class="min-w-[160px] flex-1" />
+        <StatCard :label="$t('dashboard.stats.winRate')" :value="winRate(data.stats.games_played, data.stats.games_won)" tint="rgba(168,85,247,0.18)" value-color="#e9b8fb" class="min-w-[160px] flex-1" />
+        <StatCard :label="$t('dashboard.stats.decks')" :value="data.decks.length" tint="rgba(216,180,254,0.16)" value-color="#ddd6fe" class="min-w-[160px] flex-1" />
       </section>
 
       <section class="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
         <div class="flex items-center gap-4 rounded-[24px] border p-5" style="border-color: var(--card-border); background: var(--card-bg);">
           <WinRateRing :played="data.stats.games_played" :won="data.stats.games_won" />
           <div>
-            <p class="text-xs" style="color: var(--text-dim);">Victorias / derrotas</p>
-            <p class="mt-1 text-[13px]" style="color: var(--text);">{{ data.stats.games_won }} ganadas</p>
-            <p class="text-[13px]" style="color: var(--text-dim);">{{ data.stats.games_played - data.stats.games_won }} perdidas</p>
+            <p class="text-xs" style="color: var(--text-dim);">{{ $t('dashboard.winLoss.heading') }}</p>
+            <p class="mt-1 text-[13px]" style="color: var(--text);">{{ $t('dashboard.winLoss.won', { count: data.stats.games_won }) }}</p>
+            <p class="text-[13px]" style="color: var(--text-dim);">{{ $t('dashboard.winLoss.lost', { count: data.stats.games_played - data.stats.games_won }) }}</p>
           </div>
         </div>
 
         <div class="rounded-[20px] border p-5" style="border-color: rgba(196,181,253,0.25); background: linear-gradient(160deg, rgba(196,181,253,0.12), var(--card-bg));">
-          <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">Tu mejor deck</p>
+          <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">{{ $t('dashboard.bestDeck.heading') }}</p>
           <template v-if="data.bestDeckEntry">
             <p class="mt-2 text-base font-semibold">{{ data.bestDeckEntry.deck.name }}</p>
             <p class="mt-1 text-[13px]" style="color: var(--text-muted);">
-              {{ winRate(data.bestDeckEntry.stats!.games_played, data.bestDeckEntry.stats!.games_won) }} de win rate
-              · {{ data.bestDeckEntry.stats!.games_played }} partidas
+              {{ $t('dashboard.bestDeck.summary', {
+                winRate: winRate(data.bestDeckEntry.stats!.games_played, data.bestDeckEntry.stats!.games_won),
+                games: data.bestDeckEntry.stats!.games_played,
+              }) }}
             </p>
           </template>
-          <p v-else class="mt-2 text-[13px]" style="color: var(--text-muted);">Todavía no hay partidas registradas.</p>
+          <p v-else class="mt-2 text-[13px]" style="color: var(--text-muted);">{{ $t('dashboard.bestDeck.empty') }}</p>
         </div>
 
         <div class="rounded-[26px] border p-5" style="border-color: rgba(168,85,247,0.22); background: linear-gradient(160deg, rgba(168,85,247,0.12), var(--card-bg));">
-          <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">Racha actual</p>
+          <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">{{ $t('dashboard.streak.heading') }}</p>
           <template v-if="data.streak">
             <p class="mt-2 text-base font-semibold" :style="{ color: data.streakWon ? 'var(--win)' : 'var(--lose)' }">
-              {{ data.streak }} {{ data.streakWon ? 'victorias' : 'derrotas' }} seguidas
+              {{ data.streakWon ? $t('dashboard.streak.wins', { count: data.streak }) : $t('dashboard.streak.losses', { count: data.streak }) }}
             </p>
-            <p class="mt-1 text-[13px]" style="color: var(--text-muted);">Contando desde tu última partida.</p>
+            <p class="mt-1 text-[13px]" style="color: var(--text-muted);">{{ $t('dashboard.streak.sinceLast') }}</p>
           </template>
-          <p v-else class="mt-2 text-[13px]" style="color: var(--text-muted);">Sin partidas finalizadas todavía.</p>
+          <p v-else class="mt-2 text-[13px]" style="color: var(--text-muted);">{{ $t('dashboard.streak.empty') }}</p>
         </div>
       </section>
 
       <section class="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div>
           <div class="mb-3.5 flex items-baseline justify-between">
-            <h2 class="text-[15px] font-medium">Tus grupos</h2>
-            <NuxtLink to="/playgroups" class="text-[13px]" style="color: var(--accent-link);">Ver todos</NuxtLink>
+            <h2 class="text-[15px] font-medium">{{ $t('dashboard.groups.heading') }}</h2>
+            <NuxtLink to="/playgroups" class="text-[13px]" style="color: var(--accent-link);">{{ $t('dashboard.groups.viewAll') }}</NuxtLink>
           </div>
           <div v-if="!data.dashboardGroups.length" class="text-[13px]" style="color: var(--text-muted);">
-            Todavía no sos miembro de ningún grupo.
+            {{ $t('dashboard.groups.empty') }}
           </div>
           <div v-else class="flex flex-col gap-2.5">
             <NuxtLink
@@ -160,7 +163,7 @@ function gameDate(game: Game): string {
               <span>
                 <span class="text-sm font-medium">{{ g.name }}</span>
                 <span class="mt-0.5 block text-xs" style="color: var(--text-dim);">
-                  {{ g.memberCount }} miembros · {{ g.gamesPlayed }} partidas
+                  {{ $t('dashboard.groups.summary', { members: g.memberCount, games: g.gamesPlayed }) }}
                 </span>
               </span>
               <span class="text-[13px]" style="color: var(--accent-link);">→</span>
@@ -170,11 +173,11 @@ function gameDate(game: Game): string {
 
         <div>
           <div class="mb-3.5 flex items-baseline justify-between">
-            <h2 class="text-[15px] font-medium">Tus decks</h2>
-            <NuxtLink to="/statistics" class="text-[13px]" style="color: var(--accent-link);">Ver estadísticas</NuxtLink>
+            <h2 class="text-[15px] font-medium">{{ $t('dashboard.decksSection.heading') }}</h2>
+            <NuxtLink to="/statistics" class="text-[13px]" style="color: var(--accent-link);">{{ $t('dashboard.decksSection.viewStats') }}</NuxtLink>
           </div>
           <div v-if="!data.dashboardDecks.length" class="text-[13px]" style="color: var(--text-muted);">
-            Todavía no tenés decks.
+            {{ $t('dashboard.decksSection.empty') }}
           </div>
           <div v-else class="grid grid-cols-3 gap-2.5">
             <div v-for="entry in data.dashboardDecks" :key="entry.deck.id" class="relative">
@@ -189,9 +192,9 @@ function gameDate(game: Game): string {
       </section>
 
       <section>
-        <h2 class="mb-3.5 text-[15px] font-medium">Últimas partidas</h2>
+        <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('dashboard.recentGames.heading') }}</h2>
         <p v-if="!data.recentGames.length" class="text-[13px]" style="color: var(--text-muted);">
-          Todavía no se registró ninguna partida finalizada.
+          {{ $t('dashboard.recentGames.empty') }}
         </p>
         <div v-else class="flex flex-col gap-2.5">
           <div
@@ -205,7 +208,7 @@ function gameDate(game: Game): string {
               class="rounded-full px-3 py-1 text-xs font-semibold"
               :style="{ background: rg.won ? 'var(--win-bg)' : 'var(--lose-bg)', color: rg.won ? 'var(--win)' : 'var(--lose)' }"
             >
-              {{ rg.won ? 'Ganada' : 'Perdida' }}
+              {{ rg.won ? $t('dashboard.recentGames.won') : $t('dashboard.recentGames.lost') }}
             </span>
           </div>
         </div>

@@ -16,7 +16,7 @@ export function usePlaygroups() {
     })
   }
 
-  /** Único camino con `members` poblado. 404 si no existe o no sos miembro. */
+  /** Único camino con `members` poblado. 404 si no existe o no eres miembro. */
   function getPlaygroup(id: string) {
     return apiFetch<Playgroup>(`/playgroups/${id}`)
   }
@@ -41,49 +41,53 @@ export function usePlaygroups() {
 }
 
 export function createPlaygroupError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 400:
-      return 'El grupo necesita un nombre.'
+      return t('errors.playgroups.create.needName')
     default:
-      return apiErrorMessage(err, 'No se pudo crear el grupo.')
+      return apiErrorMessage(err, t('errors.playgroups.create.generic'))
   }
 }
 
 /**
- * 404 acá cubre tanto "el grupo no existe" como "no sos miembro" (el backend
+ * 404 acá cubre tanto "el grupo no existe" como "no eres miembro" (el backend
  * no distingue, ver getMemberPlaygroup en internal/playgroups/service.go).
  */
 export function getPlaygroupError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 404:
-      return 'El grupo no existe o no sos miembro.'
+      return t('errors.playgroups.get.notFoundOrNotMember')
     default:
-      return apiErrorMessage(err, 'No se pudo cargar el grupo.')
+      return apiErrorMessage(err, t('errors.playgroups.get.generic'))
   }
 }
 
-/** Mismo mapeo de errores que createPlaygroupError/getPlaygroupError: 400 sin nombre, 404 si no sos miembro. */
+/** Mismo mapeo de errores que createPlaygroupError/getPlaygroupError: 400 sin nombre, 404 si no es miembro. */
 export function updatePlaygroupError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 400:
-      return 'El grupo necesita un nombre.'
+      return t('errors.playgroups.update.needName')
     case 404:
-      return 'El grupo no existe o no sos miembro.'
+      return t('errors.playgroups.update.notFoundOrNotMember')
     default:
-      return apiErrorMessage(err, 'No se pudo renombrar el grupo.')
+      return apiErrorMessage(err, t('errors.playgroups.update.generic'))
   }
 }
 
 /** Ver ErrInvalidUserID (400), ErrUserNotFound (404) y ErrAlreadyMember (409) en internal/playgroups/service.go. */
 export function addMemberError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 400:
-      return 'Ese ID de usuario no es válido.'
+      return t('errors.playgroups.addMember.invalidUserId')
     case 404:
-      return 'No existe un usuario con ese ID.'
+      return t('errors.playgroups.addMember.userNotFound')
     case 409:
-      return 'Ese usuario ya es miembro del grupo.'
+      return t('errors.playgroups.addMember.alreadyMember')
     default:
-      return apiErrorMessage(err, 'No se pudo agregar al usuario.')
+      return apiErrorMessage(err, t('errors.playgroups.addMember.generic'))
   }
 }

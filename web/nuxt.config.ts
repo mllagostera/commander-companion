@@ -2,8 +2,19 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-07-27',
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n'],
   css: ['~/assets/css/main.css'],
+  app: {
+    head: {
+      title: 'Commander Companion',
+    },
+  },
+  i18n: {
+    locales: [{ code: 'es', language: 'es-ES', file: 'es.json' }],
+    defaultLocale: 'es',
+    strategy: 'no_prefix',
+    detectBrowserLanguage: false,
+  },
   runtimeConfig: {
     // URL de la API para llamadas hechas desde el servidor (SSR). En Docker
     // Compose esto apunta al hostname interno del servicio ("http://api:8080/api/v1"),

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Playgroup } from '~/types/api'
 
+const { t } = useI18n()
 const { listPlaygroups, createPlaygroup } = usePlaygroups()
 const { playgroupStats } = useStatistics()
 const { showToast } = useToast()
@@ -49,7 +50,7 @@ async function handleCreate() {
     const created = await createPlaygroup(newName.value)
     closeCreateModal()
     await refresh()
-    showToast('Grupo creado')
+    showToast(t('toast.groupCreated'))
     await navigateTo(`/playgroups/${created.id}`)
   } catch (err) {
     createError.value = createPlaygroupError(err)
@@ -63,8 +64,8 @@ async function handleCreate() {
   <div class="flex flex-col gap-6">
     <section class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-semibold sm:text-[26px]">Grupos de juego</h1>
-        <p class="mt-2 text-sm" style="color: var(--text-muted);">Mesas con las que jugás seguido.</p>
+        <h1 class="text-2xl font-semibold sm:text-[26px]">{{ $t('playgroups.list.title') }}</h1>
+        <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('playgroups.list.subtitle') }}</p>
       </div>
       <button
         type="button"
@@ -72,13 +73,13 @@ async function handleCreate() {
         style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
         @click="openCreateModal"
       >
-        + Crear grupo
+        {{ $t('playgroups.list.create') }}
       </button>
     </section>
 
-    <p v-if="listError" class="text-sm" style="color: var(--lose);">No se pudieron cargar los grupos.</p>
+    <p v-if="listError" class="text-sm" style="color: var(--lose);">{{ $t('playgroups.list.loadError') }}</p>
     <p v-else-if="!playgroups?.length" class="text-sm" style="color: var(--text-muted);">
-      Todavía no sos miembro de ningún grupo. Creá uno para empezar.
+      {{ $t('playgroups.list.empty') }}
     </p>
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -92,8 +93,8 @@ async function handleCreate() {
         <div>
           <h3 class="text-base font-semibold">{{ playgroup.name }}</h3>
           <p class="mt-1 text-[13px]" style="color: var(--text-dim);">
-            {{ playgroup.gamesPlayed }} {{ playgroup.gamesPlayed === 1 ? 'partida jugada' : 'partidas jugadas' }}
-            · {{ playgroup.memberCount }} {{ playgroup.memberCount === 1 ? 'miembro' : 'miembros' }}
+            {{ $t('playgroups.list.gamesPlayedCount', playgroup.gamesPlayed) }}
+            · {{ $t('playgroups.list.memberCount', playgroup.memberCount) }}
           </p>
         </div>
         <div class="flex">
@@ -115,7 +116,7 @@ async function handleCreate() {
       @click.self="closeCreateModal"
     >
       <div class="w-full max-w-sm rounded-[24px] border p-6" style="border-color: var(--card-border); background: var(--page-solid);">
-        <h2 class="text-[15px] font-medium">Crear grupo</h2>
+        <h2 class="text-[15px] font-medium">{{ $t('playgroups.list.modal.title') }}</h2>
 
         <form class="mt-4 space-y-3" @submit.prevent="handleCreate">
           <input
@@ -123,7 +124,7 @@ async function handleCreate() {
             type="text"
             required
             autofocus
-            placeholder="Nombre del grupo"
+            :placeholder="$t('playgroups.list.modal.placeholder')"
             class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
@@ -137,7 +138,7 @@ async function handleCreate() {
               style="border-color: var(--input-border); color: var(--text);"
               @click="closeCreateModal"
             >
-              Cancelar
+              {{ $t('common.cancel') }}
             </button>
             <button
               type="submit"
@@ -145,7 +146,7 @@ async function handleCreate() {
               class="rounded-full px-5 py-2 text-sm font-semibold text-[#0a0714] disabled:opacity-50"
               style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
             >
-              {{ isCreating ? 'Creando…' : 'Crear' }}
+              {{ isCreating ? $t('playgroups.list.modal.submitting') : $t('playgroups.list.modal.submit') }}
             </button>
           </div>
         </form>
