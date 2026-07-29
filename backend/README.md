@@ -45,6 +45,29 @@ La primera vez hay que aplicar las migraciones (no corren solas dentro del
 contenedor): `make migrate-up` con `DB_URL` apuntando a `localhost:5432`
 (el puerto que publica el servicio `db` de Compose).
 
+## Despliegue (Render)
+
+El propio binario `api` aplica las migraciones de goose al arrancar, antes de
+levantar el servidor HTTP (ver `common.RunMigrations` en
+[`cmd/api/main.go`](cmd/api/main.go)). No depende de un "Pre-Deploy Command" ni
+de ningún otro hook de la plataforma — corre igual en Render (incluido el
+free tier, que no ofrece ese hook), en Docker Compose o localmente. La imagen
+de [`Dockerfile`](Dockerfile) incluye el directorio `migrations/` junto al
+binario para que esto funcione en runtime.
+
+Nota de escala: si el servicio corre con más de una réplica, todas las
+instancias ejecutan `goose up` al bootear en paralelo; goose es idempotente
+(cada migración se aplica una sola vez, trackeado en `goose_db_version`) pero
+no serializa esas ejecuciones concurrentes con un lock. Con una sola réplica
+(el caso actual) no aplica.
+
+Variables de entorno mínimas a configurar en el servicio de Render: `DB_URL`
+(connection string de Supabase — usar el **Session pooler**, no el
+Transaction pooler, porque este backend usa prepared statements vía pgx),
+`JWT_SECRET` (uno nuevo, no el default de dev), `GOOGLE_CLIENT_ID`,
+`CORS_ALLOWED_ORIGINS` y `WEB_APP_URL` (dominio del frontend en Vercel). Ver
+[`.env.example`](.env.example) para el resto.
+
 ## Notas
 
 - Gran parte del código sigue evolucionando activamente — antes de asumir que
