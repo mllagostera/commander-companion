@@ -1,3 +1,100 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Sistema de tema: custom properties conmutadas por [data-theme] en <html>
+ * (ver useTheme.ts). Tailwind acá no tiene el plugin de dark-mode configurado
+ * a propósito — todo el color de superficie/texto pasa por estas variables
+ * vía clases arbitrarias (bg-[var(--card-bg)], etc.), así layout y páginas
+ * quedan tema-agnósticas sin duplicar clases dark:/light:.
+ */
+:root {
+  --bg-gradient: radial-gradient(ellipse 120% 80% at 20% -10%, #1e1b4b 0%, #0a0714 45%, #050308 100%);
+  --text: #f1f0f6;
+  --text-muted: #a5a3b8;
+  --text-dim: #8b87a3;
+  --card-bg: rgba(255, 255, 255, 0.03);
+  --card-bg-strong: rgba(255, 255, 255, 0.04);
+  --card-border: rgba(255, 255, 255, 0.07);
+  --input-bg: rgba(0, 0, 0, 0.3);
+  --input-border: rgba(255, 255, 255, 0.12);
+  --dim-bg: rgba(0, 0, 0, 0.25);
+  --header-bg: rgba(20, 16, 38, 0.55);
+  --toast-bg: rgba(20, 16, 38, 0.85);
+  --accent-link: #c4b5fd;
+  --accent-link2: #ddd6fe;
+  --page-solid: #0d0a1a;
+  --blob-opacity: 1;
+  --win: #5eead4;
+  --win-bg: rgba(52, 211, 153, 0.15);
+  --lose: #f87171;
+  --lose-bg: rgba(248, 113, 113, 0.12);
+}
+
+:root[data-theme='light'] {
+  --bg-gradient: radial-gradient(ellipse 120% 80% at 20% -10%, #f2eefc 0%, #f8f7fb 45%, #ffffff 100%);
+  --text: #211f2e;
+  --text-muted: #5d5a72;
+  --text-dim: #726f89;
+  --card-bg: rgba(30, 20, 60, 0.035);
+  --card-bg-strong: rgba(30, 20, 60, 0.05);
+  --card-border: rgba(30, 20, 60, 0.09);
+  --input-bg: rgba(30, 20, 60, 0.04);
+  --input-border: rgba(30, 20, 60, 0.15);
+  --dim-bg: rgba(30, 20, 60, 0.05);
+  --header-bg: rgba(255, 255, 255, 0.65);
+  --toast-bg: rgba(255, 255, 255, 0.92);
+  --accent-link: #7c3aed;
+  --accent-link2: #9333ea;
+  --page-solid: #faf9fc;
+  --blob-opacity: 0.4;
+  --win: #0f766e;
+  --win-bg: rgba(15, 118, 110, 0.12);
+  --lose: #b91c1c;
+  --lose-bg: rgba(185, 28, 28, 0.1);
+}
+
+body {
+  margin: 0;
+  background: var(--page-solid);
+  color: var(--text);
+}
+
+@keyframes cc-pulse {
+  0%, 100% { transform: scale(1) rotate(-6deg); opacity: 1; }
+  50% { transform: scale(1.08) rotate(-6deg); opacity: 0.7; }
+}
+
+@keyframes cc-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.cc-deck-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    rgba(139, 92, 246, 0.12) 25%,
+    rgba(196, 181, 253, 0.28) 50%,
+    rgba(139, 92, 246, 0.12) 75%
+  );
+  background-size: 200% 100%;
+  animation: cc-shimmer 1.4s ease-in-out infinite;
+}
+
+.cc-gradient-text {
+  background: linear-gradient(90deg, var(--accent-link), var(--accent-link2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.cc-blob {
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(50px);
+  opacity: var(--blob-opacity);
+}

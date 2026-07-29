@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import type { Deck } from '~/types/api'
+import type { Deck, DeckStats } from '~/types/api'
 
 const { listDecks, importFromMoxfield, syncFromMoxfield } = useDecks()
+const { deckStats } = useStatistics()
+const { showToast } = useToast()
 
 const { data: decks, refresh, error: listError } = await useAsyncData<Deck[]>(
   'decks',
@@ -9,10 +11,38 @@ const { data: decks, refresh, error: listError } = await useAsyncData<Deck[]>(
   { default: () => [] },
 )
 
+// Stats por deck, solo para ordenar (jugados/victorias/win rate) — el propio
+// Deck no las trae. Best-effort: un deck sin stats no rompe el resto de la lista.
+const statsByDeckId = ref<Record<string, DeckStats | null>>({})
+
+watch(
+  decks,
+  async (list) => {
+    if (!list) return
+    const entries = await Promise.all(
+      list.map(async (d) => [d.id, await deckStats(d.id).catch(() => null)] as const),
+    )
+    statsByDeckId.value = Object.fromEntries(entries)
+  },
+  { immediate: true },
+)
+
+const isImportModalOpen = ref(false)
 const moxfieldInput = ref('')
 const importError = ref('')
 const importedDeck = ref<Deck | null>(null)
 const isImporting = ref(false)
+
+function openImportModal() {
+  moxfieldInput.value = ''
+  importError.value = ''
+  importedDeck.value = null
+  isImportModalOpen.value = true
+}
+
+function closeImportModal() {
+  isImportModalOpen.value = false
+}
 
 async function handleImport() {
   importError.value = ''
@@ -22,6 +52,7 @@ async function handleImport() {
     importedDeck.value = await importFromMoxfield(moxfieldInput.value)
     moxfieldInput.value = ''
     await refresh()
+    showToast('Deck importado')
   } catch (err) {
     importError.value = moxfieldImportError(err)
   } finally {
@@ -38,7 +69,7 @@ async function handleSync(deck: Deck) {
   syncState[deck.id] = { loading: true, message: '', isError: false }
   try {
     const res = await syncFromMoxfield(deck.moxfield_id)
-    const idx = decks.value?.findIndex(d => d.id === deck.id) ?? -1
+    const idx = decks.value?.findIndex((d) => d.id === deck.id) ?? -1
     if (idx !== -1 && decks.value) decks.value[idx] = res.deck
     syncState[deck.id] = {
       loading: false,
@@ -53,109 +84,171 @@ async function handleSync(deck: Deck) {
     }
   }
 }
+
+// ------------------------------------------------------- búsqueda y orden
+type SortKey = 'played' | 'won' | 'winrate' | 'name'
+const deckSearch = ref('')
+const deckSort = ref<SortKey>('played')
+
+function statsFor(deck: Deck): DeckStats | null {
+  return statsByDeckId.value[deck.id] ?? null
+}
+
+const filteredDecks = computed(() => {
+  const q = deckSearch.value.trim().toLowerCase()
+  const list = (decks.value ?? []).filter(
+    (d) => !q || d.name.toLowerCase().includes(q) || d.commander.toLowerCase().includes(q),
+  )
+  return [...list].sort((a, b) => {
+    if (deckSort.value === 'name') return a.name.localeCompare(b.name)
+    const sa = statsFor(a)
+    const sb = statsFor(b)
+    if (deckSort.value === 'won') return (sb?.games_won ?? 0) - (sa?.games_won ?? 0)
+    if (deckSort.value === 'winrate') {
+      const ra = sa?.games_played ? sa.games_won / sa.games_played : 0
+      const rb = sb?.games_played ? sb.games_won / sb.games_played : 0
+      return rb - ra
+    }
+    return (sb?.games_played ?? 0) - (sa?.games_played ?? 0)
+  })
+})
 </script>
 
 <template>
-  <div class="space-y-8">
-    <section>
-      <h1 class="text-2xl font-semibold">Mis decks</h1>
-      <p class="mt-1 text-sm text-slate-400">
-        Importá un deck de Moxfield pegando su URL o su ID público.
-      </p>
-    </section>
-
-    <section class="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-      <h2 class="font-medium">Importar desde Moxfield</h2>
-
-      <form class="mt-4 flex flex-col gap-3 sm:flex-row" @submit.prevent="handleImport">
-        <input
-          id="moxfield-url"
-          v-model="moxfieldInput"
-          type="text"
-          required
-          placeholder="https://moxfield.com/decks/abc123 o abc123"
-          class="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-        >
-        <button
-          type="submit"
-          :disabled="isImporting"
-          class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-indigo-400 disabled:opacity-50"
-        >
-          {{ isImporting ? 'Importando…' : 'Importar' }}
-        </button>
-      </form>
-
-      <p v-if="importError" class="mt-3 text-sm text-red-400">{{ importError }}</p>
-
-      <div
-        v-if="importedDeck"
-        class="mt-4 flex gap-4 rounded-lg border border-emerald-800 bg-emerald-950/40 p-4"
-      >
-        <img
-          v-if="importedDeck.image_url"
-          :src="importedDeck.image_url"
-          :alt="importedDeck.commander"
-          class="h-16 w-16 shrink-0 rounded-lg object-cover"
-        >
-        <div>
-          <p class="text-sm text-emerald-400">Deck importado</p>
-          <p class="mt-1 font-medium">{{ importedDeck.name }}</p>
-          <p class="text-sm text-slate-400">Comandante: {{ importedDeck.commander }}</p>
-        </div>
+  <div class="flex flex-col gap-6">
+    <section class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold sm:text-[26px]">Mis decks</h1>
+        <p class="mt-2 text-sm" style="color: var(--text-muted);">Importados desde Moxfield.</p>
       </div>
+      <button
+        type="button"
+        class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.04]"
+        style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+        @click="openImportModal"
+      >
+        + Agregar deck
+      </button>
     </section>
 
-    <section>
-      <h2 class="font-medium">Decks guardados</h2>
+    <section class="flex flex-wrap items-center gap-2.5">
+      <input
+        v-model="deckSearch"
+        type="text"
+        placeholder="Buscar deck o comandante…"
+        class="min-w-[200px] flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
+        style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
+      >
+      <select
+        v-model="deckSort"
+        class="rounded-full border px-4 py-2.5 text-[13px]"
+        style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
+      >
+        <option value="played">Más jugados</option>
+        <option value="won">Más victorias</option>
+        <option value="winrate">Mejor win rate</option>
+        <option value="name">Nombre (A-Z)</option>
+      </select>
+    </section>
 
-      <p v-if="listError" class="mt-3 text-sm text-red-400">
-        No se pudieron cargar los decks.
-      </p>
+    <p v-if="listError" class="text-sm" style="color: var(--lose);">No se pudieron cargar los decks.</p>
+    <p v-else-if="!filteredDecks.length" class="text-sm" style="color: var(--text-muted);">
+      Todavía no tenés decks. Importá uno desde Moxfield para empezar.
+    </p>
 
-      <p v-else-if="!decks?.length" class="mt-3 text-sm text-slate-400">
-        Todavía no tenés decks. Importá uno desde Moxfield para empezar.
-      </p>
-
-      <ul v-else class="mt-3 space-y-2">
-        <li
-          v-for="deck in decks"
-          :key="deck.id"
-          class="flex gap-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4"
-        >
-          <img
-            v-if="deck.image_url"
-            :src="deck.image_url"
-            :alt="deck.commander"
-            class="h-16 w-16 shrink-0 rounded-lg object-cover"
-          >
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <span class="font-medium">{{ deck.name }}</span>
-              <div v-if="deck.moxfield_id" class="flex items-center gap-2">
-                <span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
-                  Moxfield · {{ deck.moxfield_id }}
-                </span>
-                <button
-                  type="button"
-                  :disabled="syncState[deck.id]?.loading"
-                  class="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                  @click="handleSync(deck)"
-                >
-                  {{ syncState[deck.id]?.loading ? 'Sincronizando…' : 'Actualizar' }}
-                </button>
-              </div>
-            </div>
-            <p class="mt-1 text-sm text-slate-400">Comandante: {{ deck.commander }}</p>
-            <p
-              v-if="syncState[deck.id]?.message"
-              class="mt-1 text-xs"
-              :class="syncState[deck.id]?.isError ? 'text-red-400' : 'text-emerald-400'"
-            >
-              {{ syncState[deck.id]?.message }}
+    <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div v-for="deck in filteredDecks" :key="deck.id" class="relative">
+        <DeckArt :deck="deck" aspect-ratio="21/9" rounded="rounded-[22px]" />
+        <div class="pointer-events-none absolute inset-0 rounded-[22px]" style="background: linear-gradient(180deg, rgba(10,7,20,0.08) 25%, rgba(10,7,20,0.92) 100%);" />
+        <div class="absolute inset-x-0 bottom-0 p-4">
+          <div class="pointer-events-none">
+            <p class="font-semibold text-white">{{ deck.name }}</p>
+            <p class="mt-1 text-xs text-white/70">{{ deck.commander }}</p>
+            <p v-if="statsFor(deck)" class="mt-1 text-[11px] text-white/60">
+              {{ statsFor(deck)!.games_played }} partidas · {{ statsFor(deck)!.games_won }} victorias
             </p>
           </div>
-        </li>
-      </ul>
-    </section>
+          <div class="pointer-events-auto mt-2 flex flex-wrap items-center justify-between gap-2">
+            <span v-if="deck.moxfield_id" class="flex items-center gap-2">
+              <button
+                type="button"
+                :disabled="syncState[deck.id]?.loading"
+                class="rounded-full border border-white/25 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10 disabled:opacity-50"
+                @click="handleSync(deck)"
+              >
+                {{ syncState[deck.id]?.loading ? 'Sincronizando…' : 'Actualizar' }}
+              </button>
+              <span
+                v-if="syncState[deck.id]?.message"
+                class="text-xs"
+                :style="{ color: syncState[deck.id]?.isError ? '#fca5a5' : '#86efac' }"
+              >
+                {{ syncState[deck.id]?.message }}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="isImportModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="closeImportModal"
+    >
+      <div class="w-full max-w-sm rounded-[24px] border p-6" style="border-color: var(--card-border); background: var(--page-solid);">
+        <div class="flex items-center justify-between">
+          <h2 class="text-[15px] font-medium">Importar desde Moxfield</h2>
+          <button
+            type="button"
+            class="p-0 text-sm"
+            style="color: var(--text-dim);"
+            @click="closeImportModal"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form class="mt-4 flex flex-col gap-3" @submit.prevent="handleImport">
+          <input
+            v-model="moxfieldInput"
+            type="text"
+            required
+            autofocus
+            placeholder="https://moxfield.com/decks/abc123 o abc123"
+            class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+            style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
+          >
+          <button
+            type="submit"
+            :disabled="isImporting"
+            class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] transition-transform hover:scale-[1.02] disabled:opacity-50"
+            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+          >
+            {{ isImporting ? 'Importando…' : 'Importar' }}
+          </button>
+        </form>
+
+        <p v-if="importError" class="mt-3 text-sm" style="color: var(--lose);">{{ importError }}</p>
+
+        <div
+          v-if="importedDeck"
+          class="mt-4 flex gap-4 rounded-[18px] border p-4"
+          style="border-color: rgba(52,211,153,0.35); background: var(--win-bg);"
+        >
+          <img
+            v-if="importedDeck.image_url"
+            :src="importedDeck.image_url"
+            :alt="importedDeck.commander"
+            class="h-16 w-16 shrink-0 rounded-[14px] object-cover"
+          >
+          <div>
+            <p class="text-sm" style="color: var(--win);">Deck importado</p>
+            <p class="mt-1 font-medium">{{ importedDeck.name }}</p>
+            <p class="text-sm" style="color: var(--text-muted);">Comandante: {{ importedDeck.commander }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

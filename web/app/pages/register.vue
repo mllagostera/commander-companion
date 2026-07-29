@@ -35,95 +35,114 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <main class="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-6">
-    <div class="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900/60 p-8">
-      <template v-if="registeredEmail">
-        <h1 class="text-xl font-semibold text-center">Revisá tu email</h1>
-        <p class="mt-4 text-center text-sm text-slate-400">
-          Te mandamos un link de confirmación a <strong class="text-slate-200">{{ registeredEmail }}</strong>.
-          Tenés que confirmarlo antes de poder iniciar sesión.
-        </p>
+  <main class="relative min-h-screen overflow-hidden" style="background: var(--bg-gradient); color: var(--text);">
+    <div class="cc-blob top-[-160px] right-[-140px] h-[460px] w-[460px] rounded-[63%_37%_54%_46%/48%_42%_58%_52%]" style="background: radial-gradient(circle, rgba(167,139,250,0.35), rgba(167,139,250,0) 70%);" />
+    <div class="cc-blob bottom-[-200px] left-[-160px] h-[520px] w-[520px] rounded-[42%_58%_65%_35%/55%_45%_55%_45%]" style="background: radial-gradient(circle, rgba(168,85,247,0.22), rgba(168,85,247,0) 70%);" />
 
-        <NuxtLink
-          to="/login"
-          class="mt-6 block w-full rounded-lg bg-indigo-500 py-2 text-center font-medium text-slate-950 hover:bg-indigo-400"
+    <div class="relative z-[1] flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+      <template v-if="registeredEmail">
+        <span class="flex flex-col items-center gap-3.5">
+          <AppLogo size="lg" />
+          <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Revisá tu email</span>
+        </span>
+
+        <div
+          class="flex w-full max-w-[340px] flex-col gap-4 rounded-[28px] border p-[26px] text-center"
+          style="background: var(--card-bg-strong); border-color: var(--card-border);"
         >
-          Ir a iniciar sesión
-        </NuxtLink>
+          <p class="text-sm" style="color: var(--text-muted);">
+            Te mandamos un link de confirmación a <strong style="color: var(--text);">{{ registeredEmail }}</strong>.
+            Tenés que confirmarlo antes de poder iniciar sesión.
+          </p>
+
+          <NuxtLink
+            to="/login"
+            class="rounded-full px-5 py-3 text-center text-[13px] font-semibold text-[#0a0714]"
+            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+          >
+            Ir a iniciar sesión
+          </NuxtLink>
+        </div>
       </template>
 
       <template v-else>
-        <h1 class="text-xl font-semibold text-center">Crear cuenta</h1>
-        <p class="mt-1 text-center text-sm text-slate-400">
-          Empezá a registrar tus partidas de Commander
-        </p>
+        <span class="flex flex-col items-center gap-3.5">
+          <AppLogo size="lg" />
+          <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Commander Companion</span>
+          <span class="text-[13px]" style="color: var(--text-muted);">Creá tu cuenta y empezá a trackear tus partidas.</span>
+        </span>
 
-        <form class="mt-6 space-y-4" @submit.prevent="handleSubmit">
-          <div>
-            <label class="block text-sm text-slate-400 mb-1" for="username">Usuario</label>
+        <form
+          class="flex w-full max-w-[340px] flex-col gap-3 rounded-[28px] border p-[26px]"
+          style="background: var(--card-bg-strong); border-color: var(--card-border);"
+          @submit.prevent="handleSubmit"
+        >
+          <label class="text-xs" style="color: var(--text-dim);">
+            Usuario
             <input
-              id="username"
               v-model="username"
               type="text"
               autocomplete="username"
               required
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              placeholder="tu_usuario"
+              class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+              style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
             >
-          </div>
-          <div>
-            <label class="block text-sm text-slate-400 mb-1" for="email">Email</label>
+          </label>
+          <label class="text-xs" style="color: var(--text-dim);">
+            Email
             <input
-              id="email"
               v-model="email"
               type="email"
               autocomplete="email"
               required
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              placeholder="tu@email.com"
+              class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+              style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
             >
-          </div>
-          <div>
-            <label class="block text-sm text-slate-400 mb-1" for="password">Contraseña</label>
+          </label>
+          <label class="text-xs" style="color: var(--text-dim);">
+            Contraseña
             <input
-              id="password"
               v-model="password"
               type="password"
               autocomplete="new-password"
               required
               minlength="8"
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              placeholder="••••••••"
+              class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+              style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
             >
-          </div>
-          <div>
-            <label class="block text-sm text-slate-400 mb-1" for="password-confirm">
-              Repetir contraseña
-            </label>
+          </label>
+          <label class="text-xs" style="color: var(--text-dim);">
+            Repetir contraseña
             <input
-              id="password-confirm"
               v-model="passwordConfirm"
               type="password"
               autocomplete="new-password"
               required
-              class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              placeholder="••••••••"
+              class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+              style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
             >
-          </div>
+          </label>
 
-          <p v-if="errorMessage" class="text-sm text-red-400">{{ errorMessage }}</p>
+          <p v-if="errorMessage" class="text-sm" style="color: var(--lose);">{{ errorMessage }}</p>
 
           <button
             type="submit"
             :disabled="isSubmitting"
-            class="w-full rounded-lg bg-indigo-500 py-2 font-medium text-slate-950 hover:bg-indigo-400 disabled:opacity-50"
+            class="mt-2 rounded-full px-5 py-3 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.02] disabled:opacity-50"
+            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
           >
             {{ isSubmitting ? 'Creando cuenta…' : 'Crear cuenta' }}
           </button>
-        </form>
 
-        <p class="mt-6 text-center text-sm text-slate-400">
-          ¿Ya tenés cuenta?
-          <NuxtLink to="/login" class="text-indigo-400 hover:text-indigo-300">
-            Iniciá sesión
-          </NuxtLink>
-        </p>
+          <span class="text-center text-xs" style="color: var(--text-dim);">
+            ¿Ya tenés cuenta?
+            <NuxtLink to="/login" style="color: var(--accent-link);">Iniciá sesión</NuxtLink>
+          </span>
+        </form>
       </template>
     </div>
   </main>
