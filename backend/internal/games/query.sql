@@ -23,19 +23,6 @@ LIMIT sqlc.arg('page_limit');
 -- nunca se acerca al volumen de ListGamesPage (el historial global).
 SELECT * FROM games WHERE playgroup_id = $1 ORDER BY created_at DESC;
 
--- name: ListGamesForPlaygroup :many
--- Historial de partidas de un grupo. Sin paginar: acotado a un solo playgroup,
--- nunca se acerca al volumen de ListGamesPage (el historial global).
-SELECT * FROM games WHERE playgroup_id = $1 ORDER BY created_at DESC;
-
--- name: IsPlaygroupMember :one
--- games no depende de internal/playgroups (mismo criterio de bajo acoplamiento
--- que GetDeckByID con decks): confirma membresía consultando playgroup_members
--- directamente, sin una interfaz cruzada.
-SELECT EXISTS(
-  SELECT 1 FROM playgroup_members WHERE playgroup_id = $1 AND user_id = $2
-);
-
 -- name: StartGame :one
 UPDATE games
 SET status = 'active', started_at = now()

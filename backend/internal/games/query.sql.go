@@ -203,61 +203,6 @@ func (q *Queries) ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.
 	return items, nil
 }
 
-const isPlaygroupMember = `-- name: IsPlaygroupMember :one
-SELECT EXISTS(
-  SELECT 1 FROM playgroup_members WHERE playgroup_id = $1 AND user_id = $2
-)
-`
-
-type IsPlaygroupMemberParams struct {
-	PlaygroupID pgtype.UUID `json:"playgroup_id"`
-	UserID      pgtype.UUID `json:"user_id"`
-}
-
-// games no depende de internal/playgroups (mismo criterio de bajo acoplamiento
-// que GetDeckByID con decks): confirma membresía consultando playgroup_members
-// directamente, sin una interfaz cruzada.
-func (q *Queries) IsPlaygroupMember(ctx context.Context, arg IsPlaygroupMemberParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isPlaygroupMember, arg.PlaygroupID, arg.UserID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const listGamesForPlaygroup = `-- name: ListGamesForPlaygroup :many
-SELECT id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id FROM games WHERE playgroup_id = $1 ORDER BY created_at DESC
-`
-
-// Historial de partidas de un grupo. Sin paginar: acotado a un solo playgroup,
-// nunca se acerca al volumen de ListGamesPage (el historial global).
-func (q *Queries) ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) ([]Game, error) {
-	rows, err := q.db.Query(ctx, listGamesForPlaygroup, playgroupID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Game
-	for rows.Next() {
-		var i Game
-		if err := rows.Scan(
-			&i.ID,
-			&i.PlaygroupID,
-			&i.Status,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.CreatedAt,
-			&i.CurrentTurnPlayerID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listGamesPage = `-- name: ListGamesPage :many
 SELECT id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id FROM games
 WHERE (

@@ -16,14 +16,7 @@ type Querier interface {
 	FinishGame(ctx context.Context, id pgtype.UUID) (Game, error)
 	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
-	// games no depende de internal/playgroups (mismo criterio de bajo acoplamiento
-	// que GetDeckByID con decks): confirma membresía consultando playgroup_members
-	// directamente, sin una interfaz cruzada.
-	IsPlaygroupMember(ctx context.Context, arg IsPlaygroupMemberParams) (bool, error)
 	ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
-	// Historial de partidas de un grupo. Sin paginar: acotado a un solo playgroup,
-	// nunca se acerca al volumen de ListGamesPage (el historial global).
-	ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) ([]Game, error)
 	// Historial de partidas de un grupo. Sin paginar: acotado a un solo playgroup,
 	// nunca se acerca al volumen de ListGamesPage (el historial global).
 	ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) ([]Game, error)

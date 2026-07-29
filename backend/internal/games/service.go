@@ -44,6 +44,14 @@ var (
 	ErrNotEnoughPlayers = common.Conflict("not enough players to start")
 	// ErrGameNotActive indica que solo una partida activa puede finalizarse.
 	ErrGameNotActive = common.Conflict("only an active game can be finished")
+	// ErrProxyJoinRequiresPlaygroup indica que se intentó un proxy-join (user_id
+	// distinto del caller) en una partida sin playgroup_id — no hay grupo contra el
+	// que validar la membresía compartida (ver ADR-0013).
+	ErrProxyJoinRequiresPlaygroup = common.InvalidInput("joining another user requires a game linked to a playgroup")
+	// ErrProxyJoinNotAuthorized indica que el caller o el usuario destino no
+	// comparten el playgroup de la partida. No distingue cuál de los dos falló,
+	// mismo criterio que el resto del módulo con recursos ajenos.
+	ErrProxyJoinNotAuthorized = common.Forbidden("cannot join this game on behalf of that user")
 	// ErrPlaygroupNotFound indica que el playgroup_id no existe o el usuario autenticado
 	// no es miembro — no se distingue cuál de los dos casos es (mismo criterio que
 	// playgroups.ErrPlaygroupNotFound).
@@ -64,6 +72,14 @@ type Broadcaster interface {
 	BroadcastGameFinished(gameID string)
 }
 
+// PlaygroupMembership es lo que games necesita de playgroups para autorizar un
+// proxy-join (ver ADR-0013): confirmar que un usuario es miembro de un grupo, sin
+// que este paquete dependa de internal/playgroups directamente (mismo patrón que
+// StatisticsRecalculator/Broadcaster).
+type PlaygroupMembership interface {
+	IsMember(ctx context.Context, playgroupID, userID string) (bool, error)
+}
+
 // Service define la lógica de negocio del módulo games.
 type Service interface {
 	CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error)
@@ -82,11 +98,14 @@ type service struct {
 	repo        *Queries
 	stats       StatisticsRecalculator
 	broadcaster Broadcaster
+	membership  PlaygroupMembership
 }
 
 // NewService crea un nuevo servicio de games.
-func NewService(db *pgxpool.Pool, stats StatisticsRecalculator, broadcaster Broadcaster) Service {
-	return &service{repo: New(db), stats: stats, broadcaster: broadcaster}
+func NewService(
+	db *pgxpool.Pool, stats StatisticsRecalculator, broadcaster Broadcaster, membership PlaygroupMembership,
+) Service {
+	return &service{repo: New(db), stats: stats, broadcaster: broadcaster, membership: membership}
 }
 
 // CreateGame crea una nueva partida en estado pending.
@@ -162,20 +181,16 @@ func (s *service) ListGames(ctx context.Context, page common.PageRequest) (*Game
 // ListGamesForPlaygroup en query.sql). Requiere que userID sea miembro del grupo,
 // mismo criterio de "no revelar" que playgroups.GetPlaygroup.
 func (s *service) ListGamesForPlaygroup(ctx context.Context, playgroupID, userID string) (*GameListResponse, error) {
-	pid, err := common.ParseUUID(playgroupID)
-	if err != nil {
-		return nil, ErrPlaygroupNotFound
-	}
-	uid, err := common.ParseUUID(userID)
-	if err != nil {
-		return nil, ErrPlaygroupNotFound
-	}
-
-	isMember, err := s.repo.IsPlaygroupMember(ctx, IsPlaygroupMemberParams{PlaygroupID: pid, UserID: uid})
+	isMember, err := s.membership.IsMember(ctx, playgroupID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("checking playgroup membership: %w", err)
 	}
 	if !isMember {
+		return nil, ErrPlaygroupNotFound
+	}
+
+	pid, err := common.ParseUUID(playgroupID)
+	if err != nil {
 		return nil, ErrPlaygroupNotFound
 	}
 
@@ -208,7 +223,12 @@ func decodeCursor(encoded string) (pgtype.Timestamp, pgtype.UUID, error) {
 	return pgtype.Timestamp{Time: cursor.CreatedAt, Valid: true}, cursorID, nil
 }
 
-// JoinGame añade al usuario autenticado, con uno de sus decks, a una partida en estado pending.
+// JoinGame añade un jugador a una partida en estado pending, con uno de sus decks.
+// Sin req.UserID (o si coincide con el caller), el jugador es el propio caller. Con
+// req.UserID distinto, es un proxy-join (ver ADR-0013): el caller une a otro
+// usuario en su nombre, autorizado solo si ambos comparten el playgroup de la
+// partida — y queda registrado en added_by, autorizando al caller a registrar
+// acciones por ese jugador (internal/game-actions/service.go).
 func (s *service) JoinGame(
 	ctx context.Context, gameID, userID string, req JoinGameRequest,
 ) (*GamePlayerResponse, error) {
@@ -220,26 +240,79 @@ func (s *service) JoinGame(
 		return nil, ErrGameClosedToPlayers
 	}
 
-	uid, err := common.ParseUUID(userID)
+	targetUserID, addedBy, err := s.resolveJoinTarget(ctx, game, userID, req)
+	if err != nil {
+		return nil, err
+	}
+
+	uid, err := common.ParseUUID(targetUserID)
 	if err != nil {
 		return nil, common.ErrInvalidUser
 	}
 
-	deckID, err := s.resolveOwnedDeckID(ctx, userID, req.DeckID)
+	deckID, err := s.resolveOwnedDeckID(ctx, targetUserID, req.DeckID)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.ensureNotAlreadyJoined(ctx, game.ID, userID)
-	if err != nil {
-		return nil, err
+	if joinErr := s.ensureNotAlreadyJoined(ctx, game.ID, targetUserID); joinErr != nil {
+		return nil, joinErr
 	}
 
-	player, err := s.repo.AddGamePlayer(ctx, AddGamePlayerParams{GameID: game.ID, UserID: uid, DeckID: deckID})
+	player, err := s.repo.AddGamePlayer(
+		ctx, AddGamePlayerParams{GameID: game.ID, UserID: uid, DeckID: deckID, AddedBy: addedBy},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("joining game: %w", err)
 	}
 	return toGamePlayerResponse(&player), nil
+}
+
+// resolveJoinTarget decide a quién sienta el join: el propio caller (self-join,
+// sin req.UserID o igual al caller) o, si req.UserID viene y difiere, un
+// proxy-join autorizado por membresía de playgroup compartida (ver ADR-0013) — en
+// ese caso devuelve también el added_by a persistir.
+func (s *service) resolveJoinTarget(
+	ctx context.Context, game *Game, callerID string, req JoinGameRequest,
+) (targetUserID string, addedBy pgtype.UUID, err error) {
+	if req.UserID == "" || req.UserID == callerID {
+		return callerID, pgtype.UUID{}, nil
+	}
+
+	if authErr := s.authorizeProxyJoin(ctx, game, callerID, req.UserID); authErr != nil {
+		return "", pgtype.UUID{}, authErr
+	}
+	callerUID, err := common.ParseUUID(callerID)
+	if err != nil {
+		return "", pgtype.UUID{}, common.ErrInvalidUser
+	}
+	return req.UserID, callerUID, nil
+}
+
+// authorizeProxyJoin valida que caller y target compartan el playgroup de la
+// partida — la única relación de confianza que habilita unir a otro usuario.
+func (s *service) authorizeProxyJoin(ctx context.Context, game *Game, callerID, targetID string) error {
+	if !game.PlaygroupID.Valid {
+		return ErrProxyJoinRequiresPlaygroup
+	}
+	playgroupID := game.PlaygroupID.String()
+
+	callerIsMember, err := s.membership.IsMember(ctx, playgroupID, callerID)
+	if err != nil {
+		return fmt.Errorf("checking caller membership: %w", err)
+	}
+	if !callerIsMember {
+		return ErrProxyJoinNotAuthorized
+	}
+
+	targetIsMember, err := s.membership.IsMember(ctx, playgroupID, targetID)
+	if err != nil {
+		return fmt.Errorf("checking target membership: %w", err)
+	}
+	if !targetIsMember {
+		return ErrProxyJoinNotAuthorized
+	}
+	return nil
 }
 
 // resolveOwnedDeckID valida que deckID pertenezca al usuario indicado y devuelve su UUID parseado.
