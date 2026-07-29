@@ -17,10 +17,11 @@ export function useUsers() {
 
 /** Ver ErrSearchQueryTooShort (400) en internal/users/service.go. */
 export function searchUsersError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 400:
-      return 'Escribí al menos 2 caracteres.'
+      return t('errors.users.tooShort')
     default:
-      return apiErrorMessage(err, 'No se pudo buscar usuarios.')
+      return apiErrorMessage(err, t('errors.users.generic'))
   }
 }

@@ -4,6 +4,7 @@ definePageMeta({ layout: false })
 const { login, loginWithGoogle, resendVerification } = useAuth()
 const { renderButton } = useGoogleIdentity()
 const { theme } = useTheme()
+const { t } = useI18n()
 
 const email = ref('')
 const password = ref('')
@@ -28,7 +29,7 @@ async function handleSubmit() {
     if (apiErrorStatus(err) === 403) {
       needsVerification.value = true
     }
-    errorMessage.value = apiErrorMessage(err, 'No se pudo iniciar sesión.')
+    errorMessage.value = apiErrorMessage(err, t('login.errors.loginFailed'))
   } finally {
     isSubmitting.value = false
   }
@@ -40,7 +41,7 @@ async function handleResendVerification() {
     await resendVerification(email.value)
     resendSent.value = true
   } catch (err) {
-    errorMessage.value = apiErrorMessage(err, 'No se pudo reenviar el email de verificación.')
+    errorMessage.value = apiErrorMessage(err, t('login.errors.resendFailed'))
   } finally {
     isResending.value = false
   }
@@ -52,7 +53,7 @@ async function handleGoogleCredential(idToken: string) {
     await loginWithGoogle(idToken)
     await navigateTo('/')
   } catch (err) {
-    errorMessage.value = apiErrorMessage(err, 'No se pudo iniciar sesión con Google.')
+    errorMessage.value = apiErrorMessage(err, t('login.errors.googleFailed'))
   }
 }
 
@@ -74,7 +75,7 @@ onMounted(() => {
       <span class="flex flex-col items-center gap-3.5">
         <AppLogo size="lg" />
         <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Commander Companion</span>
-        <span class="text-[13px]" style="color: var(--text-muted);">Tus partidas y decks de Commander, en un solo lugar.</span>
+        <span class="text-[13px]" style="color: var(--text-muted);">{{ $t('login.tagline') }}</span>
       </span>
 
       <form
@@ -83,19 +84,19 @@ onMounted(() => {
         @submit.prevent="handleSubmit"
       >
         <label class="text-xs" style="color: var(--text-dim);">
-          Email
+          {{ $t('login.emailLabel') }}
           <input
             v-model="email"
             type="email"
             autocomplete="email"
             required
-            placeholder="tu@email.com"
+            :placeholder="$t('login.emailPlaceholder')"
             class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
         </label>
         <label class="text-xs" style="color: var(--text-dim);">
-          Contraseña
+          {{ $t('login.passwordLabel') }}
           <input
             v-model="password"
             type="password"
@@ -111,7 +112,7 @@ onMounted(() => {
 
         <div v-if="needsVerification" class="text-sm">
           <p v-if="resendSent" style="color: var(--text-muted);">
-            Listo, revisá tu bandeja de entrada.
+            {{ $t('login.verification.checkInbox') }}
           </p>
           <button
             v-else
@@ -121,7 +122,7 @@ onMounted(() => {
             style="color: var(--accent-link);"
             @click="handleResendVerification"
           >
-            {{ isResending ? 'Reenviando…' : 'Reenviar email de verificación' }}
+            {{ isResending ? $t('login.verification.resending') : $t('login.verification.resend') }}
           </button>
         </div>
 
@@ -131,20 +132,20 @@ onMounted(() => {
           class="mt-2 rounded-full px-5 py-3 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.02] disabled:opacity-50"
           style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
         >
-          {{ isSubmitting ? 'Ingresando…' : 'Iniciar sesión' }}
+          {{ isSubmitting ? $t('login.submitting') : $t('login.submit') }}
         </button>
 
         <div class="my-1 flex items-center gap-2.5">
           <span class="h-px flex-1" style="background: var(--card-border);" />
-          <span class="text-[11px]" style="color: var(--text-dim);">o</span>
+          <span class="text-[11px]" style="color: var(--text-dim);">{{ $t('login.divider') }}</span>
           <span class="h-px flex-1" style="background: var(--card-border);" />
         </div>
 
         <div ref="googleButtonRef" class="flex justify-center" />
 
         <span class="text-center text-xs" style="color: var(--text-dim);">
-          ¿No tenés cuenta?
-          <NuxtLink to="/register" style="color: var(--accent-link);">Registrate</NuxtLink>
+          {{ $t('login.noAccount') }}
+          <NuxtLink to="/register" style="color: var(--accent-link);">{{ $t('login.registerLink') }}</NuxtLink>
         </span>
       </form>
     </div>

@@ -16,7 +16,7 @@ function loadScript(): Promise<void> {
     script.async = true
     script.defer = true
     script.onload = () => resolve()
-    script.onerror = () => reject(new Error('No se pudo cargar Google Identity Services'))
+    script.onerror = () => reject(new Error(useI18n().t('errors.googleIdentity.loadFailed')))
     document.head.appendChild(script)
   })
 }

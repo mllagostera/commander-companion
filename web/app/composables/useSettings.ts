@@ -13,7 +13,7 @@ export function useSettings() {
 
   function requireUserId(): string {
     const id = user.value?.id
-    if (!id) throw new Error('No hay una sesión activa.')
+    if (!id) throw new Error(useI18n().t('errors.auth.noActiveSession'))
     return id
   }
 
@@ -58,21 +58,22 @@ export function useSettings() {
  * de "sin comandante".
  */
 export function changePasswordError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 400:
-      return 'La contraseña nueva debe tener al menos 8 caracteres.'
+      return t('errors.changePassword.tooShort')
     case 401:
       return apiErrorMessage(err, '').toLowerCase().includes('google')
-        ? 'Esta cuenta inició sesión con Google y no tiene contraseña propia.'
-        : 'La contraseña actual no es correcta.'
+        ? t('errors.changePassword.googleAccount')
+        : t('errors.changePassword.incorrect')
     default:
-      return apiErrorMessage(err, 'No se pudo cambiar la contraseña.')
+      return apiErrorMessage(err, t('errors.changePassword.generic'))
   }
 }
 
 /** Traduce los errores de PATCH /users/{id} al actualizar moxfield_username. */
 export function updateMoxfieldUsernameError(err: unknown): string {
-  return apiErrorMessage(err, 'No se pudo guardar el usuario de Moxfield.')
+  return apiErrorMessage(err, useI18n().t('errors.updateMoxfieldUsername.generic'))
 }
 
 /**
@@ -81,14 +82,15 @@ export function updateMoxfieldUsernameError(err: unknown): string {
  * doc del paquete) hasta confirmar el endpoint real de Moxfield.
  */
 export function startMoxfieldImportError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 400:
-      return 'Primero guardá tu usuario de Moxfield.'
+      return t('errors.startMoxfieldImport.needUsername')
     case 409:
-      return 'Ya hay una importación en curso para tu cuenta.'
+      return t('errors.startMoxfieldImport.inProgress')
     case 501:
-      return 'La importación masiva de Moxfield todavía no está disponible en el servidor.'
+      return t('errors.startMoxfieldImport.notAvailable')
     default:
-      return apiErrorMessage(err, 'No se pudo iniciar la importación.')
+      return apiErrorMessage(err, t('errors.startMoxfieldImport.generic'))
   }
 }

@@ -62,7 +62,7 @@ export function useAuth() {
   /**
    * Registra la cuenta. No deja sesión iniciada: hasta no verificar el email,
    * `login()` responde 403 (ver server/api/auth/login.post.ts), así que la pantalla de
-   * registro muestra un "revisá tu email" en vez de navegar al dashboard.
+   * registro muestra un "revisa tu email" en vez de navegar al dashboard.
    */
   async function register(username: string, email: string, password: string) {
     await nitroFetch('/api/auth/register', {

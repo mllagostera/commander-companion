@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Deck, DeckStats } from '~/types/api'
 
+const { t } = useI18n()
 const { listDecks, importFromMoxfield, syncFromMoxfield } = useDecks()
 const { deckStats } = useStatistics()
 const { showToast } = useToast()
@@ -52,7 +53,7 @@ async function handleImport() {
     importedDeck.value = await importFromMoxfield(moxfieldInput.value)
     moxfieldInput.value = ''
     await refresh()
-    showToast('Deck importado')
+    showToast(t('toast.deckImported'))
   } catch (err) {
     importError.value = moxfieldImportError(err)
   } finally {
@@ -74,13 +75,13 @@ async function handleSync(deck: Deck) {
     syncState[deck.id] = {
       loading: false,
       isError: false,
-      message: res.status === 'updated' ? 'Actualizado desde Moxfield' : 'Ya estaba al día',
+      message: res.status === 'updated' ? t('decks.sync.updated') : t('decks.sync.upToDate'),
     }
   } catch (err) {
     syncState[deck.id] = {
       loading: false,
       isError: true,
-      message: apiErrorMessage(err, 'No se pudo sincronizar con Moxfield.'),
+      message: apiErrorMessage(err, t('decks.errors.syncFailed')),
     }
   }
 }
@@ -118,8 +119,8 @@ const filteredDecks = computed(() => {
   <div class="flex flex-col gap-6">
     <section class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-semibold sm:text-[26px]">Mis decks</h1>
-        <p class="mt-2 text-sm" style="color: var(--text-muted);">Importados desde Moxfield.</p>
+        <h1 class="text-2xl font-semibold sm:text-[26px]">{{ $t('decks.title') }}</h1>
+        <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('decks.subtitle') }}</p>
       </div>
       <button
         type="button"
@@ -127,7 +128,7 @@ const filteredDecks = computed(() => {
         style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
         @click="openImportModal"
       >
-        + Agregar deck
+        {{ $t('decks.addDeck') }}
       </button>
     </section>
 
@@ -135,7 +136,7 @@ const filteredDecks = computed(() => {
       <input
         v-model="deckSearch"
         type="text"
-        placeholder="Buscar deck o comandante…"
+        :placeholder="$t('decks.searchPlaceholder')"
         class="min-w-[200px] flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
         style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
       >
@@ -144,16 +145,16 @@ const filteredDecks = computed(() => {
         class="rounded-full border px-4 py-2.5 text-[13px]"
         style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
       >
-        <option value="played">Más jugados</option>
-        <option value="won">Más victorias</option>
-        <option value="winrate">Mejor win rate</option>
-        <option value="name">Nombre (A-Z)</option>
+        <option value="played">{{ $t('decks.sort.played') }}</option>
+        <option value="won">{{ $t('decks.sort.won') }}</option>
+        <option value="winrate">{{ $t('decks.sort.winrate') }}</option>
+        <option value="name">{{ $t('decks.sort.name') }}</option>
       </select>
     </section>
 
-    <p v-if="listError" class="text-sm" style="color: var(--lose);">No se pudieron cargar los decks.</p>
+    <p v-if="listError" class="text-sm" style="color: var(--lose);">{{ $t('decks.loadError') }}</p>
     <p v-else-if="!filteredDecks.length" class="text-sm" style="color: var(--text-muted);">
-      Todavía no tenés decks. Importá uno desde Moxfield para empezar.
+      {{ $t('decks.empty') }}
     </p>
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -165,7 +166,7 @@ const filteredDecks = computed(() => {
             <p class="font-semibold text-white">{{ deck.name }}</p>
             <p class="mt-1 text-xs text-white/70">{{ deck.commander }}</p>
             <p v-if="statsFor(deck)" class="mt-1 text-[11px] text-white/60">
-              {{ statsFor(deck)!.games_played }} partidas · {{ statsFor(deck)!.games_won }} victorias
+              {{ $t('decks.stats', { played: statsFor(deck)!.games_played, won: statsFor(deck)!.games_won }) }}
             </p>
           </div>
           <div class="pointer-events-auto mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -176,7 +177,7 @@ const filteredDecks = computed(() => {
                 class="rounded-full border border-white/25 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10 disabled:opacity-50"
                 @click="handleSync(deck)"
               >
-                {{ syncState[deck.id]?.loading ? 'Sincronizando…' : 'Actualizar' }}
+                {{ syncState[deck.id]?.loading ? $t('decks.sync.syncing') : $t('decks.sync.action') }}
               </button>
               <span
                 v-if="syncState[deck.id]?.message"
@@ -198,7 +199,7 @@ const filteredDecks = computed(() => {
     >
       <div class="w-full max-w-sm rounded-[24px] border p-6" style="border-color: var(--card-border); background: var(--page-solid);">
         <div class="flex items-center justify-between">
-          <h2 class="text-[15px] font-medium">Importar desde Moxfield</h2>
+          <h2 class="text-[15px] font-medium">{{ $t('decks.import.title') }}</h2>
           <button
             type="button"
             class="p-0 text-sm"
@@ -215,7 +216,7 @@ const filteredDecks = computed(() => {
             type="text"
             required
             autofocus
-            placeholder="https://moxfield.com/decks/abc123 o abc123"
+            :placeholder="$t('decks.import.placeholder')"
             class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
@@ -225,7 +226,7 @@ const filteredDecks = computed(() => {
             class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] transition-transform hover:scale-[1.02] disabled:opacity-50"
             style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
           >
-            {{ isImporting ? 'Importando…' : 'Importar' }}
+            {{ isImporting ? $t('decks.import.submitting') : $t('decks.import.submit') }}
           </button>
         </form>
 
@@ -243,9 +244,9 @@ const filteredDecks = computed(() => {
             class="h-16 w-16 shrink-0 rounded-[14px] object-cover"
           >
           <div>
-            <p class="text-sm" style="color: var(--win);">Deck importado</p>
+            <p class="text-sm" style="color: var(--win);">{{ $t('toast.deckImported') }}</p>
             <p class="mt-1 font-medium">{{ importedDeck.name }}</p>
-            <p class="text-sm" style="color: var(--text-muted);">Comandante: {{ importedDeck.commander }}</p>
+            <p class="text-sm" style="color: var(--text-muted);">{{ $t('decks.import.commanderLabel', { commander: importedDeck.commander }) }}</p>
           </div>
         </div>
       </div>

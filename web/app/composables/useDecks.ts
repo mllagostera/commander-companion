@@ -38,14 +38,17 @@ export function useDecks() {
  * URL no es válida o el deck no tiene comandante (no es formato Commander).
  */
 export function moxfieldImportError(err: unknown): string {
+  const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 404:
-      return 'No existe un deck público de Moxfield con ese ID. Revisá la URL y que el deck no sea privado.'
+      return t('errors.moxfieldImport.notFound')
     case 400:
+      // El '' es un sentinel para probar apiErrorMessage(...).includes('commander')
+      // contra el texto crudo en inglés del backend — no es un mensaje visible, no se traduce.
       return apiErrorMessage(err, '').includes('commander')
-        ? 'Ese deck de Moxfield no tiene comandante: no parece ser un deck de formato Commander.'
-        : 'La URL o el ID de Moxfield no son válidos. Pegá algo como https://moxfield.com/decks/abc123 o solo abc123.'
+        ? t('errors.moxfieldImport.notCommander')
+        : t('errors.moxfieldImport.invalidUrl')
     default:
-      return apiErrorMessage(err, 'No se pudo importar el deck desde Moxfield.')
+      return apiErrorMessage(err, t('errors.moxfieldImport.generic'))
   }
 }

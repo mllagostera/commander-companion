@@ -1,13 +1,14 @@
 <script setup lang="ts">
 const { user, logout } = useAuth()
 const { theme, toggleTheme } = useTheme()
+const { t } = useI18n()
 
-const links = [
-  { to: '/', label: 'Inicio' },
-  { to: '/decks', label: 'Decks' },
-  { to: '/statistics', label: 'Estadísticas' },
-  { to: '/playgroups', label: 'Grupos' },
-]
+const links = computed(() => [
+  { to: '/', label: t('nav.home') },
+  { to: '/decks', label: t('nav.decks') },
+  { to: '/statistics', label: t('nav.statistics') },
+  { to: '/playgroups', label: t('nav.playgroups') },
+])
 
 const route = useRoute()
 function isActive(to: string) {
@@ -93,10 +94,10 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
               style="background: var(--card-bg-strong); border-color: var(--card-border);"
             >
               <div class="flex items-center justify-between px-2.5 py-2">
-                <span class="text-[13px]" style="color: var(--text);">Tema oscuro</span>
+                <span class="text-[13px]" style="color: var(--text);">{{ $t('nav.darkTheme') }}</span>
                 <button
                   type="button"
-                  title="Cambiar tema"
+                  :title="$t('nav.toggleTheme')"
                   class="relative h-[22px] w-10 flex-shrink-0 rounded-full border p-0"
                   style="background: var(--input-bg); border-color: var(--input-border);"
                   @click="toggleTheme"
@@ -113,14 +114,14 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
                 style="color: var(--text);"
                 @click="closeUserMenu"
               >
-                Configuración
+                {{ $t('nav.settings') }}
               </NuxtLink>
               <button
                 class="rounded-[10px] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
                 style="color: var(--lose);"
                 @click="handleLogout"
               >
-                Salir
+                {{ $t('nav.logout') }}
               </button>
             </div>
           </template>
