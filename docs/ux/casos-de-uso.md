@@ -332,7 +332,8 @@ casos de uso 1-4, esto no está bloqueado por falta de conexión al backend
 todavía no existe una pantalla que llame `CommanderApi.getUserStats`/
 `getDeckStats`/`getPlaygroupStats` (los tres métodos ya están en la interfaz,
 ver Stage 4 de `TASKS.md`), ni un `StatisticsRepository`. El cliente web
-(Nuxt) sí los consume ya (`app/pages/statistics.vue`):
+(Nuxt) sí los consume ya: `app/pages/statistics.vue` (usuario/deck) y
+`app/pages/playgroups/{index,[id]}.vue` (por grupo):
 
 - `GET /statistics/user/{id}`: `games_played`, `games_won`,
   `total_damage_dealt`, `total_commander_damage_dealt`, `total_eliminations`

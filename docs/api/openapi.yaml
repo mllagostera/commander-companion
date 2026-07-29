@@ -52,6 +52,17 @@ components:
         moxfield_username:
           type: string
           nullable: true
+    UserSearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+      description: >-
+        A diferencia de User, deliberadamente sin email: esto se muestra sobre
+        resultados de OTROS usuarios (ver GET /users/search).
     RegisterRequest:
       type: object
       required: [username, email, password]
@@ -70,6 +81,17 @@ components:
         moxfield_username:
           type: string
           description: Username de Moxfield a vincular al perfil (sin validar contra Moxfield).
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          format: password
+        new_password:
+          type: string
+          format: password
+          minLength: 8
     LoginRequest:
       type: object
       required: [email, password]
@@ -292,7 +314,19 @@ components:
         deck_id:
           type: string
           format: uuid
-          description: Debe pertenecer al usuario autenticado.
+          description: >-
+            Debe pertenecer al usuario que se sienta (el autenticado, o
+            user_id si se indica).
+        user_id:
+          type: string
+          format: uuid
+          description: >-
+            Opcional. Proxy-join (ver ADR-0013): el usuario autenticado une a
+            OTRO usuario en su nombre. Solo permitido si la partida tiene
+            playgroup_id y ambos son miembros de ese mismo grupo; en ese caso
+            deck_id debe pertenecer a user_id, no al caller. Omitido (o igual
+            al usuario autenticado), es un join normal — sin cambios de
+            comportamiento.
     GamePlayer:
       type: object
       properties:
@@ -362,7 +396,15 @@ components:
         user_id:
           type: string
           format: uuid
+        username:
+          type: string
     CreatePlaygroupRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    UpdatePlaygroupRequest:
       type: object
       required: [name]
       properties:
@@ -646,19 +688,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
 
-  /users/{id}:
+  /users/search:
     get:
-      summary: Obtener usuario
+      summary: Buscar usuarios por username (parcial) o email (exacto)
+      description: >-
+        Para invitar gente a un playgroup sin conocer su UUID (ver
+        POST /playgroups/{id}/members). username matchea por substring,
+        case-insensitive; email exige coincidencia exacta a propósito — una
+        búsqueda parcial de email permitiría enumerar direcciones ajenas por
+        prefijo. Los resultados nunca incluyen el propio usuario autenticado
+        ni el email de nadie (ver UserSearchResult), y se acotan a 10.
       parameters:
-        - in: path
-          name: id
+        - in: query
+          name: q
           required: true
+          description: Al menos 2 caracteres.
           schema:
             type: string
-            format: uuid
+            minLength: 2
       responses:
         '200':
-          description: Detalle del usuario
+          description: Usuarios que matchean (hasta 10), sin el propio usuario autenticado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSearchResult'
+        '400':
+          description: q ausente o menor a 2 caracteres
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{id}:
     patch:
       summary: Actualizar el perfil propio (hoy, solo moxfield_username)
       description: >-
@@ -686,6 +750,36 @@ paths:
                 $ref: '#/components/schemas/User'
         '400':
           description: Body inválido
+        '404':
+          description: id no es el del usuario autenticado
+
+  /users/{id}/password:
+    post:
+      summary: Cambiar el password propio, tras validar el actual
+      description: >-
+        id debe ser el propio usuario autenticado (vía JWT) — 404 en cualquier otro
+        caso, mismo criterio que PATCH /users/{id}. Las cuentas de Google (sin
+        password) no pueden usar este endpoint.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password actualizado
+        '400':
+          description: Body inválido o new_password menor a 8 caracteres
+        '401':
+          description: current_password incorrecto, o la cuenta no tiene password (es de Google)
         '404':
           description: id no es el del usuario autenticado
 
@@ -745,6 +839,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Renombrar el grupo (solo un miembro existente puede editarlo)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlaygroupRequest'
+      responses:
+        '200':
+          description: Grupo renombrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Playgroup'
+        '400':
+          description: Falta el nombre nuevo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe, o el usuario autenticado no es miembro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /playgroups/{id}/members:
     post:
       summary: Añadir un miembro al grupo (solo un miembro existente puede invitar)
@@ -776,6 +904,44 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: El usuario ya es miembro del grupo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /playgroups/{id}/members/{userId}/decks:
+    get:
+      summary: Listar los decks de un miembro del grupo
+      description: >-
+        Permite ver los decks de OTRO miembro del mismo grupo (ver ADR-0013) —
+        es lo que habilita elegir su deck en un proxy-join
+        (`JoinGameRequest.user_id`). Autorización: el usuario autenticado y
+        userId deben ser ambos miembros de este playgroup.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Decks del miembro indicado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deck'
+        '404':
+          description: >-
+            Grupo inexistente, o el usuario autenticado no es miembro, o
+            userId no es miembro de este grupo (no se distingue cuál)
           content:
             application/json:
               schema:
@@ -870,18 +1036,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-    patch:
-      summary: Modificar deck
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Deck actualizado
     delete:
       summary: Eliminar deck
       parameters:
@@ -907,10 +1061,21 @@ paths:
       description: >-
         Devuelve una página del historial de partidas, de la más reciente a la más
         vieja. La paginación es cursor-based (keyset sobre created_at + id): se
-        sigue `next_cursor` hasta que venga null.
+        sigue `next_cursor` hasta que venga null. Con `playgroup_id`, en cambio,
+        devuelve el historial completo (sin paginar, `next_cursor` siempre null)
+        de ese grupo — requiere que el usuario autenticado sea miembro.
       parameters:
         - $ref: '#/components/parameters/CursorParam'
         - $ref: '#/components/parameters/LimitParam'
+        - in: query
+          name: playgroup_id
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: >-
+            Si se indica, ignora cursor/limit y devuelve el historial completo del
+            grupo. 404 si no existe o el usuario autenticado no es miembro.
       responses:
         '200':
           description: Página del historial de partidas
@@ -944,9 +1109,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /games/{id}:
+    get:
+      summary: Obtener partida
+      description: Incluye el estado actual de sus jugadores (players).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalle de la partida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '404':
+          description: No existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /games/{id}/join:
     post:
-      summary: Unirse a la partida con un deck propio
+      summary: Unirse a la partida con un deck propio, o unir a otro (proxy-join)
+      description: >-
+        Sin user_id (o igual al autenticado): join normal, sin cambios. Con
+        user_id distinto: proxy-join (ver ADR-0013) — el caller une a otro
+        usuario en su nombre, solo si ambos comparten el playgroup de la
+        partida; el jugador queda con added_by = caller, autorizándolo a
+        registrar acciones por ese asiento.
       parameters:
         - in: path
           name: id
@@ -967,14 +1163,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GamePlayer'
+        '400':
+          description: >-
+            deck_id/user_id inválidos, o se intentó un proxy-join en una
+            partida sin playgroup_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >-
+            Proxy-join sin membresía compartida: el caller o user_id no
+            pertenecen al playgroup de la partida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Partida o deck no encontrados (o el deck no pertenece al usuario autenticado)
+          description: Partida o deck no encontrados (o el deck no pertenece a quien se sienta)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: La partida ya no acepta jugadores, o el usuario ya está en la partida
+          description: La partida ya no acepta jugadores, o ese usuario ya está en la partida
           content:
             application/json:
               schema:
@@ -1085,6 +1297,14 @@ paths:
       responses:
         '400':
           description: action_type inválido, o payload.amount faltante/no numérico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >-
+            El usuario autenticado no es dueño del GamePlayer actor_id ni
+            quien lo unió como proxy (ver ADR-0013)
           content:
             application/json:
               schema:
