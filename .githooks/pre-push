@@ -12,6 +12,12 @@
 
 set -e
 
+# Git en Windows corre este hook con su MSYS bash embebido, que reescribe
+# cualquier argumento que empiece con "/" (como "-w /app" de docker run) como
+# si fuera una ruta de Windows relativa a la instalación de Git. Sin esto,
+# "docker run -v ... -w /app ..." falla con un working directory inválido.
+export MSYS_NO_PATHCONV=1
+
 z40=0000000000000000000000000000000000000000
 backend_changed=0
 web_changed=0
@@ -75,7 +81,7 @@ if [ "$backend_changed" = 1 ] && [ -d "$workdir/src/backend" ]; then
 
   echo "== backend: sqlc generate (sin diffs pendientes) =="
   cp -r "$workdir/src/backend" "$workdir/backend_sqlc_gen"
-  docker run --rm -v "$workdir/backend_sqlc_gen:/src" sqlc/sqlc:1.27.0 generate >/dev/null
+  docker run --rm -v "$workdir/backend_sqlc_gen:/src" -w /src sqlc/sqlc:1.27.0 generate >/dev/null
   if ! diff -rq "$workdir/src/backend/internal" "$workdir/backend_sqlc_gen/internal" >/dev/null 2>&1; then
     echo "pre-push: el código generado por sqlc no coincide — corré sqlc generate y commiteá el resultado."
     diff -rq "$workdir/src/backend/internal" "$workdir/backend_sqlc_gen/internal" || true
