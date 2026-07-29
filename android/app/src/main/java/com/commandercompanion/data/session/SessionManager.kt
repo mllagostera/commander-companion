@@ -39,6 +39,7 @@ class SessionManager @Inject constructor(
         val ACCESS_TOKEN = stringPreferencesKey("access_token")
         val REFRESH_TOKEN = stringPreferencesKey("refresh_token")
         val EXPIRES_AT = longPreferencesKey("expires_at")
+        val USERNAME = stringPreferencesKey("username")
     }
 
     /** Emite cuando el refresh automático falla y se fuerza el logout (ver [AuthAuthenticator]). */
@@ -52,11 +53,18 @@ class SessionManager @Inject constructor(
             prefs[Keys.ACCESS_TOKEN] = token.accessToken
             prefs[Keys.REFRESH_TOKEN] = token.refreshToken
             prefs[Keys.EXPIRES_AT] = System.currentTimeMillis() + token.expiresIn * 1000
+            if (token.user != null) {
+                prefs[Keys.USERNAME] = token.user.username
+            }
         }
     }
 
     suspend fun currentAccessToken(): String? =
         context.sessionDataStore.data.first()[Keys.ACCESS_TOKEN]
+
+    /** Username del usuario autenticado, para prellenar "quién soy yo" en el setup de partida. */
+    suspend fun currentUsername(): String? =
+        context.sessionDataStore.data.first()[Keys.USERNAME]
 
     private suspend fun currentRefreshToken(): String? =
         context.sessionDataStore.data.first()[Keys.REFRESH_TOKEN]

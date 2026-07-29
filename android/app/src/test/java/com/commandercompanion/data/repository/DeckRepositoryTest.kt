@@ -6,7 +6,6 @@ import com.commandercompanion.testing.deckDto
 import com.commandercompanion.testing.httpException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -26,27 +25,10 @@ class DeckRepositoryTest {
     }
 
     @Test
-    fun `firstDeckId devuelve el primer deck`() = runTest {
-        api.onListDecks = { listOf(deckDto("deck-a"), deckDto("deck-b")) }
-
-        assertEquals("deck-a", repository.firstDeckId().getOrThrow())
-    }
-
-    @Test
-    fun `firstDeckId es null cuando el usuario no tiene decks`() = runTest {
-        api.onListDecks = { emptyList() }
-
-        val result = repository.firstDeckId()
-
-        assertTrue(result.isSuccess)
-        assertNull(result.getOrThrow())
-    }
-
-    @Test
-    fun `firstDeckId propaga el error de red en vez de fingir que no hay decks`() = runTest {
+    fun `listDecks propaga el error de red en vez de devolver una lista vacia`() = runTest {
         api.onListDecks = { throw IOException("sin red") }
 
-        val result = repository.firstDeckId()
+        val result = repository.listDecks()
 
         assertTrue(result.exceptionOrNull() is ApiError.Network)
     }

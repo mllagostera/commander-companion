@@ -11,6 +11,7 @@ import com.commandercompanion.data.repository.GameRepository
 import com.commandercompanion.data.repository.LocalSeat
 import com.commandercompanion.data.repository.LocalSeatResult
 import com.commandercompanion.data.repository.RemoteGameSession
+import com.commandercompanion.data.repository.SeatAssignment
 import com.commandercompanion.presentation.navigation.decodePlayerConfigs
 import com.commandercompanion.presentation.theme.colorForKey
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,9 +30,15 @@ class GameViewModel @Inject constructor(
     private val playerConfigs = decodePlayerConfigs(checkNotNull(savedStateHandle["playersEncoded"]))
     private val startingPlayerSeat: Int = savedStateHandle["startingPlayerSeat"] ?: -1
 
+    /** Grupo elegido en modo Grupo (`PlayerSetupScreen`), o null en modo Casual. */
+    private val playgroupId: String? = savedStateHandle["playgroupId"]
+
     /**
-     * Partida del backend espejada por este dispositivo, o null si no se pudo / no corresponde.
-     * Ver la nota de modelo en [GameRepository]: solo el asiento local tiene identidad remota.
+     * Partida del backend espejada por este dispositivo, o null si no se pudo / no corresponde
+     * (modo Casual, o Grupo sin ningún asiento asignado). Ver [GameRepository]: cualquier
+     * asiento presente en [RemoteGameSession.seatPlayerIds] tiene `GamePlayer` real, no solo el
+     * del usuario autenticado — el modo Grupo puede sentar a varios compañeros de una vez
+     * (proxy-join, ver ADR-0013 del backend).
      */
     private var remoteSession: RemoteGameSession? = null
 
@@ -80,21 +87,28 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * Crea la partida en el backend y sienta al usuario autenticado.
+     * Crea la partida en el backend y sienta a todos los asientos que quedaron asignados a un
+     * usuario real con deck elegido (`PlayerConfig.assignedUserId`/`deckId`, seteados por
+     * `PlayerSetupScreen` en modo Grupo).
      *
-     * Best-effort a propósito: si falla (sin red, sin sesión, sin decks) la partida sigue siendo
-     * jugable en local y solo se refleja el motivo en [GameState.remoteSync].
+     * Best-effort a propósito: si falla (sin red, sin sesión) la partida sigue siendo jugable en
+     * local y solo se refleja el motivo en [GameState.remoteSync].
      */
     private fun bootstrapRemoteGame() {
+        val assignments = playerConfigs.mapIndexedNotNull { index, config ->
+            val userId = config.assignedUserId
+            val deckId = config.deckId
+            if (userId != null && deckId != null) SeatAssignment(index, userId, deckId) else null
+        }
         launchRemote {
-            gameRepository.bootstrapRemoteGame().fold(
+            gameRepository.bootstrapRemoteGame(playgroupId, assignments).fold(
                 onSuccess = { session ->
                     remoteSession = session
                     updateRemoteSync(
                         when {
                             session == null -> RemoteSyncState(
                                 status = RemoteSyncStatus.Disabled,
-                                message = "No tenés decks todavía: la partida se juega solo en este dispositivo"
+                                message = "Nadie quedó asignado: la partida se juega solo en este dispositivo"
                             )
                             session.isActive -> RemoteSyncState(
                                 status = RemoteSyncStatus.Synced,
@@ -124,9 +138,7 @@ class GameViewModel @Inject constructor(
                 }
             }
         )
-        if (playerId == LOCAL_SEAT_PLAYER_ID) {
-            mirrorLifeChange(amount)
-        }
+        mirrorLifeChange(playerId, amount)
         checkForGameOver()
     }
 
@@ -146,11 +158,7 @@ class GameViewModel @Inject constructor(
                 }
             }
         )
-        // TODO: no se espeja como `CommanderDamage` en el backend a propósito. Esa acción atribuye
-        //  el daño al `actor_id`, y desde un solo dispositivo el atacante (otro asiento local) no
-        //  tiene `GamePlayer` propio: mandarla con el asiento local como actor le acreditaría
-        //  `total_commander_damage_dealt` ajeno en las estadísticas. Requiere que cada jugador
-        //  entre desde su propio cliente (o un mapeo asiento→usuario), fuera de alcance acá.
+        mirrorCommanderDamage(attackerId, targetPlayerId, amount)
         checkForGameOver()
     }
 
@@ -165,7 +173,7 @@ class GameViewModel @Inject constructor(
     }
 
     private fun checkForGameOver() {
-        val alive = _state.value.players.filter { it.life > 0 }
+        val alive = _state.value.players.filter { it.isAlive() }
         if (alive.size == 1 && _state.value.players.size > 1) {
             finishGame(winnerId = alive.first().id)
         }
@@ -174,7 +182,7 @@ class GameViewModel @Inject constructor(
     fun finishGame(winnerId: Int? = null) {
         if (_state.value.isFinished) return
         val resolvedWinnerId = winnerId ?: _state.value.players
-            .filter { it.life > 0 }
+            .filter { it.isAlive() }
             .maxByOrNull { it.life }
             ?.takeIf { player -> _state.value.players.count { it.life == player.life } == 1 }
             ?.id
@@ -183,6 +191,10 @@ class GameViewModel @Inject constructor(
         persistGameResult(resolvedWinnerId)
         finishRemoteGame()
     }
+
+    /** Vivo = vida positiva y sin 21+ de daño acumulado de un mismo comandante (regla de Commander). */
+    private fun PlayerState.isAlive(): Boolean =
+        life > 0 && commanderDamage.values.none { it >= COMMANDER_DAMAGE_LETHAL }
 
     private fun persistGameResult(winnerId: Int?) {
         val results = _state.value.players.map { player ->
@@ -196,15 +208,32 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * Espeja el cambio de vida del asiento local; no-op si la partida remota no está activa.
+     * Espeja el cambio de vida de [playerId]; no-op si ese asiento no tiene `GamePlayer` real o
+     * la partida remota no está activa.
      *
      * La sesión se lee DENTRO del bloque serializado: si el usuario toca la vida mientras el
      * bootstrap sigue en vuelo, la acción espera a que termine en vez de descartarse.
      */
-    private fun mirrorLifeChange(amount: Int) {
+    private fun mirrorLifeChange(playerId: Int, amount: Int) {
         launchRemote {
             val session = activeSession() ?: return@launchRemote
-            gameRepository.recordLifeChange(session, amount)
+            val remotePlayerId = session.seatPlayerIds[playerId - 1] ?: return@launchRemote
+            gameRepository.recordLifeChange(session, remotePlayerId, amount)
+                .onFailure { error -> reportRemoteFailure(error) }
+        }
+    }
+
+    /**
+     * Espeja daño de comandante de [attackerId] contra [targetPlayerId]; no-op si CUALQUIERA de
+     * los dos asientos no tiene `GamePlayer` real (atribuirle daño a un `GamePlayer` ajeno, o
+     * mandarlo sin un actor real, corrompería las estadísticas de otro usuario).
+     */
+    private fun mirrorCommanderDamage(attackerId: Int, targetPlayerId: Int, amount: Int) {
+        launchRemote {
+            val session = activeSession() ?: return@launchRemote
+            val attackerPlayerId = session.seatPlayerIds[attackerId - 1] ?: return@launchRemote
+            val defenderPlayerId = session.seatPlayerIds[targetPlayerId - 1] ?: return@launchRemote
+            gameRepository.recordCommanderDamage(session, attackerPlayerId, defenderPlayerId, amount)
                 .onFailure { error -> reportRemoteFailure(error) }
         }
     }
@@ -241,10 +270,6 @@ class GameViewModel @Inject constructor(
     }
 
     private companion object {
-        /**
-         * El primer asiento configurado representa al usuario autenticado de este dispositivo.
-         * Es el único que puede tener un `GamePlayer` en el backend (ver [GameRepository]).
-         */
-        const val LOCAL_SEAT_PLAYER_ID = 1
+        const val COMMANDER_DAMAGE_LETHAL = 21
     }
 }

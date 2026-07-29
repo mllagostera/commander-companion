@@ -5,7 +5,6 @@ import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeGameDao
-import com.commandercompanion.testing.deckDto
 import com.commandercompanion.testing.gameDto
 import com.commandercompanion.testing.gamePlayerDto
 import com.commandercompanion.testing.httpException
@@ -16,57 +15,76 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.IOException
 
 class GameRepositoryTest {
 
     private val api = FakeCommanderApi()
     private val dao = FakeGameDao()
-    private val repository = GameRepository(api, dao, DeckRepository(api))
+    private val repository = GameRepository(api, dao)
+
+    private fun oneAssignment(userId: String = "user-1", deckId: String = "deck-a") =
+        listOf(SeatAssignment(seatIndex = 0, userId = userId, deckId = deckId))
 
     // ------------------------------------------------------------ bootstrap
 
     @Test
     fun `bootstrap crea, se une e inicia la partida en ese orden`() = runTest {
-        api.onListDecks = { listOf(deckDto("deck-a")) }
         api.onCreateGame = { gameDto("game-42", GameStatus.PENDING) }
         api.onJoinGame = { gameId, request ->
-            gamePlayerDto(id = "gp-99", gameId = gameId, deckId = request.deckId)
+            gamePlayerDto(id = "gp-99", gameId = gameId, userId = request.userId!!, deckId = request.deckId)
         }
         api.onStartGame = { id -> gameDto(id, GameStatus.ACTIVE) }
 
-        val session = repository.bootstrapRemoteGame().getOrThrow()!!
+        val session = repository.bootstrapRemoteGame(playgroupId = null, assignments = oneAssignment()).getOrThrow()!!
 
-        assertEquals(listOf("listDecks", "createGame", "joinGame", "startGame"), api.calls)
+        assertEquals(listOf("createGame", "joinGame", "startGame"), api.calls)
         assertEquals("game-42", session.gameId)
-        assertEquals("gp-99", session.localPlayerId)
+        assertEquals("gp-99", session.seatPlayerIds[0])
         assertTrue(session.isActive)
     }
 
     @Test
-    fun `bootstrap se une con el primer deck del usuario`() = runTest {
-        api.onListDecks = { listOf(deckDto("deck-elegido"), deckDto("deck-otro")) }
-        var joinedWith: String? = null
+    fun `bootstrap se une con el deckId y userId de cada asignacion`() = runTest {
+        var joinedWith: Pair<String, String?>? = null
         api.onJoinGame = { gameId, request ->
-            joinedWith = request.deckId
-            gamePlayerDto(gameId = gameId, deckId = request.deckId)
+            joinedWith = request.deckId to request.userId
+            gamePlayerDto(gameId = gameId, userId = request.userId!!, deckId = request.deckId)
         }
 
-        repository.bootstrapRemoteGame().getOrThrow()
+        repository.bootstrapRemoteGame(playgroupId = null, assignments = oneAssignment("user-9", "deck-elegido"))
+            .getOrThrow()
 
-        assertEquals("deck-elegido", joinedWith)
+        assertEquals("deck-elegido" to "user-9", joinedWith)
+    }
+
+    @Test
+    fun `bootstrap sienta a varios asientos, uno por cada asignacion`() = runTest {
+        val assignments = listOf(
+            SeatAssignment(seatIndex = 0, userId = "user-1", deckId = "deck-1"),
+            SeatAssignment(seatIndex = 2, userId = "user-2", deckId = "deck-2")
+        )
+        api.onJoinGame = { gameId, request ->
+            gamePlayerDto(id = "gp-${request.userId}", gameId = gameId, userId = request.userId!!, deckId = request.deckId)
+        }
+        api.onStartGame = { id -> gameDto(id, GameStatus.ACTIVE) }
+
+        val session = repository.bootstrapRemoteGame(playgroupId = "playgroup-1", assignments = assignments)
+            .getOrThrow()!!
+
+        assertEquals(mapOf(0 to "gp-user-1", 2 to "gp-user-2"), session.seatPlayerIds)
+        assertEquals(listOf("createGame", "joinGame", "joinGame", "startGame"), api.calls)
     }
 
     /**
-     * El backend exige `minPlayersToStart = 2`. Desde un solo dispositivo solo puede sentarse el
-     * usuario autenticado, así que este 409 es el caso NORMAL, no un fallo: la partida queda en
-     * `pending` esperando que alguien se una desde otro cliente.
+     * El backend exige `minPlayersToStart = 2`. Con un solo asiento asignado en el bootstrap
+     * (modo Grupo con un solo miembro, o Casual best-effort de antes), este 409 es el caso
+     * NORMAL, no un fallo: la partida queda en `pending` esperando que alguien se una.
      */
     @Test
     fun `bootstrap trata el 409 de start como pending, no como error`() = runTest {
         api.onStartGame = { throw httpException(409) }
 
-        val session = repository.bootstrapRemoteGame().getOrThrow()!!
+        val session = repository.bootstrapRemoteGame(playgroupId = null, assignments = oneAssignment()).getOrThrow()!!
 
         assertEquals(GameStatus.PENDING, session.status)
         assertTrue(!session.isActive)
@@ -76,55 +94,48 @@ class GameRepositoryTest {
     fun `bootstrap si falla start con algo que no es 409 propaga el error`() = runTest {
         api.onStartGame = { throw httpException(500) }
 
-        val error = repository.bootstrapRemoteGame().exceptionOrNull()
+        val error = repository.bootstrapRemoteGame(playgroupId = null, assignments = oneAssignment()).exceptionOrNull()
 
         assertTrue(error is ApiError.Http)
         assertEquals(500, (error as ApiError.Http).code)
     }
 
     @Test
-    fun `bootstrap sin decks devuelve success sin sesion y no toca games`() = runTest {
-        api.onListDecks = { emptyList() }
-
-        val result = repository.bootstrapRemoteGame()
+    fun `bootstrap sin asignaciones devuelve success sin sesion y no toca games`() = runTest {
+        val result = repository.bootstrapRemoteGame(playgroupId = null, assignments = emptyList())
 
         assertTrue(result.isSuccess)
         assertNull(result.getOrThrow())
-        assertEquals(listOf("listDecks"), api.calls)
+        assertEquals(emptyList<String>(), api.calls)
     }
 
     @Test
-    fun `bootstrap propaga un error de red al listar decks`() = runTest {
-        api.onListDecks = { throw IOException("sin red") }
-
-        val error = repository.bootstrapRemoteGame().exceptionOrNull()
-
-        assertTrue(error is ApiError.Network)
-        assertEquals(listOf("listDecks"), api.calls)
-    }
-
-    @Test
-    fun `bootstrap propaga un 404 al unirse porque el deck no es del usuario`() = runTest {
+    fun `bootstrap propaga un 404 al unirse y no intenta el resto de los asientos`() = runTest {
         api.onJoinGame = { _, _ -> throw httpException(404) }
+        val assignments = listOf(
+            SeatAssignment(seatIndex = 0, userId = "user-1", deckId = "deck-ajeno"),
+            SeatAssignment(seatIndex = 1, userId = "user-2", deckId = "deck-2")
+        )
 
-        val error = repository.bootstrapRemoteGame().exceptionOrNull()
+        val error = repository.bootstrapRemoteGame(playgroupId = null, assignments = assignments).exceptionOrNull()
 
         assertEquals(404, (error as ApiError.Http).code)
+        assertEquals(listOf("createGame", "joinGame"), api.calls)
     }
 
     // --------------------------------------------------------------- acciones
 
     @Test
-    fun `recordLifeChange manda LifeChange con el actor local y el amount`() = runTest {
-        val session = RemoteGameSession("game-1", "gp-7", GameStatus.ACTIVE)
+    fun `recordLifeChange manda LifeChange con el actor indicado y el amount`() = runTest {
+        val session = RemoteGameSession("game-1", mapOf(0 to "gp-7"), GameStatus.ACTIVE)
 
-        repository.recordLifeChange(session, -3).getOrThrow()
+        repository.recordLifeChange(session, "gp-7", -3).getOrThrow()
 
         val (gameId, request) = api.recordedActions.single()
         assertEquals("game-1", gameId)
         assertEquals("gp-7", request.actorId)
         assertEquals(GameActionType.LIFE_CHANGE, request.actionType)
-        // Sin target: la acción afecta al propio actor, el único GamePlayer de este dispositivo.
+        // Sin target: la acción afecta al propio actor.
         assertNull(request.targetId)
         assertEquals(-3, request.payload!!["amount"]!!.jsonPrimitive.int)
     }
@@ -132,11 +143,25 @@ class GameRepositoryTest {
     @Test
     fun `recordLifeChange mapea el 409 de partida no activa`() = runTest {
         api.onRecordAction = { _, _ -> throw httpException(409) }
-        val session = RemoteGameSession("game-1", "gp-7", GameStatus.ACTIVE)
+        val session = RemoteGameSession("game-1", mapOf(0 to "gp-7"), GameStatus.ACTIVE)
 
-        val error = repository.recordLifeChange(session, 5).exceptionOrNull()
+        val error = repository.recordLifeChange(session, "gp-7", 5).exceptionOrNull()
 
         assertEquals(409, (error as ApiError.Http).code)
+    }
+
+    @Test
+    fun `recordCommanderDamage manda CommanderDamage con actor y target distintos`() = runTest {
+        val session = RemoteGameSession("game-1", mapOf(0 to "gp-atacante", 1 to "gp-defensor"), GameStatus.ACTIVE)
+
+        repository.recordCommanderDamage(session, "gp-atacante", "gp-defensor", 7).getOrThrow()
+
+        val (gameId, request) = api.recordedActions.single()
+        assertEquals("game-1", gameId)
+        assertEquals("gp-atacante", request.actorId)
+        assertEquals("gp-defensor", request.targetId)
+        assertEquals(GameActionType.COMMANDER_DAMAGE, request.actionType)
+        assertEquals(7, request.payload!!["amount"]!!.jsonPrimitive.int)
     }
 
     // ----------------------------------------------------------- local (Room)

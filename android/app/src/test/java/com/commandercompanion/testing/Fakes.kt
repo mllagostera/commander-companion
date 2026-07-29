@@ -17,6 +17,8 @@ import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
 import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.PagedResponse
+import com.commandercompanion.data.remote.dto.PlaygroupDto
+import com.commandercompanion.data.remote.dto.PlaygroupMemberDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import kotlinx.coroutines.flow.Flow
@@ -45,8 +47,17 @@ fun gameDto(id: String = "game-1", status: String = GameStatus.PENDING) = GameDt
     status = status
 )
 
-fun gamePlayerDto(id: String = "gp-1", gameId: String = "game-1", deckId: String = "deck-1") =
-    GamePlayerDto(id = id, gameId = gameId, userId = "user-1", deckId = deckId)
+fun gamePlayerDto(id: String = "gp-1", gameId: String = "game-1", userId: String = "user-1", deckId: String = "deck-1") =
+    GamePlayerDto(id = id, gameId = gameId, userId = userId, deckId = deckId)
+
+fun playgroupMemberDto(playgroupId: String = "playgroup-1", userId: String = "user-1", username: String = "user-1") =
+    PlaygroupMemberDto(playgroupId = playgroupId, userId = userId, username = username)
+
+fun playgroupDto(
+    id: String = "playgroup-1",
+    name: String = "Grupo de test",
+    members: List<PlaygroupMemberDto> = listOf(playgroupMemberDto(playgroupId = id))
+) = PlaygroupDto(id = id, name = name, members = members)
 
 fun gameActionDto(gameId: String, request: CreateActionRequest) = GameActionDto(
     id = "action-1",
@@ -77,13 +88,16 @@ class FakeCommanderApi : CommanderApi {
     var onDeleteDeck: suspend (String) -> Unit = { }
     var onCreateGame: suspend (CreateGameRequest) -> GameDto = { gameDto() }
     var onJoinGame: suspend (String, JoinGameRequest) -> GamePlayerDto = { gameId, request ->
-        gamePlayerDto(gameId = gameId, deckId = request.deckId)
+        gamePlayerDto(gameId = gameId, userId = request.userId ?: "user-1", deckId = request.deckId)
     }
     var onStartGame: suspend (String) -> GameDto = { id -> gameDto(id, GameStatus.ACTIVE) }
     var onFinishGame: suspend (String) -> GameDto = { id -> gameDto(id, GameStatus.FINISHED) }
     var onRecordAction: suspend (String, CreateActionRequest) -> GameActionDto = { id, request ->
         gameActionDto(id, request)
     }
+    var onListPlaygroups: suspend () -> List<PlaygroupDto> = { emptyList() }
+    var onGetPlaygroup: suspend (String) -> PlaygroupDto = { id -> playgroupDto(id = id) }
+    var onGetMemberDecks: suspend (String, String) -> List<DeckDto> = { _, _ -> emptyList() }
 
     override suspend fun checkHealth(): String = "ok"
 
@@ -145,6 +159,21 @@ class FakeCommanderApi : CommanderApi {
     }
 
     override suspend fun getTimeline(gameId: String): List<GameActionDto> = emptyList()
+
+    override suspend fun listPlaygroups(): List<PlaygroupDto> {
+        calls += "listPlaygroups"
+        return onListPlaygroups()
+    }
+
+    override suspend fun getPlaygroup(playgroupId: String): PlaygroupDto {
+        calls += "getPlaygroup"
+        return onGetPlaygroup(playgroupId)
+    }
+
+    override suspend fun getMemberDecks(playgroupId: String, userId: String): List<DeckDto> {
+        calls += "getMemberDecks"
+        return onGetMemberDecks(playgroupId, userId)
+    }
 
     override suspend fun getUserStats(): UserStatsDto = UserStatsDto(userId = "user-1")
 

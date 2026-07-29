@@ -37,14 +37,23 @@ data class LocalSeatResult(
 )
 
 /**
- * Partida del backend en la que este dispositivo tiene un asiento.
- *
- * [localPlayerId] es el ID del `GamePlayer` del usuario autenticado — el `actor_id` que espera
- * `POST /games/{id}/actions` (que NO es el `user_id`).
+ * Un asiento a sentar remotamente en el bootstrap: a qué usuario ([userId]) y con qué deck
+ * ([deckId]). El backend decide si es un self-join o un proxy-join comparando [userId] contra
+ * el usuario autenticado (ver ADR-0013 del backend) — Android nunca necesita saber "cuál asiento
+ * soy yo", solo pasar la asignación tal como quedó en `PlayerSetupScreen`.
+ */
+data class SeatAssignment(val seatIndex: Int, val userId: String, val deckId: String)
+
+/**
+ * Partida del backend en la que este dispositivo sentó uno o más asientos con `GamePlayer`
+ * real — el propio y, en modo Grupo, los de compañeros proxy-joineados. [seatPlayerIds] mapea
+ * el índice de asiento local (0-based, el mismo que `PlayerConfig`/`PlayerSetupScreen`) al ID
+ * de su `GamePlayer` — el `actor_id`/`target_id` que espera `POST /games/{id}/actions` (que NO
+ * es el `user_id`).
  */
 data class RemoteGameSession(
     val gameId: String,
-    val localPlayerId: String,
+    val seatPlayerIds: Map<Int, String>,
     val status: String
 ) {
     val isActive: Boolean get() = status == GameStatus.ACTIVE
@@ -55,27 +64,23 @@ data class RemoteGameSession(
  *
  * ## Por qué Room sigue siendo la fuente de verdad del tracker
  *
- * El tracker de Android es **pass-and-play en un solo dispositivo**: 2-6 asientos locales con
- * nombres libres, sin cuenta propia. El modelo del backend es el opuesto: `POST /games/{id}/join`
- * sienta **siempre al usuario autenticado** (toma el `user_id` del JWT, el body solo lleva
- * `deck_id`), así que desde un dispositivo solo se puede crear **un** `GamePlayer`. Los demás
- * asientos locales no tienen identidad server-side.
+ * El tracker de Android es **pass-and-play en un solo dispositivo**: 2-6 asientos locales,
+ * cada uno opcionalmente asignado a un usuario real (modo Grupo) o libre (modo Casual/invitado
+ * — ver `PlayerSetupScreen`). El estado del juego en sí (vida, turno, daño de comandante) vive
+ * siempre en Room; el espejo remoto es best-effort y aditivo.
  *
- * Consecuencias, todas verificadas contra `backend/internal/games/service.go`:
- *  - `POST /games/{id}/start` exige `minPlayersToStart = 2`, así que una partida creada y unida
- *    desde un único dispositivo se queda en `pending` hasta que alguien más se una (desde otro
- *    dispositivo o desde el cliente web).
- *  - `POST /games/{id}/actions` solo acepta acciones si la partida está `active`.
- *
- * Por eso el flujo remoto es **best-effort y aditivo**: la partida local nunca se bloquea ni se
- * degrada si el backend no está disponible o no hay quórum, y el espejo remoto se activa solo
- * cuando la partida llega de verdad a `active`.
+ * Consecuencias, verificadas contra `backend/internal/games/service.go`:
+ *  - `POST /games/{id}/start` exige `minPlayersToStart = 2`. En modo Casual (sin asientos
+ *    asignados) no se llega a crear la partida remota. En modo Grupo, si se asignaron 2+
+ *    asientos en el mismo bootstrap la partida arranca `active` en el momento; con 1 solo queda
+ *    `pending` esperando a alguien más.
+ *  - `POST /games/{id}/actions` solo acepta acciones si la partida está `active`, y solo del
+ *    dueño de cada `GamePlayer` o de quien lo proxy-joineó (ver ADR-0013).
  */
 @Singleton
 class GameRepository @Inject constructor(
     private val api: CommanderApi,
-    private val gameDao: GameDao,
-    private val deckRepository: DeckRepository
+    private val gameDao: GameDao
 ) {
 
     // ------------------------------------------------------------ local (Room)
@@ -131,8 +136,9 @@ class GameRepository @Inject constructor(
     suspend fun createGame(playgroupId: String? = null): Result<GameDto> =
         apiCall { api.createGame(CreateGameRequest(playgroupId)) }
 
-    suspend fun joinGame(gameId: String, deckId: String): Result<GamePlayerDto> =
-        apiCall { api.joinGame(gameId, JoinGameRequest(deckId)) }
+    /** [userId] null u omitido = self-join. Distinto = proxy-join (ver ADR-0013 del backend). */
+    suspend fun joinGame(gameId: String, deckId: String, userId: String? = null): Result<GamePlayerDto> =
+        apiCall { api.joinGame(gameId, JoinGameRequest(deckId, userId)) }
 
     suspend fun leaveGame(gameId: String): Result<Unit> = apiCall { api.leaveGame(gameId) }
 
@@ -149,22 +155,30 @@ class GameRepository @Inject constructor(
     // ------------------------------------------------------------ orquestación
 
     /**
-     * Camino feliz completo de alta de partida: `POST /games` → `POST /games/{id}/join` con el
-     * primer deck del usuario → intento de `POST /games/{id}/start`.
+     * Camino feliz completo de alta de partida: `POST /games` (con `playgroupId` en modo Grupo)
+     * → un `POST /games/{id}/join` por cada [assignments] (self-join o proxy-join, según decida
+     * el backend) → intento de `POST /games/{id}/start`.
      *
      * Un 409 en `start` **no es un fallo**: significa "todavía no hay 2 jugadores" y la sesión
-     * queda en [GameStatus.PENDING] esperando que alguien más se una. Cualquier otro error sí
-     * se propaga.
+     * queda en [GameStatus.PENDING] esperando que alguien más se una. Cualquier otro error —
+     * incluido que un join individual falle— se propaga y aborta el resto de los joins.
      *
-     * Devuelve `null` (éxito, sin sesión) si el usuario no tiene ningún deck: sin deck no hay
-     * forma de unirse, y la partida simplemente se juega local.
+     * Devuelve `null` (éxito, sin sesión) si [assignments] viene vacía: modo Casual, o modo
+     * Grupo sin ningún asiento asignado — ni siquiera se crea la partida en el backend.
      */
-    suspend fun bootstrapRemoteGame(): Result<RemoteGameSession?> {
-        val deckId = deckRepository.firstDeckId().getOrElse { return Result.failure(it) }
-            ?: return Result.success(null)
+    suspend fun bootstrapRemoteGame(
+        playgroupId: String?, assignments: List<SeatAssignment>
+    ): Result<RemoteGameSession?> {
+        if (assignments.isEmpty()) return Result.success(null)
 
-        val game = createGame().getOrElse { return Result.failure(it) }
-        val localPlayer = joinGame(game.id, deckId).getOrElse { return Result.failure(it) }
+        val game = createGame(playgroupId).getOrElse { return Result.failure(it) }
+
+        val seatPlayerIds = mutableMapOf<Int, String>()
+        for (assignment in assignments) {
+            val player = joinGame(game.id, assignment.deckId, assignment.userId)
+                .getOrElse { return Result.failure(it) }
+            seatPlayerIds[assignment.seatIndex] = player.id
+        }
 
         val status = startGame(game.id).fold(
             onSuccess = { it.status },
@@ -178,25 +192,42 @@ class GameRepository @Inject constructor(
         )
 
         return Result.success(
-            RemoteGameSession(gameId = game.id, localPlayerId = localPlayer.id, status = status)
+            RemoteGameSession(gameId = game.id, seatPlayerIds = seatPlayerIds, status = status)
         )
     }
 
     /**
-     * Espeja un cambio de vida del asiento local en el backend.
-     *
-     * Sin `target_id`: la acción afecta al propio actor, que es el único `GamePlayer` que este
-     * dispositivo controla.
+     * Espeja un cambio de vida de [playerId] en el backend. Sin `target_id`: la acción afecta al
+     * propio actor.
      *
      * El backend aplica la regla de eliminación automática (`life_total <= 0`) al recibirla, así
-     * que no hace falta mandar un `Elimination` explícito para el asiento local.
+     * que no hace falta mandar un `Elimination` explícito.
      */
-    suspend fun recordLifeChange(session: RemoteGameSession, amount: Int): Result<GameActionDto> =
+    suspend fun recordLifeChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto> =
         recordAction(
             gameId = session.gameId,
             request = CreateActionRequest(
-                actorId = session.localPlayerId,
+                actorId = playerId,
                 actionType = GameActionType.LIFE_CHANGE,
+                payload = amountPayload(amount)
+            )
+        )
+
+    /**
+     * Espeja daño de comandante de [attackerPlayerId] contra [defenderPlayerId]. Solo tiene
+     * sentido llamarla cuando AMBOS asientos tienen `GamePlayer` real (están en
+     * [RemoteGameSession.seatPlayerIds]) — si el atacante es un asiento sin identidad remota,
+     * no hay a quién atribuirle el daño (ver `GameViewModel.adjustCommanderDamage`).
+     */
+    suspend fun recordCommanderDamage(
+        session: RemoteGameSession, attackerPlayerId: String, defenderPlayerId: String, amount: Int
+    ): Result<GameActionDto> =
+        recordAction(
+            gameId = session.gameId,
+            request = CreateActionRequest(
+                actorId = attackerPlayerId,
+                targetId = defenderPlayerId,
+                actionType = GameActionType.COMMANDER_DAMAGE,
                 payload = amountPayload(amount)
             )
         )

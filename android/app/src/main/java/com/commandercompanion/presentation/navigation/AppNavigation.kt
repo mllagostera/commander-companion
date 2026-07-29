@@ -51,8 +51,8 @@ fun AppNavigation(
         }
         composable<PlayerSetupRoute> {
             PlayerSetupScreen(
-                onStartGame = { gameId, playersEncoded ->
-                    navController.navigate(PreGameRoute(gameId, playersEncoded))
+                onStartGame = { gameId, playersEncoded, playgroupId ->
+                    navController.navigate(PreGameRoute(gameId, playersEncoded, playgroupId))
                 }
             )
         }
@@ -61,7 +61,9 @@ fun AppNavigation(
             PreGameScreen(
                 playersEncoded = route.playersEncoded,
                 onContinue = { playersEncoded, startingPlayerSeat ->
-                    navController.navigate(GameTrackerRoute(route.gameId, playersEncoded, startingPlayerSeat)) {
+                    navController.navigate(
+                        GameTrackerRoute(route.gameId, playersEncoded, startingPlayerSeat, route.playgroupId)
+                    ) {
                         popUpTo(DashboardRoute)
                     }
                 }

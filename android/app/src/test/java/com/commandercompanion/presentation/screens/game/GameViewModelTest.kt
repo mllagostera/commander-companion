@@ -3,13 +3,13 @@ package com.commandercompanion.presentation.screens.game
 import androidx.lifecycle.SavedStateHandle
 import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameStatus
-import com.commandercompanion.data.repository.DeckRepository
 import com.commandercompanion.data.repository.GameRepository
 import com.commandercompanion.presentation.navigation.PlayerConfig
 import com.commandercompanion.presentation.navigation.encodePlayerConfigs
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeGameDao
 import com.commandercompanion.testing.gameDto
+import com.commandercompanion.testing.gamePlayerDto
 import com.commandercompanion.testing.httpException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -39,6 +39,11 @@ class GameViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        // Por defecto, cada join devuelve un GamePlayer distinto por usuario (para poder
+        // distinguir actor/target cuando ambos asientos quedan asignados).
+        api.onJoinGame = { gameId, request ->
+            gamePlayerDto(id = "gp-${request.userId}", gameId = gameId, userId = request.userId!!, deckId = request.deckId)
+        }
     }
 
     @After
@@ -46,14 +51,13 @@ class GameViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(): GameViewModel {
-        val players = encodePlayerConfigs(
-            listOf(
-                PlayerConfig(name = "Ana", colorKey = "blue"),
-                PlayerConfig(name = "Beto", colorKey = "red")
-            )
-        )
-        val repository = GameRepository(api, dao, DeckRepository(api))
+    /** Por defecto, Ana (asiento 1) queda asignada a un usuario real; Beto (asiento 2), invitado. */
+    private fun viewModel(
+        ana: PlayerConfig = PlayerConfig(name = "Ana", colorKey = "blue", assignedUserId = "user-1", deckId = "deck-1"),
+        beto: PlayerConfig = PlayerConfig(name = "Beto", colorKey = "red")
+    ): GameViewModel {
+        val players = encodePlayerConfigs(listOf(ana, beto))
+        val repository = GameRepository(api, dao)
         return GameViewModel(
             savedStateHandle = SavedStateHandle(
                 mapOf(
@@ -87,11 +91,12 @@ class GameViewModelTest {
     }
 
     @Test
-    fun `sin decks la sincronizacion queda deshabilitada y se explica por que`() =
+    fun `sin nadie asignado la sincronizacion queda deshabilitada y se explica por que`() =
         runTest(dispatcher) {
-            api.onListDecks = { emptyList() }
-
-            val vm = viewModel()
+            val vm = viewModel(
+                ana = PlayerConfig(name = "Ana", colorKey = "blue"),
+                beto = PlayerConfig(name = "Beto", colorKey = "red")
+            )
             advanceUntilIdle()
 
             assertEquals(RemoteSyncStatus.Disabled, vm.state.value.remoteSync.status)
@@ -100,7 +105,7 @@ class GameViewModelTest {
 
     @Test
     fun `sin red el estado es Failed con el mensaje de conexion`() = runTest(dispatcher) {
-        api.onListDecks = { throw IOException("sin red") }
+        api.onCreateGame = { throw IOException("sin red") }
 
         val vm = viewModel()
         advanceUntilIdle()
@@ -111,7 +116,7 @@ class GameViewModelTest {
 
     @Test
     fun `sesion expirada se traduce a un mensaje de re-login`() = runTest(dispatcher) {
-        api.onListDecks = { throw httpException(401) }
+        api.onCreateGame = { throw httpException(401) }
 
         val vm = viewModel()
         advanceUntilIdle()
@@ -122,7 +127,7 @@ class GameViewModelTest {
 
     @Test
     fun `el tracker local sigue funcionando aunque falle la red`() = runTest(dispatcher) {
-        api.onListDecks = { throw IOException("sin red") }
+        api.onCreateGame = { throw IOException("sin red") }
 
         val vm = viewModel()
         advanceUntilIdle()
@@ -134,7 +139,7 @@ class GameViewModelTest {
     }
 
     @Test
-    fun `el cambio de vida del asiento local se espeja como LifeChange`() = runTest(dispatcher) {
+    fun `el cambio de vida de un asiento asignado se espeja como LifeChange`() = runTest(dispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
 
@@ -143,14 +148,15 @@ class GameViewModelTest {
 
         val (_, request) = api.recordedActions.single()
         assertEquals(GameActionType.LIFE_CHANGE, request.actionType)
+        assertEquals("gp-user-1", request.actorId)
     }
 
     /**
-     * Los demás asientos son jugadores locales sin `GamePlayer` propio en el backend: mandar sus
-     * cambios con el actor local corrompería el estado y las estadísticas del servidor.
+     * Los asientos "invitado" (sin assignedUserId) no tienen `GamePlayer` propio en el backend:
+     * mandar sus cambios corrompería el estado y las estadísticas de otro usuario.
      */
     @Test
-    fun `el cambio de vida de otro asiento no se espeja`() = runTest(dispatcher) {
+    fun `el cambio de vida de un asiento invitado no se espeja`() = runTest(dispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
 
@@ -159,6 +165,39 @@ class GameViewModelTest {
 
         assertTrue(api.recordedActions.isEmpty())
         assertEquals(36, vm.state.value.players.first { it.id == 2 }.life)
+    }
+
+    @Test
+    fun `dano de comandante entre dos asientos asignados se espeja con actor y target reales`() =
+        runTest(dispatcher) {
+            val vm = viewModel(
+                ana = PlayerConfig(name = "Ana", colorKey = "blue", assignedUserId = "user-1", deckId = "deck-1"),
+                beto = PlayerConfig(name = "Beto", colorKey = "red", assignedUserId = "user-2", deckId = "deck-2")
+            )
+            advanceUntilIdle()
+
+            vm.adjustCommanderDamage(targetPlayerId = 1, attackerId = 2, amount = 5)
+            advanceUntilIdle()
+
+            val (_, request) = api.recordedActions.single()
+            assertEquals(GameActionType.COMMANDER_DAMAGE, request.actionType)
+            assertEquals("gp-user-2", request.actorId)
+            assertEquals("gp-user-1", request.targetId)
+        }
+
+    /**
+     * Resuelve lo que antes era una limitación conocida: si el atacante es un asiento invitado
+     * (sin `GamePlayer` propio), no hay a quién atribuirle el daño en el backend.
+     */
+    @Test
+    fun `dano de comandante no se espeja si el atacante es un asiento invitado`() = runTest(dispatcher) {
+        val vm = viewModel() // Ana asignada, Beto invitado
+        advanceUntilIdle()
+
+        vm.adjustCommanderDamage(targetPlayerId = 1, attackerId = 2, amount = 5)
+        advanceUntilIdle()
+
+        assertTrue(api.recordedActions.isEmpty())
     }
 
     @Test
@@ -184,13 +223,39 @@ class GameViewModelTest {
             val vm = viewModel()
             advanceUntilIdle()
 
-            // Deja al asiento local en 0 de vida: dispara el fin automático de partida.
+            // Deja al asiento asignado en 0 de vida: dispara el fin automático de partida.
             vm.adjustLife(playerId = 1, amount = -40)
             advanceUntilIdle()
 
             val remoteCalls = api.calls.filter { it == "recordAction" || it == "finishGame" }
             assertEquals(listOf("recordAction", "finishGame"), remoteCalls)
         }
+
+    /** Regla de Commander: 21+ de daño de comandante de un mismo atacante elimina, aunque la vida siga positiva. */
+    @Test
+    fun `21 de daño de un mismo comandante termina la partida aunque la vida siga positiva`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            vm.adjustCommanderDamage(targetPlayerId = 1, attackerId = 2, amount = 21)
+            advanceUntilIdle()
+
+            assertTrue(vm.state.value.isFinished)
+            assertEquals(2, vm.state.value.winnerId)
+            assertTrue(vm.state.value.players.first { it.id == 1 }.life > 0)
+        }
+
+    @Test
+    fun `20 de daño de comandante todavia no elimina`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.adjustCommanderDamage(targetPlayerId = 1, attackerId = 2, amount = 20)
+        advanceUntilIdle()
+
+        assertTrue(!vm.state.value.isFinished)
+    }
 
     @Test
     fun `no se llama a finish remoto si la partida nunca llego a activa`() = runTest(dispatcher) {
