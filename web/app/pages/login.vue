@@ -3,6 +3,7 @@ definePageMeta({ layout: false })
 
 const { login, loginWithGoogle, resendVerification } = useAuth()
 const { renderButton } = useGoogleIdentity()
+const { theme } = useTheme()
 
 const email = ref('')
 const password = ref('')
@@ -57,7 +58,9 @@ async function handleGoogleCredential(idToken: string) {
 
 onMounted(() => {
   if (googleButtonRef.value) {
-    renderButton(googleButtonRef.value, handleGoogleCredential)
+    renderButton(googleButtonRef.value, handleGoogleCredential, {
+      theme: theme.value === 'light' ? 'outline' : 'filled_black',
+    })
   }
 })
 </script>
