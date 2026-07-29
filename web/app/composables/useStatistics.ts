@@ -12,8 +12,7 @@ export function useStatistics() {
     return apiFetch<DeckStats>(`/statistics/deck/${deckId}`)
   }
 
-  // Sin pantallas de playgroups en el cliente web todavía, así que no hay de
-  // dónde sacar un playgroup_id; queda expuesto para cuando existan.
+  /** Consumido desde pages/playgroups/[id].vue. Best-effort: 404 si el grupo nunca jugó. */
   function playgroupStats(playgroupId: string) {
     return apiFetch<PlaygroupStats>(`/statistics/playgroup/${playgroupId}`)
   }

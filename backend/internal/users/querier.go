@@ -27,6 +27,11 @@ type Querier interface {
 	// email/password todavía no verificada queda verificada por esta vía también.
 	LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (User, error)
 	MarkEmailVerificationTokenUsed(ctx context.Context, id pgtype.UUID) error
+	// Búsqueda parcial case-insensitive de username, para invitar gente a un playgroup sin
+	// conocer su UUID (ver internal/playgroups). A propósito NO busca por email de esta
+	// forma (parcial): permitiría enumerar direcciones de correo ajenas por prefijo/substring.
+	// La búsqueda por email exacta se resuelve aparte, con GetUserByEmail.
+	SearchUsersByUsername(ctx context.Context, arg SearchUsersByUsernameParams) ([]User, error)
 	SetUserEmailVerified(ctx context.Context, id pgtype.UUID) (User, error)
 	UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfieldUsernameParams) (User, error)
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) (User, error)

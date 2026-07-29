@@ -39,3 +39,11 @@ type UserResponse struct {
 	CreatedAt        time.Time `json:"created_at"`
 	MoxfieldUsername *string   `json:"moxfield_username,omitempty"`
 }
+
+// UserSearchResult es el DTO de GET /users/search — deliberadamente sin email: a
+// diferencia de UserResponse (el perfil propio), esto se muestra sobre resultados de
+// OTROS usuarios, y el email es el único dato que el buscador no necesariamente ya sabe.
+type UserSearchResult struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+}

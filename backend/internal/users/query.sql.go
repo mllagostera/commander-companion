@@ -240,6 +240,52 @@ func (q *Queries) MarkEmailVerificationTokenUsed(ctx context.Context, id pgtype.
 	return err
 }
 
+const searchUsersByUsername = `-- name: SearchUsersByUsername :many
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified FROM users
+WHERE username ILIKE '%' || $1 || '%'
+ORDER BY username
+LIMIT $2
+`
+
+type SearchUsersByUsernameParams struct {
+	Pattern     pgtype.Text `json:"pattern"`
+	ResultLimit int32       `json:"result_limit"`
+}
+
+// Búsqueda parcial case-insensitive de username, para invitar gente a un playgroup sin
+// conocer su UUID (ver internal/playgroups). A propósito NO busca por email de esta
+// forma (parcial): permitiría enumerar direcciones de correo ajenas por prefijo/substring.
+// La búsqueda por email exacta se resuelve aparte, con GetUserByEmail.
+func (q *Queries) SearchUsersByUsername(ctx context.Context, arg SearchUsersByUsernameParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, searchUsersByUsername, arg.Pattern, arg.ResultLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.Email,
+			&i.PasswordHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GoogleID,
+			&i.MoxfieldUsername,
+			&i.EmailVerified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setUserEmailVerified = `-- name: SetUserEmailVerified :one
 UPDATE users SET email_verified = true
 WHERE id = $1

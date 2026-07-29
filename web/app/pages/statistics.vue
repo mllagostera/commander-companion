@@ -9,7 +9,7 @@ interface DeckWithStats {
   stats: DeckStats | null
 }
 
-const { data, error } = await useAsyncData('statistics', async () => {
+const { data, error, refresh } = await useAsyncData('statistics', async () => {
   const [user, decks] = await Promise.all([userStats(), listDecks()])
 
   // Las stats por deck se piden solo si el usuario tiene decks propios.
@@ -22,6 +22,10 @@ const { data, error } = await useAsyncData('statistics', async () => {
 
   return { user, perDeck } as { user: UserStats; perDeck: DeckWithStats[] }
 })
+
+// Mismo motivo que en el dashboard: sin este refresh, useAsyncData reusa el payload cacheado de
+// una visita anterior en vez de reflejar el recálculo que dispara el backend al finalizar una partida.
+onMounted(() => refresh())
 </script>
 
 <template>

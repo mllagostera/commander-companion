@@ -30,8 +30,21 @@ func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {
 
 // RegisterProtectedRoutes registra los endpoints de usuarios que requieren sesión.
 func (h *Handler) RegisterProtectedRoutes(router fiber.Router) {
+	router.Get("/users/search", h.SearchUsers)
 	router.Patch("/users/:id", h.UpdateProfile)
 	router.Post("/users/:id/password", h.ChangePassword)
+}
+
+// SearchUsers busca usuarios por username (parcial) o email (exacto) — para invitar a
+// un playgroup sin conocer el UUID de la otra persona (ver docs/decisions y
+// internal/playgroups.AddMember).
+func (h *Handler) SearchUsers(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.SearchUsers(c.Context(), userID, c.Query("q"))
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
 }
 
 // Register maneja la petición de registro.

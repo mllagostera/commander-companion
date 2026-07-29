@@ -5,10 +5,14 @@ const { user } = useAuth()
 const { userStats } = useStatistics()
 const { listDecks } = useDecks()
 
-const { data, error } = await useAsyncData('dashboard', async () => {
+const { data, error, refresh } = await useAsyncData('dashboard', async () => {
   const [stats, decks] = await Promise.all([userStats(), listDecks()])
   return { stats, decks } as { stats: UserStats; decks: Deck[] }
 })
+
+// useAsyncData reusa el payload cacheado al volver a esta página en la misma sesión (p. ej.
+// después de terminar una partida en Android): sin este refresh, el resumen queda desactualizado.
+onMounted(() => refresh())
 </script>
 
 <template>

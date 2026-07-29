@@ -29,6 +29,14 @@ const (
 	// emailVerificationTokenTTL es cuánto tarda en vencer un link de verificación
 	// mandado por mail antes de que haya que pedir un reenvío.
 	emailVerificationTokenTTL = 24 * time.Hour
+
+	// minSearchQueryLength evita búsquedas de 1 carácter que devolverían medio
+	// directorio de usuarios (y facilitarían enumeración por fuerza bruta de a un
+	// carácter genérico por vez).
+	minSearchQueryLength = 2
+	// searchResultLimit acota la respuesta de SearchUsers — no hay paginación acá,
+	// es un autocomplete, no un listado.
+	searchResultLimit = 10
 )
 
 var (
@@ -57,6 +65,8 @@ var (
 	ErrInvalidCurrentPassword = common.Unauthorized("current password is incorrect")
 	// ErrPasswordTooShort indica que el password nuevo no cumple el largo mínimo.
 	ErrPasswordTooShort = common.InvalidInput("password must be at least 8 characters long")
+	// ErrSearchQueryTooShort indica que el query de búsqueda es demasiado corto.
+	ErrSearchQueryTooShort = common.InvalidInput("search query must be at least 2 characters long")
 )
 
 // minPasswordLength es el largo mínimo del password nuevo en ChangePassword, igual al
@@ -85,6 +95,10 @@ type Service interface {
 	// "tiene éxito" desde la perspectiva del caller (mismo criterio anti-enumeración
 	// que VerifyCredentials).
 	ResendVerification(ctx context.Context, email string) error
+	// SearchUsers busca por username (contiene, case-insensitive) o email (exacto, ver
+	// query.sql sobre por qué no es parcial). Excluye al propio requesterID y nunca
+	// expone el email en el resultado (ver UserSearchResult).
+	SearchUsers(ctx context.Context, requesterID, query string) ([]UserSearchResult, error)
 }
 
 type service struct {
@@ -395,6 +409,53 @@ func (s *service) ResendVerification(ctx context.Context, email string) error {
 		log.Printf("no se pudo reenviar el mail de verificación a %s: %v", user.Email, err)
 	}
 	return nil
+}
+
+// SearchUsers busca por username (ILIKE, contiene) y/o email (exacto). Los dos caminos
+// se combinan y deduplican; el propio requesterID nunca aparece en el resultado (no
+// tiene sentido invitarte a vos mismo a un playgroup) ni tampoco su email (ver
+// UserSearchResult).
+func (s *service) SearchUsers(ctx context.Context, requesterID, query string) ([]UserSearchResult, error) {
+	trimmed := strings.TrimSpace(query)
+	if len([]rune(trimmed)) < minSearchQueryLength {
+		return nil, ErrSearchQueryTooShort
+	}
+
+	seen := map[string]bool{requesterID: true}
+	results := []UserSearchResult{} // nunca nil: sin esto, un resultado vacío serializa a JSON `null` en vez de `[]`
+
+	byEmail, err := s.repo.GetUserByEmail(ctx, trimmed)
+	switch {
+	case err == nil:
+		id := byEmail.ID.String()
+		if !seen[id] {
+			seen[id] = true
+			results = append(results, UserSearchResult{ID: id, Username: byEmail.Username})
+		}
+	case !errors.Is(err, pgx.ErrNoRows):
+		return nil, fmt.Errorf("searching user by email: %w", err)
+	}
+
+	byUsername, err := s.repo.SearchUsersByUsername(
+		ctx,
+		SearchUsersByUsernameParams{
+			Pattern:     pgtype.Text{String: trimmed, Valid: true},
+			ResultLimit: searchResultLimit,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("searching users by username: %w", err)
+	}
+	for i := range byUsername {
+		id := byUsername[i].ID.String()
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		results = append(results, UserSearchResult{ID: id, Username: byUsername[i].Username})
+	}
+
+	return results, nil
 }
 
 func toUserResponse(user *User) *UserResponse {
