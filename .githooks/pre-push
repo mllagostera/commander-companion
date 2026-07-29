@@ -35,8 +35,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     base="$remote_sha"
   fi
 
-  if ! git diff --quiet "$base" "$local_sha" -- backend/ 2>/dev/null; then backend_changed=1; fi
-  if ! git diff --quiet "$base" "$local_sha" -- web/ 2>/dev/null; then web_changed=1; fi
+  # Mismo criterio que dorny/paths-filter en backend-ci.yml/web-ci.yml: un
+  # cambio solo cuenta si hay al menos un archivo bajo backend/ (o web/) que
+  # no sea un .md — así un README-only change no dispara el build/lint
+  # pesado, igual que en CI.
+  changed_files=$(git diff --name-only "$base" "$local_sha" 2>/dev/null)
+  if echo "$changed_files" | grep '^backend/' | grep -qv '\.md$'; then backend_changed=1; fi
+  if echo "$changed_files" | grep '^web/' | grep -qv '\.md$'; then web_changed=1; fi
 done
 
 if [ -z "$push_sha" ]; then
