@@ -144,6 +144,5 @@ web/
 - `GET /statistics/playgroup/{id}` está expuesto en `useStatistics()` pero no
   tiene pantalla: todavía no hay UI de playgroups de donde sacar un id. Queda
   como mejora futura.
-- No hay lógica compartida con `tools/auth-test/` (esa es una herramienta de
-  desarrollo standalone, no un cliente real) ni con el cliente Android — cada
-  uno implementa el mismo contrato REST por su cuenta.
+- No hay lógica compartida con el cliente Android — cada uno implementa el
+  mismo contrato REST por su cuenta.

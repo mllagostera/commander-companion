@@ -47,8 +47,5 @@ contenedor): `make migrate-up` con `DB_URL` apuntando a `localhost:5432`
 
 ## Notas
 
-- `tools/auth-test/`: página HTML de un solo archivo para probar manualmente
-  el flujo de auth (password + Google Sign-In) contra una instancia corriendo
-  de esta API. No es parte del producto, ver su propio `README.md`.
 - Gran parte del código sigue evolucionando activamente — antes de asumir que
   algo está terminado, revisá [`docs/roadmap/TASKS.md`](../docs/roadmap/TASKS.md).
