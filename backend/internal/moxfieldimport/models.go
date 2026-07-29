@@ -74,6 +74,7 @@ type GamePlayer struct {
 	EnergyCounters     pgtype.Int4 `json:"energy_counters"`
 	ExperienceCounters pgtype.Int4 `json:"experience_counters"`
 	IsEliminated       pgtype.Bool `json:"is_eliminated"`
+	AddedBy            pgtype.UUID `json:"added_by"`
 }
 
 type MoxfieldImportJob struct {

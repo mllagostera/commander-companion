@@ -15,6 +15,12 @@ type UpdateProfileRequest struct {
 	MoxfieldUsername string `json:"moxfield_username"`
 }
 
+// ChangePasswordRequest es el payload de POST /users/:id/password.
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
 // VerifyEmailRequest es el payload de POST /auth/verify-email.
 type VerifyEmailRequest struct {
 	Token string `json:"token"`
@@ -32,4 +38,12 @@ type UserResponse struct {
 	Email            string    `json:"email"`
 	CreatedAt        time.Time `json:"created_at"`
 	MoxfieldUsername *string   `json:"moxfield_username,omitempty"`
+}
+
+// UserSearchResult es el DTO de GET /users/search — deliberadamente sin email: a
+// diferencia de UserResponse (el perfil propio), esto se muestra sobre resultados de
+// OTROS usuarios, y el email es el único dato que el buscador no necesariamente ya sabe.
+type UserSearchResult struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
 }

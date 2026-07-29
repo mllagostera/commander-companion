@@ -3,6 +3,7 @@ package users_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -547,5 +548,215 @@ func TestUpdateMoxfieldUsername_UnknownUser_ReturnsNotFound(t *testing.T) {
 	}
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
 		t.Fatalf("UpdateMoxfieldUsername() con usuario inexistente: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+}
+
+func TestChangePassword_Success(t *testing.T) {
+	svc, _ := newUsersSvcVerificationOff(t)
+	user := registerUser(t, svc, "change-password-ok@example.com")
+
+	if err := svc.ChangePassword(context.Background(), user.ID, testPassword, "new-correct-horse-battery"); err != nil {
+		t.Fatalf("ChangePassword() error = %v, want nil", err)
+	}
+
+	_, err := svc.VerifyCredentials(context.Background(), "change-password-ok@example.com", "new-correct-horse-battery")
+	if err != nil {
+		t.Fatalf("VerifyCredentials() con el password nuevo: error = %v, want nil", err)
+	}
+	_, err = svc.VerifyCredentials(context.Background(), "change-password-ok@example.com", testPassword)
+	if !errors.Is(err, users.ErrInvalidCredentials) {
+		t.Fatalf("VerifyCredentials() con el password viejo: error = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestChangePassword_WrongCurrentPassword(t *testing.T) {
+	svc, _ := newUsersSvcVerificationOff(t)
+	user := registerUser(t, svc, "change-password-wrong@example.com")
+
+	err := svc.ChangePassword(context.Background(), user.ID, "not-the-current-password", "new-correct-horse-battery")
+	if !errors.Is(err, users.ErrInvalidCurrentPassword) {
+		t.Fatalf("ChangePassword() con password actual incorrecta: error = %v, want ErrInvalidCurrentPassword", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusUnauthorized {
+		t.Fatalf("ChangePassword() con password actual incorrecta: code = %d, want %d",
+			fiberErr.Code, fiber.StatusUnauthorized)
+	}
+
+	// La password original sigue funcionando: el intento fallido no la tocó.
+	_, err = svc.VerifyCredentials(context.Background(), "change-password-wrong@example.com", testPassword)
+	if err != nil {
+		t.Fatalf("VerifyCredentials() con el password original tras el intento fallido: error = %v, want nil", err)
+	}
+}
+
+func TestChangePassword_TooShort(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "change-password-short@example.com")
+
+	err := svc.ChangePassword(context.Background(), user.ID, testPassword, "short")
+	if !errors.Is(err, users.ErrPasswordTooShort) {
+		t.Fatalf("ChangePassword() con password nuevo corto: error = %v, want ErrPasswordTooShort", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("ChangePassword() con password nuevo corto: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+// Una cuenta de Google no tiene password propio: ChangePassword debe rechazarla con el
+// mismo error que VerifyCredentials, no con un 500 por password_hash nulo.
+func TestChangePassword_GoogleOnlyAccount(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	user, err := svc.FindOrCreateGoogleUser(
+		context.Background(), "google-sub-change-password", "google-change-password@example.com", true,
+	)
+	if err != nil {
+		t.Fatalf("FindOrCreateGoogleUser() error = %v", err)
+	}
+
+	err = svc.ChangePassword(context.Background(), user.ID, "anything", "new-correct-horse-battery")
+	if !errors.Is(err, users.ErrGoogleOnlyAccount) {
+		t.Fatalf("ChangePassword() sobre cuenta de Google: error = %v, want ErrGoogleOnlyAccount", err)
+	}
+}
+
+func TestChangePassword_UnknownUser_ReturnsNotFound(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	err := svc.ChangePassword(
+		context.Background(), "00000000-0000-0000-0000-000000000000", testPassword, "new-correct-horse-battery",
+	)
+	if !errors.Is(err, users.ErrUserNotFound) {
+		t.Fatalf("ChangePassword() con usuario inexistente: error = %v, want ErrUserNotFound", err)
+	}
+}
+func TestSearchUsers_ByUsernamePartial_IsCaseInsensitive(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	ctx := context.Background()
+
+	if _, err := svc.RegisterUser(ctx, users.RegisterRequest{
+		Username: "AtraxaPlayer", Email: "atraxa@example.com", Password: testPassword,
+	}); err != nil {
+		t.Fatalf("registrando usuario: %v", err)
+	}
+	if _, err := svc.RegisterUser(ctx, users.RegisterRequest{
+		Username: "someoneelse", Email: "someoneelse@example.com", Password: testPassword,
+	}); err != nil {
+		t.Fatalf("registrando usuario: %v", err)
+	}
+
+	results, err := svc.SearchUsers(ctx, "00000000-0000-0000-0000-000000000000", "atraxa")
+	if err != nil {
+		t.Fatalf("SearchUsers() error = %v, want nil", err)
+	}
+	if len(results) != 1 || results[0].Username != "AtraxaPlayer" {
+		t.Fatalf("SearchUsers(\"atraxa\") = %+v, want solo AtraxaPlayer", results)
+	}
+}
+
+func TestSearchUsers_ByExactEmail(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	ctx := context.Background()
+	user := registerUser(t, svc, "buscame@example.com")
+
+	results, err := svc.SearchUsers(ctx, "00000000-0000-0000-0000-000000000000", "buscame@example.com")
+	if err != nil {
+		t.Fatalf("SearchUsers() error = %v, want nil", err)
+	}
+	if len(results) != 1 || results[0].ID != user.ID {
+		t.Fatalf("SearchUsers(email exacto) = %+v, want %s", results, user.ID)
+	}
+}
+
+// El email NO se busca parcial a propósito: permitiría enumerar direcciones ajenas por
+// prefijo/substring (ver comentario en query.sql). El username es deliberadamente
+// distinto del substring buscado, para no confundir "matchea por username" con "matchea
+// por email parcial" (que es justo lo que este test verifica que NO pasa).
+func TestSearchUsers_EmailParcialNoMatchea(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	ctx := context.Background()
+	if _, err := svc.RegisterUser(ctx, users.RegisterRequest{
+		Username: "unrelated-username", Email: "completo@example.com", Password: testPassword,
+	}); err != nil {
+		t.Fatalf("registrando usuario: %v", err)
+	}
+
+	results, err := svc.SearchUsers(ctx, "00000000-0000-0000-0000-000000000000", "completo")
+	if err != nil {
+		t.Fatalf("SearchUsers() error = %v, want nil", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("SearchUsers() con substring de email = %+v, want vacío (el email exige match exacto)", results)
+	}
+}
+
+func TestSearchUsers_ExcludeSelf(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	ctx := context.Background()
+	self, err := svc.RegisterUser(ctx, users.RegisterRequest{
+		Username: "buscandome", Email: "buscandome@example.com", Password: testPassword,
+	})
+	if err != nil {
+		t.Fatalf("registrando usuario: %v", err)
+	}
+
+	results, err := svc.SearchUsers(ctx, self.ID, "buscandome")
+	if err != nil {
+		t.Fatalf("SearchUsers() error = %v, want nil", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("SearchUsers() no debería incluir al propio requester: %+v", results)
+	}
+}
+
+func TestSearchUsers_QueryTooShort_ReturnsBadRequest(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	_, err := svc.SearchUsers(context.Background(), "00000000-0000-0000-0000-000000000000", "a")
+	if !errors.Is(err, users.ErrSearchQueryTooShort) {
+		t.Fatalf("SearchUsers() con query de 1 char: error = %v, want ErrSearchQueryTooShort", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("SearchUsers() con query corto: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+// Un slice nil serializa a JSON `null` en vez de `[]`, lo que rompe clientes que esperan
+// siempre un array (ej. `results.length`/`.filter()` en JS/TS). SearchUsers debe devolver
+// slice vacío inicializado, no nil, cuando no hay matches.
+func TestSearchUsers_NoResults_ReturnsEmptySliceNotNil(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	results, err := svc.SearchUsers(context.Background(), "00000000-0000-0000-0000-000000000000", "no-existe-nadie-asi")
+	if err != nil {
+		t.Fatalf("SearchUsers() error = %v, want nil", err)
+	}
+	if results == nil {
+		t.Fatalf("SearchUsers() sin resultados devolvió nil, want slice vacío (serializa a JSON null en vez de [])")
+	}
+	if len(results) != 0 {
+		t.Fatalf("SearchUsers() = %+v, want vacío", results)
+	}
+}
+
+func TestSearchUsers_ResultsAreCapped(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	ctx := context.Background()
+	for i := 0; i < 12; i++ {
+		if _, err := svc.RegisterUser(ctx, users.RegisterRequest{
+			Username: fmt.Sprintf("capped-%02d", i),
+			Email:    fmt.Sprintf("capped-%02d@example.com", i),
+			Password: testPassword,
+		}); err != nil {
+			t.Fatalf("registrando usuario %d: %v", i, err)
+		}
+	}
+
+	results, err := svc.SearchUsers(ctx, "00000000-0000-0000-0000-000000000000", "capped-")
+	if err != nil {
+		t.Fatalf("SearchUsers() error = %v, want nil", err)
+	}
+	if len(results) != 10 {
+		t.Fatalf("SearchUsers() con 12 matches = %d resultados, want 10 (limit)", len(results))
 	}
 }

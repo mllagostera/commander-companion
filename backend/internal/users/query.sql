@@ -43,6 +43,11 @@ UPDATE users SET moxfield_username = $2
 WHERE id = $1
 RETURNING *;
 
+-- name: UpdatePasswordHash :one
+UPDATE users SET password_hash = $2
+WHERE id = $1
+RETURNING *;
+
 -- name: CreateEmailVerificationToken :one
 INSERT INTO email_verification_tokens (
   user_id, token_hash, expires_at
@@ -63,3 +68,13 @@ WHERE id = $1;
 UPDATE users SET email_verified = true
 WHERE id = $1
 RETURNING *;
+
+-- name: SearchUsersByUsername :many
+-- Búsqueda parcial case-insensitive de username, para invitar gente a un playgroup sin
+-- conocer su UUID (ver internal/playgroups). A propósito NO busca por email de esta
+-- forma (parcial): permitiría enumerar direcciones de correo ajenas por prefijo/substring.
+-- La búsqueda por email exacta se resuelve aparte, con GetUserByEmail.
+SELECT * FROM users
+WHERE username ILIKE '%' || sqlc.arg('pattern') || '%'
+ORDER BY username
+LIMIT sqlc.arg('result_limit');

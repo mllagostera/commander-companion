@@ -11,6 +11,7 @@ import com.commandercompanion.data.remote.dto.GamePlayerDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
 import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.PagedResponse
+import com.commandercompanion.data.remote.dto.PlaygroupDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import retrofit2.http.Body
@@ -92,6 +93,22 @@ interface CommanderApi {
 
     @GET("api/v1/games/{id}/timeline")
     suspend fun getTimeline(@Path("id") gameId: String): List<GameActionDto>
+
+    // ------------------------------------------------------------ playgroups
+
+    /** Grupos de los que el usuario autenticado es miembro, con sus miembros poblados. */
+    @GET("api/v1/playgroups")
+    suspend fun listPlaygroups(): List<PlaygroupDto>
+
+    @GET("api/v1/playgroups/{id}")
+    suspend fun getPlaygroup(@Path("id") playgroupId: String): PlaygroupDto
+
+    /** Decks de OTRO miembro del mismo grupo — para elegir su deck en un proxy-join. */
+    @GET("api/v1/playgroups/{id}/members/{userId}/decks")
+    suspend fun getMemberDecks(
+        @Path("id") playgroupId: String,
+        @Path("userId") userId: String
+    ): List<DeckDto>
 
     // ----------------------------------------------------------- statistics
 

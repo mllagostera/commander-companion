@@ -63,46 +63,59 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-6">
-    <div class="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900/60 p-8">
-      <h1 class="text-xl font-semibold text-center">Commander Companion</h1>
-      <p class="mt-1 text-center text-sm text-slate-400">Iniciá sesión para continuar</p>
+  <main class="relative min-h-screen overflow-hidden" style="background: var(--bg-gradient); color: var(--text);">
+    <div class="cc-blob top-[-160px] right-[-140px] h-[460px] w-[460px] rounded-[63%_37%_54%_46%/48%_42%_58%_52%]" style="background: radial-gradient(circle, rgba(167,139,250,0.35), rgba(167,139,250,0) 70%);" />
+    <div class="cc-blob bottom-[-200px] left-[-160px] h-[520px] w-[520px] rounded-[42%_58%_65%_35%/55%_45%_55%_45%]" style="background: radial-gradient(circle, rgba(168,85,247,0.22), rgba(168,85,247,0) 70%);" />
 
-      <form class="mt-6 space-y-4" @submit.prevent="handleSubmit">
-        <div>
-          <label class="block text-sm text-slate-400 mb-1" for="email">Email</label>
+    <div class="relative z-[1] flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+      <span class="flex flex-col items-center gap-3.5">
+        <AppLogo size="lg" />
+        <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Commander Companion</span>
+        <span class="text-[13px]" style="color: var(--text-muted);">Tus partidas y decks de Commander, en un solo lugar.</span>
+      </span>
+
+      <form
+        class="flex w-full max-w-[340px] flex-col gap-3 rounded-[28px] border p-[26px]"
+        style="background: var(--card-bg-strong); border-color: var(--card-border);"
+        @submit.prevent="handleSubmit"
+      >
+        <label class="text-xs" style="color: var(--text-dim);">
+          Email
           <input
-            id="email"
             v-model="email"
             type="email"
             autocomplete="email"
             required
-            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            placeholder="tu@email.com"
+            class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+            style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
-        </div>
-        <div>
-          <label class="block text-sm text-slate-400 mb-1" for="password">Contraseña</label>
+        </label>
+        <label class="text-xs" style="color: var(--text-dim);">
+          Contraseña
           <input
-            id="password"
             v-model="password"
             type="password"
             autocomplete="current-password"
             required
-            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            placeholder="••••••••"
+            class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+            style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
-        </div>
+        </label>
 
-        <p v-if="errorMessage" class="text-sm text-red-400">{{ errorMessage }}</p>
+        <p v-if="errorMessage" class="text-sm" style="color: var(--lose);">{{ errorMessage }}</p>
 
         <div v-if="needsVerification" class="text-sm">
-          <p v-if="resendSent" class="text-slate-400">
+          <p v-if="resendSent" style="color: var(--text-muted);">
             Listo, revisá tu bandeja de entrada.
           </p>
           <button
             v-else
             type="button"
             :disabled="isResending"
-            class="text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+            class="disabled:opacity-50"
+            style="color: var(--accent-link);"
             @click="handleResendVerification"
           >
             {{ isResending ? 'Reenviando…' : 'Reenviar email de verificación' }}
@@ -112,26 +125,25 @@ onMounted(() => {
         <button
           type="submit"
           :disabled="isSubmitting"
-          class="w-full rounded-lg bg-indigo-500 py-2 font-medium text-slate-950 hover:bg-indigo-400 disabled:opacity-50"
+          class="mt-2 rounded-full px-5 py-3 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.02] disabled:opacity-50"
+          style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
         >
           {{ isSubmitting ? 'Ingresando…' : 'Iniciar sesión' }}
         </button>
+
+        <div class="my-1 flex items-center gap-2.5">
+          <span class="h-px flex-1" style="background: var(--card-border);" />
+          <span class="text-[11px]" style="color: var(--text-dim);">o</span>
+          <span class="h-px flex-1" style="background: var(--card-border);" />
+        </div>
+
+        <div ref="googleButtonRef" class="flex justify-center" />
+
+        <span class="text-center text-xs" style="color: var(--text-dim);">
+          ¿No tenés cuenta?
+          <NuxtLink to="/register" style="color: var(--accent-link);">Registrate</NuxtLink>
+        </span>
       </form>
-
-      <div class="mt-6 flex items-center gap-3 text-xs text-slate-500">
-        <span class="h-px flex-1 bg-slate-800" />
-        o
-        <span class="h-px flex-1 bg-slate-800" />
-      </div>
-
-      <div ref="googleButtonRef" class="mt-4 flex justify-center" />
-
-      <p class="mt-6 text-center text-sm text-slate-400">
-        ¿No tenés cuenta?
-        <NuxtLink to="/register" class="text-indigo-400 hover:text-indigo-300">
-          Registrate
-        </NuxtLink>
-      </p>
     </div>
   </main>
 </template>

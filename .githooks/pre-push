@@ -1,0 +1,125 @@
+#!/bin/sh
+# Corre localmente, antes de pushear, los mismos checks estáticos que
+# backend-ci.yml / web-ci.yml corren en GitHub Actions: gofmt, go vet,
+# golangci-lint, "sqlc generate" sin diffs pendientes, hadolint, eslint,
+# typecheck y el build de Nuxt. Objetivo: no gastar minutos de CI en un push
+# que ya sabemos, en 1-2 minutos locales, que va a fallar el lint.
+#
+# Requiere Docker. Instalación (una vez por clon, no se activa solo):
+#   git config core.hooksPath .githooks
+#
+# Para saltear el hook en un push puntual: git push --no-verify
+
+set -e
+
+# Git en Windows corre este hook con su MSYS bash embebido, que reescribe
+# cualquier argumento que empiece con "/" (como "-w /app" de docker run) como
+# si fuera una ruta de Windows relativa a la instalación de Git. Sin esto,
+# "docker run -v ... -w /app ..." falla con un working directory inválido.
+export MSYS_NO_PATHCONV=1
+
+z40=0000000000000000000000000000000000000000
+backend_changed=0
+web_changed=0
+push_sha=""
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$z40" ] && continue # borrado de rama remota, nada que revisar
+  push_sha="$local_sha"
+
+  if [ "$remote_sha" = "$z40" ]; then
+    # Rama nueva: compará contra donde diverge de main (o, si no hay main de
+    # referencia local, contra todo el historial del commit).
+    base=$(git merge-base "$local_sha" origin/main 2>/dev/null || git rev-list --max-parents=0 "$local_sha" | tail -1)
+  else
+    base="$remote_sha"
+  fi
+
+  if ! git diff --quiet "$base" "$local_sha" -- backend/ 2>/dev/null; then backend_changed=1; fi
+  if ! git diff --quiet "$base" "$local_sha" -- web/ 2>/dev/null; then web_changed=1; fi
+done
+
+if [ -z "$push_sha" ]; then
+  exit 0
+fi
+
+if [ "$backend_changed" = 0 ] && [ "$web_changed" = 0 ]; then
+  echo "pre-push: sin cambios en backend/ ni web/, salteando checks locales."
+  exit 0
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "pre-push: Docker no disponible, no puedo correr los checks locales — pusheando sin verificar."
+  exit 0
+fi
+
+echo "pre-push: corriendo localmente los checks de CI (backend=$backend_changed web=$web_changed)..."
+
+# mktemp -d cae bajo /tmp, una ruta puramente MSYS que Docker Desktop (proceso
+# Windows nativo) no puede resolver como bind mount aunque MSYS_NO_PATHCONV
+# la deje "intacta" — termina montando un directorio vacío. Usamos en cambio
+# un directorio dentro del propio repo (ruta Windows real vía "pwd -W"), que
+# tanto MSYS bash como docker.exe entienden igual.
+repo_root=$(pwd -W 2>/dev/null || pwd)
+workdir="$repo_root/.git/pre-push-tmp-$$"
+cleanup() { rm -rf "$workdir"; }
+trap cleanup EXIT
+mkdir -p "$workdir"
+
+# Export limpio del árbol que se va a pushear (line endings tal cual están en
+# el blob de git, sin el core.autocrlf del checkout local de Windows — así
+# reproduce lo que ve un runner Linux de GitHub Actions, no falsos positivos
+# de gofmt por CRLF).
+mkdir -p "$workdir/src"
+git archive "$push_sha" | tar -x -C "$workdir/src"
+# El tar de Git for Windows reintroduce CRLF al extraer aunque el archive en
+# sí venga en LF — sin esto, gofmt marca básicamente todo el repo como "no
+# formateado" (falso positivo que no existe en el runner Linux de CI).
+find "$workdir/src" -type f -exec sed -i 's/\r$//' {} +
+
+fail=0
+
+if [ "$backend_changed" = 1 ] && [ -d "$workdir/src/backend" ]; then
+  echo "== backend: gofmt / go vet =="
+  docker run --rm -v "$workdir/src/backend:/app" -w /app golang:1.25 \
+    sh -c 'out=$(gofmt -l .); if [ -n "$out" ]; then echo "$out"; exit 1; fi; go vet ./...' \
+    || { echo "pre-push: gofmt/go vet falló"; fail=1; }
+
+  echo "== backend: golangci-lint =="
+  docker run --rm -v "$workdir/src/backend:/app" -w /app golangci/golangci-lint:v2.12.2 \
+    golangci-lint run --timeout=5m \
+    || { echo "pre-push: golangci-lint falló"; fail=1; }
+
+  echo "== backend: sqlc generate (sin diffs pendientes) =="
+  cp -r "$workdir/src/backend" "$workdir/backend_sqlc_gen"
+  docker run --rm -v "$workdir/backend_sqlc_gen:/src" -w /src sqlc/sqlc:1.27.0 generate >/dev/null
+  if ! diff -rq "$workdir/src/backend/internal" "$workdir/backend_sqlc_gen/internal" >/dev/null 2>&1; then
+    echo "pre-push: el código generado por sqlc no coincide — corré sqlc generate y commiteá el resultado."
+    diff -rq "$workdir/src/backend/internal" "$workdir/backend_sqlc_gen/internal" || true
+    fail=1
+  fi
+
+  echo "== backend: hadolint =="
+  docker run --rm -i hadolint/hadolint < "$workdir/src/backend/Dockerfile" \
+    || { echo "pre-push: hadolint falló (backend/Dockerfile)"; fail=1; }
+fi
+
+if [ "$web_changed" = 1 ] && [ -d "$workdir/src/web" ]; then
+  echo "== web: eslint / typecheck / nuxt build =="
+  docker run --rm -v "$workdir/src/web:/app" -w /app node:24-slim \
+    sh -c 'npm ci --no-audit --no-fund && npm run lint -- --max-warnings=0 && npm run typecheck && npm run build' \
+    || { echo "pre-push: eslint/typecheck/build del web falló"; fail=1; }
+
+  echo "== web: hadolint =="
+  docker run --rm -i hadolint/hadolint < "$workdir/src/web/Dockerfile" \
+    || { echo "pre-push: hadolint falló (web/Dockerfile)"; fail=1; }
+fi
+
+if [ "$fail" != 0 ]; then
+  echo ""
+  echo "pre-push: al menos un check falló — push cancelado (usá 'git push --no-verify' para saltear esto a propósito)."
+  exit 1
+fi
+
+echo "pre-push: todo verde, pusheando."
+exit 0

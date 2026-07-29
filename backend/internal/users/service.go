@@ -29,6 +29,14 @@ const (
 	// emailVerificationTokenTTL es cuánto tarda en vencer un link de verificación
 	// mandado por mail antes de que haya que pedir un reenvío.
 	emailVerificationTokenTTL = 24 * time.Hour
+
+	// minSearchQueryLength evita búsquedas de 1 carácter que devolverían medio
+	// directorio de usuarios (y facilitarían enumeración por fuerza bruta de a un
+	// carácter genérico por vez).
+	minSearchQueryLength = 2
+	// searchResultLimit acota la respuesta de SearchUsers — no hay paginación acá,
+	// es un autocomplete, no un listado.
+	searchResultLimit = 10
 )
 
 var (
@@ -53,7 +61,17 @@ var (
 	// ErrUsernameExhausted indica que no se pudo generar un username único para una cuenta de Google.
 	// No es un error de dominio traducible: sale como 500, porque implica un problema del servidor.
 	ErrUsernameExhausted = errors.New("could not allocate a unique username for google user")
+	// ErrInvalidCurrentPassword indica que el password actual mandado en ChangePassword no coincide.
+	ErrInvalidCurrentPassword = common.Unauthorized("current password is incorrect")
+	// ErrPasswordTooShort indica que el password nuevo no cumple el largo mínimo.
+	ErrPasswordTooShort = common.InvalidInput("password must be at least 8 characters long")
+	// ErrSearchQueryTooShort indica que el query de búsqueda es demasiado corto.
+	ErrSearchQueryTooShort = common.InvalidInput("search query must be at least 2 characters long")
 )
+
+// minPasswordLength es el largo mínimo del password nuevo en ChangePassword, igual al
+// mínimo que ya exige el form de registro del lado del cliente (ver web/app/pages/register.vue).
+const minPasswordLength = 8
 
 // Mailer es lo que users necesita para mandar el mail de verificación de cuenta
 // (permite mockearlo en tests; ver decks.MoxfieldClient para el mismo patrón).
@@ -68,6 +86,8 @@ type Service interface {
 	VerifyCredentials(ctx context.Context, email, password string) (*UserResponse, error)
 	FindOrCreateGoogleUser(ctx context.Context, googleID, email string, emailVerified bool) (*UserResponse, error)
 	UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUsername string) (*UserResponse, error)
+	// ChangePassword valida el password actual y, si coincide, lo reemplaza por el nuevo.
+	ChangePassword(ctx context.Context, id, currentPassword, newPassword string) error
 	// VerifyEmail confirma la cuenta asociada al token de verificación mandado por mail.
 	VerifyEmail(ctx context.Context, token string) error
 	// ResendVerification manda un nuevo mail de verificación si corresponde. Nunca
@@ -75,6 +95,10 @@ type Service interface {
 	// "tiene éxito" desde la perspectiva del caller (mismo criterio anti-enumeración
 	// que VerifyCredentials).
 	ResendVerification(ctx context.Context, email string) error
+	// SearchUsers busca por username (contiene, case-insensitive) o email (exacto, ver
+	// query.sql sobre por qué no es parcial). Excluye al propio requesterID y nunca
+	// expone el email en el resultado (ver UserSearchResult).
+	SearchUsers(ctx context.Context, requesterID, query string) ([]UserSearchResult, error)
 }
 
 type service struct {
@@ -194,6 +218,52 @@ func (s *service) UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUserna
 	}
 
 	return toUserResponse(&user), nil
+}
+
+// ChangePassword valida currentPassword contra el hash guardado y, si coincide, lo
+// reemplaza por el hash de newPassword. Las cuentas de Google (sin password_hash)
+// no pueden usar este camino: deben seguir entrando por Google Sign-In.
+func (s *service) ChangePassword(ctx context.Context, id, currentPassword, newPassword string) error {
+	if len(newPassword) < minPasswordLength {
+		return ErrPasswordTooShort
+	}
+
+	uid, err := common.ParseUUID(id)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	user, err := s.repo.GetUserByID(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("looking up user by id: %w", err)
+	}
+
+	if !user.PasswordHash.Valid {
+		return ErrGoogleOnlyAccount
+	}
+
+	if compareErr := bcrypt.CompareHashAndPassword(
+		[]byte(user.PasswordHash.String), []byte(currentPassword),
+	); compareErr != nil {
+		return ErrInvalidCurrentPassword
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hashing new password: %w", err)
+	}
+
+	if _, err := s.repo.UpdatePasswordHash(ctx, UpdatePasswordHashParams{
+		ID:           uid,
+		PasswordHash: pgtype.Text{String: string(hash), Valid: true},
+	}); err != nil {
+		return fmt.Errorf("updating password hash: %w", err)
+	}
+
+	return nil
 }
 
 // VerifyCredentials valida el email/password y devuelve el usuario si son correctos.
@@ -341,6 +411,53 @@ func (s *service) ResendVerification(ctx context.Context, email string) error {
 		log.Printf("no se pudo reenviar el mail de verificación a %s: %v", user.Email, err)
 	}
 	return nil
+}
+
+// SearchUsers busca por username (ILIKE, contiene) y/o email (exacto). Los dos caminos
+// se combinan y deduplican; el propio requesterID nunca aparece en el resultado (no
+// tiene sentido invitarte a vos mismo a un playgroup) ni tampoco su email (ver
+// UserSearchResult).
+func (s *service) SearchUsers(ctx context.Context, requesterID, query string) ([]UserSearchResult, error) {
+	trimmed := strings.TrimSpace(query)
+	if len([]rune(trimmed)) < minSearchQueryLength {
+		return nil, ErrSearchQueryTooShort
+	}
+
+	seen := map[string]bool{requesterID: true}
+	results := []UserSearchResult{} // nunca nil: sin esto, un resultado vacío serializa a JSON `null` en vez de `[]`
+
+	byEmail, err := s.repo.GetUserByEmail(ctx, trimmed)
+	switch {
+	case err == nil:
+		id := byEmail.ID.String()
+		if !seen[id] {
+			seen[id] = true
+			results = append(results, UserSearchResult{ID: id, Username: byEmail.Username})
+		}
+	case !errors.Is(err, pgx.ErrNoRows):
+		return nil, fmt.Errorf("searching user by email: %w", err)
+	}
+
+	byUsername, err := s.repo.SearchUsersByUsername(
+		ctx,
+		SearchUsersByUsernameParams{
+			Pattern:     pgtype.Text{String: trimmed, Valid: true},
+			ResultLimit: searchResultLimit,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("searching users by username: %w", err)
+	}
+	for i := range byUsername {
+		id := byUsername[i].ID.String()
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		results = append(results, UserSearchResult{ID: id, Username: byUsername[i].Username})
+	}
+
+	return results, nil
 }
 
 func toUserResponse(user *User) *UserResponse {

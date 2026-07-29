@@ -24,10 +24,15 @@ type GameListResponse struct {
 	NextCursor *string        `json:"next_cursor"`
 }
 
-// JoinGameRequest es el payload para unirse a una partida. El jugador es
-// siempre el usuario autenticado (vía JWT); solo hace falta indicar el deck.
+// JoinGameRequest es el payload para unirse a una partida. Sin user_id, el
+// jugador es el usuario autenticado (vía JWT), como siempre. Con user_id
+// (proxy-join, ver ADR-0013), el caller une a OTRO usuario en su nombre —
+// solo permitido si la partida pertenece a un playgroup y ambos lo
+// comparten; en ese caso deck_id debe pertenecer al usuario indicado, no
+// al caller.
 type JoinGameRequest struct {
 	DeckID string `json:"deck_id"`
+	UserID string `json:"user_id,omitempty"`
 }
 
 // GamePlayerResponse es el DTO del estado de un jugador dentro de una partida.

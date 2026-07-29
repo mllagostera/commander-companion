@@ -64,6 +64,9 @@ var (
 	// target_id distinto del actor (no tiene sentido sin un defensor identificado,
 	// ya que el daño se trackea por par atacante-defensor).
 	ErrCommanderDamageTargetRequired = common.InvalidInput("commander damage requires a target_id different from actor_id")
+	// ErrNotAuthorizedForActor indica que el caller no es dueño del GamePlayer actor
+	// ni quien lo unió como proxy (game_players.added_by, ver ADR-0013).
+	ErrNotAuthorizedForActor = common.Forbidden("not authorized to act on behalf of this player")
 )
 
 // Broadcaster es lo que game-actions necesita para retransmitir en vivo, por
@@ -78,7 +81,10 @@ type Broadcaster interface {
 
 // Service define la lógica de negocio del módulo game-actions.
 type Service interface {
-	RecordAction(ctx context.Context, gameID string, req CreateActionRequest) (*GameActionResponse, error)
+	// RecordAction registra una acción. callerUserID es el usuario autenticado
+	// (JWT): debe ser el dueño del GamePlayer actor o quien lo unió como proxy
+	// (ver ADR-0013), o se rechaza con ErrNotAuthorizedForActor.
+	RecordAction(ctx context.Context, gameID, callerUserID string, req CreateActionRequest) (*GameActionResponse, error)
 	GetTimeline(ctx context.Context, gameID string) ([]GameActionResponse, error)
 }
 
@@ -103,7 +109,7 @@ func NewService(db *pgxpool.Pool, broadcaster Broadcaster) Service {
 // cada paso era una llamada independiente, con la posibilidad de que un crash a mitad
 // de camino dejara un cambio de vida aplicado sin su entrada de log correspondiente.
 func (s *service) RecordAction(
-	ctx context.Context, gameID string, req CreateActionRequest,
+	ctx context.Context, gameID, callerUserID string, req CreateActionRequest,
 ) (*GameActionResponse, error) {
 	if !isValidActionType(req.ActionType) {
 		return nil, ErrInvalidActionType
@@ -121,7 +127,7 @@ func (s *service) RecordAction(
 		return nil, err
 	}
 
-	actorID, subject, targetID, err := s.resolveActionSubject(ctx, q, gid, req)
+	actorID, subject, targetID, err := s.resolveActionSubject(ctx, q, gid, callerUserID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +186,7 @@ func (s *service) resolveActiveGame(ctx context.Context, q *Queries, gameID stri
 // sujeto sobre el que se aplican los efectos es el target si se indicó uno; si no, el
 // propio actor (p. ej. LifeChange sobre uno mismo, o Elimination por rendición voluntaria).
 func (s *service) resolveActionSubject(
-	ctx context.Context, q *Queries, gid pgtype.UUID, req CreateActionRequest,
+	ctx context.Context, q *Queries, gid pgtype.UUID, callerUserID string, req CreateActionRequest,
 ) (actorID pgtype.UUID, subject *GamePlayer, targetID pgtype.UUID, err error) {
 	actorID, err = common.ParseUUID(req.ActorID)
 	if err != nil {
@@ -189,6 +195,9 @@ func (s *service) resolveActionSubject(
 	actor, err := s.getGamePlayer(ctx, q, gid, actorID)
 	if err != nil {
 		return pgtype.UUID{}, nil, pgtype.UUID{}, err
+	}
+	if authErr := authorizeActor(actor, callerUserID); authErr != nil {
+		return pgtype.UUID{}, nil, pgtype.UUID{}, authErr
 	}
 
 	if req.TargetID == "" {
@@ -373,6 +382,20 @@ func (s *service) clearCurrentTurn(ctx context.Context, q *Queries, gid pgtype.U
 		return fmt.Errorf("clearing current turn player: %w", err)
 	}
 	return nil
+}
+
+// authorizeActor exige que callerUserID sea el dueño del GamePlayer actor o quien lo
+// unió como proxy (added_by, ver ADR-0013). Antes de esto, RecordAction no validaba
+// en absoluto que actor_id perteneciera al caller — cualquier usuario autenticado que
+// conociera un game_id y un actor_id podía registrar acciones en su nombre.
+func authorizeActor(actor *GamePlayer, callerUserID string) error {
+	if actor.UserID.String() == callerUserID {
+		return nil
+	}
+	if actor.AddedBy.Valid && actor.AddedBy.String() == callerUserID {
+		return nil
+	}
+	return ErrNotAuthorizedForActor
 }
 
 func (s *service) getGamePlayer(ctx context.Context, q *Queries, gameID, playerID pgtype.UUID) (*GamePlayer, error) {

@@ -39,14 +39,4 @@ class DeckRepository @Inject constructor(
     }
 
     suspend fun deleteDeck(deckId: String): Result<Unit> = apiCall { api.deleteDeck(deckId) }
-
-    /**
-     * Primer deck del usuario, o `null` si todavía no tiene ninguno.
-     *
-     * Lo usa [GameRepository.bootstrapRemoteGame] para poder sentar al usuario en una partida sin
-     * que exista todavía una pantalla de selección de deck.
-     * TODO: reemplazar por una selección explícita en `PlayerSetupScreen` cuando exista la UI de
-     * decks — elegir "el primero" es una simplificación deliberada de esta pasada.
-     */
-    suspend fun firstDeckId(): Result<String?> = listDecks().map { decks -> decks.firstOrNull()?.id }
 }

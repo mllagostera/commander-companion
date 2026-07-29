@@ -100,20 +100,71 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	return i, err
 }
 
-const listPlaygroupMembers = `-- name: ListPlaygroupMembers :many
-SELECT playgroup_id, user_id, joined_at FROM playgroup_members WHERE playgroup_id = $1
+const listDecksByUserID = `-- name: ListDecksByUserID :many
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks WHERE user_id = $1 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListPlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) ([]PlaygroupMember, error) {
+// Decks de un usuario, para el picker de "con qué deck juega" un compañero de
+// grupo en un proxy-join (ver ADR-0013). La autorización (¿comparte el caller un
+// playgroup con este usuario?) la hace el service, no esta query.
+func (q *Queries) ListDecksByUserID(ctx context.Context, userID pgtype.UUID) ([]Deck, error) {
+	rows, err := q.db.Query(ctx, listDecksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Deck
+	for rows.Next() {
+		var i Deck
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Commander,
+			&i.MoxfieldID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ImageUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlaygroupMembers = `-- name: ListPlaygroupMembers :many
+SELECT pm.playgroup_id, pm.user_id, pm.joined_at, u.username
+FROM playgroup_members pm
+JOIN users u ON u.id = pm.user_id
+WHERE pm.playgroup_id = $1
+`
+
+type ListPlaygroupMembersRow struct {
+	PlaygroupID pgtype.UUID      `json:"playgroup_id"`
+	UserID      pgtype.UUID      `json:"user_id"`
+	JoinedAt    pgtype.Timestamp `json:"joined_at"`
+	Username    string           `json:"username"`
+}
+
+func (q *Queries) ListPlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) ([]ListPlaygroupMembersRow, error) {
 	rows, err := q.db.Query(ctx, listPlaygroupMembers, playgroupID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []PlaygroupMember
+	var items []ListPlaygroupMembersRow
 	for rows.Next() {
-		var i PlaygroupMember
-		if err := rows.Scan(&i.PlaygroupID, &i.UserID, &i.JoinedAt); err != nil {
+		var i ListPlaygroupMembersRow
+		if err := rows.Scan(
+			&i.PlaygroupID,
+			&i.UserID,
+			&i.JoinedAt,
+			&i.Username,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -183,4 +234,27 @@ func (q *Queries) ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID)
 		return nil, err
 	}
 	return items, nil
+}
+
+const updatePlaygroupName = `-- name: UpdatePlaygroupName :one
+UPDATE playgroups SET name = $2
+WHERE id = $1
+RETURNING id, name, created_at, updated_at
+`
+
+type UpdatePlaygroupNameParams struct {
+	ID   pgtype.UUID `json:"id"`
+	Name string      `json:"name"`
+}
+
+func (q *Queries) UpdatePlaygroupName(ctx context.Context, arg UpdatePlaygroupNameParams) (Playgroup, error) {
+	row := q.db.QueryRow(ctx, updatePlaygroupName, arg.ID, arg.Name)
+	var i Playgroup
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

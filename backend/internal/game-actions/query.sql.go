@@ -15,7 +15,7 @@ const adjustGamePlayerLife = `-- name: AdjustGamePlayerLife :one
 UPDATE game_players
 SET life_total = life_total + $1::int
 WHERE id = $2
-RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by
 `
 
 type AdjustGamePlayerLifeParams struct {
@@ -36,6 +36,7 @@ func (q *Queries) AdjustGamePlayerLife(ctx context.Context, arg AdjustGamePlayer
 		&i.EnergyCounters,
 		&i.ExperienceCounters,
 		&i.IsEliminated,
+		&i.AddedBy,
 	)
 	return i, err
 }
@@ -44,7 +45,7 @@ const adjustGamePlayerPoison = `-- name: AdjustGamePlayerPoison :one
 UPDATE game_players
 SET poison_counters = poison_counters + $1::int
 WHERE id = $2
-RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by
 `
 
 type AdjustGamePlayerPoisonParams struct {
@@ -65,6 +66,7 @@ func (q *Queries) AdjustGamePlayerPoison(ctx context.Context, arg AdjustGamePlay
 		&i.EnergyCounters,
 		&i.ExperienceCounters,
 		&i.IsEliminated,
+		&i.AddedBy,
 	)
 	return i, err
 }
@@ -124,7 +126,7 @@ func (q *Queries) GetGame(ctx context.Context, id pgtype.UUID) (Game, error) {
 }
 
 const getGamePlayer = `-- name: GetGamePlayer :one
-SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated FROM game_players WHERE id = $1 LIMIT 1
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by FROM game_players WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer, error) {
@@ -140,6 +142,7 @@ func (q *Queries) GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer
 		&i.EnergyCounters,
 		&i.ExperienceCounters,
 		&i.IsEliminated,
+		&i.AddedBy,
 	)
 	return i, err
 }
@@ -209,7 +212,7 @@ const setGamePlayerEliminated = `-- name: SetGamePlayerEliminated :one
 UPDATE game_players
 SET is_eliminated = $1
 WHERE id = $2
-RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by
 `
 
 type SetGamePlayerEliminatedParams struct {
@@ -230,6 +233,7 @@ func (q *Queries) SetGamePlayerEliminated(ctx context.Context, arg SetGamePlayer
 		&i.EnergyCounters,
 		&i.ExperienceCounters,
 		&i.IsEliminated,
+		&i.AddedBy,
 	)
 	return i, err
 }

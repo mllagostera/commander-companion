@@ -1,9 +1,8 @@
 # Diagrama ER — Commander Companion
 
 Diagrama entidad-relación generado a partir del esquema real (`docs/database/schema.dbml`,
-compilado a SQL en `backend/migrations/00001_initial_schema.sql` +
-`00002_auth.sql` + `00003_indices.sql` + `00004_status_constraints.sql` +
-`00005_pagination_indices.sql` + `00006_deck_image_url.sql`).
+compilado a SQL en `backend/migrations/00001_initial_schema.sql` a
+`00012_game_player_proxy_join.sql`, ver el directorio para el listado completo).
 Mantener sincronizado con el DBML cada vez que cambie el esquema.
 
 ```mermaid
@@ -14,6 +13,7 @@ erDiagram
     playgroups ||--o{ playgroup_members : "tiene"
     playgroups |o--o{ games : "agrupa (opcional)"
     users ||--o{ game_players : "juega como"
+    users |o--o{ game_players : "unió como proxy (added_by, opcional)"
     decks ||--o{ game_players : "se usa en"
     games ||--o{ game_players : "tiene"
     games ||--o{ game_actions : "registra"
@@ -84,6 +84,7 @@ erDiagram
         int energy_counters "default 0"
         int experience_counters "default 0"
         boolean is_eliminated "default false"
+        uuid added_by FK "nullable (00012): quién lo unió si no fue él mismo, ver ADR-0013"
     }
 
     game_actions {

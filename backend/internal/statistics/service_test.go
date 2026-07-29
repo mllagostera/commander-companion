@@ -64,7 +64,7 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, playgroupID string) *t
 	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	statsSvc := statistics.NewService(pool)
-	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{})
+	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{}, playgroups.NewService(pool))
 	actionsSvc := gameactions.NewService(pool, noopBroadcaster{})
 
 	user1, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
@@ -141,9 +141,11 @@ func mustFinishGame(t *testing.T, svc games.Service, gameID string) {
 	}
 }
 
-func mustRecordCombatDamage(t *testing.T, svc gameactions.Service, gameID, actorID, targetID string, amount float64) {
+func mustRecordCombatDamage(
+	t *testing.T, svc gameactions.Service, gameID, callerID, actorID, targetID string, amount float64,
+) {
 	t.Helper()
-	_, err := svc.RecordAction(context.Background(), gameID, gameactions.CreateActionRequest{
+	_, err := svc.RecordAction(context.Background(), gameID, callerID, gameactions.CreateActionRequest{
 		ActorID: actorID, TargetID: targetID, ActionType: "CombatDamage",
 		Payload: map[string]interface{}{"amount": amount},
 	})
@@ -237,7 +239,7 @@ func TestRecalculateForGame_WinnerGetsCreditForWinAndDamage(t *testing.T) {
 	g := setupTwoPlayerGame(t, pool, "")
 
 	// player1 elimina a player2 a puro CombatDamage; player1 sobrevive con vida llena.
-	mustRecordCombatDamage(t, g.actions, g.gameID, g.player1ID, g.player2ID, 40)
+	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
 	mustFinishGame(t, g.games, g.gameID)
 
 	winnerStats := mustGetUserStats(t, g.stats, g.user1.ID)
@@ -296,7 +298,7 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	statsSvc := statistics.NewService(pool)
-	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{})
+	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{}, playgroups.NewService(pool))
 
 	opponent, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "opponent-" + t.Name(), Email: "opponent-" + t.Name() + "@example.com", Password: testPassword,
@@ -335,7 +337,7 @@ func TestGetPlaygroupStats_AggregatesFinishedGames(t *testing.T) {
 	}
 
 	g := setupTwoPlayerGame(t, pool, playgroup.ID)
-	mustRecordCombatDamage(t, g.actions, g.gameID, g.player1ID, g.player2ID, 40)
+	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
 	mustFinishGame(t, g.games, g.gameID)
 
 	res, err := g.stats.GetPlaygroupStats(ctx, playgroup.ID)

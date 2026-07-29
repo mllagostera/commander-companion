@@ -44,10 +44,13 @@ data class CreateGameRequest(
 )
 
 /**
- * El jugador que se une es SIEMPRE el usuario autenticado (el backend lo toma del JWT):
- * el body solo lleva el deck, que además debe pertenecerle.
+ * Sin [userId] (o si coincide con el usuario autenticado): join normal, el jugador es el
+ * propio caller. Con [userId] distinto: proxy-join (ver ADR-0013 del backend) — el caller
+ * une a otro usuario en su nombre; solo autorizado si ambos comparten el playgroup de la
+ * partida, y [deckId] debe pertenecer a [userId], no al caller.
  */
 @Serializable
 data class JoinGameRequest(
-    @SerialName("deck_id") val deckId: String
+    @SerialName("deck_id") val deckId: String,
+    @SerialName("user_id") val userId: String? = null
 )

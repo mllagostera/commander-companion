@@ -89,6 +89,7 @@ Table game_players {
   energy_counters int [default: 0]
   experience_counters int [default: 0]
   is_eliminated boolean [default: false]
+  added_by uuid [ref: > users.id, null, note: 'Quién lo unió si no fue él mismo (proxy-join en modo Grupo, ver ADR-0013). Migración 00012_game_player_proxy_join.sql']
 
   indexes {
     game_id [note: 'Hot path de lectura de jugadores de una partida (migración 00003_indices.sql)']

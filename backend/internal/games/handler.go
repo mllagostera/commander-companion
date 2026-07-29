@@ -42,8 +42,19 @@ func (h *Handler) CreateGame(c *fiber.Ctx) error {
 }
 
 // ListGames devuelve una página del historial de partidas. Acepta los query params
-// `cursor` y `limit` (ver internal/common/pagination.go).
+// `cursor` y `limit` (ver internal/common/pagination.go). Con `playgroup_id`, en
+// cambio, devuelve el historial completo (sin paginar) de ese grupo — requiere que
+// el usuario autenticado sea miembro (ver Service.ListGamesForPlaygroup).
 func (h *Handler) ListGames(c *fiber.Ctx) error {
+	if playgroupID := c.Query("playgroup_id"); playgroupID != "" {
+		userID, _ := c.Locals(common.UserIDKey).(string)
+		res, err := h.svc.ListGamesForPlaygroup(c.Context(), playgroupID, userID)
+		if err != nil {
+			return common.MapError(err)
+		}
+		return c.JSON(res)
+	}
+
 	page, err := common.ParsePageRequest(c)
 	if err != nil {
 		return common.MapError(err)

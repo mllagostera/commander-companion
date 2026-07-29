@@ -14,6 +14,8 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
+const renamedPlaygroupName = "Nombre nuevo"
+
 func truncatePlaygroupsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	// "playgroups" limpia playgroup_members por CASCADE; "users" limpia cualquier resto.
@@ -140,6 +142,33 @@ func TestListPlaygroups_OnlyReturnsMemberships(t *testing.T) {
 	}
 }
 
+// El listado necesita los miembros poblados para que la web muestre la cantidad
+// de integrantes sin un GetPlaygroup extra por grupo.
+func TestListPlaygroups_IncludesMembers(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "list-members-owner@example.com")
+	other := createTestUser(t, pool, "list-members-other@example.com")
+
+	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "Grupo con miembros")
+	_, err := svc.AddMember(
+		context.Background(), playgroup.ID, owner.ID, playgroups.AddMemberRequest{UserID: other.ID},
+	)
+	if err != nil {
+		t.Fatalf("AddMember() error = %v", err)
+	}
+
+	list, err := svc.ListPlaygroups(context.Background(), owner.ID)
+	if err != nil {
+		t.Fatalf("ListPlaygroups() error = %v", err)
+	}
+	if len(list) != 1 || len(list[0].Members) != 2 {
+		t.Fatalf("ListPlaygroups() members = %+v, want 2", list[0].Members)
+	}
+}
+
 func TestAddMember_Success(t *testing.T) {
 	pool := testutil.DB(t)
 	truncatePlaygroupsTables(t, pool)
@@ -201,6 +230,68 @@ func TestAddMember_TargetAlreadyMember_ReturnsConflict(t *testing.T) {
 	_, err := svc.AddMember(context.Background(), playgroup.ID, owner.ID, playgroups.AddMemberRequest{UserID: owner.ID})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
 		t.Fatalf("AddMember() de alguien ya miembro: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
+	}
+}
+
+func TestUpdatePlaygroup_Success(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "update-playgroup-owner@example.com")
+	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "Nombre original")
+
+	updated, err := svc.UpdatePlaygroup(
+		context.Background(), playgroup.ID, owner.ID, playgroups.UpdatePlaygroupRequest{Name: renamedPlaygroupName},
+	)
+	if err != nil {
+		t.Fatalf("UpdatePlaygroup() error = %v, want nil", err)
+	}
+	if updated.Name != renamedPlaygroupName {
+		t.Fatalf("UpdatePlaygroup() Name = %q, want %q", updated.Name, renamedPlaygroupName)
+	}
+
+	got, err := svc.GetPlaygroup(context.Background(), owner.ID, playgroup.ID)
+	if err != nil {
+		t.Fatalf("GetPlaygroup() error = %v", err)
+	}
+	if got.Name != renamedPlaygroupName {
+		t.Fatalf("GetPlaygroup() tras renombrar: Name = %q, want %q", got.Name, renamedPlaygroupName)
+	}
+}
+
+func TestUpdatePlaygroup_EmptyName_ReturnsBadRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "update-playgroup-empty@example.com")
+	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "G")
+
+	_, err := svc.UpdatePlaygroup(
+		context.Background(), playgroup.ID, owner.ID, playgroups.UpdatePlaygroupRequest{Name: "   "},
+	)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("UpdatePlaygroup() con nombre vacío: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+// Mismo criterio de "no revelar" que AddMember: alguien ajeno al grupo no puede
+// editarlo, y la respuesta no distingue "no existe" de "no sos miembro".
+func TestUpdatePlaygroup_RequesterNotMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "update-playgroup-req-owner@example.com")
+	outsider := createTestUser(t, pool, "update-playgroup-req-outsider@example.com")
+	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "G")
+
+	_, err := svc.UpdatePlaygroup(
+		context.Background(), playgroup.ID, outsider.ID, playgroups.UpdatePlaygroupRequest{Name: "Robado"},
+	)
+	if !errors.Is(err, playgroups.ErrPlaygroupNotFound) {
+		t.Fatalf("UpdatePlaygroup() por alguien ajeno al grupo: error = %v, want ErrPlaygroupNotFound", err)
 	}
 }
 

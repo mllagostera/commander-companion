@@ -34,16 +34,18 @@ flowchart TD
 |---|---|---|---|---|
 | `LoginRoute` | `object` | ninguno | `LoginScreen` | `startDestination` del `NavHost`; login real (password o Google) vía `LoginViewModel`, un solo callback `onLoginSuccess` (no uno por método) |
 | `DashboardRoute` | `object` | ninguno | `DashboardScreen` | hub central; se llega acá tras login y tras terminar cualquier partida; expone `onLogout` (`popUpTo(0) { inclusive = true }`, vuelve a `LoginRoute` limpiando todo el back stack) |
-| `PlayerSetupRoute` | `object` | ninguno | `PlayerSetupScreen` | genera el `gameId` (UUID local) y codifica los jugadores antes de navegar |
-| `PreGameRoute` | `data class` | `gameId: String`, `playersEncoded: String` | `PreGameScreen` | agrega sorteo de turno + mulligans a los `PlayerConfig` recibidos |
-| `GameTrackerRoute` | `data class` | `gameId: String`, `playersEncoded: String`, `startingPlayerSeat: Int` | `GameTrackerScreen` | consumido por `GameViewModel` vía `SavedStateHandle` |
+| `PlayerSetupRoute` | `object` | ninguno | `PlayerSetupScreen` | genera el `gameId` (UUID local) y codifica los jugadores antes de navegar; modo Grupo (2026-07-28) también resuelve un `playgroupId`, ver `docs/ux/wireframes.md` |
+| `PreGameRoute` | `data class` | `gameId: String`, `playersEncoded: String`, `playgroupId: String? = null` | `PreGameScreen` | agrega sorteo de turno + mulligans a los `PlayerConfig` recibidos; `playgroupId` (2026-07-28) solo viaja de paso hacia `GameTrackerRoute`, esta pantalla no lo usa |
+| `GameTrackerRoute` | `data class` | `gameId: String`, `playersEncoded: String`, `startingPlayerSeat: Int`, `playgroupId: String? = null` | `GameTrackerScreen` | consumido por `GameViewModel` vía `SavedStateHandle`; `null` = partida Casual (`GameRepository.bootstrapRemoteGame` no crea nada remoto si además ningún asiento tiene `assignedUserId`) |
 | `HistoryRoute` | `object` | ninguno | `HistoryScreen` | lee de Room, no depende de ningún argumento de ruta |
 
 `playersEncoded` es un string producido por `PlayerConfigCodec`
 (`encodePlayerConfigs`/`decodePlayerConfigs`) con formato
-`name|colorKey|mulligans` por jugador — decodificación retrocompatible con
-encodes de 2 campos (sin `mulligans`) para no romper si algún caller viejo
-todavía no manda ese tercer campo.
+`name|colorKey|mulligans|assignedUserId|assignedUsername|deckId` por jugador
+(los últimos tres campos, agregados 2026-07-28 para el modo Grupo, van vacíos
+en modo Casual) — decodificación retrocompatible con encodes de menos campos
+(hasta el formato original de 2, sin `mulligans`) para no romper si algún
+caller viejo todavía no los manda.
 
 ## Reglas de back stack explícitas en el código
 

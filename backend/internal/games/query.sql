@@ -18,6 +18,11 @@ WHERE (
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg('page_limit');
 
+-- name: ListGamesForPlaygroup :many
+-- Historial de partidas de un grupo. Sin paginar: acotado a un solo playgroup,
+-- nunca se acerca al volumen de ListGamesPage (el historial global).
+SELECT * FROM games WHERE playgroup_id = $1 ORDER BY created_at DESC;
+
 -- name: StartGame :one
 UPDATE games
 SET status = 'active', started_at = now()
@@ -31,8 +36,8 @@ WHERE id = $1
 RETURNING *;
 
 -- name: AddGamePlayer :one
-INSERT INTO game_players (game_id, user_id, deck_id)
-VALUES ($1, $2, $3)
+INSERT INTO game_players (game_id, user_id, deck_id, added_by)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: RemoveGamePlayer :exec

@@ -332,7 +332,8 @@ casos de uso 1-4, esto no está bloqueado por falta de conexión al backend
 todavía no existe una pantalla que llame `CommanderApi.getUserStats`/
 `getDeckStats`/`getPlaygroupStats` (los tres métodos ya están en la interfaz,
 ver Stage 4 de `TASKS.md`), ni un `StatisticsRepository`. El cliente web
-(Nuxt) sí los consume ya (`app/pages/statistics.vue`):
+(Nuxt) sí los consume ya: `app/pages/statistics.vue` (usuario/deck) y
+`app/pages/playgroups/{index,[id]}.vue` (por grupo):
 
 - `GET /statistics/user/{id}`: `games_played`, `games_won`,
   `total_damage_dealt`, `total_commander_damage_dealt`, `total_eliminations`
@@ -366,18 +367,18 @@ la práctica ya se resolvió parcialmente vía el espejo best-effort).
 
 | Caso de uso | Backend (`internal/games`, `internal/game-actions`, `internal/statistics`) | Android (hoy) |
 |---|---|---|
-| Crear partida | `POST /games` → `pending`, multi-usuario, requiere auth | Local (`gameId` = UUID aleatorio) **+** espejo best-effort: `POST /games`+`join`+`start` para el asiento 1 |
-| Unirse | `POST /games/{id}/join`, ownership de deck, scoping por `pending` | No existe UI de invitar/unirse: "unirse" en la UI = agregar un jugador más en el setup local; el único `join` real es el automático del asiento 1 en el bootstrap |
-| Trackear vida | `POST /games/{id}/actions`, timeline auditable, auto-eliminación server-side | En memoria (`GameViewModel`) para todos los asientos; **solo el asiento 1** también espeja `LifeChange` vía `POST /games/{id}/actions` |
-| Finalizar | `POST /games/{id}/finish`, solo desde `active`, ganador derivado post-hoc | Ganador decidido en el cliente **+** `POST /games/{id}/finish` best-effort para la sesión remota del asiento 1 |
+| Crear partida | `POST /games` → `pending`, multi-usuario, requiere auth | Local (`gameId` = UUID aleatorio) **+** espejo best-effort: `POST /games`+`join`+`start` para el asiento marcado "Soy yo" |
+| Unirse | `POST /games/{id}/join`, ownership de deck, scoping por `pending` | No existe UI de invitar/unirse: "unirse" en la UI = agregar un jugador más en el setup local; el único `join` real es el automático del asiento local (elegido en `PlayerSetupScreen`, con su deck) en el bootstrap |
+| Trackear vida | `POST /games/{id}/actions`, timeline auditable, auto-eliminación server-side | En memoria (`GameViewModel`) para todos los asientos; **solo el asiento local** también espeja `LifeChange` vía `POST /games/{id}/actions` |
+| Finalizar | `POST /games/{id}/finish`, solo desde `active`, ganador derivado post-hoc | Ganador decidido en el cliente **+** `POST /games/{id}/finish` best-effort para la sesión remota del asiento local |
 | Ver estadísticas | `GET /statistics/{user,deck,playgroup}/{id}`, agregados reales | `HistoryScreen`: historial crudo de Room, sin agregación; sin pantalla ni repositorio para `/statistics/*` todavía (el cliente web sí los consume) |
 
 La brecha que queda no es "Android no habla con el backend" (ya lo hace,
-best-effort, para el asiento 1) sino: (1) sincronización en vivo de lo que
+best-effort, para el asiento local) sino: (1) sincronización en vivo de lo que
 hacen **otros** dispositivos/jugadores en la misma partida — requiere el
 cliente WebSocket de Stage 6, que consume un protocolo ya implementado del
-lado servidor ([ADR-0005](../decisions/0005-websocket-protocol.md)); (2) una
-pantalla de selección de deck real en vez de "usar el primer deck del
-usuario" (`DeckRepository.firstDeckId`, marcado como simplificación
-temporal); y (3) una pantalla de estadísticas en Android. Ver
-`docs/roadmap/TASKS.md`, Stage 4/5/6, para el detalle pieza por pieza.
+lado servidor ([ADR-0005](../decisions/0005-websocket-protocol.md)); y (2) una
+pantalla de estadísticas en Android. La selección de deck y de "qué asiento
+soy yo" (antes hardcodeada al asiento 1 + primer deck del usuario) ya es
+explícita en `PlayerSetupScreen` (2026-07-28). Ver `docs/roadmap/TASKS.md`,
+Stage 4/5/6, para el detalle pieza por pieza.

@@ -117,11 +117,28 @@ que ahora hay una sesión real que cerrar (login real, ver `LoginScreen`).
 ## 3. `PlayerSetupScreen`
 
 **Archivo:** `presentation/screens/setup/PlayerSetupScreen.kt`
+**ViewModel:** `PlayerSetupViewModel` (carga `playgroups` propios y, on-demand,
+los decks de un miembro vía `PlaygroupRepository`, cacheados por `userId`)
 **Ruta:** `PlayerSetupRoute`
+
+**Actualizado 2026-07-28** — la pantalla gana un selector **Casual / Grupo**
+(`SetupMode`, privado) antes del selector de cantidad de jugadores. Cambia
+solo cómo se completa cada asiento, no el resto del flujo (`PreGameScreen`/
+`GameTrackerScreen` no distinguen el modo — solo ven la lista final de
+`PlayerConfig`, ver `PlayerConfigCodec`).
+
+### Modo Casual (default)
+
+Sin red ni cuentas — el life tracker de siempre, campo de nombre libre:
 
 ```
 ┌─────────────────────────────────────┐
 │ Nueva partida                        │  ← headlineMedium
+│                                       │
+│ [Casual●] [ Grupo ]                  │  ← FilterChip x2, selector de modo
+│ "Sin cuentas ni estadísticas: solo   │  ← bodySmall, explica el modo activo
+│  trackear la partida en este         │
+│  dispositivo."                       │
 │                                       │
 │ Jugadores                            │  ← titleSmall
 │ [ 2 ] [ 3 ] [4●] [ 5 ] [ 6 ]         │  ← FilterChip x5 (2..6), uno seleccionado
@@ -133,39 +150,85 @@ que ahora hay una sesión real que cerrar (login real, ver `LoginScreen`).
 │ │ Nombre: [Jugador 2        ]    │ │  │  LazyColumn, weight(1f)
 │ │ ●W ●U ●B ●R ●G ●C              │ │  │  (una fila por jugador, tantas
 │ ├───────────────────────────────┤ │  │   como playerCount)
-│ │ Nombre: [Jugador 3        ]    │ │  │
-│ │ ●W ●U ●B ●R ●G ●C              │ │  │
-│ ├───────────────────────────────┤ │  │
-│ │ Nombre: [Jugador 4        ]    │ │  │
-│ │ ●W ●U ●B ●R ●G ●C              │ ↕  │
+│ │ ...                            │ ↕  │
 │ └───────────────────────────────┘    │
-│                                       │
 │  ┌─────────────────────────────────┐ │
 │  │        EMPEZAR PARTIDA           │ │  ← Button, fillMaxWidth, 56dp
 │  └─────────────────────────────────┘ │
 └─────────────────────────────────────┘
 ```
 
-**Jerarquía:** `Column` (padding 16dp) → título → subtítulo "Jugadores" →
-`Row` de `FilterChip` (uno por cada valor 2..6, `MIN_PLAYERS`/`MAX_PLAYERS`)
-→ `LazyColumn` (weight 1f) con `PlayerConfigRow` por cada jugador activo →
-`Button` final.
+### Modo Grupo
 
-Cada `PlayerConfigRow` (privado) es un `Column` con:
-- `OutlinedTextField` de nombre (default `"Jugador N"`).
-- `Row` de `ColorSwatch` (`Box` circular clicable, uno por color de
-  `PlayerColorPalette` — paleta WUBRG + incoloro), con borde de 3dp en el
-  color seleccionado.
+Reemplaza el campo de nombre libre por asignación a un miembro real del
+playgroup elegido, con su deck. Agrega un `PlaygroupPicker` (`LazyRow` de
+`FilterChip`, uno por playgroup propio) arriba de la lista de asientos:
+
+```
+┌─────────────────────────────────────┐
+│ Nueva partida                        │
+│ [ Casual ] [Grupo●]                  │
+│ "Asigná asientos a miembros de tu    │
+│  grupo: sus estadísticas quedan      │
+│  reales al terminar."                │
+│                                       │
+│ Grupo                                │  ← titleSmall
+│ [MiMesa●] [ Otro grupo ]             │  ← PlaygroupPicker, LazyRow
+│                                       │
+│ Jugadores                            │
+│ [ 2 ] [ 3 ] [4●] [ 5 ] [ 6 ]         │
+│                                       │
+│ ┌───────────────────────────────┐ ↕  │
+│ │ Asiento                        │ │  │  ← MemberPicker en vez de nombre libre
+│ │ [Invitado●] [vos] [ana] [bea]  │ │  │     ("Invitado" = casilla local, sin
+│ │ ●W ●U ●B ●R ●G ●C              │ │  │      GamePlayer remoto ni proxy-join)
+│ ├───────────────────────────────┤ │  │
+│ │ Asiento                        │ │  │  LazyColumn, weight(1f)
+│ │ [Invitado] [vos●] [ana] [bea]  │ │  │
+│ │ ●W ●U ●B ●R ●G ●C              │ │  │
+│ │ ¿Con qué deck juega?           │ │  │  ← solo si hay miembro asignado
+│ │ [Atraxa●] [Muldrotha]          │ │  │     ("todavía no tiene decks" si
+│ ├───────────────────────────────┤ │  │      la lista viene vacía)
+│ │ ...                            │ ↕  │
+│ └───────────────────────────────┘    │
+│  ┌─────────────────────────────────┐ │
+│  │        EMPEZAR PARTIDA           │ │
+│  └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+```
+
+**Jerarquía:** `Column` (padding 16dp) → título → selector Casual/Grupo
+(`Row` de 2 `FilterChip`) → texto explicativo → (solo Grupo) `PlaygroupPicker`
+→ subtítulo "Jugadores" → `Row` de `FilterChip` (2..6, `MIN_PLAYERS`/
+`MAX_PLAYERS`) → `LazyColumn` (weight 1f) con `PlayerConfigRow` por cada
+jugador activo → `Button` final.
+
+Cada `PlayerConfigRow` (privado) es un `Column` con, según el modo:
+- **Casual:** `OutlinedTextField` de nombre (default `"Jugador N"`).
+- **Grupo:** `MemberPicker` (`LazyRow` de `FilterChip`: "Invitado" + un chip
+  por miembro disponible del grupo — un miembro ya asignado a otro asiento
+  desaparece de la lista; el propio usuario se marca "(vos)"). Si hay un
+  miembro asignado y tiene decks, agrega un segundo `LazyRow` de `FilterChip`
+  para elegir con cuál juega.
+- En ambos modos: `Row` de `ColorSwatch` (`Box` circular clicable, uno por
+  color de `PlayerColorPalette` — paleta WUBRG + incoloro), con borde de 3dp
+  en el color seleccionado.
 
 **Interactivo:**
+- 2 `FilterChip` (Casual/Grupo) — cambia el modo; no resetea `playerCount`
+  ni colores, sí limpia las asignaciones de miembro/deck al cambiar de grupo.
 - 5 `FilterChip` (2 a 6 jugadores) — cambia `playerCount`, lo que
   agranda/achica la `LazyColumn` de abajo.
-- Por cada jugador visible: campo de nombre editable + 6 swatches de color
-  clicables (selección única).
-- Botón **"EMPEZAR PARTIDA"** → arma la lista de `PlayerConfig` (nombre +
-  color, con fallback a `"Jugador N"` si el nombre quedó vacío), genera un
-  `gameId` local (`UUID.randomUUID()`) y navega codificando esa lista en la
-  ruta (`onStartGame`).
+- Por cada jugador visible: nombre libre (Casual) o `MemberPicker` +
+  `FilterChip` de deck (Grupo) + 6 swatches de color clicables (selección
+  única).
+- Botón **"EMPEZAR PARTIDA"** → arma la lista de `PlayerConfig`
+  (`name`/`colorKey`, más `assignedUserId`/`assignedUsername`/`deckId` si el
+  asiento tiene un miembro de grupo asignado), genera un `gameId` local
+  (`UUID.randomUUID()`) y navega pasando también el `playgroupId` elegido
+  (`null` en modo Casual) — es lo que `GameRepository.bootstrapRemoteGame`
+  usa para decidir self-join vs. proxy-join por asiento (ver
+  [ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)).
 
 ---
 

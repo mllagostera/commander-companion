@@ -30,7 +30,21 @@ func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {
 
 // RegisterProtectedRoutes registra los endpoints de usuarios que requieren sesión.
 func (h *Handler) RegisterProtectedRoutes(router fiber.Router) {
+	router.Get("/users/search", h.SearchUsers)
 	router.Patch("/users/:id", h.UpdateProfile)
+	router.Post("/users/:id/password", h.ChangePassword)
+}
+
+// SearchUsers busca usuarios por username (parcial) o email (exacto) — para invitar a
+// un playgroup sin conocer el UUID de la otra persona (ver docs/decisions y
+// internal/playgroups.AddMember).
+func (h *Handler) SearchUsers(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.SearchUsers(c.Context(), userID, c.Query("q"))
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
 }
 
 // Register maneja la petición de registro.
@@ -109,4 +123,27 @@ func (h *Handler) UpdateProfile(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(res)
+}
+
+// ChangePassword cambia el password propio, tras validar el actual. Acotado a que
+// :id sea el propio usuario autenticado, mismo criterio que UpdateProfile.
+func (h *Handler) ChangePassword(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	if c.Params("id") != userID {
+		return common.MapError(ErrUserNotFound)
+	}
+
+	var req ChangePasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "Missing required fields")
+	}
+
+	if err := h.svc.ChangePassword(c.Context(), userID, req.CurrentPassword, req.NewPassword); err != nil {
+		return common.MapError(err)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
 }

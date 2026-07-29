@@ -24,6 +24,12 @@ const (
 	// imageURLTemplate arma el art crop de la carta "principal" del deck (la misma
 	// que Moxfield usa como su propio og:image), a partir del id corto de esa carta.
 	imageURLTemplate = "https://assets.moxfield.net/cards/card-%s-art_crop.jpg"
+	// imageURLFaceTemplate es el equivalente para el id de una CARA individual de una
+	// carta de dos caras (transform/MDFC). Ojo: "card-{faceId}" (sin "face-") también
+	// devuelve 200 pero es la colisión de otra carta cualquiera con ese mismo id corto
+	// — el namespace de ids de cara es distinto del namespace de ids de carta, y
+	// assets.moxfield.net los sirve bajo prefijos separados.
+	imageURLFaceTemplate = "https://assets.moxfield.net/cards/card-face-%s-art_crop.jpg"
 
 	// maxAttempts: 1 intento inicial + 2 reintentos ante errores transitorios
 	// (red/timeout, 5xx, 429). Un 404 nunca se reintenta, no es transitorio.
@@ -100,6 +106,10 @@ type boardCard struct {
 type cardInfo struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	// CardFaces está presente solo en cartas de dos caras (transform/modal DFC).
+	// Moxfield no cachea ningún asset de art crop bajo el id combinado de la
+	// carta (main.id) para estas: solo bajo el id de cada cara individual.
+	CardFaces []cardInfo `json:"card_faces,omitempty"`
 }
 
 // GetDeck consulta un deck público de Moxfield por su ID. Reintenta ante
@@ -197,7 +207,18 @@ func retryAfterDuration(header string) time.Duration {
 }
 
 func mainImageURL(main *cardInfo) string {
-	if main == nil || main.ID == "" {
+	if main == nil {
+		return ""
+	}
+	// Carta de dos caras: el art crop vive bajo el id de la cara (normalmente el
+	// front) y con el prefijo "card-face-", nunca bajo el id combinado que Moxfield
+	// reporta como main.id ni bajo el prefijo "card-" plano (ese id corto de cara
+	// colisiona con el namespace de ids de carta completa, sirviendo la imagen de
+	// otra carta cualquiera).
+	if len(main.CardFaces) > 0 && main.CardFaces[0].ID != "" {
+		return fmt.Sprintf(imageURLFaceTemplate, main.CardFaces[0].ID)
+	}
+	if main.ID == "" {
 		return ""
 	}
 	return fmt.Sprintf(imageURLTemplate, main.ID)

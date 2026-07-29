@@ -17,6 +17,9 @@ type Querier interface {
 	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
 	ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
+	// Historial de partidas de un grupo. Sin paginar: acotado a un solo playgroup,
+	// nunca se acerca al volumen de ListGamesPage (el historial global).
+	ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) ([]Game, error)
 	// Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
 	// devuelve la primera página; con cursor, las filas estrictamente posteriores en
 	// el orden de la lista. Ver internal/common/pagination.go.

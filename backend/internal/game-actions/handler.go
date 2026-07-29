@@ -29,7 +29,8 @@ func (h *Handler) CreateAction(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	res, err := h.svc.RecordAction(c.Context(), c.Params("id"), req)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.RecordAction(c.Context(), c.Params("id"), userID, req)
 	if err != nil {
 		return common.MapError(err)
 	}
