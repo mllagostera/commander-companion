@@ -72,6 +72,10 @@ mkdir -p "$workdir"
 # de gofmt por CRLF).
 mkdir -p "$workdir/src"
 git archive "$push_sha" | tar -x -C "$workdir/src"
+# El tar de Git for Windows reintroduce CRLF al extraer aunque el archive en
+# sí venga en LF — sin esto, gofmt marca básicamente todo el repo como "no
+# formateado" (falso positivo que no existe en el runner Linux de CI).
+find "$workdir/src" -type f -exec sed -i 's/\r$//' {} +
 
 fail=0
 
