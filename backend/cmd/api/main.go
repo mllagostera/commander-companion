@@ -34,6 +34,8 @@ const (
 	// corta en seco el credential stuffing.
 	authRateLimitMax    = 20
 	authRateLimitWindow = time.Minute
+
+	migrationsDir = "migrations"
 )
 
 func main() {
@@ -48,6 +50,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	// Migraciones antes de abrir el pool de la app (ver common.RunMigrations):
+	// deja el schema al día en cualquier entorno, incluidos los que no ofrecen
+	// un hook de "release/pre-deploy command" separado.
+	if err := common.RunMigrations(cfg.DBURL, migrationsDir); err != nil {
+		return err
+	}
+	log.Println("Migraciones aplicadas correctamente.")
 
 	db, err := common.NewDB(cfg.DBURL)
 	if err != nil {
