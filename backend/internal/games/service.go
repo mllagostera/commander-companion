@@ -44,6 +44,10 @@ var (
 	ErrNotEnoughPlayers = common.Conflict("not enough players to start")
 	// ErrGameNotActive indica que solo una partida activa puede finalizarse.
 	ErrGameNotActive = common.Conflict("only an active game can be finished")
+	// ErrPlaygroupNotFound indica que el playgroup_id no existe o el usuario autenticado
+	// no es miembro — no se distingue cuál de los dos casos es (mismo criterio que
+	// playgroups.ErrPlaygroupNotFound).
+	ErrPlaygroupNotFound = common.NotFound("playgroup not found")
 )
 
 // StatisticsRecalculator es lo que games necesita del módulo de estadísticas para
@@ -65,6 +69,9 @@ type Service interface {
 	CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error)
 	GetGame(ctx context.Context, id string) (*GameResponse, error)
 	ListGames(ctx context.Context, page common.PageRequest) (*GameListResponse, error)
+	// ListGamesForPlaygroup devuelve el historial completo de partidas de un grupo,
+	// si el usuario indicado es miembro.
+	ListGamesForPlaygroup(ctx context.Context, playgroupID, userID string) (*GameListResponse, error)
 	JoinGame(ctx context.Context, gameID, userID string, req JoinGameRequest) (*GamePlayerResponse, error)
 	LeaveGame(ctx context.Context, gameID, userID string) error
 	StartGame(ctx context.Context, gameID string) (*GameResponse, error)
@@ -148,6 +155,44 @@ func (s *service) ListGames(ctx context.Context, page common.PageRequest) (*Game
 		items = append(items, *toGameResponse(&rows[i], nil))
 	}
 	return &GameListResponse{Items: items, NextCursor: nextCursor}, nil
+}
+
+// ListGamesForPlaygroup devuelve el historial completo de partidas de un grupo, de
+// la más reciente a la más vieja, sin paginar (ver el comentario de
+// ListGamesForPlaygroup en query.sql). Requiere que userID sea miembro del grupo,
+// mismo criterio de "no revelar" que playgroups.GetPlaygroup.
+func (s *service) ListGamesForPlaygroup(ctx context.Context, playgroupID, userID string) (*GameListResponse, error) {
+	pid, err := common.ParseUUID(playgroupID)
+	if err != nil {
+		return nil, ErrPlaygroupNotFound
+	}
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, ErrPlaygroupNotFound
+	}
+
+	isMember, err := s.repo.IsPlaygroupMember(ctx, IsPlaygroupMemberParams{PlaygroupID: pid, UserID: uid})
+	if err != nil {
+		return nil, fmt.Errorf("checking playgroup membership: %w", err)
+	}
+	if !isMember {
+		return nil, ErrPlaygroupNotFound
+	}
+
+	rows, err := s.repo.ListGamesForPlaygroup(ctx, pid)
+	if err != nil {
+		return nil, fmt.Errorf("listing playgroup games: %w", err)
+	}
+
+	items := make([]GameResponse, 0, len(rows))
+	for i := range rows {
+		players, err := s.repo.ListGamePlayers(ctx, rows[i].ID)
+		if err != nil {
+			return nil, fmt.Errorf("listing game players: %w", err)
+		}
+		items = append(items, *toGameResponse(&rows[i], players))
+	}
+	return &GameListResponse{Items: items, NextCursor: nil}, nil
 }
 
 // decodeCursor traduce el cursor opaco de la request a los parámetros de la query.

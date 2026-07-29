@@ -12,6 +12,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	"github.com/usuario/commander-companion-backend/internal/games"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
+	"github.com/usuario/commander-companion-backend/internal/playgroups"
 	"github.com/usuario/commander-companion-backend/internal/statistics"
 	"github.com/usuario/commander-companion-backend/internal/testutil"
 	"github.com/usuario/commander-companion-backend/internal/users"
@@ -35,10 +36,11 @@ type noopBroadcaster struct{}
 
 func (noopBroadcaster) BroadcastGameFinished(_ string) {}
 
-// newGamesSvc crea un games.Service con el recalculador de estadísticas real
-// (sobre el mismo pool), así FinishGame ejercita el flujo completo en los tests.
+// newGamesSvc crea un games.Service con el recalculador de estadísticas y el
+// checker de membresía de playgroups reales (sobre el mismo pool), así FinishGame
+// y los proxy-joins ejercitan el flujo completo en los tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
-	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{})
+	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{}, playgroups.NewService(pool))
 }
 
 func truncateGamesTables(t *testing.T, pool *pgxpool.Pool) {
@@ -212,6 +214,128 @@ func TestJoinGame_UnknownGame_ReturnsNotFound(t *testing.T) {
 	)
 	if !errors.Is(err, games.ErrGameNotFound) {
 		t.Fatalf("JoinGame() en partida inexistente: error = %v, want ErrGameNotFound", err)
+	}
+}
+
+// createPlaygroupWithMembers crea un playgroup con creatorID como primer miembro
+// (ver playgroups.CreatePlaygroup) y agrega el resto de memberIDs.
+func createPlaygroupWithMembers(t *testing.T, pool *pgxpool.Pool, creatorID string, memberIDs ...string) string {
+	t.Helper()
+	ctx := context.Background()
+	pgSvc := playgroups.NewService(pool)
+
+	pg, err := pgSvc.CreatePlaygroup(ctx, creatorID, playgroups.CreatePlaygroupRequest{Name: "Grupo de " + t.Name()})
+	if err != nil {
+		t.Fatalf("creando playgroup: %v", err)
+	}
+	for _, memberID := range memberIDs {
+		if _, err := pgSvc.AddMember(ctx, pg.ID, creatorID, playgroups.AddMemberRequest{UserID: memberID}); err != nil {
+			t.Fatalf("agregando miembro %s: %v", memberID, err)
+		}
+	}
+	return pg.ID
+}
+
+func TestJoinGame_ProxyJoin_Success(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	caller, _ := createUserAndDeck(t, pool, "proxy-caller@example.com")
+	target, targetDeck := createUserAndDeck(t, pool, "proxy-target@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, caller, target)
+	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+
+	player, err := svc.JoinGame(
+		context.Background(), game.ID, caller, games.JoinGameRequest{DeckID: targetDeck, UserID: target},
+	)
+	if err != nil {
+		t.Fatalf("JoinGame() proxy error = %v, want nil", err)
+	}
+	if player.UserID != target || player.DeckID != targetDeck {
+		t.Fatalf("JoinGame() proxy devolvió datos inesperados: %+v", player)
+	}
+}
+
+func TestJoinGame_ProxyJoin_WithoutPlaygroup_ReturnsBadRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	caller, _ := createUserAndDeck(t, pool, "proxy-nogroup-caller@example.com")
+	target, targetDeck := createUserAndDeck(t, pool, "proxy-nogroup-target@example.com")
+	game := mustCreateGame(t, svc) // sin playgroup_id
+
+	_, err := svc.JoinGame(
+		context.Background(), game.ID, caller, games.JoinGameRequest{DeckID: targetDeck, UserID: target},
+	)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("JoinGame() proxy sin playgroup: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+func TestJoinGame_ProxyJoin_TargetNotInPlaygroup_ReturnsForbidden(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	caller, _ := createUserAndDeck(t, pool, "proxy-outsider-caller@example.com")
+	target, targetDeck := createUserAndDeck(t, pool, "proxy-outsider-target@example.com")
+	// El playgroup del caller no incluye a target.
+	playgroupID := createPlaygroupWithMembers(t, pool, caller)
+	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+
+	_, err = svc.JoinGame(context.Background(), game.ID, caller, games.JoinGameRequest{DeckID: targetDeck, UserID: target})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusForbidden {
+		t.Fatalf("JoinGame() proxy con target ajeno al grupo: code = %d, want %d", fiberErr.Code, fiber.StatusForbidden)
+	}
+}
+
+func TestJoinGame_ProxyJoin_CallerNotInPlaygroup_ReturnsForbidden(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	caller, _ := createUserAndDeck(t, pool, "proxy-nonmember-caller@example.com")
+	owner, _ := createUserAndDeck(t, pool, "proxy-nonmember-owner@example.com")
+	target, targetDeck := createUserAndDeck(t, pool, "proxy-nonmember-target@example.com")
+	// El caller no es miembro del playgroup, aunque target sí.
+	playgroupID := createPlaygroupWithMembers(t, pool, owner, target)
+	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+
+	_, err = svc.JoinGame(context.Background(), game.ID, caller, games.JoinGameRequest{DeckID: targetDeck, UserID: target})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusForbidden {
+		t.Fatalf("JoinGame() proxy con caller ajeno al grupo: code = %d, want %d", fiberErr.Code, fiber.StatusForbidden)
+	}
+}
+
+func TestJoinGame_ProxyJoin_DeckMustBelongToTarget_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	caller, callerDeck := createUserAndDeck(t, pool, "proxy-deck-caller@example.com")
+	target, _ := createUserAndDeck(t, pool, "proxy-deck-target@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, caller, target)
+	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+
+	// El deck es del caller, no del target: no debería alcanzar aunque ambos
+	// compartan grupo — el deck del proxy-join tiene que ser del jugador sentado.
+	_, err = svc.JoinGame(context.Background(), game.ID, caller, games.JoinGameRequest{DeckID: callerDeck, UserID: target})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("JoinGame() proxy con deck del caller: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
 	}
 }
 
@@ -397,5 +521,54 @@ func TestGetGame_MalformedID_ReturnsNotFound(t *testing.T) {
 	_, err := svc.GetGame(context.Background(), "not-a-uuid")
 	if !errors.Is(err, games.ErrGameNotFound) {
 		t.Fatalf("GetGame() con id malformado: error = %v, want ErrGameNotFound", err)
+	}
+}
+
+func TestListGamesForPlaygroup_Success(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	userID, deckID := createUserAndDeck(t, pool, "list-games-playgroup@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, userID)
+
+	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+	mustJoin(t, svc, game.ID, userID, deckID)
+
+	// Una partida sin este playgroup no debería aparecer en su historial.
+	mustCreateGame(t, svc)
+
+	res, err := svc.ListGamesForPlaygroup(context.Background(), playgroupID, userID)
+	if err != nil {
+		t.Fatalf("ListGamesForPlaygroup() error = %v, want nil", err)
+	}
+	if len(res.Items) != 1 || res.Items[0].ID != game.ID {
+		t.Fatalf("ListGamesForPlaygroup() = %+v, want solo %q", res.Items, game.ID)
+	}
+	if len(res.Items[0].Players) != 1 {
+		t.Fatalf("ListGamesForPlaygroup() players = %+v, want 1", res.Items[0].Players)
+	}
+}
+
+// Mismo criterio de "no revelar" que playgroups.GetPlaygroup: alguien ajeno al
+// grupo no puede ver su historial, sin distinguir "no existe" de "no sos miembro".
+func TestListGamesForPlaygroup_NotAMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	owner, _ := createUserAndDeck(t, pool, "list-games-owner@example.com")
+	outsider, _ := createUserAndDeck(t, pool, "list-games-outsider@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, owner)
+
+	_, err := svc.ListGamesForPlaygroup(context.Background(), playgroupID, outsider)
+	if !errors.Is(err, games.ErrPlaygroupNotFound) {
+		t.Fatalf("ListGamesForPlaygroup() de alguien ajeno: error = %v, want ErrPlaygroupNotFound", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("ListGamesForPlaygroup() de alguien ajeno: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
 	}
 }

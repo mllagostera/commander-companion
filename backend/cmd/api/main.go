@@ -146,7 +146,7 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	wsHub := websocket.NewHub()
 	websocket.RegisterRoutes(api, wsHub, cfg.Auth.JWTSecret)
 
-	gamesService := games.NewService(db.Pool, statisticsService, wsHub)
+	gamesService := games.NewService(db.Pool, statisticsService, wsHub, playgroupsService)
 	games.NewHandler(gamesService).RegisterRoutes(protected)
 
 	gameActionsService := gameactions.NewService(db.Pool, wsHub)

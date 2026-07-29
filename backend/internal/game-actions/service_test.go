@@ -14,6 +14,7 @@ import (
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
+	"github.com/usuario/commander-companion-backend/internal/playgroups"
 	"github.com/usuario/commander-companion-backend/internal/statistics"
 	"github.com/usuario/commander-companion-backend/internal/testutil"
 	"github.com/usuario/commander-companion-backend/internal/users"
@@ -27,10 +28,11 @@ type noopBroadcaster struct{}
 func (noopBroadcaster) BroadcastGameFinished(_ string)                              {}
 func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionResponse) {}
 
-// newGamesSvc crea un games.Service con el recalculador de estadísticas real
-// (sobre el mismo pool), así FinishGame ejercita el flujo completo en los tests.
+// newGamesSvc crea un games.Service con el recalculador de estadísticas y el
+// checker de membresía de playgroups reales (sobre el mismo pool), así FinishGame
+// y los proxy-joins ejercitan el flujo completo en los tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
-	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{})
+	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{}, playgroups.NewService(pool))
 }
 
 // newActionsSvc crea un gameactions.Service con un Broadcaster noop (estos tests no
@@ -91,41 +93,50 @@ func amountPayload(amount float64) map[string]interface{} {
 }
 
 func mustRecordAction(
-	t *testing.T, svc gameactions.Service, gameID string, req gameactions.CreateActionRequest,
+	t *testing.T, actionsSvc gameactions.Service, gameID, callerID string, req gameactions.CreateActionRequest,
 ) *gameactions.GameActionResponse {
 	t.Helper()
-	action, err := svc.RecordAction(context.Background(), gameID, req)
+	action, err := actionsSvc.RecordAction(context.Background(), gameID, callerID, req)
 	if err != nil {
 		t.Fatalf("RecordAction(%s) error = %v, want nil", req.ActionType, err)
 	}
 	return action
 }
 
-// setupActiveGame crea 2 usuarios con sus decks, una partida, los une a ambos y
-// la inicia, dejando todo listo para ejercitar RecordAction/GetTimeline.
-func setupActiveGame(t *testing.T, pool *pgxpool.Pool) (
-	gamesSvc games.Service, actionsSvc gameactions.Service, gameID, player1ID, player2ID string,
-) {
+func mustRegisterUser(t *testing.T, usersSvc users.Service, prefix string) *users.UserResponse {
+	t.Helper()
+	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
+		Username: prefix, Email: prefix + "@example.com", Password: testPassword,
+	})
+	if err != nil {
+		t.Fatalf("registrando usuario %s: %v", prefix, err)
+	}
+	return user
+}
+
+// activeGame agrupa los servicios y IDs de una partida de 2 jugadores activa, lista
+// para ejercitar RecordAction/GetTimeline. player1ID/player2ID son GamePlayer.ID
+// (para actor_id/target_id); user1ID/user2ID son los user.ID subyacentes que se
+// unieron a sí mismos (para el caller de RecordAction).
+type activeGame struct {
+	games              games.Service
+	actions            gameactions.Service
+	gameID             string
+	player1ID, user1ID string
+	player2ID, user2ID string
+}
+
+func setupActiveGame(t *testing.T, pool *pgxpool.Pool) activeGame {
 	t.Helper()
 	ctx := context.Background()
 
 	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
-	gamesSvc = newGamesSvc(pool)
-	actionsSvc = newActionsSvc(pool)
+	gamesSvc := newGamesSvc(pool)
+	actionsSvc := newActionsSvc(pool)
 
-	user1, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
-		Username: "p1-" + t.Name(), Email: "p1-" + t.Name() + "@example.com", Password: testPassword,
-	})
-	if err != nil {
-		t.Fatalf("registrando usuario 1: %v", err)
-	}
-	user2, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
-		Username: "p2-" + t.Name(), Email: "p2-" + t.Name() + "@example.com", Password: testPassword,
-	})
-	if err != nil {
-		t.Fatalf("registrando usuario 2: %v", err)
-	}
+	user1 := mustRegisterUser(t, usersSvc, "p1-"+t.Name())
+	user2 := mustRegisterUser(t, usersSvc, "p2-"+t.Name())
 
 	deck1, err := decksSvc.CreateDeck(ctx, user1.ID, decks.CreateDeckRequest{Name: "D1", Commander: "C1"})
 	if err != nil {
@@ -154,15 +165,20 @@ func setupActiveGame(t *testing.T, pool *pgxpool.Pool) (
 		t.Fatalf("StartGame() error = %v", err)
 	}
 
-	return gamesSvc, actionsSvc, game.ID, p1.ID, p2.ID
+	return activeGame{
+		games: gamesSvc, actions: actionsSvc, gameID: game.ID,
+		player1ID: p1.ID, user1ID: user1.ID,
+		player2ID: p2.ID, user2ID: user2.ID,
+	}
 }
 
 // setupActiveGameWithPlayers crea n usuarios+decks, los une a una partida (en orden,
 // mientras sigue pending) y la inicia. Usado por los tests de CommanderDamage que
 // necesitan más de 2 asientos para verificar que el daño se trackea por par
-// atacante-defensor, no agregado entre distintos atacantes.
+// atacante-defensor, no agregado entre distintos atacantes. userIDs es paralelo a
+// playerIDs (userIDs[i] es el dueño de playerIDs[i], para el caller de RecordAction).
 func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
-	gamesSvc games.Service, actionsSvc gameactions.Service, gameID string, playerIDs []string,
+	gamesSvc games.Service, actionsSvc gameactions.Service, gameID string, playerIDs, userIDs []string,
 ) {
 	t.Helper()
 	ctx := context.Background()
@@ -178,14 +194,10 @@ func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
 	}
 
 	playerIDs = make([]string, 0, n)
+	userIDs = make([]string, 0, n)
 	for i := 0; i < n; i++ {
 		suffix := fmt.Sprintf("%s-%d", t.Name(), i)
-		user, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
-			Username: "u-" + suffix, Email: "u-" + suffix + "@example.com", Password: testPassword,
-		})
-		if err != nil {
-			t.Fatalf("registrando usuario %d: %v", i, err)
-		}
+		user := mustRegisterUser(t, usersSvc, "u-"+suffix)
 		deck, err := decksSvc.CreateDeck(ctx, user.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
 		if err != nil {
 			t.Fatalf("creando deck %d: %v", i, err)
@@ -195,13 +207,84 @@ func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
 			t.Fatalf("JoinGame(%d) error = %v", i, err)
 		}
 		playerIDs = append(playerIDs, player.ID)
+		userIDs = append(userIDs, user.ID)
 	}
 
 	if _, err := gamesSvc.StartGame(ctx, game.ID); err != nil {
 		t.Fatalf("StartGame() error = %v", err)
 	}
 
-	return gamesSvc, actionsSvc, game.ID, playerIDs
+	return gamesSvc, actionsSvc, game.ID, playerIDs, userIDs
+}
+
+// proxyJoinedGame es una partida de grupo donde el scorekeeper se sentó a sí mismo
+// y, además, proxy-joineó a teammate (ver ADR-0013) — el escenario de "un solo
+// dispositivo anota por toda la mesa".
+type proxyJoinedGame struct {
+	games            games.Service
+	actions          gameactions.Service
+	gameID           string
+	scorekeeperID    string
+	teammatePlayerID string
+}
+
+func setupProxyJoinedGame(t *testing.T, pool *pgxpool.Pool) proxyJoinedGame {
+	t.Helper()
+	ctx := context.Background()
+
+	usersSvc := testutil.NewUsersService(pool)
+	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
+	gamesSvc := newGamesSvc(pool)
+	actionsSvc := newActionsSvc(pool)
+	pgSvc := playgroups.NewService(pool)
+
+	scorekeeper := mustRegisterUser(t, usersSvc, "scorekeeper-"+t.Name())
+	teammate := mustRegisterUser(t, usersSvc, "teammate-"+t.Name())
+
+	teammateDeck, err := decksSvc.CreateDeck(ctx, teammate.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
+	if err != nil {
+		t.Fatalf("creando deck del teammate: %v", err)
+	}
+	scorekeeperDeck, err := decksSvc.CreateDeck(ctx, scorekeeper.ID, decks.CreateDeckRequest{Name: "D2", Commander: "C2"})
+	if err != nil {
+		t.Fatalf("creando deck del scorekeeper: %v", err)
+	}
+
+	playgroup, err := pgSvc.CreatePlaygroup(ctx, scorekeeper.ID, playgroups.CreatePlaygroupRequest{Name: "Grupo"})
+	if err != nil {
+		t.Fatalf("creando playgroup: %v", err)
+	}
+	if _, addErr := pgSvc.AddMember(
+		ctx, playgroup.ID, scorekeeper.ID, playgroups.AddMemberRequest{UserID: teammate.ID},
+	); addErr != nil {
+		t.Fatalf("agregando teammate al playgroup: %v", addErr)
+	}
+
+	game, err := gamesSvc.CreateGame(ctx, games.CreateGameRequest{PlaygroupID: playgroup.ID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+	// El scorekeeper une al teammate como proxy: queda con added_by = scorekeeper.
+	teammatePlayer, err := gamesSvc.JoinGame(
+		ctx, game.ID, scorekeeper.ID, games.JoinGameRequest{DeckID: teammateDeck.ID, UserID: teammate.ID},
+	)
+	if err != nil {
+		t.Fatalf("JoinGame() proxy error = %v", err)
+	}
+	// Segundo asiento (el propio scorekeeper, self-join) para poder iniciar (minPlayersToStart = 2).
+	if _, joinErr := gamesSvc.JoinGame(
+		ctx, game.ID, scorekeeper.ID, games.JoinGameRequest{DeckID: scorekeeperDeck.ID},
+	); joinErr != nil {
+		t.Fatalf("JoinGame() del scorekeeper error = %v", joinErr)
+	}
+	if _, startErr := gamesSvc.StartGame(ctx, game.ID); startErr != nil {
+		t.Fatalf("StartGame() error = %v", startErr)
+	}
+
+	return proxyJoinedGame{
+		games: gamesSvc, actions: actionsSvc, gameID: game.ID,
+		scorekeeperID: scorekeeper.ID, teammatePlayerID: teammatePlayer.ID,
+	}
 }
 
 func playerByID(t *testing.T, players []games.GamePlayerResponse, id string) *games.GamePlayerResponse {
@@ -218,19 +301,19 @@ func playerByID(t *testing.T, players []games.GamePlayerResponse, id string) *ga
 func TestRecordAction_LifeChange_AppliesToActorWhenNoTarget(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
 		ActionType: actionTypeLifeChange,
 		Payload:    amountPayload(-3),
 	})
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	if got := playerByID(t, game.Players, player1ID).LifeTotal; got != 37 {
+	if got := playerByID(t, game.Players, g.player1ID).LifeTotal; got != 37 {
 		t.Fatalf("LifeTotal tras LifeChange(-3) sin target = %d, want 37", got)
 	}
 }
@@ -238,24 +321,24 @@ func TestRecordAction_LifeChange_AppliesToActorWhenNoTarget(t *testing.T) {
 func TestRecordAction_CombatDamage_ReducesTargetLife(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, player2ID := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
-		TargetID:   player2ID,
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
+		TargetID:   g.player2ID,
 		ActionType: actionTypeCombatDamage,
 		Payload:    amountPayload(15),
 	})
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	target := playerByID(t, game.Players, player2ID)
+	target := playerByID(t, game.Players, g.player2ID)
 	if target.LifeTotal != 25 {
 		t.Fatalf("LifeTotal del target tras CombatDamage(15) = %d, want 25", target.LifeTotal)
 	}
-	if playerByID(t, game.Players, player1ID).LifeTotal != 40 {
+	if playerByID(t, game.Players, g.player1ID).LifeTotal != 40 {
 		t.Fatalf("LifeTotal del actor no debería cambiar por daño a otro jugador")
 	}
 }
@@ -263,20 +346,20 @@ func TestRecordAction_CombatDamage_ReducesTargetLife(t *testing.T) {
 func TestRecordAction_CombatDamage_AutoEliminatesAtZeroLife(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, player2ID := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
-		TargetID:   player2ID,
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
+		TargetID:   g.player2ID,
 		ActionType: actionTypeCombatDamage,
 		Payload:    amountPayload(40),
 	})
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	target := playerByID(t, game.Players, player2ID)
+	target := playerByID(t, game.Players, g.player2ID)
 	if target.LifeTotal != 0 {
 		t.Fatalf("LifeTotal = %d, want 0", target.LifeTotal)
 	}
@@ -288,22 +371,22 @@ func TestRecordAction_CombatDamage_AutoEliminatesAtZeroLife(t *testing.T) {
 func TestRecordAction_CommanderDamage_AccumulatesAndReducesLife(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, player2ID := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
 	for range 2 {
-		mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-			ActorID:    player1ID,
-			TargetID:   player2ID,
+		mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+			ActorID:    g.player1ID,
+			TargetID:   g.player2ID,
 			ActionType: actionTypeCommanderDamage,
 			Payload:    amountPayload(5),
 		})
 	}
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	target := playerByID(t, game.Players, player2ID)
+	target := playerByID(t, game.Players, g.player2ID)
 	if target.LifeTotal != 30 {
 		t.Fatalf("LifeTotal tras 2x CommanderDamage(5) = %d, want 30", target.LifeTotal)
 	}
@@ -315,10 +398,10 @@ func TestRecordAction_CommanderDamage_AccumulatesAndReducesLife(t *testing.T) {
 func TestRecordAction_CommanderDamage_MissingTarget_ReturnsBadRequest(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	_, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	_, err := actionsSvc.RecordAction(context.Background(), gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
 		ActionType: actionTypeCommanderDamage,
 		Payload:    amountPayload(5),
 		// Sin target_id: CommanderDamage no tiene sentido sin un defensor identificado.
@@ -331,11 +414,11 @@ func TestRecordAction_CommanderDamage_MissingTarget_ReturnsBadRequest(t *testing
 func TestRecordAction_CommanderDamage_SelfTarget_ReturnsBadRequest(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	_, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	_, err := actionsSvc.RecordAction(context.Background(), gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
-		TargetID:   player1ID,
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
+		TargetID:   g.player1ID,
 		ActionType: actionTypeCommanderDamage,
 		Payload:    amountPayload(5),
 	})
@@ -348,20 +431,20 @@ func TestRecordAction_CommanderDamage_SelfTarget_ReturnsBadRequest(t *testing.T)
 func TestRecordAction_CommanderDamage_EliminatesAt21FromSingleSourceWithPositiveLife(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, player2ID := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID: player1ID, TargetID: player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(15),
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(15),
 	})
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID: player1ID, TargetID: player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(6),
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(6),
 	})
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	target := playerByID(t, game.Players, player2ID)
+	target := playerByID(t, game.Players, g.player2ID)
 	if target.LifeTotal != 19 {
 		t.Fatalf("LifeTotal tras 21 de comandante = %d, want 19 (vida positiva)", target.LifeTotal)
 	}
@@ -373,13 +456,14 @@ func TestRecordAction_CommanderDamage_EliminatesAt21FromSingleSourceWithPositive
 func TestRecordAction_CommanderDamage_DistinctAttackersDoNotCombine(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, playerIDs := setupActiveGameWithPlayers(t, pool, 3)
+	gamesSvc, actionsSvc, gameID, playerIDs, userIDs := setupActiveGameWithPlayers(t, pool, 3)
 	attackerA, attackerB, defender := playerIDs[0], playerIDs[1], playerIDs[2]
+	userA, userB := userIDs[0], userIDs[1]
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+	mustRecordAction(t, actionsSvc, gameID, userA, gameactions.CreateActionRequest{
 		ActorID: attackerA, TargetID: defender, ActionType: actionTypeCommanderDamage, Payload: amountPayload(15),
 	})
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
+	mustRecordAction(t, actionsSvc, gameID, userB, gameactions.CreateActionRequest{
 		ActorID: attackerB, TargetID: defender, ActionType: actionTypeCommanderDamage, Payload: amountPayload(15),
 	})
 
@@ -399,28 +483,28 @@ func TestRecordAction_CommanderDamage_DistinctAttackersDoNotCombine(t *testing.T
 func TestRecordAction_PoisonCounter_AutoEliminatesAtThreshold(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, player2ID := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 	ctx := context.Background()
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID: player1ID, TargetID: player2ID, ActionType: actionTypePoisonCounter, Payload: amountPayload(9),
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypePoisonCounter, Payload: amountPayload(9),
 	})
-	game, err := gamesSvc.GetGame(ctx, gameID)
+	game, err := g.games.GetGame(ctx, g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	if target := playerByID(t, game.Players, player2ID); target.IsEliminated {
+	if target := playerByID(t, game.Players, g.player2ID); target.IsEliminated {
 		t.Fatalf("con 9 contadores de veneno no debería estar eliminado todavía")
 	}
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID: player1ID, TargetID: player2ID, ActionType: actionTypePoisonCounter, Payload: amountPayload(1),
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypePoisonCounter, Payload: amountPayload(1),
 	})
-	game, err = gamesSvc.GetGame(ctx, gameID)
+	game, err = g.games.GetGame(ctx, g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	target := playerByID(t, game.Players, player2ID)
+	target := playerByID(t, game.Players, g.player2ID)
 	if target.PoisonCounters != 10 {
 		t.Fatalf("PoisonCounters = %d, want 10", target.PoisonCounters)
 	}
@@ -432,18 +516,18 @@ func TestRecordAction_PoisonCounter_AutoEliminatesAtThreshold(t *testing.T) {
 func TestRecordAction_Elimination_MarksSelfEliminated(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
 		ActionType: actionTypeElimination,
 	})
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	if !playerByID(t, game.Players, player1ID).IsEliminated {
+	if !playerByID(t, game.Players, g.player1ID).IsEliminated {
 		t.Fatalf("Elimination sin target debería marcar al propio actor como eliminado")
 	}
 }
@@ -451,37 +535,37 @@ func TestRecordAction_Elimination_MarksSelfEliminated(t *testing.T) {
 func TestRecordAction_TurnStart_SetsCurrentTurnPlayer(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
 		ActionType: actionTypeTurnStart,
 	})
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	if game.CurrentTurnPlayerID == nil || *game.CurrentTurnPlayerID != player1ID {
-		t.Fatalf("CurrentTurnPlayerID = %v, want %q", game.CurrentTurnPlayerID, player1ID)
+	if game.CurrentTurnPlayerID == nil || *game.CurrentTurnPlayerID != g.player1ID {
+		t.Fatalf("CurrentTurnPlayerID = %v, want %q", game.CurrentTurnPlayerID, g.player1ID)
 	}
 }
 
 func TestRecordAction_TurnEnd_ClearsCurrentTurnPlayer(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	gamesSvc, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
 		ActionType: actionTypeTurnStart,
 	})
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
 		ActionType: actionTypeTurnEnd,
 	})
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -493,10 +577,10 @@ func TestRecordAction_TurnEnd_ClearsCurrentTurnPlayer(t *testing.T) {
 func TestRecordAction_InvalidActionType_ReturnsBadRequest(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	_, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	_, err := actionsSvc.RecordAction(context.Background(), gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
 		ActionType: "NotARealActionType",
 	})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
@@ -507,10 +591,10 @@ func TestRecordAction_InvalidActionType_ReturnsBadRequest(t *testing.T) {
 func TestRecordAction_MissingAmount_ReturnsBadRequest(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	_, actionsSvc, gameID, player1ID, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	_, err := actionsSvc.RecordAction(context.Background(), gameID, gameactions.CreateActionRequest{
-		ActorID:    player1ID,
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
 		ActionType: actionTypeLifeChange,
 		// Sin payload.amount.
 	})
@@ -529,12 +613,7 @@ func TestRecordAction_GameNotActive_ReturnsConflict(t *testing.T) {
 	gamesSvc := newGamesSvc(pool)
 	actionsSvc := newActionsSvc(pool)
 
-	user, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
-		Username: "pending-actor", Email: "pending-actor@example.com", Password: testPassword,
-	})
-	if err != nil {
-		t.Fatalf("registrando usuario: %v", err)
-	}
+	user := mustRegisterUser(t, usersSvc, "pending-actor")
 	deck, err := decksSvc.CreateDeck(ctx, user.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
 	if err != nil {
 		t.Fatalf("creando deck: %v", err)
@@ -549,7 +628,7 @@ func TestRecordAction_GameNotActive_ReturnsConflict(t *testing.T) {
 	}
 	// Partida deliberadamente dejada en pending (no se llama a StartGame).
 
-	_, err = actionsSvc.RecordAction(ctx, game.ID, gameactions.CreateActionRequest{
+	_, err = actionsSvc.RecordAction(ctx, game.ID, user.ID, gameactions.CreateActionRequest{
 		ActorID: player.ID, ActionType: actionTypeLifeChange, Payload: amountPayload(1),
 	})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
@@ -566,7 +645,7 @@ func TestRecordAction_UnknownGame_ReturnsNotFound(t *testing.T) {
 		ActorID:    "00000000-0000-0000-0000-000000000000",
 		ActionType: actionTypeTurnStart,
 	}
-	_, err := actionsSvc.RecordAction(context.Background(), "00000000-0000-0000-0000-000000000000", req)
+	_, err := actionsSvc.RecordAction(context.Background(), "00000000-0000-0000-0000-000000000000", "irrelevant", req)
 	if !errors.Is(err, gameactions.ErrGameNotFound) {
 		t.Fatalf("RecordAction() en partida inexistente: error = %v, want ErrGameNotFound", err)
 	}
@@ -575,9 +654,9 @@ func TestRecordAction_UnknownGame_ReturnsNotFound(t *testing.T) {
 func TestRecordAction_ActorNotInGame_ReturnsNotFound(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	_, actionsSvc, gameID, _, _ := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	_, err := actionsSvc.RecordAction(context.Background(), gameID, gameactions.CreateActionRequest{
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
 		ActorID:    "00000000-0000-0000-0000-000000000000",
 		ActionType: actionTypeTurnStart,
 	})
@@ -586,19 +665,74 @@ func TestRecordAction_ActorNotInGame_ReturnsNotFound(t *testing.T) {
 	}
 }
 
+// El caller siempre fue el dueño del actor en los tests de arriba (el único caso que
+// existía en producción hasta ahora). Estos cubren la regla nueva de autorización
+// (ver ADR-0013): dueño ok, quien lo proxy-joineó ok, cualquier otro 403 — antes de
+// este cambio, cualquier usuario autenticado que conociera el actor_id podía
+// registrar acciones en su nombre.
+func TestRecordAction_CallerIsActorOwner_Allowed(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	g := setupActiveGame(t, pool)
+
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID: g.player1ID, ActionType: actionTypeLifeChange, Payload: amountPayload(-1),
+	})
+	if err != nil {
+		t.Fatalf("RecordAction() del dueño del actor: error = %v, want nil", err)
+	}
+}
+
+func TestRecordAction_CallerIsUnrelatedUser_ReturnsForbidden(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	g := setupActiveGame(t, pool)
+
+	// user2 tiene su propio GamePlayer en esta partida, pero no es dueño de
+	// player1ID ni lo proxy-joineó: no puede actuar por él.
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user2ID, gameactions.CreateActionRequest{
+		ActorID: g.player1ID, ActionType: actionTypeLifeChange, Payload: amountPayload(-1),
+	})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusForbidden {
+		t.Fatalf("RecordAction() de un usuario ajeno al actor: code = %d, want %d", fiberErr.Code, fiber.StatusForbidden)
+	}
+}
+
+func TestRecordAction_CallerProxyJoinedTheActor_Allowed(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	g := setupProxyJoinedGame(t, pool)
+
+	// El scorekeeper (no el teammate) registra la acción del asiento del teammate.
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.scorekeeperID, gameactions.CreateActionRequest{
+		ActorID: g.teammatePlayerID, ActionType: actionTypeLifeChange, Payload: amountPayload(-4),
+	})
+	if err != nil {
+		t.Fatalf("RecordAction() del scorekeeper por el teammate proxy-joineado: error = %v, want nil", err)
+	}
+
+	game, err := g.games.GetGame(context.Background(), g.gameID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	if got := playerByID(t, game.Players, g.teammatePlayerID).LifeTotal; got != 36 {
+		t.Fatalf("LifeTotal del teammate tras LifeChange(-4) del scorekeeper = %d, want 36", got)
+	}
+}
+
 func TestGetTimeline_ReturnsActionsInOrder(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
-	_, actionsSvc, gameID, player1ID, player2ID := setupActiveGame(t, pool)
+	g := setupActiveGame(t, pool)
 
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID: player1ID, ActionType: actionTypeTurnStart,
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID: g.player1ID, ActionType: actionTypeTurnStart,
 	})
-	mustRecordAction(t, actionsSvc, gameID, gameactions.CreateActionRequest{
-		ActorID: player1ID, TargetID: player2ID, ActionType: actionTypeCombatDamage, Payload: amountPayload(5),
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypeCombatDamage, Payload: amountPayload(5),
 	})
 
-	timeline, err := actionsSvc.GetTimeline(context.Background(), gameID)
+	timeline, err := g.actions.GetTimeline(context.Background(), g.gameID)
 	if err != nil {
 		t.Fatalf("GetTimeline() error = %v, want nil", err)
 	}
@@ -608,8 +742,8 @@ func TestGetTimeline_ReturnsActionsInOrder(t *testing.T) {
 	if timeline[0].ActionType != actionTypeTurnStart || timeline[1].ActionType != actionTypeCombatDamage {
 		t.Fatalf("GetTimeline() orden inesperado: %+v", timeline)
 	}
-	if timeline[1].TargetID == nil || *timeline[1].TargetID != player2ID {
-		t.Fatalf("GetTimeline()[1].TargetID = %v, want %q", timeline[1].TargetID, player2ID)
+	if timeline[1].TargetID == nil || *timeline[1].TargetID != g.player2ID {
+		t.Fatalf("GetTimeline()[1].TargetID = %v, want %q", timeline[1].TargetID, g.player2ID)
 	}
 	if amount, _ := timeline[1].Payload[payloadAmountKey].(float64); amount != 5 {
 		t.Fatalf("GetTimeline()[1].Payload = %+v, want amount=5", timeline[1].Payload)
