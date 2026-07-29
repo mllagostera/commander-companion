@@ -124,7 +124,8 @@ func TestGetDeck_ImageURL_TwoFacedCard_UsesFrontFaceID(t *testing.T) {
 	}
 	want := "https://assets.moxfield.net/cards/card-face-front-face-id-art_crop.jpg"
 	if deck.ImageURL != want {
-		t.Fatalf("ImageURL = %q, want %q (should use the \"card-face-\" prefix with the front face id, not main.id)", deck.ImageURL, want)
+		t.Fatalf("ImageURL = %q, want %q (should use the front face id with the \"card-face-\" prefix, not main.id)",
+			deck.ImageURL, want)
 	}
 }
 

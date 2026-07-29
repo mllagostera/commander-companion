@@ -559,10 +559,12 @@ func TestChangePassword_Success(t *testing.T) {
 		t.Fatalf("ChangePassword() error = %v, want nil", err)
 	}
 
-	if _, err := svc.VerifyCredentials(context.Background(), "change-password-ok@example.com", "new-correct-horse-battery"); err != nil {
+	_, err := svc.VerifyCredentials(context.Background(), "change-password-ok@example.com", "new-correct-horse-battery")
+	if err != nil {
 		t.Fatalf("VerifyCredentials() con el password nuevo: error = %v, want nil", err)
 	}
-	if _, err := svc.VerifyCredentials(context.Background(), "change-password-ok@example.com", testPassword); !errors.Is(err, users.ErrInvalidCredentials) {
+	_, err = svc.VerifyCredentials(context.Background(), "change-password-ok@example.com", testPassword)
+	if !errors.Is(err, users.ErrInvalidCredentials) {
 		t.Fatalf("VerifyCredentials() con el password viejo: error = %v, want ErrInvalidCredentials", err)
 	}
 }
@@ -576,11 +578,13 @@ func TestChangePassword_WrongCurrentPassword(t *testing.T) {
 		t.Fatalf("ChangePassword() con password actual incorrecta: error = %v, want ErrInvalidCurrentPassword", err)
 	}
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusUnauthorized {
-		t.Fatalf("ChangePassword() con password actual incorrecta: code = %d, want %d", fiberErr.Code, fiber.StatusUnauthorized)
+		t.Fatalf("ChangePassword() con password actual incorrecta: code = %d, want %d",
+			fiberErr.Code, fiber.StatusUnauthorized)
 	}
 
 	// La password original sigue funcionando: el intento fallido no la tocó.
-	if _, err := svc.VerifyCredentials(context.Background(), "change-password-wrong@example.com", testPassword); err != nil {
+	_, err = svc.VerifyCredentials(context.Background(), "change-password-wrong@example.com", testPassword)
+	if err != nil {
 		t.Fatalf("VerifyCredentials() con el password original tras el intento fallido: error = %v, want nil", err)
 	}
 }
@@ -603,7 +607,9 @@ func TestChangePassword_TooShort(t *testing.T) {
 func TestChangePassword_GoogleOnlyAccount(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
-	user, err := svc.FindOrCreateGoogleUser(context.Background(), "google-sub-change-password", "google-change-password@example.com", true)
+	user, err := svc.FindOrCreateGoogleUser(
+		context.Background(), "google-sub-change-password", "google-change-password@example.com", true,
+	)
 	if err != nil {
 		t.Fatalf("FindOrCreateGoogleUser() error = %v", err)
 	}
@@ -617,7 +623,9 @@ func TestChangePassword_GoogleOnlyAccount(t *testing.T) {
 func TestChangePassword_UnknownUser_ReturnsNotFound(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
-	err := svc.ChangePassword(context.Background(), "00000000-0000-0000-0000-000000000000", testPassword, "new-correct-horse-battery")
+	err := svc.ChangePassword(
+		context.Background(), "00000000-0000-0000-0000-000000000000", testPassword, "new-correct-horse-battery",
+	)
 	if !errors.Is(err, users.ErrUserNotFound) {
 		t.Fatalf("ChangePassword() con usuario inexistente: error = %v, want ErrUserNotFound", err)
 	}

@@ -27,7 +27,7 @@ export function useSettings() {
 
   /** 204 sin body si el password actual es correcto y el nuevo se aplicó. */
   function changePassword(currentPassword: string, newPassword: string) {
-    return apiFetch<void>(`/users/${requireUserId()}/password`, {
+    return apiFetch<null>(`/users/${requireUserId()}/password`, {
       method: 'POST',
       body: { current_password: currentPassword, new_password: newPassword },
     })

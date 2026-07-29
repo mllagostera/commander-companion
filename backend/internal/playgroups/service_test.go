@@ -14,6 +14,8 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
+const renamedPlaygroupName = "Nombre nuevo"
+
 func truncatePlaygroupsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	// "playgroups" limpia playgroup_members por CASCADE; "users" limpia cualquier resto.
@@ -151,7 +153,10 @@ func TestListPlaygroups_IncludesMembers(t *testing.T) {
 	other := createTestUser(t, pool, "list-members-other@example.com")
 
 	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "Grupo con miembros")
-	if _, err := svc.AddMember(context.Background(), playgroup.ID, owner.ID, playgroups.AddMemberRequest{UserID: other.ID}); err != nil {
+	_, err := svc.AddMember(
+		context.Background(), playgroup.ID, owner.ID, playgroups.AddMemberRequest{UserID: other.ID},
+	)
+	if err != nil {
 		t.Fatalf("AddMember() error = %v", err)
 	}
 
@@ -237,21 +242,21 @@ func TestUpdatePlaygroup_Success(t *testing.T) {
 	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "Nombre original")
 
 	updated, err := svc.UpdatePlaygroup(
-		context.Background(), playgroup.ID, owner.ID, playgroups.UpdatePlaygroupRequest{Name: "Nombre nuevo"},
+		context.Background(), playgroup.ID, owner.ID, playgroups.UpdatePlaygroupRequest{Name: renamedPlaygroupName},
 	)
 	if err != nil {
 		t.Fatalf("UpdatePlaygroup() error = %v, want nil", err)
 	}
-	if updated.Name != "Nombre nuevo" {
-		t.Fatalf("UpdatePlaygroup() Name = %q, want %q", updated.Name, "Nombre nuevo")
+	if updated.Name != renamedPlaygroupName {
+		t.Fatalf("UpdatePlaygroup() Name = %q, want %q", updated.Name, renamedPlaygroupName)
 	}
 
 	got, err := svc.GetPlaygroup(context.Background(), owner.ID, playgroup.ID)
 	if err != nil {
 		t.Fatalf("GetPlaygroup() error = %v", err)
 	}
-	if got.Name != "Nombre nuevo" {
-		t.Fatalf("GetPlaygroup() tras renombrar: Name = %q, want %q", got.Name, "Nombre nuevo")
+	if got.Name != renamedPlaygroupName {
+		t.Fatalf("GetPlaygroup() tras renombrar: Name = %q, want %q", got.Name, renamedPlaygroupName)
 	}
 }
 
@@ -263,7 +268,9 @@ func TestUpdatePlaygroup_EmptyName_ReturnsBadRequest(t *testing.T) {
 	owner := createTestUser(t, pool, "update-playgroup-empty@example.com")
 	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "G")
 
-	_, err := svc.UpdatePlaygroup(context.Background(), playgroup.ID, owner.ID, playgroups.UpdatePlaygroupRequest{Name: "   "})
+	_, err := svc.UpdatePlaygroup(
+		context.Background(), playgroup.ID, owner.ID, playgroups.UpdatePlaygroupRequest{Name: "   "},
+	)
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
 		t.Fatalf("UpdatePlaygroup() con nombre vacío: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
 	}
@@ -280,7 +287,9 @@ func TestUpdatePlaygroup_RequesterNotMember_ReturnsNotFound(t *testing.T) {
 	outsider := createTestUser(t, pool, "update-playgroup-req-outsider@example.com")
 	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "G")
 
-	_, err := svc.UpdatePlaygroup(context.Background(), playgroup.ID, outsider.ID, playgroups.UpdatePlaygroupRequest{Name: "Robado"})
+	_, err := svc.UpdatePlaygroup(
+		context.Background(), playgroup.ID, outsider.ID, playgroups.UpdatePlaygroupRequest{Name: "Robado"},
+	)
 	if !errors.Is(err, playgroups.ErrPlaygroupNotFound) {
 		t.Fatalf("UpdatePlaygroup() por alguien ajeno al grupo: error = %v, want ErrPlaygroupNotFound", err)
 	}

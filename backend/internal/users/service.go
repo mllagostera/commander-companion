@@ -245,7 +245,9 @@ func (s *service) ChangePassword(ctx context.Context, id, currentPassword, newPa
 		return ErrGoogleOnlyAccount
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash.String), []byte(currentPassword)); err != nil {
+	if compareErr := bcrypt.CompareHashAndPassword(
+		[]byte(user.PasswordHash.String), []byte(currentPassword),
+	); compareErr != nil {
 		return ErrInvalidCurrentPassword
 	}
 
