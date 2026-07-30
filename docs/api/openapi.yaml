@@ -52,6 +52,12 @@ components:
         moxfield_username:
           type: string
           nullable: true
+        has_password:
+          type: boolean
+          description: >-
+            false = cuenta creada vía Google Sign-In, sin password propio. Los
+            clientes lo usan para decidir si mostrar el flujo de cambiar
+            contraseña (POST /users/{id}/password lo rechaza en estas cuentas).
     UserSearchResult:
       type: object
       properties:
@@ -78,6 +84,11 @@ components:
     UpdateProfileRequest:
       type: object
       properties:
+        username:
+          type: string
+          description: >-
+            Nuevo username de login/perfil (distinto del de Moxfield). Si se
+            omite, no se toca. 409 si ya está en uso por otra cuenta.
         moxfield_username:
           type: string
           description: Username de Moxfield a vincular al perfil (sin validar contra Moxfield).
@@ -724,7 +735,7 @@ paths:
 
   /users/{id}:
     patch:
-      summary: Actualizar el perfil propio (hoy, solo moxfield_username)
+      summary: Actualizar el perfil propio (username y/o moxfield_username)
       description: >-
         id debe ser el propio usuario autenticado (vía JWT) — 404 en cualquier otro
         caso, sin distinguir "no existe" de "no es tuyo".
@@ -749,9 +760,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
         '400':
-          description: Body inválido
+          description: Body inválido, o username vacío/solo espacios
         '404':
           description: id no es el del usuario autenticado
+        '409':
+          description: username ya en uso por otra cuenta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /users/{id}/password:
     post:
