@@ -91,10 +91,19 @@ function gameDate(game: Game): string {
 
 <template>
   <div class="flex flex-col gap-9">
-    <section>
-      <p class="text-[13px]" style="color: var(--text-dim);">{{ $t('dashboard.sessionAs') }}</p>
-      <h1 class="mt-1.5 text-[26px] font-semibold sm:text-[30px]">{{ $t('dashboard.greeting', { username: user?.username ?? '…' }) }}</h1>
-      <p style="color: var(--text-muted);">{{ user?.email }}</p>
+    <section class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p class="text-[13px]" style="color: var(--text-dim);">{{ $t('dashboard.sessionAs') }}</p>
+        <h1 class="mt-1.5 text-[26px] font-semibold sm:text-[30px]">{{ $t('dashboard.greeting', { username: user?.username ?? '…' }) }}</h1>
+        <p style="color: var(--text-muted);">{{ user?.email }}</p>
+      </div>
+      <NuxtLink
+        to="/play"
+        class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.04]"
+        style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+      >
+        {{ $t('dashboard.newGame') }}
+      </NuxtLink>
     </section>
 
     <p v-if="error" class="text-sm" style="color: var(--lose);">{{ $t('dashboard.loadError') }}</p>
