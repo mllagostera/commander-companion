@@ -185,6 +185,10 @@
     "title": "Configuración",
     "subtitle": "Tu cuenta y sus integraciones.",
     "memberSince": "Miembro desde {date}",
+    "username": {
+      "label": "Nombre de usuario",
+      "placeholder": "Tu nombre de usuario"
+    },
     "moxfield": {
       "heading": "Moxfield",
       "description": "Vincula tu usuario de Moxfield para poder importar todos tus decks públicos en segundo plano.",
@@ -202,6 +206,7 @@
       "newPassword": "Contraseña nueva",
       "confirmNewPassword": "Confirmar contraseña nueva",
       "submit": "Cambiar contraseña",
+      "noPassword": "Iniciaste sesión con Google, esta cuenta no tiene contraseña propia.",
       "sessionInfo": "La sesión se administra vía email/contraseña o Google. Cerrar sesión revoca el acceso en este dispositivo.",
       "logout": "Cerrar sesión"
     },
@@ -261,6 +266,7 @@
   },
   "toast": {
     "passwordUpdated": "Contraseña actualizada",
+    "usernameUpdated": "Nombre de usuario actualizado",
     "moxfieldLinked": "Cuenta de Moxfield vinculada",
     "groupCreated": "Grupo creado",
     "groupRenamed": "Grupo renombrado",
@@ -290,6 +296,10 @@
     },
     "updateMoxfieldUsername": {
       "generic": "No se pudo guardar el usuario de Moxfield."
+    },
+    "updateUsername": {
+      "taken": "Ese nombre de usuario ya está en uso.",
+      "generic": "No se pudo guardar el nombre de usuario."
     },
     "startMoxfieldImport": {
       "needUsername": "Primero guarda tu usuario de Moxfield.",

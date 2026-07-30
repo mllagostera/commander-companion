@@ -67,6 +67,10 @@ var (
 	ErrPasswordTooShort = common.InvalidInput("password must be at least 8 characters long")
 	// ErrSearchQueryTooShort indica que el query de búsqueda es demasiado corto.
 	ErrSearchQueryTooShort = common.InvalidInput("search query must be at least 2 characters long")
+	// ErrUsernameEmpty indica que se mandó un username vacío/solo-espacios a UpdateUsername.
+	ErrUsernameEmpty = common.InvalidInput("username cannot be empty")
+	// ErrUsernameTaken indica que el username elegido ya está en uso por otra cuenta.
+	ErrUsernameTaken = common.Conflict("username already taken")
 )
 
 // minPasswordLength es el largo mínimo del password nuevo en ChangePassword, igual al
@@ -86,6 +90,9 @@ type Service interface {
 	VerifyCredentials(ctx context.Context, email, password string) (*UserResponse, error)
 	FindOrCreateGoogleUser(ctx context.Context, googleID, email string, emailVerified bool) (*UserResponse, error)
 	UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUsername string) (*UserResponse, error)
+	// UpdateUsername cambia el username de login/perfil (distinto del de Moxfield). Devuelve
+	// ErrUsernameTaken (409) si ya está en uso por otra cuenta.
+	UpdateUsername(ctx context.Context, id, username string) (*UserResponse, error)
 	// ChangePassword valida el password actual y, si coincide, lo reemplaza por el nuevo.
 	ChangePassword(ctx context.Context, id, currentPassword, newPassword string) error
 	// VerifyEmail confirma la cuenta asociada al token de verificación mandado por mail.
@@ -215,6 +222,35 @@ func (s *service) UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUserna
 			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("updating moxfield username: %w", err)
+	}
+
+	return toUserResponse(&user), nil
+}
+
+// UpdateUsername cambia el username de la cuenta (el que usa para loguearse, distinto
+// del de Moxfield). A diferencia de UpdateMoxfieldUsername, acá un string vacío es
+// inválido (el username de login nunca puede quedar vacío, tiene NOT NULL en la BD).
+func (s *service) UpdateUsername(ctx context.Context, id, username string) (*UserResponse, error) {
+	trimmed := strings.TrimSpace(username)
+	if trimmed == "" {
+		return nil, ErrUsernameEmpty
+	}
+
+	uid, err := common.ParseUUID(id)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	user, err := s.repo.UpdateUsername(ctx, UpdateUsernameParams{ID: uid, Username: trimmed})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.ConstraintName == usernameConstraint {
+			return nil, ErrUsernameTaken
+		}
+		return nil, fmt.Errorf("updating username: %w", err)
 	}
 
 	return toUserResponse(&user), nil
@@ -467,10 +503,11 @@ func toUserResponse(user *User) *UserResponse {
 	}
 
 	res := &UserResponse{
-		ID:        user.ID.String(),
-		Username:  user.Username,
-		Email:     user.Email,
-		CreatedAt: createdAt,
+		ID:          user.ID.String(),
+		Username:    user.Username,
+		Email:       user.Email,
+		CreatedAt:   createdAt,
+		HasPassword: user.PasswordHash.Valid,
 	}
 	if user.MoxfieldUsername.Valid {
 		res.MoxfieldUsername = &user.MoxfieldUsername.String

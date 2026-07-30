@@ -129,17 +129,15 @@ Módulos principales:
 
 ---
 
-# Infraestructura de despliegue (pendiente de decisión)
+# Infraestructura de despliegue
 
-No estaba en el roadmap original (agregado 2026-07-27). Hoy el proyecto corre solo vía `docker-compose.yml` local; falta decidir dónde se despliega en un entorno real. **Actualización 2026-07-29**: el backend ya tiene preparación real para la Opción 1 de abajo (migraciones de goose embebidas al arrancar, pensadas específicamente para el free tier de Render; `backend/README.md` documenta las env vars para Render + Supabase + Vercel — ver [TASKS.md](TASKS.md), sección "Infra / configuración" de Stage 1), pero todavía no hay ADR formal ni IaC/workflow de deploy — sigue sin ser una decisión cerrada. Opciones a evaluar (ver checklist en [TASKS.md](TASKS.md)):
+No estaba en el roadmap original (agregado 2026-07-27). **Decisión cerrada 2026-07-30**: [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md) — backend en Render, frontend en Vercel, base de datos en Supabase (dentro de la Opción 1 de abajo). El backend ya tiene preparación real para esto (migraciones de goose embebidas al arrancar, pensadas específicamente para el free tier de Render; `backend/README.md` documenta las env vars — ver [TASKS.md](TASKS.md), sección "Infra / configuración" de Stage 1). Sigue sin haber `render.yaml`/IaC ni un workflow de CI que despliegue (ambas plataformas se configuran manualmente por dashboard, ver el ADR).
 
-### Opción 1: PaaS Moderna / Serverless (Recomendada para MVP rápido y coste cero)
-- **Frontend:** Vercel o Cloudflare Pages (despliegue estático, CDN global, GitOps automático).
-- **Backend:** Fly.io o Render (despliegue mediante contenedor Docker o binario nativo de Go, capa gratuita inicial).
-- **Base de datos:** Neon o Supabase (PostgreSQL serverless administrado).
+### Opción 1: PaaS Moderna / Serverless (elegida)
+- **Frontend:** Vercel (decidido) o Cloudflare Pages (despliegue estático, CDN global, GitOps automático).
+- **Backend:** Render (decidido) o Fly.io (despliegue mediante contenedor Docker o binario nativo de Go, capa gratuita inicial).
+- **Base de datos:** Supabase (decidido) o Neon (PostgreSQL serverless administrado).
 - **Ventajas:** Despliegue inmediato, cero mantenimiento de infraestructura, capa gratuita generosa.
-
-Faltan por documentar otras opciones alternativas (ej. VPS único, otros proveedores) antes de tomar la decisión final. Una vez decidido, registrar como ADR en `docs/decisions/`.
 
 ---
 

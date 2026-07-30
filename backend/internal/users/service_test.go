@@ -115,6 +115,9 @@ func TestRegisterUser_Success(t *testing.T) {
 	if user.CreatedAt.IsZero() {
 		t.Fatalf("RegisterUser() created_at sin setear: %+v", user)
 	}
+	if !user.HasPassword {
+		t.Fatalf("RegisterUser() HasPassword = false, want true (cuenta email/password)")
+	}
 }
 
 // El password nunca sale en el DTO, pero sí tiene que quedar hasheado en la BD:
@@ -415,9 +418,12 @@ func TestFindOrCreateGoogleUser_CreatesNewUser(t *testing.T) {
 func TestFindOrCreateGoogleUser_CreatedAccountHasNoPassword(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
-	_, err := svc.FindOrCreateGoogleUser(context.Background(), "google-sub-2", "sinpass@example.com", true)
+	created, err := svc.FindOrCreateGoogleUser(context.Background(), "google-sub-2", "sinpass@example.com", true)
 	if err != nil {
 		t.Fatalf("FindOrCreateGoogleUser() error = %v, want nil", err)
+	}
+	if created.HasPassword {
+		t.Fatalf("FindOrCreateGoogleUser() HasPassword = true, want false (cuenta sin password propio)")
 	}
 
 	_, err = svc.VerifyCredentials(context.Background(), "sinpass@example.com", testPassword)
@@ -548,6 +554,80 @@ func TestUpdateMoxfieldUsername_UnknownUser_ReturnsNotFound(t *testing.T) {
 	}
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
 		t.Fatalf("UpdateMoxfieldUsername() con usuario inexistente: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+}
+
+func TestUpdateUsername_Success(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "update-username@example.com")
+
+	updated, err := svc.UpdateUsername(context.Background(), user.ID, "NuevoUsername")
+	if err != nil {
+		t.Fatalf("UpdateUsername() error = %v, want nil", err)
+	}
+	if updated.Username != "NuevoUsername" {
+		t.Fatalf("UpdateUsername() Username = %q, want %q", updated.Username, "NuevoUsername")
+	}
+
+	// Se refleja en una lectura posterior, no solo en la respuesta de la propia escritura.
+	fetched, err := svc.GetUser(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("GetUser() error = %v", err)
+	}
+	if fetched.Username != "NuevoUsername" {
+		t.Fatalf("GetUser() Username = %q, want %q", fetched.Username, "NuevoUsername")
+	}
+}
+
+func TestUpdateUsername_TrimsWhitespace(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "update-username-trim@example.com")
+
+	updated, err := svc.UpdateUsername(context.Background(), user.ID, "  ConEspacios  ")
+	if err != nil {
+		t.Fatalf("UpdateUsername() error = %v, want nil", err)
+	}
+	if updated.Username != "ConEspacios" {
+		t.Fatalf("UpdateUsername() Username = %q, want %q (trimmed)", updated.Username, "ConEspacios")
+	}
+}
+
+func TestUpdateUsername_Empty_ReturnsInvalidInput(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "update-username-empty@example.com")
+
+	_, err := svc.UpdateUsername(context.Background(), user.ID, "   ")
+	if !errors.Is(err, users.ErrUsernameEmpty) {
+		t.Fatalf("UpdateUsername(\"   \") error = %v, want ErrUsernameEmpty", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("UpdateUsername(\"   \") code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+func TestUpdateUsername_AlreadyTaken_ReturnsConflict(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	registerUser(t, svc, "username-owner@example.com")
+	other := registerUser(t, svc, "username-challenger@example.com")
+
+	_, err := svc.UpdateUsername(context.Background(), other.ID, "user-username-owner@example.com")
+	if !errors.Is(err, users.ErrUsernameTaken) {
+		t.Fatalf("UpdateUsername() con username tomado: error = %v, want ErrUsernameTaken", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
+		t.Fatalf("UpdateUsername() con username tomado: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
+	}
+}
+
+func TestUpdateUsername_UnknownUser_ReturnsNotFound(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	_, err := svc.UpdateUsername(context.Background(), "00000000-0000-0000-0000-000000000000", "Handle")
+	if !errors.Is(err, users.ErrUserNotFound) {
+		t.Fatalf("UpdateUsername() con usuario inexistente: error = %v, want ErrUserNotFound", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("UpdateUsername() con usuario inexistente: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
 	}
 }
 
