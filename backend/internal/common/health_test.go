@@ -1,6 +1,7 @@
 package common_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,7 +18,8 @@ func TestRegisterHealthRoute_DBReachable(t *testing.T) {
 	app := fiber.New()
 	common.RegisterHealthRoute(app, db)
 
-	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/health", http.NoBody))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", http.NoBody)
+	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
 	}
@@ -36,7 +38,8 @@ func TestRegisterHealthRoute_DBUnreachable(t *testing.T) {
 	app := fiber.New()
 	common.RegisterHealthRoute(app, db)
 
-	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/health", http.NoBody))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", http.NoBody)
+	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
 	}
