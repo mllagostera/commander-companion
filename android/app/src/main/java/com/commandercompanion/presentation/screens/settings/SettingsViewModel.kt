@@ -1,0 +1,159 @@
+package com.commandercompanion.presentation.screens.settings
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.commandercompanion.data.remote.api.AuthApi
+import com.commandercompanion.data.remote.api.CommanderApi
+import com.commandercompanion.data.remote.dto.ChangePasswordRequest
+import com.commandercompanion.data.remote.dto.UpdateProfileRequest
+import com.commandercompanion.data.remote.dto.UserDto
+import com.commandercompanion.data.session.SessionManager
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
+import javax.inject.Inject
+
+private const val MIN_PASSWORD_LENGTH = 8
+
+data class SettingsUiState(
+    val isLoadingProfile: Boolean = true,
+    val user: UserDto? = null,
+    val loadError: String? = null,
+
+    val isSavingUsername: Boolean = false,
+    val usernameError: String? = null,
+
+    val isSavingMoxfieldUsername: Boolean = false,
+    val moxfieldUsernameError: String? = null,
+
+    val isChangingPassword: Boolean = false,
+    val passwordError: String? = null,
+    val passwordChanged: Boolean = false
+)
+
+/**
+ * Ajustes de la cuenta propia: editar username, vincular/editar username de Moxfield y cambiar
+ * contraseña — mismo alcance que `web/app/pages/settings.vue`, contra los mismos endpoints
+ * (`PATCH /users/{id}`, `POST /users/{id}/password`). No incluye el import masivo de Moxfield
+ * (sigue detrás de flag/roto en la web, ver `docs/roadmap/TASKS.md`).
+ *
+ * `PATCH /users/{id}` no lleva el `Bearer` como header explícito (a diferencia de [AuthApi.me]):
+ * va por el cliente autenticado de [CommanderApi], que ya lo adjunta vía `AuthInterceptor`. Solo
+ * necesitamos el `userId` propio, que se resuelve una vez al cargar el perfil con `AuthApi.me`.
+ */
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val authApi: AuthApi,
+    private val commanderApi: CommanderApi,
+    private val sessionManager: SessionManager
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(SettingsUiState())
+    val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    init {
+        loadProfile()
+    }
+
+    private fun loadProfile() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingProfile = true, loadError = null) }
+            try {
+                val token = sessionManager.currentAccessToken()
+                    ?: throw IllegalStateException("no hay sesión activa")
+                val user = authApi.me("Bearer $token")
+                _uiState.update { it.copy(isLoadingProfile = false, user = user) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoadingProfile = false, loadError = "No se pudo cargar tu perfil") }
+            }
+        }
+    }
+
+    fun updateUsername(username: String) {
+        val userId = _uiState.value.user?.id ?: return
+        if (username.isBlank()) {
+            _uiState.update { it.copy(usernameError = "El nombre de usuario no puede estar vacío") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSavingUsername = true, usernameError = null) }
+            try {
+                val updated = commanderApi.updateProfile(userId, UpdateProfileRequest(username = username.trim()))
+                _uiState.update { it.copy(isSavingUsername = false, user = updated) }
+            } catch (e: HttpException) {
+                _uiState.update { it.copy(isSavingUsername = false, usernameError = mapUsernameError(e)) }
+            } catch (e: IOException) {
+                _uiState.update { it.copy(isSavingUsername = false, usernameError = "No se pudo conectar con el servidor") }
+            }
+        }
+    }
+
+    fun updateMoxfieldUsername(moxfieldUsername: String) {
+        val userId = _uiState.value.user?.id ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSavingMoxfieldUsername = true, moxfieldUsernameError = null) }
+            try {
+                val updated = commanderApi.updateProfile(
+                    userId,
+                    UpdateProfileRequest(moxfieldUsername = moxfieldUsername.trim())
+                )
+                _uiState.update { it.copy(isSavingMoxfieldUsername = false, user = updated) }
+            } catch (e: HttpException) {
+                _uiState.update {
+                    it.copy(isSavingMoxfieldUsername = false, moxfieldUsernameError = "No se pudo guardar el usuario de Moxfield")
+                }
+            } catch (e: IOException) {
+                _uiState.update {
+                    it.copy(isSavingMoxfieldUsername = false, moxfieldUsernameError = "No se pudo conectar con el servidor")
+                }
+            }
+        }
+    }
+
+    fun changePassword(currentPassword: String, newPassword: String, newPasswordConfirm: String) {
+        val userId = _uiState.value.user?.id ?: return
+        if (newPassword != newPasswordConfirm) {
+            _uiState.update { it.copy(passwordError = "Las contraseñas nuevas no coinciden") }
+            return
+        }
+        if (newPassword.length < MIN_PASSWORD_LENGTH) {
+            _uiState.update { it.copy(passwordError = "La contraseña debe tener al menos $MIN_PASSWORD_LENGTH caracteres") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isChangingPassword = true, passwordError = null, passwordChanged = false) }
+            try {
+                commanderApi.changePassword(userId, ChangePasswordRequest(currentPassword, newPassword))
+                _uiState.update { it.copy(isChangingPassword = false, passwordChanged = true) }
+            } catch (e: HttpException) {
+                _uiState.update { it.copy(isChangingPassword = false, passwordError = mapChangePasswordError(e)) }
+            } catch (e: IOException) {
+                _uiState.update { it.copy(isChangingPassword = false, passwordError = "No se pudo conectar con el servidor") }
+            }
+        }
+    }
+
+    fun logout(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            sessionManager.logout()
+            onComplete()
+        }
+    }
+
+    private fun mapUsernameError(e: HttpException): String = when (e.code()) {
+        409 -> "Ese nombre de usuario ya está en uso"
+        400 -> "El nombre de usuario no puede estar vacío"
+        else -> "No se pudo guardar el nombre de usuario (error ${e.code()})"
+    }
+
+    private fun mapChangePasswordError(e: HttpException): String = when (e.code()) {
+        400 -> "La contraseña nueva debe tener al menos $MIN_PASSWORD_LENGTH caracteres"
+        401 -> "La contraseña actual no es correcta"
+        else -> "No se pudo cambiar la contraseña (error ${e.code()})"
+    }
+}

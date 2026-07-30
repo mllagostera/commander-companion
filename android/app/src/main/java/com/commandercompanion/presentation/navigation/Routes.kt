@@ -18,6 +18,9 @@ object PlayerSetupRoute
 object HistoryRoute
 
 @Serializable
+object SettingsRoute
+
+@Serializable
 data class PreGameRoute(val gameId: String, val playersEncoded: String, val playgroupId: String? = null)
 
 @Serializable

@@ -5,6 +5,7 @@ import com.commandercompanion.data.local.entity.GameEntity
 import com.commandercompanion.data.local.entity.GameWithPlayers
 import com.commandercompanion.data.local.entity.PlayerResultEntity
 import com.commandercompanion.data.remote.api.CommanderApi
+import com.commandercompanion.data.remote.dto.ChangePasswordRequest
 import com.commandercompanion.data.remote.dto.CreateActionRequest
 import com.commandercompanion.data.remote.dto.CreateDeckRequest
 import com.commandercompanion.data.remote.dto.CreateGameRequest
@@ -20,6 +21,8 @@ import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.remote.dto.PlaygroupDto
 import com.commandercompanion.data.remote.dto.PlaygroupMemberDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
+import com.commandercompanion.data.remote.dto.UpdateProfileRequest
+import com.commandercompanion.data.remote.dto.UserDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +61,20 @@ fun playgroupDto(
     name: String = "Grupo de test",
     members: List<PlaygroupMemberDto> = listOf(playgroupMemberDto(playgroupId = id))
 ) = PlaygroupDto(id = id, name = name, members = members)
+
+fun userDto(
+    id: String = "user-1",
+    username: String = "user-1",
+    email: String = "user-1@example.com",
+    moxfieldUsername: String? = null,
+    hasPassword: Boolean = true
+) = UserDto(
+    id = id,
+    username = username,
+    email = email,
+    moxfieldUsername = moxfieldUsername,
+    hasPassword = hasPassword
+)
 
 fun gameActionDto(gameId: String, request: CreateActionRequest) = GameActionDto(
     id = "action-1",
@@ -98,6 +115,10 @@ class FakeCommanderApi : CommanderApi {
     var onListPlaygroups: suspend () -> List<PlaygroupDto> = { emptyList() }
     var onGetPlaygroup: suspend (String) -> PlaygroupDto = { id -> playgroupDto(id = id) }
     var onGetMemberDecks: suspend (String, String) -> List<DeckDto> = { _, _ -> emptyList() }
+    var onUpdateProfile: suspend (String, UpdateProfileRequest) -> UserDto = { id, request ->
+        userDto(id = id, username = request.username ?: "user-1", moxfieldUsername = request.moxfieldUsername)
+    }
+    var onChangePassword: suspend (String, ChangePasswordRequest) -> Unit = { _, _ -> }
 
     override suspend fun checkHealth(): String = "ok"
 
@@ -181,6 +202,16 @@ class FakeCommanderApi : CommanderApi {
 
     override suspend fun getPlaygroupStats(playgroupId: String): PlaygroupStatsDto =
         PlaygroupStatsDto(playgroupId = playgroupId)
+
+    override suspend fun updateProfile(userId: String, request: UpdateProfileRequest): UserDto {
+        calls += "updateProfile"
+        return onUpdateProfile(userId, request)
+    }
+
+    override suspend fun changePassword(userId: String, request: ChangePasswordRequest) {
+        calls += "changePassword"
+        onChangePassword(userId, request)
+    }
 }
 
 /** Fake en memoria de [GameDao]. */
