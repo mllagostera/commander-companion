@@ -131,7 +131,7 @@ Módulos principales:
 
 # Infraestructura de despliegue (pendiente de decisión)
 
-No estaba en el roadmap original (agregado 2026-07-27). Hoy el proyecto corre solo vía `docker-compose.yml` local; falta decidir dónde se despliega en un entorno real. Opciones a evaluar (ver checklist en [TASKS.md](TASKS.md)):
+No estaba en el roadmap original (agregado 2026-07-27). Hoy el proyecto corre solo vía `docker-compose.yml` local; falta decidir dónde se despliega en un entorno real. **Actualización 2026-07-29**: el backend ya tiene preparación real para la Opción 1 de abajo (migraciones de goose embebidas al arrancar, pensadas específicamente para el free tier de Render; `backend/README.md` documenta las env vars para Render + Supabase + Vercel — ver [TASKS.md](TASKS.md), sección "Infra / configuración" de Stage 1), pero todavía no hay ADR formal ni IaC/workflow de deploy — sigue sin ser una decisión cerrada. Opciones a evaluar (ver checklist en [TASKS.md](TASKS.md)):
 
 ### Opción 1: PaaS Moderna / Serverless (Recomendada para MVP rápido y coste cero)
 - **Frontend:** Vercel o Cloudflare Pages (despliegue estático, CDN global, GitOps automático).
