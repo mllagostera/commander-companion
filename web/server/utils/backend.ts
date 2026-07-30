@@ -21,6 +21,8 @@ export interface AuthUser {
   email: string
   created_at: string
   moxfield_username?: string | null
+  /** false = cuenta creada vía Google Sign-In, sin password propio. */
+  has_password: boolean
 }
 
 export interface TokenResponse {

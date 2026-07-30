@@ -25,6 +25,14 @@ export function useSettings() {
     })
   }
 
+  /** Cambia el username de login/perfil propio (distinto del de Moxfield). 409 si ya está en uso. */
+  function updateUsername(username: string) {
+    return apiFetch<AuthUser>(`/users/${requireUserId()}`, {
+      method: 'PATCH',
+      body: { username: username.trim() },
+    })
+  }
+
   /** 204 sin body si el password actual es correcto y el nuevo se aplicó. */
   function changePassword(currentPassword: string, newPassword: string) {
     return apiFetch<null>(`/users/${requireUserId()}/password`, {
@@ -44,6 +52,7 @@ export function useSettings() {
 
   return {
     updateMoxfieldUsername,
+    updateUsername,
     changePassword,
     startMoxfieldImport,
     getMoxfieldImportStatus,
@@ -74,6 +83,13 @@ export function changePasswordError(err: unknown): string {
 /** Traduce los errores de PATCH /users/{id} al actualizar moxfield_username. */
 export function updateMoxfieldUsernameError(err: unknown): string {
   return apiErrorMessage(err, useI18n().t('errors.updateMoxfieldUsername.generic'))
+}
+
+/** Traduce los errores de PATCH /users/{id} al actualizar el username de login. */
+export function updateUsernameError(err: unknown): string {
+  const { t } = useI18n()
+  if (apiErrorStatus(err) === 409) return t('errors.updateUsername.taken')
+  return apiErrorMessage(err, t('errors.updateUsername.generic'))
 }
 
 /**

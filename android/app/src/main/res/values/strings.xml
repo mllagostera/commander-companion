@@ -1,4 +1,117 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Commander Companion</string>
+
+    <!-- Común / compartido entre pantallas -->
+    <string name="common_email_label">Email</string>
+    <string name="common_password_label">Contraseña</string>
+    <string name="common_divider_or">o</string>
+    <string name="common_continue_with_google">Continuar con Google</string>
+    <string name="common_you_suffix">(tú)</string>
+    <string name="common_save">Guardar</string>
+    <string name="common_saving">Guardando…</string>
+
+    <!-- Login -->
+    <string name="login_subtitle">Inicia sesión para trackear tus partidas.</string>
+    <string name="login_submit">Iniciar sesión</string>
+    <string name="login_no_account">¿No tienes cuenta? </string>
+    <string name="login_register_link">Regístrate</string>
+
+    <!-- Register -->
+    <string name="register_title">Crear cuenta</string>
+    <string name="register_subtitle">Crea tu cuenta y empieza a trackear tus partidas.</string>
+    <string name="register_username_label">Nombre de usuario</string>
+    <string name="register_submit">Crear cuenta</string>
+    <string name="register_have_account">¿Ya tienes cuenta? </string>
+    <string name="register_login_link">Inicia sesión</string>
+    <string name="register_check_email_title">Revisa tu email</string>
+    <string name="register_check_email_intro">Te mandamos un link de confirmación a </string>
+    <string name="register_check_email_outro">Tienes que confirmarlo antes de poder iniciar sesión.</string>
+    <string name="register_go_to_login">Ir a iniciar sesión</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_new_game">NUEVA PARTIDA</string>
+    <string name="dashboard_history">HISTORIAL</string>
+    <string name="dashboard_settings">Ajustes</string>
+    <string name="dashboard_logout">Cerrar sesión</string>
+
+    <!-- Historial -->
+    <string name="history_title">Historial de partidas</string>
+    <string name="history_empty">Todavía no hay partidas registradas</string>
+    <string name="history_status_finished">Finalizada</string>
+    <string name="history_status_in_progress">En curso</string>
+    <string name="history_winner">Ganó: %1$s</string>
+    <string name="history_player_count">%1$d jugadores</string>
+    <string name="history_player_life">%1$s: %2$d</string>
+    <string name="history_player_life_with_mulligans">%1$s: %2$d (%3$dm)</string>
+
+    <!-- Setup de jugadores -->
+    <string name="setup_title">Nueva partida</string>
+    <string name="setup_mode_casual">Casual</string>
+    <string name="setup_mode_group">Grupo</string>
+    <string name="setup_mode_casual_description">Sin cuentas ni estadísticas: solo trackear la partida en este dispositivo.</string>
+    <string name="setup_mode_group_description">Asigna asientos a miembros de tu grupo: sus estadísticas quedan reales al terminar.</string>
+    <string name="setup_group_label">Grupo</string>
+    <string name="setup_no_playgroups">No eres miembro de ningún grupo todavía. Créalo desde el cliente web.</string>
+    <string name="setup_players_label">Jugadores</string>
+    <string name="setup_start_game">EMPEZAR PARTIDA</string>
+    <string name="setup_default_player_name">Jugador %1$d</string>
+    <string name="setup_name_label">Nombre</string>
+    <string name="setup_which_deck">¿Con qué deck juega?</string>
+    <string name="setup_member_no_decks">%1$s todavía no tiene decks: este asiento no va a quedar guardado en sus estadísticas.</string>
+    <string name="setup_seat_label">Asiento</string>
+    <string name="setup_pick_group_first">Elige un grupo arriba para poder asignar jugadores.</string>
+    <string name="setup_guest">Invitado</string>
+
+    <!-- Pre-partida: sorteo y mulligans -->
+    <string name="pregame_rotate_prompt">Gira tu dispositivo\npara elegir asientos</string>
+    <string name="pregame_seat_label">Asiento %1$d</string>
+    <string name="pregame_mulligans">Mulligans</string>
+    <string name="pregame_starts">Empieza: %1$s</string>
+    <string name="pregame_who_starts">¿Quién empieza?</string>
+    <string name="pregame_shuffle">SORTEAR</string>
+    <string name="pregame_begin">EMPEZAR</string>
+
+    <!-- Tracker de partida -->
+    <string name="tracker_rotate_prompt">Gira tu dispositivo\npara empezar la partida</string>
+    <string name="tracker_mulligans_suffix">%1$d mulligan(s)</string>
+    <string name="tracker_pass_turn">Pasar turno</string>
+    <string name="tracker_dead">MUERTO</string>
+    <string name="tracker_commander_damage">Daño comandante</string>
+    <string name="tracker_poison">Veneno</string>
+    <string name="tracker_paused">Partida pausada</string>
+    <string name="tracker_paused_subtitle">El tiempo dejó de contarse.</string>
+    <string name="tracker_resume">Reanudar</string>
+    <string name="tracker_finish_game">Finalizar partida</string>
+    <string name="tracker_starter_banner">¡Empieza\n%1$s!</string>
+    <string name="tracker_connecting_to_server">Creando la partida en el servidor…</string>
+
+    <!-- Resumen de partida -->
+    <string name="summary_subtitle">Estadísticas de la partida · Turno %1$d</string>
+    <string name="summary_winner_banner">🏆 Gana %1$s</string>
+    <string name="summary_back_home">Volver al inicio</string>
+    <string name="summary_column_player">Jugador</string>
+    <string name="summary_column_life">Vida</string>
+    <string name="summary_column_dealt">Hecho</string>
+    <string name="summary_column_taken">Recib.</string>
+    <string name="summary_column_poison">Veneno</string>
+    <string name="summary_column_mulligans">Mull.</string>
+    <string name="summary_column_status">Estado</string>
+    <string name="summary_status_winner">Ganador</string>
+    <string name="summary_status_eliminated">Eliminado</string>
+    <string name="summary_status_in_play">En juego</string>
+
+    <!-- Ajustes de cuenta -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_profile_heading">Perfil</string>
+    <string name="settings_moxfield_heading">Moxfield</string>
+    <string name="settings_moxfield_description">Vincula tu usuario de Moxfield para poder importar tus decks públicos.</string>
+    <string name="settings_moxfield_username_label">Usuario de Moxfield</string>
+    <string name="settings_security_heading">Seguridad</string>
+    <string name="settings_security_current_password">Contraseña actual</string>
+    <string name="settings_security_new_password">Contraseña nueva</string>
+    <string name="settings_security_confirm_password">Confirmar contraseña nueva</string>
+    <string name="settings_security_submit">Cambiar contraseña</string>
+    <string name="settings_security_password_updated">Contraseña actualizada</string>
+    <string name="settings_security_no_password">Iniciaste sesión con Google, esta cuenta no tiene contraseña propia.</string>
 </resources>

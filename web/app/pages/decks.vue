@@ -159,9 +159,12 @@ const filteredDecks = computed(() => {
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div v-for="deck in filteredDecks" :key="deck.id" class="relative">
-        <DeckArt :deck="deck" aspect-ratio="21/9" rounded="rounded-[22px]" />
-        <div class="pointer-events-none absolute inset-0 rounded-[22px]" style="background: linear-gradient(180deg, rgba(10,7,20,0.08) 25%, rgba(10,7,20,0.92) 100%);" />
-        <div class="absolute inset-x-0 bottom-0 p-4">
+        <DeckArt :deck="deck" aspect-ratio="21/9" rounded="rounded-[22px]" image-position="right" />
+        <div
+          class="pointer-events-none absolute inset-0 rounded-[22px]"
+          style="background: linear-gradient(90deg, rgba(10,7,20,0.94) 0%, rgba(10,7,20,0.82) 38%, rgba(10,7,20,0.25) 68%, rgba(10,7,20,0) 92%);"
+        />
+        <div class="absolute inset-y-0 left-0 flex w-[68%] flex-col justify-between p-4 sm:w-[58%]">
           <div class="pointer-events-none">
             <p class="font-semibold text-white">{{ deck.name }}</p>
             <p class="mt-1 text-xs text-white/70">{{ deck.commander }}</p>
@@ -169,23 +172,31 @@ const filteredDecks = computed(() => {
               {{ $t('decks.stats', { played: statsFor(deck)!.games_played, won: statsFor(deck)!.games_won }) }}
             </p>
           </div>
-          <div class="pointer-events-auto mt-2 flex flex-wrap items-center justify-between gap-2">
-            <span v-if="deck.moxfield_id" class="flex items-center gap-2">
-              <button
-                type="button"
-                :disabled="syncState[deck.id]?.loading"
-                class="rounded-full border border-white/25 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10 disabled:opacity-50"
-                @click="handleSync(deck)"
-              >
-                {{ syncState[deck.id]?.loading ? $t('decks.sync.syncing') : $t('decks.sync.action') }}
-              </button>
-              <span
-                v-if="syncState[deck.id]?.message"
-                class="text-xs"
-                :style="{ color: syncState[deck.id]?.isError ? '#fca5a5' : '#86efac' }"
-              >
-                {{ syncState[deck.id]?.message }}
-              </span>
+          <div class="pointer-events-auto flex flex-wrap items-center gap-2">
+            <a
+              v-if="deck.moxfield_id"
+              :href="`https://moxfield.com/decks/${deck.moxfield_id}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rounded-full border border-white/25 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10"
+            >
+              {{ $t('decks.viewOnMoxfield') }}
+            </a>
+            <button
+              v-if="deck.moxfield_id"
+              type="button"
+              :disabled="syncState[deck.id]?.loading"
+              class="rounded-full border border-white/25 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10 disabled:opacity-50"
+              @click="handleSync(deck)"
+            >
+              {{ syncState[deck.id]?.loading ? $t('decks.sync.syncing') : $t('decks.sync.action') }}
+            </button>
+            <span
+              v-if="syncState[deck.id]?.message"
+              class="text-xs"
+              :style="{ color: syncState[deck.id]?.isError ? '#fca5a5' : '#86efac' }"
+            >
+              {{ syncState[deck.id]?.message }}
             </span>
           </div>
         </div>

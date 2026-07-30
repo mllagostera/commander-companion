@@ -25,11 +25,13 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.commandercompanion.R
 import com.commandercompanion.presentation.components.GradientButton
 import com.commandercompanion.presentation.components.RotateDevicePrompt
 import com.commandercompanion.presentation.theme.AccentSoft
@@ -63,7 +65,7 @@ fun GameTrackerScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(AppBackgroundDeep)) {
         when {
-            !isLandscape -> RotateDevicePrompt(message = "Girá tu dispositivo\npara empezar la partida")
+            !isLandscape -> RotateDevicePrompt(message = stringResource(R.string.tracker_rotate_prompt))
             state.isFinished -> GameSummary(state = state, onBack = onFinish)
             else -> {
                 QuadrantGrid(
@@ -199,7 +201,11 @@ private fun PlayerQuadrant(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(player.name, color = Color.Black.copy(alpha = 0.75f), fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                 if (player.mulligans > 0) {
-                    Text("${player.mulligans} mulligan(s)", color = Color.Black.copy(alpha = 0.55f), fontSize = 9.sp)
+                    Text(
+                        stringResource(R.string.tracker_mulligans_suffix, player.mulligans),
+                        color = Color.Black.copy(alpha = 0.55f),
+                        fontSize = 9.sp
+                    )
                 }
             }
 
@@ -237,7 +243,12 @@ private fun PlayerQuadrant(
                     .clickable { onPassTurn() }
                     .padding(horizontal = 14.dp, vertical = 5.dp)
             ) {
-                Text("Pasar turno", color = Color.Black.copy(alpha = 0.75f), fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+                Text(
+                    stringResource(R.string.tracker_pass_turn),
+                    color = Color.Black.copy(alpha = 0.75f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp
+                )
             }
         }
 
@@ -260,7 +271,7 @@ private fun PlayerQuadrant(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "MUERTO",
+                    stringResource(R.string.tracker_dead),
                     color = Color.White.copy(alpha = deathAlpha),
                     fontWeight = FontWeight.Light,
                     fontSize = 19.sp,
@@ -299,7 +310,7 @@ private fun CommanderDamagePanel(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("Daño comandante", color = AccentSoft, fontSize = 9.sp, letterSpacing = 0.5.sp)
+            Text(stringResource(R.string.tracker_commander_damage), color = AccentSoft, fontSize = 9.sp, letterSpacing = 0.5.sp)
             opponents.forEach { opponent ->
                 val amount = commanderDamage[opponent.id] ?: 0
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -317,7 +328,7 @@ private fun CommanderDamagePanel(
             }
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Veneno", color = StatusPoison, fontSize = 9.sp)
+                Text(stringResource(R.string.tracker_poison), color = StatusPoison, fontSize = 9.sp)
                 MiniStepButton("−") { onPoisonChange(-1) }
                 Text(
                     poison.toString(),
@@ -368,7 +379,7 @@ private fun PauseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 private fun StarterBanner(name: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier.background(Color(0xF7050308)), contentAlignment = Alignment.Center) {
         Text(
-            text = "¡Empieza\n$name!",
+            text = stringResource(R.string.tracker_starter_banner, name),
             color = AppOnBackground,
             fontWeight = FontWeight.Bold,
             fontSize = 22.sp,
@@ -381,11 +392,11 @@ private fun StarterBanner(name: String, modifier: Modifier = Modifier) {
 private fun PauseOverlay(onResume: () -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier = modifier.background(Color(0xF7050308)), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Partida pausada", color = AppOnBackground, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Text("El tiempo dejó de contarse.", color = AppFaint, fontSize = 12.sp)
-            GradientButton(text = "Reanudar", onClick = onResume, modifier = Modifier.width(180.dp))
+            Text(stringResource(R.string.tracker_paused), color = AppOnBackground, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(stringResource(R.string.tracker_paused_subtitle), color = AppFaint, fontSize = 12.sp)
+            GradientButton(text = stringResource(R.string.tracker_resume), onClick = onResume, modifier = Modifier.width(180.dp))
             Text(
-                "Finalizar partida",
+                stringResource(R.string.tracker_finish_game),
                 color = StatusDanger,
                 fontSize = 13.sp,
                 modifier = Modifier.clickable(onClick = onEnd)
@@ -395,17 +406,25 @@ private fun PauseOverlay(onResume: () -> Unit, onEnd: () -> Unit, modifier: Modi
 }
 
 private val SummaryColumnWeights = listOf(1.3f, 0.7f, 0.9f, 0.9f, 0.7f, 0.8f, 0.9f)
-private val SummaryColumnLabels = listOf("Jugador", "Vida", "Hecho", "Recib.", "Veneno", "Mull.", "Estado")
 
 @Composable
 private fun GameSummary(state: GameState, onBack: () -> Unit) {
     val winner = state.players.firstOrNull { it.id == state.winnerId }
+    val summaryColumnLabels = listOf(
+        stringResource(R.string.summary_column_player),
+        stringResource(R.string.summary_column_life),
+        stringResource(R.string.summary_column_dealt),
+        stringResource(R.string.summary_column_taken),
+        stringResource(R.string.summary_column_poison),
+        stringResource(R.string.summary_column_mulligans),
+        stringResource(R.string.summary_column_status)
+    )
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "Estadísticas de la partida · Turno ${state.currentTurn}",
+            stringResource(R.string.summary_subtitle, state.currentTurn),
             color = AppFaint,
             fontSize = 11.sp,
             letterSpacing = 0.5.sp
@@ -419,7 +438,12 @@ private fun GameSummary(state: GameState, onBack: () -> Unit) {
                     .background(winner.color)
                     .padding(horizontal = 20.dp, vertical = 8.dp)
             ) {
-                Text("🏆 Gana ${winner.name}", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    stringResource(R.string.summary_winner_banner, winner.name),
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
             }
             Spacer(Modifier.height(14.dp))
         }
@@ -429,7 +453,7 @@ private fun GameSummary(state: GameState, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                SummaryColumnLabels.forEachIndexed { index, label ->
+                summaryColumnLabels.forEachIndexed { index, label ->
                     Text(label, color = AppFaint, fontSize = 9.sp, modifier = Modifier.weight(SummaryColumnWeights[index]))
                 }
             }
@@ -442,16 +466,16 @@ private fun GameSummary(state: GameState, onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(12.dp))
-        GradientButton(text = "Volver al inicio", onClick = onBack)
+        GradientButton(text = stringResource(R.string.summary_back_home), onClick = onBack)
     }
 }
 
 @Composable
 private fun SummaryRow(player: PlayerState, dealt: Int, taken: Int, isWinner: Boolean) {
     val statusLabel = when {
-        isWinner -> "Ganador"
-        player.isEliminated() -> "Eliminado"
-        else -> "En juego"
+        isWinner -> stringResource(R.string.summary_status_winner)
+        player.isEliminated() -> stringResource(R.string.summary_status_eliminated)
+        else -> stringResource(R.string.summary_status_in_play)
     }
     Row(
         modifier = Modifier
@@ -486,7 +510,7 @@ private fun SummaryRow(player: PlayerState, dealt: Int, taken: Int, isWinner: Bo
 @Composable
 private fun RemoteSyncBanner(remoteSync: RemoteSyncState, modifier: Modifier = Modifier) {
     val label = when (remoteSync.status) {
-        RemoteSyncStatus.Connecting -> "Creando la partida en el servidor…"
+        RemoteSyncStatus.Connecting -> stringResource(R.string.tracker_connecting_to_server)
         RemoteSyncStatus.Synced -> null
         RemoteSyncStatus.Disabled,
         RemoteSyncStatus.WaitingForPlayers,
