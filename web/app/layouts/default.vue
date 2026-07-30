@@ -92,8 +92,8 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
           <template v-if="isUserMenuOpen">
             <div class="fixed inset-0 z-[29]" @click="closeUserMenu" />
             <div
-              class="absolute right-0 top-[calc(100%+10px)] z-30 flex min-w-[210px] flex-col gap-0.5 rounded-[18px] border p-2.5 shadow-[0_16px_36px_rgba(0,0,0,0.3)]"
-              style="background: var(--card-bg-strong); border-color: var(--card-border);"
+              class="absolute right-0 top-[calc(100%+10px)] z-30 flex min-w-[210px] flex-col gap-0.5 rounded-[18px] border p-2.5 shadow-[0_16px_36px_rgba(0,0,0,0.3)] backdrop-blur-xl"
+              style="background: var(--menu-bg); border-color: var(--card-border);"
             >
               <div class="flex items-center justify-between px-2.5 py-2">
                 <span class="text-[13px]" style="color: var(--text);">{{ $t('nav.darkTheme') }}</span>
