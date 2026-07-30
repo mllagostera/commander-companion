@@ -1,4 +1,4 @@
-import type { Deck, PaginatedResponse, SyncResponse } from '~/types/api'
+import type { Deck, DeckResyncJob, PaginatedResponse, SyncResponse } from '~/types/api'
 
 export function useDecks() {
   const { apiFetch } = useApi()
@@ -29,7 +29,16 @@ export function useDecks() {
     })
   }
 
-  return { listDecks, importFromMoxfield, syncFromMoxfield }
+  /** Dispara en background el resync de TODOS los decks propios con moxfield_id. */
+  function resyncAllDecks() {
+    return apiFetch<DeckResyncJob>('/decks/resync-all', { method: 'POST' })
+  }
+
+  function getResyncAllStatus(jobId: string) {
+    return apiFetch<DeckResyncJob>(`/decks/resync-all/${jobId}`)
+  }
+
+  return { listDecks, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus }
 }
 
 /**
@@ -50,5 +59,18 @@ export function moxfieldImportError(err: unknown): string {
         : t('errors.moxfieldImport.invalidUrl')
     default:
       return apiErrorMessage(err, t('errors.moxfieldImport.generic'))
+  }
+}
+
+/** Traduce los errores de POST /decks/resync-all. */
+export function resyncAllDecksError(err: unknown): string {
+  const { t } = useI18n()
+  switch (apiErrorStatus(err)) {
+    case 400:
+      return t('errors.resyncAllDecks.noneEligible')
+    case 409:
+      return t('errors.resyncAllDecks.inProgress')
+    default:
+      return apiErrorMessage(err, t('errors.resyncAllDecks.generic'))
   }
 }

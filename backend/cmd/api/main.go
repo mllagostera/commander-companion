@@ -14,6 +14,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/auth"
 	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/config"
+	"github.com/usuario/commander-companion-backend/internal/deckresync"
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	"github.com/usuario/commander-companion-backend/internal/email"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
@@ -171,4 +172,9 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	// ListDecksByUsername todavía stubbeado (ver internal/moxfieldimport).
 	moxfieldImportService := moxfieldimport.NewService(db.Pool, usersService, decksService, moxfieldClient)
 	moxfieldimport.NewHandler(moxfieldImportService).RegisterRoutes(protected)
+
+	// deckresync: resincroniza en background TODOS los decks ya importados con
+	// moxfield_id (distinto de moxfieldimport, que trae decks nuevos por username).
+	deckResyncService := deckresync.NewService(db.Pool, decksService)
+	deckresync.NewHandler(deckResyncService).RegisterRoutes(protected)
 }

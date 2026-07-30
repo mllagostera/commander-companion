@@ -46,6 +46,21 @@ export interface MoxfieldImportJob {
   error_message: string | null
 }
 
+/**
+ * Job de resync masivo de decks (`POST /decks/resync-all`,
+ * `GET /decks/resync-all/{jobId}`). Actualiza en background todos los decks
+ * YA IMPORTADOS que tengan moxfield_id — distinto de MoxfieldImportJob, que
+ * trae decks nuevos a partir de un username.
+ */
+export interface DeckResyncJob {
+  id: string
+  status: 'in_progress' | 'completed' | 'failed'
+  total_decks: number
+  updated_count: number
+  failed_count: number
+  error_message: string | null
+}
+
 export interface UserStats {
   user_id: string
   games_played: number

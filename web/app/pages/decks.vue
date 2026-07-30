@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Deck, DeckStats } from '~/types/api'
+import type { Deck, DeckResyncJob, DeckStats } from '~/types/api'
 
 const { t } = useI18n()
-const { listDecks, importFromMoxfield, syncFromMoxfield } = useDecks()
+const { listDecks, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus } = useDecks()
 const { deckStats } = useStatistics()
 const { showToast } = useToast()
 
@@ -86,6 +86,48 @@ async function handleSync(deck: Deck) {
   }
 }
 
+// --------------------------------------------------- actualizar todos los decks
+const resyncJob = ref<DeckResyncJob | null>(null)
+const resyncError = ref('')
+const isStartingResync = ref(false)
+let resyncPollHandle: ReturnType<typeof setTimeout> | null = null
+
+function stopResyncPolling() {
+  if (resyncPollHandle) clearTimeout(resyncPollHandle)
+  resyncPollHandle = null
+}
+
+function pollResyncStatus(jobId: string) {
+  stopResyncPolling()
+  resyncPollHandle = setTimeout(async () => {
+    try {
+      resyncJob.value = await getResyncAllStatus(jobId)
+    } catch {
+      // Best-effort: un error de red puntual no debe cortar el polling.
+    }
+    if (resyncJob.value?.status === 'in_progress') {
+      pollResyncStatus(jobId)
+    } else {
+      await refresh()
+    }
+  }, 2000)
+}
+
+async function handleResyncAll() {
+  resyncError.value = ''
+  isStartingResync.value = true
+  try {
+    resyncJob.value = await resyncAllDecks()
+    pollResyncStatus(resyncJob.value.id)
+  } catch (err) {
+    resyncError.value = resyncAllDecksError(err)
+  } finally {
+    isStartingResync.value = false
+  }
+}
+
+onUnmounted(stopResyncPolling)
+
 // ------------------------------------------------------- búsqueda y orden
 type SortKey = 'played' | 'won' | 'winrate' | 'name'
 const deckSearch = ref('')
@@ -122,14 +164,38 @@ const filteredDecks = computed(() => {
         <h1 class="text-2xl font-semibold sm:text-[26px]">{{ $t('decks.title') }}</h1>
         <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('decks.subtitle') }}</p>
       </div>
-      <button
-        type="button"
-        class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.04]"
-        style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
-        @click="openImportModal"
-      >
-        {{ $t('decks.addDeck') }}
-      </button>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button
+          type="button"
+          :disabled="isStartingResync || resyncJob?.status === 'in_progress'"
+          class="rounded-full border px-4 py-2.5 text-[13px] disabled:opacity-50"
+          style="border-color: var(--input-border); color: var(--text);"
+          @click="handleResyncAll"
+        >
+          {{ isStartingResync ? $t('decks.resyncAll.starting') : $t('decks.resyncAll.action') }}
+        </button>
+        <button
+          type="button"
+          class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.04]"
+          style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+          @click="openImportModal"
+        >
+          {{ $t('decks.addDeck') }}
+        </button>
+      </div>
+    </section>
+
+    <section v-if="resyncError || resyncJob" class="text-sm" style="color: var(--text-muted);">
+      <p v-if="resyncError" style="color: var(--lose);">{{ resyncError }}</p>
+      <p v-else-if="resyncJob?.status === 'in_progress'">
+        {{ $t('decks.resyncAll.inProgress', { done: resyncJob.updated_count + resyncJob.failed_count, total: resyncJob.total_decks }) }}
+      </p>
+      <p v-else-if="resyncJob?.status === 'completed'" style="color: var(--win);">
+        {{ $t('decks.resyncAll.completed', { updated: resyncJob.updated_count, failed: resyncJob.failed_count }) }}
+      </p>
+      <p v-else-if="resyncJob?.status === 'failed'" style="color: var(--lose);">
+        {{ $t('decks.resyncAll.failed', { message: resyncJob.error_message }) }}
+      </p>
     </section>
 
     <section class="flex flex-wrap items-center gap-2.5">

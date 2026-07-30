@@ -139,6 +139,13 @@
       "updated": "Actualizado desde Moxfield",
       "upToDate": "Ya estaba al día"
     },
+    "resyncAll": {
+      "action": "Actualizar todos",
+      "starting": "Iniciando…",
+      "inProgress": "Actualizando… {done} / {total} decks procesados.",
+      "completed": "Listo: {updated} decks actualizados, {failed} fallidos.",
+      "failed": "La actualización falló. {message}"
+    },
     "viewOnMoxfield": "Ver en Moxfield",
     "import": {
       "title": "Importar desde Moxfield",
@@ -314,6 +321,11 @@
       "notCommander": "Ese deck de Moxfield no tiene comandante: no parece ser un deck de formato Commander.",
       "invalidUrl": "La URL o el ID de Moxfield no son válidos. Pega algo como https://moxfield.com/decks/abc123 o solo abc123.",
       "generic": "No se pudo importar el deck desde Moxfield."
+    },
+    "resyncAllDecks": {
+      "noneEligible": "No tienes ningún deck importado de Moxfield para actualizar.",
+      "inProgress": "Ya hay una actualización en curso para tu cuenta.",
+      "generic": "No se pudo iniciar la actualización de los decks."
     },
     "changePassword": {
       "tooShort": "La contraseña nueva debe tener al menos 8 caracteres.",

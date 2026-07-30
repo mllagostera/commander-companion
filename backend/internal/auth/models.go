@@ -26,6 +26,19 @@ type Deck struct {
 	ImageUrl   pgtype.Text      `json:"image_url"`
 }
 
+type DeckResyncJob struct {
+	ID           pgtype.UUID      `json:"id"`
+	UserID       pgtype.UUID      `json:"user_id"`
+	Status       string           `json:"status"`
+	TotalDecks   int32            `json:"total_decks"`
+	UpdatedCount int32            `json:"updated_count"`
+	FailedCount  int32            `json:"failed_count"`
+	ErrorMessage pgtype.Text      `json:"error_message"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+	FinishedAt   pgtype.Timestamp `json:"finished_at"`
+}
+
 type DeckStatisticsSummary struct {
 	DeckID                    pgtype.UUID      `json:"deck_id"`
 	GamesPlayed               pgtype.Int4      `json:"games_played"`

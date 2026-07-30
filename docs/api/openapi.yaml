@@ -260,6 +260,31 @@ components:
         error_message:
           type: string
           nullable: true
+    DeckResyncJob:
+      type: object
+      required: [id, status, total_decks, updated_count, failed_count]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [in_progress, completed, failed]
+        total_decks:
+          type: integer
+          description: >-
+            Cantidad de decks del usuario con moxfield_id que se van a
+            resincronizar. Conocido desde la creación del job (a diferencia de
+            MoxfieldImportJob.total_decks, acá no hace falta consultar Moxfield
+            para saberlo).
+        updated_count:
+          type: integer
+          description: Decks procesados sin error (con o sin cambios reales en Moxfield).
+        failed_count:
+          type: integer
+        error_message:
+          type: string
+          nullable: true
     ImportMoxfieldRequest:
       type: object
       required: [url]
@@ -1535,6 +1560,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MoxfieldImportJob'
+        '404':
+          description: El job no existe o no es del usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /decks/resync-all:
+    post:
+      summary: Resincronizar en background todos los decks del usuario con moxfield_id
+      description: >-
+        Distinto de `/moxfield-import`: ese trae decks NUEVOS a partir de un
+        username de Moxfield; este actualiza los decks que el usuario YA TIENE
+        importados (nombre/comandante/imagen), llamando internamente la misma
+        lógica que `/sync/moxfield` para cada uno, espaciado para no golpear
+        la API de Moxfield en paralelo. La lista se resuelve de forma síncrona
+        antes de crear el job: sin decks elegibles, responde 400 en el momento.
+      responses:
+        '202':
+          description: Job creado, resync en curso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeckResyncJob'
+        '400':
+          description: El usuario no tiene ningún deck con moxfield_id para resincronizar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Ya hay un resync pending/in_progress para este usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /decks/resync-all/{jobId}:
+    get:
+      summary: Consultar el progreso de un job de resync masivo de decks
+      description: Acotado al usuario autenticado -- 404 si el job no es suyo, sin distinguir de "no existe".
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Estado del job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeckResyncJob'
         '404':
           description: El job no existe o no es del usuario autenticado
           content:
