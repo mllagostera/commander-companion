@@ -10,10 +10,20 @@ export default defineNuxtConfig({
     },
   },
   i18n: {
-    locales: [{ code: 'es', language: 'es-ES', file: 'es.json' }],
+    locales: [
+      { code: 'es', language: 'es-ES', file: 'es.json', name: 'Español' },
+      { code: 'en', language: 'en-US', file: 'en.json', name: 'English' },
+      { code: 'ca', language: 'ca-ES', file: 'ca.json', name: 'Català' },
+    ],
     defaultLocale: 'es',
     strategy: 'no_prefix',
-    detectBrowserLanguage: false,
+    // Detecta el idioma del navegador solo en la primera visita: una vez que hay
+    // cookie (por detección o por el selector manual del layout), no se vuelve a
+    // re-detectar — así el selector manual no se pisa en la próxima carga.
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'cc_locale',
+    },
   },
   runtimeConfig: {
     // URL de la API para llamadas hechas desde el servidor (SSR). En Docker

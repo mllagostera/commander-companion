@@ -1,0 +1,383 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…"
+  },
+  "nav": {
+    "home": "Home",
+    "decks": "Decks",
+    "statistics": "Statistics",
+    "playgroups": "Groups",
+    "settings": "Settings",
+    "logout": "Log out",
+    "darkTheme": "Dark theme",
+    "toggleTheme": "Toggle theme",
+    "language": "Language"
+  },
+  "login": {
+    "tagline": "Your Commander games and decks, all in one place.",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you\\@email.com",
+    "passwordLabel": "Password",
+    "submit": "Log in",
+    "submitting": "Logging in…",
+    "divider": "or",
+    "verification": {
+      "checkInbox": "Done, check your inbox.",
+      "resend": "Resend verification email",
+      "resending": "Resending…"
+    },
+    "noAccount": "Don't have an account?",
+    "registerLink": "Sign up",
+    "errors": {
+      "loginFailed": "Couldn't log in.",
+      "resendFailed": "Couldn't resend the verification email.",
+      "googleFailed": "Couldn't log in with Google."
+    }
+  },
+  "register": {
+    "tagline": "Create your account and start tracking your games.",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "your_username",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you\\@email.com",
+    "passwordLabel": "Password",
+    "passwordConfirmLabel": "Repeat password",
+    "submit": "Create account",
+    "submitting": "Creating account…",
+    "haveAccount": "Already have an account?",
+    "loginLink": "Log in",
+    "checkEmail": {
+      "title": "Check your email",
+      "bodyIntro": "We sent a confirmation link to",
+      "bodyOutro": "You need to confirm it before you can log in.",
+      "goToLogin": "Go to login"
+    },
+    "errors": {
+      "passwordMismatch": "Passwords don't match.",
+      "registerFailed": "Couldn't create the account."
+    }
+  },
+  "verifyEmail": {
+    "invalidLink": "The verification link isn't valid.",
+    "verifyFailed": "Couldn't verify the email.",
+    "pending": "Verifying your email…",
+    "success": {
+      "title": "Email confirmed",
+      "body": "You can log in now.",
+      "goToLogin": "Go to login"
+    },
+    "error": {
+      "title": "Couldn't verify",
+      "requestNewLinkIntro": "You can request a new link from",
+      "loginLink": "login"
+    }
+  },
+  "dashboard": {
+    "sessionAs": "Signed in as",
+    "greeting": "Hi, {username}",
+    "newGame": "+ New game",
+    "loadError": "Couldn't load the summary.",
+    "stats": {
+      "games": "Games",
+      "wins": "Wins",
+      "winRate": "Win rate",
+      "decks": "Decks"
+    },
+    "winLoss": {
+      "heading": "Wins / losses",
+      "won": "{count} won",
+      "lost": "{count} lost"
+    },
+    "bestDeck": {
+      "heading": "Your best deck",
+      "summary": "{winRate} win rate · {games} games",
+      "empty": "No games recorded yet."
+    },
+    "streak": {
+      "heading": "Current streak",
+      "wins": "{count} wins in a row",
+      "losses": "{count} losses in a row",
+      "sinceLast": "Counting from your last game.",
+      "empty": "No finished games yet."
+    },
+    "groups": {
+      "heading": "Your groups",
+      "viewAll": "View all",
+      "empty": "You're not a member of any group yet.",
+      "summary": "{members} members · {games} games"
+    },
+    "decksSection": {
+      "heading": "Your decks",
+      "viewStats": "View statistics",
+      "empty": "You don't have any decks yet."
+    },
+    "recentGames": {
+      "heading": "Recent games",
+      "empty": "No finished game has been recorded yet.",
+      "won": "Won",
+      "lost": "Lost"
+    }
+  },
+  "decks": {
+    "title": "My decks",
+    "subtitle": "Imported from Moxfield.",
+    "addDeck": "+ Add deck",
+    "searchPlaceholder": "Search deck or commander…",
+    "sort": {
+      "played": "Most played",
+      "won": "Most wins",
+      "winrate": "Best win rate",
+      "name": "Name (A-Z)"
+    },
+    "loadError": "Couldn't load the decks.",
+    "empty": "You don't have any decks yet. Import one from Moxfield to get started.",
+    "stats": "{played} games · {won} wins",
+    "sync": {
+      "action": "Update",
+      "syncing": "Syncing…",
+      "updated": "Updated from Moxfield",
+      "upToDate": "Already up to date"
+    },
+    "resyncAll": {
+      "action": "Update all",
+      "starting": "Starting…",
+      "inProgress": "Updating… {done} / {total} decks processed.",
+      "completed": "Done: {updated} decks updated, {failed} failed.",
+      "failed": "The update failed. {message}"
+    },
+    "viewOnMoxfield": "View on Moxfield",
+    "import": {
+      "title": "Import from Moxfield",
+      "placeholder": "https://moxfield.com/decks/abc123 or abc123",
+      "submit": "Import",
+      "submitting": "Importing…",
+      "commanderLabel": "Commander: {commander}"
+    },
+    "errors": {
+      "syncFailed": "Couldn't sync with Moxfield."
+    }
+  },
+  "statistics": {
+    "title": "Statistics",
+    "subtitle": "Recalculated when each game finishes.",
+    "loadError": "Couldn't load the statistics.",
+    "global": {
+      "heading": "Overall",
+      "winLoss": "Wins / losses",
+      "wonLost": "{won} won · {lost} lost",
+      "games": "Games",
+      "wins": "Wins",
+      "winRate": "Win rate",
+      "totalDamage": "Total damage",
+      "commanderDamage": "Commander damage",
+      "eliminations": "Eliminations"
+    },
+    "perDeck": {
+      "heading": "By deck",
+      "noDecksIntro": "You don't have any decks yet.",
+      "importLink": "Import one from Moxfield",
+      "noDecksOutro": "to see its statistics.",
+      "noStats": "No statistics available for this deck.",
+      "games": "Games",
+      "wins": "Wins",
+      "maxLife": "Highest life",
+      "commanderDamage": "Commander damage"
+    },
+    "perGroup": {
+      "heading": "By game group",
+      "empty": "You're not a member of any group yet.",
+      "summary": "{games} games · {members} members"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Your account and its integrations.",
+    "memberSince": "Member since {date}",
+    "username": {
+      "label": "Username",
+      "placeholder": "Your username"
+    },
+    "moxfield": {
+      "heading": "Moxfield",
+      "description": "Link your Moxfield username to import all your public decks in the background.",
+      "placeholder": "Your Moxfield username",
+      "importAction": "Import my decks in the background",
+      "starting": "Starting…",
+      "importing": "Importing… {done} / {total} decks processed.",
+      "importingNoTotal": "Importing… {done} decks processed.",
+      "completed": "Done: {imported} decks imported, {failed} failed.",
+      "failed": "The import failed. {message}"
+    },
+    "security": {
+      "heading": "Security",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmNewPassword": "Confirm new password",
+      "submit": "Change password",
+      "noPassword": "You signed in with Google, this account doesn't have its own password.",
+      "sessionInfo": "Your session is managed via email/password or Google. Logging out revokes access on this device.",
+      "logout": "Log out"
+    },
+    "errors": {
+      "passwordMismatch": "The new passwords don't match."
+    }
+  },
+  "playgroups": {
+    "list": {
+      "title": "Playgroups",
+      "subtitle": "Tables you play with regularly.",
+      "create": "+ Create group",
+      "loadError": "Couldn't load the groups.",
+      "empty": "You're not a member of any group yet. Create one to get started.",
+      "gamesPlayedCount": "{count} game played | {count} games played",
+      "memberCount": "{count} member | {count} members",
+      "modal": {
+        "title": "Create group",
+        "placeholder": "Group name",
+        "submit": "Create",
+        "submitting": "Creating…"
+      }
+    },
+    "detail": {
+      "back": "← Groups",
+      "rename": "Rename",
+      "memberCount": "{count} member | {count} members",
+      "stats": {
+        "gamesPlayed": "Games played",
+        "members": "Members"
+      },
+      "ranking": {
+        "heading": "Win rate ranking",
+        "addMember": "+ Add member",
+        "close": "Close",
+        "searchPlaceholder": "Search by username or exact email",
+        "add": "Add",
+        "adding": "Adding…",
+        "searching": "Searching…",
+        "columns": {
+          "player": "Player",
+          "games": "Games",
+          "wins": "Wins",
+          "winRate": "Win rate"
+        },
+        "empty": "No games recorded yet."
+      },
+      "members": {
+        "heading": "Members"
+      },
+      "history": {
+        "heading": "Game history",
+        "empty": "No game has been played in this group yet.",
+        "noPlayers": "No players"
+      }
+    }
+  },
+  "play": {
+    "setup": {
+      "title": "New game",
+      "subtitle": "Local life tracker: not saved or counted towards your statistics.",
+      "playerCountLabel": "Players",
+      "playerPlaceholder": "Player {n}",
+      "start": "Start game",
+      "localNote": "This game only lives in this tab. Reloading it will lose your progress."
+    },
+    "tracker": {
+      "turn": "Turn {n}",
+      "finish": "Finish",
+      "poison": "Poison",
+      "eliminated": "Eliminated",
+      "showCommanderDamage": "Show commander damage",
+      "hideCommanderDamage": "Hide commander damage"
+    },
+    "summary": {
+      "heading": "Game finished",
+      "winner": "{name} won",
+      "draw": "Draw",
+      "newGame": "New game",
+      "backHome": "Back to home"
+    }
+  },
+  "toast": {
+    "passwordUpdated": "Password updated",
+    "usernameUpdated": "Username updated",
+    "moxfieldLinked": "Moxfield account linked",
+    "groupCreated": "Group created",
+    "groupRenamed": "Group renamed",
+    "deckImported": "Deck imported",
+    "memberAdded": "{username} added to the group"
+  },
+  "gameStatus": {
+    "pending": "Pending",
+    "active": "In progress",
+    "finished": "Finished"
+  },
+  "errors": {
+    "auth": {
+      "noActiveSession": "There's no active session."
+    },
+    "moxfieldImport": {
+      "notFound": "There's no public Moxfield deck with that ID. Check the URL and that the deck isn't private.",
+      "notCommander": "That Moxfield deck has no commander: it doesn't look like a Commander-format deck.",
+      "invalidUrl": "The Moxfield URL or ID isn't valid. Paste something like https://moxfield.com/decks/abc123 or just abc123.",
+      "generic": "Couldn't import the deck from Moxfield."
+    },
+    "resyncAllDecks": {
+      "noneEligible": "You don't have any deck imported from Moxfield to update.",
+      "inProgress": "There's already an update in progress for your account.",
+      "generic": "Couldn't start updating the decks."
+    },
+    "changePassword": {
+      "tooShort": "The new password must be at least 8 characters long.",
+      "googleAccount": "This account signed in with Google and doesn't have its own password.",
+      "incorrect": "The current password isn't correct.",
+      "generic": "Couldn't change the password."
+    },
+    "updateMoxfieldUsername": {
+      "generic": "Couldn't save the Moxfield username."
+    },
+    "updateUsername": {
+      "taken": "That username is already taken.",
+      "generic": "Couldn't save the username."
+    },
+    "startMoxfieldImport": {
+      "needUsername": "First save your Moxfield username.",
+      "inProgress": "There's already an import in progress for your account.",
+      "notAvailable": "Bulk Moxfield import isn't available on the server yet.",
+      "generic": "Couldn't start the import."
+    },
+    "playgroups": {
+      "create": {
+        "needName": "The group needs a name.",
+        "generic": "Couldn't create the group."
+      },
+      "get": {
+        "notFoundOrNotMember": "The group doesn't exist or you're not a member.",
+        "generic": "Couldn't load the group."
+      },
+      "update": {
+        "needName": "The group needs a name.",
+        "notFoundOrNotMember": "The group doesn't exist or you're not a member.",
+        "generic": "Couldn't rename the group."
+      },
+      "addMember": {
+        "invalidUserId": "That user ID isn't valid.",
+        "userNotFound": "There's no user with that ID.",
+        "alreadyMember": "That user is already a member of the group.",
+        "generic": "Couldn't add the user."
+      }
+    },
+    "games": {
+      "notFoundOrNotMember": "The group doesn't exist or you're not a member.",
+      "generic": "Couldn't load the game history."
+    },
+    "users": {
+      "tooShort": "Type at least 2 characters.",
+      "generic": "Couldn't search for users."
+    },
+    "googleIdentity": {
+      "loadFailed": "Couldn't load Google Identity Services."
+    }
+  }
+}
