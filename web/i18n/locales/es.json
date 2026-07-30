@@ -23,6 +23,10 @@
     "submit": "Iniciar sesión",
     "submitting": "Ingresando…",
     "divider": "o",
+    "loading": {
+      "title": "Iniciando sesión…",
+      "slowHint": "El servidor estaba dormido y está despertando, puede tardar unos segundos."
+    },
     "verification": {
       "checkInbox": "Listo, revisa tu bandeja de entrada.",
       "resend": "Reenviar email de verificación",
