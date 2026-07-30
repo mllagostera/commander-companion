@@ -18,12 +18,14 @@ import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.GradientButton
 import com.commandercompanion.presentation.components.GradientOutlineButton
 import com.commandercompanion.presentation.components.GradientTitle
+import com.commandercompanion.presentation.theme.AppFaint
 import com.commandercompanion.presentation.theme.StatusDanger
 
 @Composable
 fun DashboardScreen(
     onNewGame: () -> Unit,
     onViewHistory: () -> Unit,
+    onOpenSettings: () -> Unit,
     onLogout: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
@@ -50,6 +52,13 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(14.dp))
             GradientOutlineButton(text = stringResource(R.string.dashboard_history), onClick = onViewHistory)
             Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = stringResource(R.string.dashboard_settings),
+                color = AppFaint,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onOpenSettings)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = stringResource(R.string.dashboard_logout),
                 color = StatusDanger,

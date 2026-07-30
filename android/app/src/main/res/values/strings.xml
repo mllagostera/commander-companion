@@ -8,6 +8,8 @@
     <string name="common_divider_or">o</string>
     <string name="common_continue_with_google">Continuar con Google</string>
     <string name="common_you_suffix">(tú)</string>
+    <string name="common_save">Guardar</string>
+    <string name="common_saving">Guardando…</string>
 
     <!-- Login -->
     <string name="login_subtitle">Inicia sesión para trackear tus partidas.</string>
@@ -30,6 +32,7 @@
     <!-- Dashboard -->
     <string name="dashboard_new_game">NUEVA PARTIDA</string>
     <string name="dashboard_history">HISTORIAL</string>
+    <string name="dashboard_settings">Ajustes</string>
     <string name="dashboard_logout">Cerrar sesión</string>
 
     <!-- Historial -->
@@ -97,4 +100,18 @@
     <string name="summary_status_winner">Ganador</string>
     <string name="summary_status_eliminated">Eliminado</string>
     <string name="summary_status_in_play">En juego</string>
+
+    <!-- Ajustes de cuenta -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_profile_heading">Perfil</string>
+    <string name="settings_moxfield_heading">Moxfield</string>
+    <string name="settings_moxfield_description">Vincula tu usuario de Moxfield para poder importar tus decks públicos.</string>
+    <string name="settings_moxfield_username_label">Usuario de Moxfield</string>
+    <string name="settings_security_heading">Seguridad</string>
+    <string name="settings_security_current_password">Contraseña actual</string>
+    <string name="settings_security_new_password">Contraseña nueva</string>
+    <string name="settings_security_confirm_password">Confirmar contraseña nueva</string>
+    <string name="settings_security_submit">Cambiar contraseña</string>
+    <string name="settings_security_password_updated">Contraseña actualizada</string>
+    <string name="settings_security_no_password">Iniciaste sesión con Google, esta cuenta no tiene contraseña propia.</string>
 </resources>
