@@ -16,10 +16,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.commandercompanion.R
 import com.commandercompanion.data.local.entity.GameWithPlayers
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.CircleIconButton
@@ -53,7 +55,7 @@ fun HistoryScreen(
             ) {
                 CircleIconButton(label = "‹", onClick = onBack)
                 Text(
-                    "Historial de partidas",
+                    stringResource(R.string.history_title),
                     color = AppOnBackground,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 17.sp
@@ -63,7 +65,7 @@ fun HistoryScreen(
             if (games.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "Todavía no hay partidas registradas",
+                        stringResource(R.string.history_empty),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -105,14 +107,15 @@ private fun GameHistoryCard(entry: GameWithPlayers) {
                     fontSize = 11.sp
                 )
                 StatusPill(
-                    text = if (finished) "Finalizada" else "En curso",
+                    text = if (finished) stringResource(R.string.history_status_finished) else stringResource(R.string.history_status_in_progress),
                     containerColor = if (finished) StatusSuccessContainer else StatusInfoContainer,
                     contentColor = if (finished) StatusSuccess else StatusInfo
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = winner?.let { "Ganó: ${it.name}" } ?: "${entry.game.playerCount} jugadores",
+                text = winner?.let { stringResource(R.string.history_winner, it.name) }
+                    ?: stringResource(R.string.history_player_count, entry.game.playerCount),
                 color = AppOnBackground,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
@@ -131,12 +134,12 @@ private fun GameHistoryCard(entry: GameWithPlayers) {
                                 .background(colorForKey(player.colorKey))
                         )
                         Spacer(modifier = Modifier.width(5.dp))
-                        val mulliganSuffix = if (player.mulligans > 0) " (${player.mulligans}m)" else ""
-                        Text(
-                            "${player.name}: ${player.finalLife}$mulliganSuffix",
-                            color = AppFaint,
-                            fontSize = 11.sp
-                        )
+                        val label = if (player.mulligans > 0) {
+                            stringResource(R.string.history_player_life_with_mulligans, player.name, player.finalLife, player.mulligans)
+                        } else {
+                            stringResource(R.string.history_player_life, player.name, player.finalLife)
+                        }
+                        Text(label, color = AppFaint, fontSize = 11.sp)
                     }
                 }
             }

@@ -16,12 +16,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.commandercompanion.R
 import com.commandercompanion.presentation.components.AppLogoMark
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.AuthTextField
@@ -63,10 +65,10 @@ fun LoginScreen(
         ) {
             AppLogoMark()
             Spacer(modifier = Modifier.height(14.dp))
-            GradientTitle(text = "Commander Companion", fontSize = 20.sp)
+            GradientTitle(text = stringResource(R.string.app_name), fontSize = 20.sp)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Iniciá sesión para trackear tus partidas.",
+                text = stringResource(R.string.login_subtitle),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp
             )
@@ -79,7 +81,7 @@ fun LoginScreen(
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     AuthTextField(
-                        label = "Email",
+                        label = stringResource(R.string.common_email_label),
                         value = email,
                         onValueChange = { email = it },
                         enabled = !uiState.isLoading,
@@ -87,7 +89,7 @@ fun LoginScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     AuthTextField(
-                        label = "Contraseña",
+                        label = stringResource(R.string.common_password_label),
                         value = password,
                         onValueChange = { password = it },
                         enabled = !uiState.isLoading,
@@ -105,7 +107,7 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
                     GradientButton(
-                        text = "Iniciar sesión",
+                        text = stringResource(R.string.login_submit),
                         onClick = { viewModel.loginWithPassword(email, password) },
                         enabled = !uiState.isLoading
                     ) {
@@ -117,7 +119,7 @@ fun LoginScreen(
                             )
                         } else {
                             Text(
-                                "Iniciar sesión",
+                                stringResource(R.string.login_submit),
                                 color = MaterialTheme.colorScheme.background,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp
@@ -128,13 +130,13 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         ThinDivider(modifier = Modifier.weight(1f))
-                        Text(text = "  o  ", fontSize = 11.sp, color = AppFaint)
+                        Text(text = "  ${stringResource(R.string.common_divider_or)}  ", fontSize = 11.sp, color = AppFaint)
                         ThinDivider(modifier = Modifier.weight(1f))
                     }
                     Spacer(modifier = Modifier.height(14.dp))
 
                     GradientOutlineButton(
-                        text = "Continuar con Google",
+                        text = stringResource(R.string.common_continue_with_google),
                         onClick = { viewModel.loginWithGoogle(context) },
                         enabled = !uiState.isLoading
                     )
@@ -144,9 +146,9 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text(text = "¿No tenés cuenta? ", fontSize = 12.sp, color = AppFaint)
+                        Text(text = stringResource(R.string.login_no_account), fontSize = 12.sp, color = AppFaint)
                         Text(
-                            text = "Registrate",
+                            text = stringResource(R.string.login_register_link),
                             fontSize = 12.sp,
                             color = AccentSoft,
                             fontWeight = FontWeight.SemiBold,

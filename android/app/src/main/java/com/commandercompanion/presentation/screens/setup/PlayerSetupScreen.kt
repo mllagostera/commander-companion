@@ -18,10 +18,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.commandercompanion.R
 import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.PlaygroupDto
 import com.commandercompanion.data.remote.dto.PlaygroupMemberDto
@@ -52,8 +54,9 @@ fun PlayerSetupScreen(
 ) {
     var mode by remember { mutableStateOf(SetupMode.CASUAL) }
     var playerCount by remember { mutableIntStateOf(4) }
+    val defaultPlayerName = stringResource(R.string.setup_default_player_name)
     val names = remember {
-        mutableStateListOf(*Array(MAX_PLAYERS) { "Jugador ${it + 1}" })
+        mutableStateListOf(*Array(MAX_PLAYERS) { defaultPlayerName.format(it + 1) })
     }
     val colorKeys = remember {
         mutableStateListOf(*Array(MAX_PLAYERS) { PlayerColorPalette[it % PlayerColorPalette.size].first })
@@ -70,7 +73,7 @@ fun PlayerSetupScreen(
     AppScreenBackground {
         Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
             Text(
-                "Nueva partida",
+                stringResource(R.string.setup_title),
                 color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 20.sp
@@ -78,15 +81,18 @@ fun PlayerSetupScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             PillSegmentedControl(
-                options = listOf(SetupMode.CASUAL to "Casual", SetupMode.GROUP to "Grupo"),
+                options = listOf(
+                    SetupMode.CASUAL to stringResource(R.string.setup_mode_casual),
+                    SetupMode.GROUP to stringResource(R.string.setup_mode_group)
+                ),
                 selected = mode,
                 onSelected = { mode = it }
             )
             Text(
                 text = if (mode == SetupMode.CASUAL) {
-                    "Sin cuentas ni estadísticas: solo trackear la partida en este dispositivo."
+                    stringResource(R.string.setup_mode_casual_description)
                 } else {
-                    "Asigná asientos a miembros de tu grupo: sus estadísticas quedan reales al terminar."
+                    stringResource(R.string.setup_mode_group_description)
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
@@ -106,7 +112,7 @@ fun PlayerSetupScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            SectionEyebrow("Jugadores")
+            SectionEyebrow(stringResource(R.string.setup_players_label))
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -158,12 +164,12 @@ fun PlayerSetupScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
             GradientButton(
-                text = "EMPEZAR PARTIDA",
+                text = stringResource(R.string.setup_start_game),
                 onClick = {
                     val configs = (0 until playerCount).map { index ->
                         val member = if (mode == SetupMode.GROUP) assignedMembers[index] else null
                         PlayerConfig(
-                            name = member?.username ?: names[index].ifBlank { "Jugador ${index + 1}" },
+                            name = member?.username ?: names[index].ifBlank { defaultPlayerName.format(index + 1) },
                             colorKey = colorKeys[index],
                             assignedUserId = member?.userId,
                             assignedUsername = member?.username,
@@ -185,11 +191,11 @@ private fun PlaygroupPicker(
     onSelected: (PlaygroupDto) -> Unit
 ) {
     Column {
-        SectionEyebrow("Grupo")
+        SectionEyebrow(stringResource(R.string.setup_group_label))
         Spacer(modifier = Modifier.height(8.dp))
         if (playgroups.isEmpty()) {
             Text(
-                "No sos miembro de ningún grupo todavía. Creá uno desde el cliente web.",
+                stringResource(R.string.setup_no_playgroups),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp
             )
@@ -229,7 +235,7 @@ private fun PlayerConfigRow(
                 OutlinedTextField(
                     value = name,
                     onValueChange = onNameChange,
-                    label = { Text("Nombre") },
+                    label = { Text(stringResource(R.string.setup_name_label)) },
                     singleLine = true,
                     shape = RoundedCornerShape(percent = 50),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -263,13 +269,12 @@ private fun PlayerConfigRow(
                 Spacer(modifier = Modifier.height(10.dp))
                 if (memberDecks.isEmpty()) {
                     Text(
-                        "${assignedMember.username} todavía no tiene decks: este asiento no va a quedar " +
-                            "guardado en sus estadísticas.",
+                        stringResource(R.string.setup_member_no_decks, assignedMember.username),
                         color = AppFaint,
                         fontSize = 12.sp
                     )
                 } else {
-                    Text("¿Con qué deck juega?", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(stringResource(R.string.setup_which_deck), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(6.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(memberDecks) { deck ->
@@ -295,26 +300,27 @@ private fun MemberPicker(
     onMemberSelected: (PlaygroupMemberDto?) -> Unit
 ) {
     Column {
-        Text("Asiento", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Text(stringResource(R.string.setup_seat_label), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(6.dp))
         if (playgroup == null) {
             Text(
-                "Elegí un grupo arriba para poder asignar jugadores.",
+                stringResource(R.string.setup_pick_group_first),
                 color = AppFaint,
                 fontSize = 12.sp
             )
             return@Column
         }
+        val youSuffix = stringResource(R.string.common_you_suffix)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
                 SelectableChip(
-                    label = "Invitado",
+                    label = stringResource(R.string.setup_guest),
                     selected = assignedMember == null,
                     onClick = { onMemberSelected(null) }
                 )
             }
             items(availableMembers) { member ->
-                val label = if (member.username == ownUsername) "${member.username} (vos)" else member.username
+                val label = if (member.username == ownUsername) "${member.username} $youSuffix" else member.username
                 SelectableChip(
                     label = label,
                     selected = member.userId == assignedMember?.userId,
