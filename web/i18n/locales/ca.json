@@ -1,0 +1,383 @@
+{
+  "common": {
+    "cancel": "Cancel·la",
+    "save": "Desa",
+    "saving": "Desant…"
+  },
+  "nav": {
+    "home": "Inici",
+    "decks": "Decks",
+    "statistics": "Estadístiques",
+    "playgroups": "Grups",
+    "settings": "Configuració",
+    "logout": "Surt",
+    "darkTheme": "Tema fosc",
+    "toggleTheme": "Canvia el tema",
+    "language": "Idioma"
+  },
+  "login": {
+    "tagline": "Les teves partides i decks de Commander, en un sol lloc.",
+    "emailLabel": "Correu",
+    "emailPlaceholder": "el.teu\\@correu.com",
+    "passwordLabel": "Contrasenya",
+    "submit": "Inicia sessió",
+    "submitting": "Entrant…",
+    "divider": "o",
+    "verification": {
+      "checkInbox": "Fet, revisa la teva safata d'entrada.",
+      "resend": "Reenvia el correu de verificació",
+      "resending": "Reenviant…"
+    },
+    "noAccount": "No tens compte?",
+    "registerLink": "Registra't",
+    "errors": {
+      "loginFailed": "No s'ha pogut iniciar sessió.",
+      "resendFailed": "No s'ha pogut reenviar el correu de verificació.",
+      "googleFailed": "No s'ha pogut iniciar sessió amb Google."
+    }
+  },
+  "register": {
+    "tagline": "Crea el teu compte i comença a fer seguiment de les teves partides.",
+    "usernameLabel": "Usuari",
+    "usernamePlaceholder": "el_teu_usuari",
+    "emailLabel": "Correu",
+    "emailPlaceholder": "el.teu\\@correu.com",
+    "passwordLabel": "Contrasenya",
+    "passwordConfirmLabel": "Repeteix la contrasenya",
+    "submit": "Crea el compte",
+    "submitting": "Creant el compte…",
+    "haveAccount": "Ja tens compte?",
+    "loginLink": "Inicia sessió",
+    "checkEmail": {
+      "title": "Revisa el teu correu",
+      "bodyIntro": "T'hem enviat un enllaç de confirmació a",
+      "bodyOutro": "Has de confirmar-lo abans de poder iniciar sessió.",
+      "goToLogin": "Ves a iniciar sessió"
+    },
+    "errors": {
+      "passwordMismatch": "Les contrasenyes no coincideixen.",
+      "registerFailed": "No s'ha pogut crear el compte."
+    }
+  },
+  "verifyEmail": {
+    "invalidLink": "L'enllaç de verificació no és vàlid.",
+    "verifyFailed": "No s'ha pogut verificar el correu.",
+    "pending": "Verificant el teu correu…",
+    "success": {
+      "title": "Correu confirmat",
+      "body": "Ja pots iniciar sessió.",
+      "goToLogin": "Ves a iniciar sessió"
+    },
+    "error": {
+      "title": "No s'ha pogut verificar",
+      "requestNewLinkIntro": "Pots demanar un enllaç nou des de",
+      "loginLink": "iniciar sessió"
+    }
+  },
+  "dashboard": {
+    "sessionAs": "Sessió iniciada com a",
+    "greeting": "Hola, {username}",
+    "newGame": "+ Nova partida",
+    "loadError": "No s'ha pogut carregar el resum.",
+    "stats": {
+      "games": "Partides",
+      "wins": "Victòries",
+      "winRate": "Win rate",
+      "decks": "Decks"
+    },
+    "winLoss": {
+      "heading": "Victòries / derrotes",
+      "won": "{count} guanyades",
+      "lost": "{count} perdudes"
+    },
+    "bestDeck": {
+      "heading": "El teu millor deck",
+      "summary": "{winRate} de win rate · {games} partides",
+      "empty": "Encara no hi ha partides registrades."
+    },
+    "streak": {
+      "heading": "Ratxa actual",
+      "wins": "{count} victòries seguides",
+      "losses": "{count} derrotes seguides",
+      "sinceLast": "Comptant des de la teva última partida.",
+      "empty": "Encara no hi ha partides finalitzades."
+    },
+    "groups": {
+      "heading": "Els teus grups",
+      "viewAll": "Veure'ls tots",
+      "empty": "Encara no ets membre de cap grup.",
+      "summary": "{members} membres · {games} partides"
+    },
+    "decksSection": {
+      "heading": "Els teus decks",
+      "viewStats": "Veure estadístiques",
+      "empty": "Encara no tens cap deck."
+    },
+    "recentGames": {
+      "heading": "Últimes partides",
+      "empty": "Encara no s'ha registrat cap partida finalitzada.",
+      "won": "Guanyada",
+      "lost": "Perduda"
+    }
+  },
+  "decks": {
+    "title": "Els meus decks",
+    "subtitle": "Importats des de Moxfield.",
+    "addDeck": "+ Afegeix deck",
+    "searchPlaceholder": "Cerca deck o comandant…",
+    "sort": {
+      "played": "Més jugats",
+      "won": "Més victòries",
+      "winrate": "Millor win rate",
+      "name": "Nom (A-Z)"
+    },
+    "loadError": "No s'han pogut carregar els decks.",
+    "empty": "Encara no tens cap deck. Importa'n un des de Moxfield per començar.",
+    "stats": "{played} partides · {won} victòries",
+    "sync": {
+      "action": "Actualitza",
+      "syncing": "Sincronitzant…",
+      "updated": "Actualitzat des de Moxfield",
+      "upToDate": "Ja estava al dia"
+    },
+    "resyncAll": {
+      "action": "Actualitza-ho tot",
+      "starting": "Iniciant…",
+      "inProgress": "Actualitzant… {done} / {total} decks processats.",
+      "completed": "Fet: {updated} decks actualitzats, {failed} fallits.",
+      "failed": "L'actualització ha fallat. {message}"
+    },
+    "viewOnMoxfield": "Veure a Moxfield",
+    "import": {
+      "title": "Importa des de Moxfield",
+      "placeholder": "https://moxfield.com/decks/abc123 o abc123",
+      "submit": "Importa",
+      "submitting": "Important…",
+      "commanderLabel": "Comandant: {commander}"
+    },
+    "errors": {
+      "syncFailed": "No s'ha pogut sincronitzar amb Moxfield."
+    }
+  },
+  "statistics": {
+    "title": "Estadístiques",
+    "subtitle": "Es recalculen en finalitzar cada partida.",
+    "loadError": "No s'han pogut carregar les estadístiques.",
+    "global": {
+      "heading": "Globals",
+      "winLoss": "Victòries / derrotes",
+      "wonLost": "{won} guanyades · {lost} perdudes",
+      "games": "Partides",
+      "wins": "Victòries",
+      "winRate": "Win rate",
+      "totalDamage": "Dany total",
+      "commanderDamage": "Dany de comandant",
+      "eliminations": "Eliminacions"
+    },
+    "perDeck": {
+      "heading": "Per deck",
+      "noDecksIntro": "Encara no tens cap deck.",
+      "importLink": "Importa'n un des de Moxfield",
+      "noDecksOutro": "per veure'n les estadístiques.",
+      "noStats": "No hi ha estadístiques disponibles per aquest deck.",
+      "games": "Partides",
+      "wins": "Victòries",
+      "maxLife": "Vida màxima",
+      "commanderDamage": "Dany de comandant"
+    },
+    "perGroup": {
+      "heading": "Per grup de joc",
+      "empty": "Encara no ets membre de cap grup.",
+      "summary": "{games} partides · {members} membres"
+    }
+  },
+  "settings": {
+    "title": "Configuració",
+    "subtitle": "El teu compte i les seves integracions.",
+    "memberSince": "Membre des de {date}",
+    "username": {
+      "label": "Nom d'usuari",
+      "placeholder": "El teu nom d'usuari"
+    },
+    "moxfield": {
+      "heading": "Moxfield",
+      "description": "Vincula el teu usuari de Moxfield per poder importar tots els teus decks públics en segon pla.",
+      "placeholder": "El teu usuari de Moxfield",
+      "importAction": "Importa els meus decks en segon pla",
+      "starting": "Iniciant…",
+      "importing": "Important… {done} / {total} decks processats.",
+      "importingNoTotal": "Important… {done} decks processats.",
+      "completed": "Fet: {imported} decks importats, {failed} fallits.",
+      "failed": "La importació ha fallat. {message}"
+    },
+    "security": {
+      "heading": "Seguretat",
+      "currentPassword": "Contrasenya actual",
+      "newPassword": "Contrasenya nova",
+      "confirmNewPassword": "Confirma la contrasenya nova",
+      "submit": "Canvia la contrasenya",
+      "noPassword": "Vas iniciar sessió amb Google, aquest compte no té contrasenya pròpia.",
+      "sessionInfo": "La sessió es gestiona via correu/contrasenya o Google. Tancar sessió revoca l'accés en aquest dispositiu.",
+      "logout": "Tanca sessió"
+    },
+    "errors": {
+      "passwordMismatch": "Les contrasenyes noves no coincideixen."
+    }
+  },
+  "playgroups": {
+    "list": {
+      "title": "Grups de joc",
+      "subtitle": "Taules amb qui jugues sovint.",
+      "create": "+ Crea un grup",
+      "loadError": "No s'han pogut carregar els grups.",
+      "empty": "Encara no ets membre de cap grup. Crea'n un per començar.",
+      "gamesPlayedCount": "{count} partida jugada | {count} partides jugades",
+      "memberCount": "{count} membre | {count} membres",
+      "modal": {
+        "title": "Crea un grup",
+        "placeholder": "Nom del grup",
+        "submit": "Crea",
+        "submitting": "Creant…"
+      }
+    },
+    "detail": {
+      "back": "← Grups",
+      "rename": "Reanomena",
+      "memberCount": "{count} membre | {count} membres",
+      "stats": {
+        "gamesPlayed": "Partides jugades",
+        "members": "Membres"
+      },
+      "ranking": {
+        "heading": "Rànquing per win rate",
+        "addMember": "+ Afegeix membre",
+        "close": "Tanca",
+        "searchPlaceholder": "Cerca per nom d'usuari o correu exacte",
+        "add": "Afegeix",
+        "adding": "Afegint…",
+        "searching": "Cercant…",
+        "columns": {
+          "player": "Jugador",
+          "games": "Partides",
+          "wins": "Victòries",
+          "winRate": "Win rate"
+        },
+        "empty": "Encara no hi ha partides registrades."
+      },
+      "members": {
+        "heading": "Membres"
+      },
+      "history": {
+        "heading": "Historial de partides",
+        "empty": "Encara no s'ha jugat cap partida en aquest grup.",
+        "noPlayers": "Sense jugadors"
+      }
+    }
+  },
+  "play": {
+    "setup": {
+      "title": "Nova partida",
+      "subtitle": "Life tracker local: no es desa ni compta per a les teves estadístiques.",
+      "playerCountLabel": "Jugadors",
+      "playerPlaceholder": "Jugador {n}",
+      "start": "Comença la partida",
+      "localNote": "Aquesta partida només viu en aquesta pestanya. Si la recarregues, es perd."
+    },
+    "tracker": {
+      "turn": "Torn {n}",
+      "finish": "Finalitza",
+      "poison": "Verí",
+      "eliminated": "Eliminat",
+      "showCommanderDamage": "Mostra el dany de comandant",
+      "hideCommanderDamage": "Amaga el dany de comandant"
+    },
+    "summary": {
+      "heading": "Partida finalitzada",
+      "winner": "Ha guanyat {name}",
+      "draw": "Empat",
+      "newGame": "Nova partida",
+      "backHome": "Torna a l'inici"
+    }
+  },
+  "toast": {
+    "passwordUpdated": "Contrasenya actualitzada",
+    "usernameUpdated": "Nom d'usuari actualitzat",
+    "moxfieldLinked": "Compte de Moxfield vinculat",
+    "groupCreated": "Grup creat",
+    "groupRenamed": "Grup reanomenat",
+    "deckImported": "Deck importat",
+    "memberAdded": "{username} afegit al grup"
+  },
+  "gameStatus": {
+    "pending": "Pendent",
+    "active": "En curs",
+    "finished": "Finalitzada"
+  },
+  "errors": {
+    "auth": {
+      "noActiveSession": "No hi ha cap sessió activa."
+    },
+    "moxfieldImport": {
+      "notFound": "No existeix cap deck públic de Moxfield amb aquest ID. Revisa l'URL i que el deck no sigui privat.",
+      "notCommander": "Aquest deck de Moxfield no té comandant: no sembla un deck de format Commander.",
+      "invalidUrl": "L'URL o l'ID de Moxfield no són vàlids. Enganxa alguna cosa com https://moxfield.com/decks/abc123 o només abc123.",
+      "generic": "No s'ha pogut importar el deck des de Moxfield."
+    },
+    "resyncAllDecks": {
+      "noneEligible": "No tens cap deck importat de Moxfield per actualitzar.",
+      "inProgress": "Ja hi ha una actualització en curs per al teu compte.",
+      "generic": "No s'ha pogut iniciar l'actualització dels decks."
+    },
+    "changePassword": {
+      "tooShort": "La contrasenya nova ha de tenir com a mínim 8 caràcters.",
+      "googleAccount": "Aquest compte va iniciar sessió amb Google i no té contrasenya pròpia.",
+      "incorrect": "La contrasenya actual no és correcta.",
+      "generic": "No s'ha pogut canviar la contrasenya."
+    },
+    "updateMoxfieldUsername": {
+      "generic": "No s'ha pogut desar l'usuari de Moxfield."
+    },
+    "updateUsername": {
+      "taken": "Aquest nom d'usuari ja està en ús.",
+      "generic": "No s'ha pogut desar el nom d'usuari."
+    },
+    "startMoxfieldImport": {
+      "needUsername": "Primer desa el teu usuari de Moxfield.",
+      "inProgress": "Ja hi ha una importació en curs per al teu compte.",
+      "notAvailable": "La importació massiva de Moxfield encara no està disponible al servidor.",
+      "generic": "No s'ha pogut iniciar la importació."
+    },
+    "playgroups": {
+      "create": {
+        "needName": "El grup necessita un nom.",
+        "generic": "No s'ha pogut crear el grup."
+      },
+      "get": {
+        "notFoundOrNotMember": "El grup no existeix o no en ets membre.",
+        "generic": "No s'ha pogut carregar el grup."
+      },
+      "update": {
+        "needName": "El grup necessita un nom.",
+        "notFoundOrNotMember": "El grup no existeix o no en ets membre.",
+        "generic": "No s'ha pogut reanomenar el grup."
+      },
+      "addMember": {
+        "invalidUserId": "Aquest ID d'usuari no és vàlid.",
+        "userNotFound": "No existeix cap usuari amb aquest ID.",
+        "alreadyMember": "Aquest usuari ja és membre del grup.",
+        "generic": "No s'ha pogut afegir l'usuari."
+      }
+    },
+    "games": {
+      "notFoundOrNotMember": "El grup no existeix o no en ets membre.",
+      "generic": "No s'ha pogut carregar l'historial de partides."
+    },
+    "users": {
+      "tooShort": "Escriu com a mínim 2 caràcters.",
+      "generic": "No s'han pogut cercar usuaris."
+    },
+    "googleIdentity": {
+      "loadFailed": "No s'ha pogut carregar Google Identity Services."
+    }
+  }
+}

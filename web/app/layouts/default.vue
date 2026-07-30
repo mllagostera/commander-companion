@@ -1,7 +1,9 @@
 <script setup lang="ts">
 const { user, logout } = useAuth()
 const { theme, toggleTheme } = useTheme()
-const { t } = useI18n()
+const { t, locale, locales, setLocale } = useI18n()
+
+const availableLocales = computed(() => locales.value as { code: string, name?: string }[])
 
 const links = computed(() => [
   { to: '/', label: t('nav.home') },
@@ -107,6 +109,23 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
                     :style="{ left: theme === 'dark' ? '2px' : '22px', background: 'linear-gradient(135deg, #8b5cf6, #a855f7)' }"
                   />
                 </button>
+              </div>
+              <div class="flex items-center justify-between px-2.5 py-2">
+                <span class="text-[13px]" style="color: var(--text);">{{ $t('nav.language') }}</span>
+                <div class="flex gap-1">
+                  <button
+                    v-for="l in availableLocales"
+                    :key="l.code"
+                    type="button"
+                    class="rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase transition-colors"
+                    :style="l.code === locale
+                      ? { background: 'linear-gradient(135deg, #8b5cf6, #a855f7)', color: '#0a0714', borderColor: 'transparent' }
+                      : { color: 'var(--text-muted)', borderColor: 'var(--input-border)' }"
+                    @click="setLocale(l.code as 'es' | 'en' | 'ca')"
+                  >
+                    {{ l.code }}
+                  </button>
+                </div>
               </div>
               <NuxtLink
                 to="/settings"

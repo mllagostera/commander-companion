@@ -12,7 +12,8 @@
     "settings": "Configuración",
     "logout": "Salir",
     "darkTheme": "Tema oscuro",
-    "toggleTheme": "Cambiar tema"
+    "toggleTheme": "Cambiar tema",
+    "language": "Idioma"
   },
   "login": {
     "tagline": "Tus partidas y decks de Commander, en un solo lugar.",

@@ -1,6 +1,6 @@
 # ADR-0014: Internacionalización de la web con `@nuxtjs/i18n`
 
-**Estado:** Aceptada (2026-07-29)
+**Estado:** Aceptada (2026-07-29), actualizada (2026-07-30) — inglés y catalán agregados
 
 ## Contexto
 
@@ -25,25 +25,44 @@ módulo oficial de Nuxt: se registra en `modules` igual que
 `@nuxtjs/tailwindcss`/`@nuxt/eslint` (ya presentes), auto-importa
 `useI18n()`/`$t`/`t`/`d`, e integra SSR sin plugin propio.
 
-Configuración (`web/nuxt.config.ts`):
+Configuración (`web/nuxt.config.ts`), actualizada al agregar inglés y
+catalán (2026-07-30):
 
 ```ts
 i18n: {
-  locales: [{ code: 'es', language: 'es-ES', file: 'es.json' }],
+  locales: [
+    { code: 'es', language: 'es-ES', file: 'es.json', name: 'Español' },
+    { code: 'en', language: 'en-US', file: 'en.json', name: 'English' },
+    { code: 'ca', language: 'ca-ES', file: 'ca.json', name: 'Català' },
+  ],
   defaultLocale: 'es',
   strategy: 'no_prefix',
-  detectBrowserLanguage: false,
+  detectBrowserLanguage: {
+    useCookie: true,
+    cookieKey: 'cc_locale',
+  },
 },
 ```
 
-- `strategy: 'no_prefix'`: con un solo idioma activo no tiene sentido forzar
-  `/es/...` en la URL.
-- `detectBrowserLanguage: false`: no hay nada que detectar/redirigir todavía
-  con un único locale.
-- Los mensajes viven en `web/i18n/locales/es.json` (un solo archivo — con
-  ~200-250 claves no vale la pena partirlo por dominio todavía) y el
-  formateo de fechas (`datetimeFormats`) en `web/i18n/i18n.config.ts`, vía
-  `defineI18nConfig`.
+- `strategy: 'no_prefix'` se mantiene: con `detectBrowserLanguage` +
+  selector manual alcanza para elegir idioma sin necesidad de rutas
+  `/en/...`/`/ca/...` — más simple para un dominio único sin SEO
+  multi-idioma real detrás.
+- `detectBrowserLanguage` pasa de `false` a activo ahora que hay 3 locales:
+  detecta el idioma del navegador solo si todavía no hay cookie (`cc_locale`)
+  — una vez que el usuario elige explícitamente por el selector del layout
+  (`setLocale()`, ver más abajo) o ya se detectó una vez, esa cookie
+  prevalece y no se vuelve a re-detectar en cargas siguientes.
+- Los mensajes viven en `web/i18n/locales/{es,en,ca}.json`, mismas ~250
+  claves en los tres archivos (namespacing sin cambios, ver más abajo) — se
+  verificó paridad de claves y de placeholders de interpolación (`{count}`,
+  `{username}`, etc.) entre los tres antes de mergear. El formateo de fechas
+  (`datetimeFormats`) en `web/i18n/i18n.config.ts` ahora tiene entrada para
+  los tres locales (antes solo `es`).
+- Selector de idioma nuevo en el menú de usuario del layout
+  (`app/layouts/default.vue`, junto al toggle de tema oscuro): tres pills
+  `ES`/`EN`/`CA`, `useI18n().setLocale(code)` al click — la única forma de
+  cambiar de idioma manualmente hoy (antes no había ninguna).
 
 ### Convención de claves
 
@@ -68,16 +87,22 @@ tuteo ("tenés" → "tienes", "sos" → "eres", "Creá" → "Crea", "Registrate"
 había. Español de España (tuteo) queda como el criterio de estilo para todo
 texto nuevo en la web de acá en adelante.
 
+## Actualización 2026-07-30: inglés y catalán
+
+Confirmado lo que predecía la ADR original: agregar los dos locales fue
+exactamente sumar `en.json`/`ca.json` (misma estructura de claves,
+traducidas) + una entrada en `locales` — sin tocar ningún componente. Lo
+único nuevo fuera de eso fue el selector de idioma en el layout (no existía
+ningún control de UI para cambiar de idioma) y activar
+`detectBrowserLanguage` (no tenía sentido con un solo locale).
+
 ## Próximos pasos (explícitamente fuera de esta tarea)
 
-- Traducir la app a **inglés** y **catalán** una vez la extracción a claves
-  está completa. No se hace en este trabajo — la infraestructura queda lista
-  para que agregar esos locales sea simplemente sumar `en.json`/`ca.json` y
-  una entrada en `locales`, sin tocar componentes de nuevo.
-- No se agrega selector de idioma visible en la UI todavía.
 - La app Android (Kotlin/Compose) tiene el mismo problema de texto
-  hardcodeado, pero es una stack completamente distinta (string resources)
-  y queda fuera de esta decisión.
+  hardcodeado, pero es una stack completamente distinta (string resources,
+  `res/values-en/`, `res/values-ca/`) y queda fuera de esta decisión —
+  extracción a `strings.xml` resuelta por separado, agregar los locales de
+  Android se documenta en `docs/roadmap/TASKS.md`, no en esta ADR.
 - Los mensajes de error del backend (`backend/internal/common/errors.go`)
   siguen siendo strings en inglés + status HTTP, no códigos de error
   estables. La web ya no depende de ese texto crudo para las rutas felices
@@ -91,6 +116,7 @@ texto nuevo en la web de acá en adelante.
 
 - `web/nuxt.config.ts` (registro del módulo y config `i18n`)
 - `web/i18n/i18n.config.ts` (`datetimeFormats`)
-- `web/i18n/locales/es.json` (todas las claves)
+- `web/i18n/locales/{es,en,ca}.json` (todas las claves, en los tres idiomas)
+- `web/app/layouts/default.vue` (selector de idioma)
 - `web/app/composables/useDecks.ts` (`moxfieldImportError`, ejemplo de
   composable de error convertido a claves)
