@@ -287,16 +287,28 @@
       "turn": "Turno {n}",
       "finish": "Finalizar",
       "poison": "Veneno",
-      "eliminated": "Eliminado",
-      "showCommanderDamage": "Ver daño de comandante",
-      "hideCommanderDamage": "Ocultar daño de comandante"
+      "dead": "MUERTO",
+      "commanderDamage": "Daño comandante",
+      "passTurn": "Pasar turno",
+      "startRandom": "Sortear quién empieza",
+      "starterBanner": "¡Empieza {name}!",
+      "rotatePrompt": "Gira tu dispositivo\npara jugar"
     },
     "summary": {
       "heading": "Partida finalizada",
       "winner": "Ganó {name}",
       "draw": "Empate",
       "newGame": "Nueva partida",
-      "backHome": "Volver al inicio"
+      "backHome": "Volver al inicio",
+      "columnPlayer": "Jugador",
+      "columnLife": "Vida",
+      "columnDealt": "Hecho",
+      "columnTaken": "Recib.",
+      "columnPoison": "Veneno",
+      "columnStatus": "Estado",
+      "statusWinner": "Ganador",
+      "statusEliminated": "Eliminado",
+      "statusInPlay": "En juego"
     }
   },
   "toast": {

@@ -40,6 +40,10 @@ export function useLocalGame() {
   const turn = ref(1)
   const isFinished = ref(false)
   const winnerId = ref<number | null>(null)
+  /** Puesta en marcha real de la partida: separado de `setup()` para poder mostrar los
+   * asientos antes de sortear quién empieza (botón central "Play" en la tracker). */
+  const started = ref(false)
+  const startingPlayerId = ref<number | null>(null)
 
   function setup(names: string[]) {
     players.value = names.map((name, i) => ({
@@ -53,6 +57,16 @@ export function useLocalGame() {
     turn.value = 1
     isFinished.value = false
     winnerId.value = null
+    started.value = false
+    startingPlayerId.value = null
+  }
+
+  /** Sortea al azar quién empieza y marca la partida como iniciada. */
+  function beginGame() {
+    if (started.value || players.value.length === 0) return
+    const randomIndex = Math.floor(Math.random() * players.value.length)
+    startingPlayerId.value = players.value[randomIndex]!.id
+    started.value = true
   }
 
   function findPlayer(id: number): LocalPlayer | undefined {
@@ -114,6 +128,8 @@ export function useLocalGame() {
     turn.value = 1
     isFinished.value = false
     winnerId.value = null
+    started.value = false
+    startingPlayerId.value = null
   }
 
   return {
@@ -121,7 +137,10 @@ export function useLocalGame() {
     turn,
     isFinished,
     winnerId,
+    started,
+    startingPlayerId,
     setup,
+    beginGame,
     adjustLife,
     adjustPoison,
     adjustCommanderDamage,
