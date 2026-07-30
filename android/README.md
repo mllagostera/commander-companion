@@ -87,7 +87,7 @@ android/app/src/main/java/com/commandercompanion/
 ├── presentation/
 │   ├── screens/           # login, dashboard, setup, pregame, game, history
 │   ├── navigation/        # AppNavigation.kt, Routes.kt, PlayerConfigCodec.kt
-│   ├── components/        # PlayerCard, etc.
+│   ├── components/        # AppComponents (botones, cards, chips), PlayerQuadrant
 │   └── theme/             # Color.kt, Theme.kt, Type.kt (Material 3)
 └── core/
     ├── di/                 # DatabaseModule, NetworkModule (Hilt)

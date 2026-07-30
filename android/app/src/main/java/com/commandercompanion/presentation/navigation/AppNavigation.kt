@@ -14,6 +14,7 @@ import com.commandercompanion.presentation.screens.game.GameTrackerScreen
 import com.commandercompanion.presentation.screens.history.HistoryScreen
 import com.commandercompanion.presentation.screens.login.LoginScreen
 import com.commandercompanion.presentation.screens.pregame.PreGameScreen
+import com.commandercompanion.presentation.screens.register.RegisterScreen
 import com.commandercompanion.presentation.screens.setup.PlayerSetupScreen
 
 @OptIn(ExperimentalSafeArgsApi::class)
@@ -37,6 +38,17 @@ fun AppNavigation(
             LoginScreen(
                 onLoginSuccess = {
                     navController.navigate(DashboardRoute) { popUpTo(LoginRoute) { inclusive = true } }
+                },
+                onNavigateToRegister = { navController.navigate(RegisterRoute) }
+            )
+        }
+        composable<RegisterRoute> {
+            RegisterScreen(
+                onLoginSuccess = {
+                    navController.navigate(DashboardRoute) { popUpTo(LoginRoute) { inclusive = true } }
+                },
+                onNavigateToLogin = {
+                    navController.popBackStack(LoginRoute, inclusive = false)
                 }
             )
         }

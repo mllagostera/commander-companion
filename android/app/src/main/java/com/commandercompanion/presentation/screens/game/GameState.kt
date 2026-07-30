@@ -2,14 +2,23 @@ package com.commandercompanion.presentation.screens.game
 
 import androidx.compose.ui.graphics.Color
 
+/** Reglas de eliminación de Commander, compartidas por [GameViewModel] y la UI del tracker. */
+const val COMMANDER_DAMAGE_LETHAL = 21
+const val POISON_LETHAL = 10
+
 data class PlayerState(
     val id: Int,
     val name: String,
     val life: Int = 40,
     val color: Color,
     val mulligans: Int = 0,
+    val poison: Int = 0,
     val commanderDamage: Map<Int, Int> = emptyMap() // Key: Opponent ID, Value: Damage received
 )
+
+/** Vivo = vida positiva, sin 21+ de daño de un mismo comandante y menos de 10 contadores de veneno. */
+fun PlayerState.isEliminated(): Boolean =
+    life <= 0 || poison >= POISON_LETHAL || commanderDamage.values.any { it >= COMMANDER_DAMAGE_LETHAL }
 
 /** Estado del espejo de la partida contra el backend (ver `GameRepository`). */
 enum class RemoteSyncStatus {
