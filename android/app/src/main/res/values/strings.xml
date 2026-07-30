@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Commander Companion</string>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Nombre de marca: intencionalmente igual en todos los idiomas -->
+    <string name="app_name" tools:ignore="MissingTranslation">Commander Companion</string>
 
     <!-- Común / compartido entre pantallas -->
     <string name="common_email_label">Email</string>

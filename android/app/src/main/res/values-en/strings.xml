@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Común / compartido entre pantallas -->
+    <string name="common_email_label">Email</string>
+    <string name="common_password_label">Password</string>
+    <string name="common_divider_or">or</string>
+    <string name="common_continue_with_google">Continue with Google</string>
+    <string name="common_you_suffix">(you)</string>
+    <string name="common_save">Save</string>
+    <string name="common_saving">Saving…</string>
+
+    <!-- Login -->
+    <string name="login_subtitle">Log in to track your games.</string>
+    <string name="login_submit">Log in</string>
+    <string name="login_no_account">Don\'t have an account? </string>
+    <string name="login_register_link">Sign up</string>
+
+    <!-- Register -->
+    <string name="register_title">Create account</string>
+    <string name="register_subtitle">Create your account and start tracking your games.</string>
+    <string name="register_username_label">Username</string>
+    <string name="register_submit">Create account</string>
+    <string name="register_have_account">Already have an account? </string>
+    <string name="register_login_link">Log in</string>
+    <string name="register_check_email_title">Check your email</string>
+    <string name="register_check_email_intro">We sent a confirmation link to </string>
+    <string name="register_check_email_outro">You need to confirm it before you can log in.</string>
+    <string name="register_go_to_login">Go to login</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_new_game">NEW GAME</string>
+    <string name="dashboard_history">HISTORY</string>
+    <string name="dashboard_settings">Settings</string>
+    <string name="dashboard_logout">Log out</string>
+
+    <!-- Historial -->
+    <string name="history_title">Game history</string>
+    <string name="history_empty">No games recorded yet</string>
+    <string name="history_status_finished">Finished</string>
+    <string name="history_status_in_progress">In progress</string>
+    <string name="history_winner">Won: %1$s</string>
+    <string name="history_player_count">%1$d players</string>
+    <string name="history_player_life">%1$s: %2$d</string>
+    <string name="history_player_life_with_mulligans">%1$s: %2$d (%3$dm)</string>
+
+    <!-- Setup de jugadores -->
+    <string name="setup_title">New game</string>
+    <string name="setup_mode_casual">Casual</string>
+    <string name="setup_mode_group">Group</string>
+    <string name="setup_mode_casual_description">No accounts or statistics: just track the game on this device.</string>
+    <string name="setup_mode_group_description">Assign seats to members of your group: their statistics become real once the game ends.</string>
+    <string name="setup_group_label">Group</string>
+    <string name="setup_no_playgroups">You\'re not a member of any group yet. Create one from the web client.</string>
+    <string name="setup_players_label">Players</string>
+    <string name="setup_start_game">START GAME</string>
+    <string name="setup_default_player_name">Player %1$d</string>
+    <string name="setup_name_label">Name</string>
+    <string name="setup_which_deck">Which deck are they playing?</string>
+    <string name="setup_member_no_decks">%1$s doesn\'t have any decks yet: this seat won\'t be saved to their statistics.</string>
+    <string name="setup_seat_label">Seat</string>
+    <string name="setup_pick_group_first">Pick a group above to be able to assign players.</string>
+    <string name="setup_guest">Guest</string>
+
+    <!-- Pre-partida: sorteo y mulligans -->
+    <string name="pregame_rotate_prompt">Rotate your device\nto pick seats</string>
+    <string name="pregame_seat_label">Seat %1$d</string>
+    <string name="pregame_mulligans">Mulligans</string>
+    <string name="pregame_starts">Starting: %1$s</string>
+    <string name="pregame_who_starts">Who goes first?</string>
+    <string name="pregame_shuffle">SHUFFLE</string>
+    <string name="pregame_begin">START</string>
+
+    <!-- Tracker de partida -->
+    <string name="tracker_rotate_prompt">Rotate your device\nto start the game</string>
+    <string name="tracker_mulligans_suffix">%1$d mulligan(s)</string>
+    <string name="tracker_pass_turn">Pass turn</string>
+    <string name="tracker_dead">DEAD</string>
+    <string name="tracker_commander_damage">Commander damage</string>
+    <string name="tracker_poison">Poison</string>
+    <string name="tracker_paused">Game paused</string>
+    <string name="tracker_paused_subtitle">The clock has stopped.</string>
+    <string name="tracker_resume">Resume</string>
+    <string name="tracker_finish_game">Finish game</string>
+    <string name="tracker_starter_banner">%1$s\nstarts!</string>
+    <string name="tracker_connecting_to_server">Creating the game on the server…</string>
+
+    <!-- Resumen de partida -->
+    <string name="summary_subtitle">Game statistics · Turn %1$d</string>
+    <string name="summary_winner_banner">🏆 %1$s wins</string>
+    <string name="summary_back_home">Back to home</string>
+    <string name="summary_column_player">Player</string>
+    <string name="summary_column_life">Life</string>
+    <string name="summary_column_dealt">Dealt</string>
+    <string name="summary_column_taken">Taken</string>
+    <string name="summary_column_poison">Poison</string>
+    <string name="summary_column_mulligans">Mull.</string>
+    <string name="summary_column_status">Status</string>
+    <string name="summary_status_winner">Winner</string>
+    <string name="summary_status_eliminated">Eliminated</string>
+    <string name="summary_status_in_play">In play</string>
+
+    <!-- Ajustes de cuenta -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_profile_heading">Profile</string>
+    <string name="settings_moxfield_heading">Moxfield</string>
+    <string name="settings_moxfield_description">Link your Moxfield username to import your public decks.</string>
+    <string name="settings_moxfield_username_label">Moxfield username</string>
+    <string name="settings_security_heading">Security</string>
+    <string name="settings_security_current_password">Current password</string>
+    <string name="settings_security_new_password">New password</string>
+    <string name="settings_security_confirm_password">Confirm new password</string>
+    <string name="settings_security_submit">Change password</string>
+    <string name="settings_security_password_updated">Password updated</string>
+    <string name="settings_security_no_password">You signed in with Google, this account doesn\'t have its own password.</string>
+</resources>
