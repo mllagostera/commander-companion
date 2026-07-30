@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import type { Deck } from '~/types/api'
 
-withDefaults(defineProps<{ deck: Deck; aspectRatio?: string; rounded?: string }>(), {
-  aspectRatio: '1',
-  rounded: 'rounded-[18px]',
-})
+const props = withDefaults(
+  defineProps<{ deck: Deck; aspectRatio?: string; rounded?: string; imagePosition?: 'center' | 'right' }>(),
+  {
+    aspectRatio: '1',
+    rounded: 'rounded-[18px]',
+    imagePosition: 'center',
+  },
+)
 </script>
 
 <template>
@@ -19,6 +23,7 @@ withDefaults(defineProps<{ deck: Deck; aspectRatio?: string; rounded?: string }>
       :src="deck.image_url"
       :alt="deck.commander"
       class="absolute inset-0 h-full w-full object-cover"
+      :style="{ objectPosition: props.imagePosition === 'right' ? '85% center' : 'center' }"
     >
     <div
       v-else

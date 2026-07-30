@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.commandercompanion.R
 import com.commandercompanion.presentation.components.AppLogoMark
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.AuthTextField
@@ -79,10 +81,10 @@ fun RegisterScreen(
             if (uiState.registeredEmail != null) {
                 RegisteredConfirmation(email = uiState.registeredEmail!!, onNavigateToLogin = onNavigateToLogin)
             } else {
-                GradientTitle(text = "Crear cuenta", fontSize = 18.sp)
+                GradientTitle(text = stringResource(R.string.register_title), fontSize = 18.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Sumate y empezá a trackear tus partidas.",
+                    text = stringResource(R.string.register_subtitle),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
@@ -96,14 +98,14 @@ fun RegisterScreen(
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         AuthTextField(
-                            label = "Nombre de usuario",
+                            label = stringResource(R.string.register_username_label),
                             value = username,
                             onValueChange = { username = it },
                             enabled = !isBusy
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         AuthTextField(
-                            label = "Email",
+                            label = stringResource(R.string.common_email_label),
                             value = email,
                             onValueChange = { email = it },
                             enabled = !isBusy,
@@ -111,7 +113,7 @@ fun RegisterScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         AuthTextField(
-                            label = "Contraseña",
+                            label = stringResource(R.string.common_password_label),
                             value = password,
                             onValueChange = { password = it },
                             enabled = !isBusy,
@@ -137,7 +139,7 @@ fun RegisterScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
                         GradientButton(
-                            text = "Crear cuenta",
+                            text = stringResource(R.string.register_submit),
                             onClick = { registerViewModel.register(username, email, password) },
                             enabled = !isBusy
                         ) {
@@ -149,7 +151,7 @@ fun RegisterScreen(
                                 )
                             } else {
                                 Text(
-                                    "Crear cuenta",
+                                    stringResource(R.string.register_submit),
                                     color = MaterialTheme.colorScheme.background,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp
@@ -160,13 +162,13 @@ fun RegisterScreen(
                         Spacer(modifier = Modifier.height(14.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             ThinDivider(modifier = Modifier.weight(1f))
-                            Text(text = "  o  ", fontSize = 11.sp, color = AppFaint)
+                            Text(text = "  ${stringResource(R.string.common_divider_or)}  ", fontSize = 11.sp, color = AppFaint)
                             ThinDivider(modifier = Modifier.weight(1f))
                         }
                         Spacer(modifier = Modifier.height(14.dp))
 
                         GradientOutlineButton(
-                            text = "Continuar con Google",
+                            text = stringResource(R.string.common_continue_with_google),
                             onClick = { googleViewModel.loginWithGoogle(context) },
                             enabled = !isBusy
                         )
@@ -176,9 +178,9 @@ fun RegisterScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            Text(text = "¿Ya tenés cuenta? ", fontSize = 12.sp, color = AppFaint)
+                            Text(text = stringResource(R.string.register_have_account), fontSize = 12.sp, color = AppFaint)
                             Text(
-                                text = "Iniciá sesión",
+                                text = stringResource(R.string.register_login_link),
                                 fontSize = 12.sp,
                                 color = AccentSoft,
                                 fontWeight = FontWeight.SemiBold,
@@ -194,7 +196,7 @@ fun RegisterScreen(
 
 @Composable
 private fun RegisteredConfirmation(email: String, onNavigateToLogin: () -> Unit) {
-    GradientTitle(text = "Revisá tu email", fontSize = 18.sp)
+    GradientTitle(text = stringResource(R.string.register_check_email_title), fontSize = 18.sp)
     Spacer(modifier = Modifier.height(24.dp))
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -206,7 +208,7 @@ private fun RegisteredConfirmation(email: String, onNavigateToLogin: () -> Unit)
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Te mandamos un link de confirmación a ",
+                text = stringResource(R.string.register_check_email_intro),
                 color = AppFaint,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center
@@ -220,13 +222,13 @@ private fun RegisteredConfirmation(email: String, onNavigateToLogin: () -> Unit)
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Tenés que confirmarlo antes de poder iniciar sesión.",
+                text = stringResource(R.string.register_check_email_outro),
                 color = AppFaint,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(18.dp))
-            GradientButton(text = "Ir a iniciar sesión", onClick = onNavigateToLogin)
+            GradientButton(text = stringResource(R.string.register_go_to_login), onClick = onNavigateToLogin)
         }
     }
 }

@@ -25,10 +25,12 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.commandercompanion.R
 import com.commandercompanion.presentation.components.GradientButton
 import com.commandercompanion.presentation.components.GradientOutlineButton
 import com.commandercompanion.presentation.components.RotateDevicePrompt
@@ -68,7 +70,7 @@ fun PreGameScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(AppBackgroundDeep)) {
         if (!isLandscape) {
-            RotateDevicePrompt(message = "Girá tu dispositivo\npara elegir asientos")
+            RotateDevicePrompt(message = stringResource(R.string.pregame_rotate_prompt))
         } else {
             SeatGrid(
                 configs = configs,
@@ -170,7 +172,7 @@ private fun SeatCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text("Asiento ${seatIndex + 1}", fontSize = 10.sp, color = AppFaint)
+            Text(stringResource(R.string.pregame_seat_label, seatIndex + 1), fontSize = 10.sp, color = AppFaint)
             Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -184,7 +186,7 @@ private fun SeatCard(
             }
             Spacer(modifier = Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Mulligans", fontSize = 9.sp, color = AppFaint)
+                Text(stringResource(R.string.pregame_mulligans), fontSize = 9.sp, color = AppFaint)
                 Spacer(modifier = Modifier.width(8.dp))
                 StepperButton(label = "−", onClick = onDecrement)
                 Text(
@@ -232,12 +234,16 @@ private fun StarterOverlay(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = if (startingSeat >= 0) "Empieza: ${configs[startingSeat].name}" else "¿Quién empieza?",
+            text = if (startingSeat >= 0) {
+                stringResource(R.string.pregame_starts, configs[startingSeat].name)
+            } else {
+                stringResource(R.string.pregame_who_starts)
+            },
             color = AccentSoft,
             fontSize = 10.sp,
             textAlign = TextAlign.Center
         )
-        GradientOutlineButton(text = "SORTEAR", onClick = onSortear)
-        GradientButton(text = "EMPEZAR", onClick = onEmpezar)
+        GradientOutlineButton(text = stringResource(R.string.pregame_shuffle), onClick = onSortear)
+        GradientButton(text = stringResource(R.string.pregame_begin), onClick = onEmpezar)
     }
 }

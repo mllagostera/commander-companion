@@ -103,9 +103,9 @@ func (h *Handler) ResendVerification(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// UpdateProfile actualiza el perfil propio (hoy, solo moxfield_username). Acotado a
-// que :id sea el propio usuario autenticado — 404 si no, mismo criterio de "no
-// revelar" que decks/playgroups, para no confirmar la existencia de otros IDs.
+// UpdateProfile actualiza el perfil propio: username (opcional) y moxfield_username.
+// Acotado a que :id sea el propio usuario autenticado — 404 si no, mismo criterio de
+// "no revelar" que decks/playgroups, para no confirmar la existencia de otros IDs.
 func (h *Handler) UpdateProfile(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	if c.Params("id") != userID {
@@ -117,9 +117,27 @@ func (h *Handler) UpdateProfile(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	res, err := h.svc.UpdateMoxfieldUsername(c.Context(), userID, req.MoxfieldUsername)
-	if err != nil {
-		return common.MapError(err)
+	var res *UserResponse
+	var err error
+
+	if req.Username != nil {
+		if res, err = h.svc.UpdateUsername(c.Context(), userID, *req.Username); err != nil {
+			return common.MapError(err)
+		}
+	}
+
+	if req.MoxfieldUsername != nil {
+		if res, err = h.svc.UpdateMoxfieldUsername(c.Context(), userID, *req.MoxfieldUsername); err != nil {
+			return common.MapError(err)
+		}
+	}
+
+	if res == nil {
+		// Ningún campo mandado: no hay nada que actualizar, pero igual devolvemos el
+		// estado actual en vez de un error — un PATCH vacío no es inválido, es un no-op.
+		if res, err = h.svc.GetUser(c.Context(), userID); err != nil {
+			return common.MapError(err)
+		}
 	}
 
 	return c.JSON(res)

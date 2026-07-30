@@ -35,6 +35,7 @@ type Querier interface {
 	SetUserEmailVerified(ctx context.Context, id pgtype.UUID) (User, error)
 	UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfieldUsernameParams) (User, error)
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) (User, error)
+	UpdateUsername(ctx context.Context, arg UpdateUsernameParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

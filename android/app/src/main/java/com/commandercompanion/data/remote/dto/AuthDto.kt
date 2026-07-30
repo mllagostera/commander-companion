@@ -51,5 +51,26 @@ data class UserDto(
     val id: String,
     val username: String,
     val email: String,
-    @SerialName("created_at") val createdAt: String? = null
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("moxfield_username") val moxfieldUsername: String? = null,
+    /** false = cuenta creada vía Google Sign-In, sin password propio. */
+    @SerialName("has_password") val hasPassword: Boolean = true
+)
+
+/**
+ * Payload de `PATCH /users/{id}` (ver `SettingsViewModel`). Ambos campos son opcionales y
+ * omitidos si no se mandan: el backend no toca lo que no venga en el body (ver
+ * `backend/internal/users/dto.go: UpdateProfileRequest`).
+ */
+@Serializable
+data class UpdateProfileRequest(
+    val username: String? = null,
+    @SerialName("moxfield_username") val moxfieldUsername: String? = null
+)
+
+/** Payload de `POST /users/{id}/password`. */
+@Serializable
+data class ChangePasswordRequest(
+    @SerialName("current_password") val currentPassword: String,
+    @SerialName("new_password") val newPassword: String
 )

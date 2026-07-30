@@ -1,5 +1,6 @@
 package com.commandercompanion.data.remote.api
 
+import com.commandercompanion.data.remote.dto.ChangePasswordRequest
 import com.commandercompanion.data.remote.dto.CreateActionRequest
 import com.commandercompanion.data.remote.dto.CreateDeckRequest
 import com.commandercompanion.data.remote.dto.CreateGameRequest
@@ -13,10 +14,13 @@ import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.remote.dto.PlaygroupDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
+import com.commandercompanion.data.remote.dto.UpdateProfileRequest
+import com.commandercompanion.data.remote.dto.UserDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 
@@ -120,4 +124,14 @@ interface CommanderApi {
 
     @GET("api/v1/statistics/playgroup/{id}")
     suspend fun getPlaygroupStats(@Path("id") playgroupId: String): PlaygroupStatsDto
+
+    // ----------------------------------------------------------------- users
+
+    /** 409 si el username ya está en uso por otra cuenta. */
+    @PATCH("api/v1/users/{id}")
+    suspend fun updateProfile(@Path("id") userId: String, @Body request: UpdateProfileRequest): UserDto
+
+    /** 204 sin body. 401 si el password actual no coincide, o si la cuenta no tiene password propio. */
+    @POST("api/v1/users/{id}/password")
+    suspend fun changePassword(@Path("id") userId: String, @Body request: ChangePasswordRequest)
 }
