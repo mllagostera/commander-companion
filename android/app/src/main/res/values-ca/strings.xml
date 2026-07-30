@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Común / compartido entre pantallas -->
+    <string name="common_email_label">Correu</string>
+    <string name="common_password_label">Contrasenya</string>
+    <string name="common_divider_or">o</string>
+    <string name="common_continue_with_google">Continua amb Google</string>
+    <string name="common_you_suffix">(tu)</string>
+    <string name="common_save">Desa</string>
+    <string name="common_saving">Desant…</string>
+
+    <!-- Login -->
+    <string name="login_subtitle">Inicia sessió per fer seguiment de les teves partides.</string>
+    <string name="login_submit">Inicia sessió</string>
+    <string name="login_no_account">No tens compte? </string>
+    <string name="login_register_link">Registra\'t</string>
+
+    <!-- Register -->
+    <string name="register_title">Crea el compte</string>
+    <string name="register_subtitle">Crea el teu compte i comença a fer seguiment de les teves partides.</string>
+    <string name="register_username_label">Nom d\'usuari</string>
+    <string name="register_submit">Crea el compte</string>
+    <string name="register_have_account">Ja tens compte? </string>
+    <string name="register_login_link">Inicia sessió</string>
+    <string name="register_check_email_title">Revisa el teu correu</string>
+    <string name="register_check_email_intro">T\'hem enviat un enllaç de confirmació a </string>
+    <string name="register_check_email_outro">Has de confirmar-lo abans de poder iniciar sessió.</string>
+    <string name="register_go_to_login">Ves a iniciar sessió</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_new_game">NOVA PARTIDA</string>
+    <string name="dashboard_history">HISTORIAL</string>
+    <string name="dashboard_settings">Ajustos</string>
+    <string name="dashboard_logout">Tanca sessió</string>
+
+    <!-- Historial -->
+    <string name="history_title">Historial de partides</string>
+    <string name="history_empty">Encara no hi ha partides registrades</string>
+    <string name="history_status_finished">Finalitzada</string>
+    <string name="history_status_in_progress">En curs</string>
+    <string name="history_winner">Ha guanyat: %1$s</string>
+    <string name="history_player_count">%1$d jugadors</string>
+    <string name="history_player_life">%1$s: %2$d</string>
+    <string name="history_player_life_with_mulligans">%1$s: %2$d (%3$dm)</string>
+
+    <!-- Setup de jugadores -->
+    <string name="setup_title">Nova partida</string>
+    <string name="setup_mode_casual">Casual</string>
+    <string name="setup_mode_group">Grup</string>
+    <string name="setup_mode_casual_description">Sense comptes ni estadístiques: només fer seguiment de la partida en aquest dispositiu.</string>
+    <string name="setup_mode_group_description">Assigna seients a membres del teu grup: les seves estadístiques queden reals en acabar.</string>
+    <string name="setup_group_label">Grup</string>
+    <string name="setup_no_playgroups">Encara no ets membre de cap grup. Crea\'l des del client web.</string>
+    <string name="setup_players_label">Jugadors</string>
+    <string name="setup_start_game">COMENÇA LA PARTIDA</string>
+    <string name="setup_default_player_name">Jugador %1$d</string>
+    <string name="setup_name_label">Nom</string>
+    <string name="setup_which_deck">Amb quin deck juga?</string>
+    <string name="setup_member_no_decks">%1$s encara no té cap deck: aquest seient no quedarà desat a les seves estadístiques.</string>
+    <string name="setup_seat_label">Seient</string>
+    <string name="setup_pick_group_first">Tria un grup a dalt per poder assignar jugadors.</string>
+    <string name="setup_guest">Convidat</string>
+
+    <!-- Pre-partida: sorteo y mulligans -->
+    <string name="pregame_rotate_prompt">Gira el teu dispositiu\nper triar seients</string>
+    <string name="pregame_seat_label">Seient %1$d</string>
+    <string name="pregame_mulligans">Mulligans</string>
+    <string name="pregame_starts">Comença: %1$s</string>
+    <string name="pregame_who_starts">Qui comença?</string>
+    <string name="pregame_shuffle">SORTEIG</string>
+    <string name="pregame_begin">COMENÇA</string>
+
+    <!-- Tracker de partida -->
+    <string name="tracker_rotate_prompt">Gira el teu dispositiu\nper començar la partida</string>
+    <string name="tracker_mulligans_suffix">%1$d mulligan(s)</string>
+    <string name="tracker_pass_turn">Passa el torn</string>
+    <string name="tracker_dead">MORT</string>
+    <string name="tracker_commander_damage">Dany de comandant</string>
+    <string name="tracker_poison">Verí</string>
+    <string name="tracker_paused">Partida en pausa</string>
+    <string name="tracker_paused_subtitle">El temps ha deixat de comptar.</string>
+    <string name="tracker_resume">Reprèn</string>
+    <string name="tracker_finish_game">Finalitza la partida</string>
+    <string name="tracker_starter_banner">Comença\n%1$s!</string>
+    <string name="tracker_connecting_to_server">Creant la partida al servidor…</string>
+
+    <!-- Resumen de partida -->
+    <string name="summary_subtitle">Estadístiques de la partida · Torn %1$d</string>
+    <string name="summary_winner_banner">🏆 Guanya %1$s</string>
+    <string name="summary_back_home">Torna a l\'inici</string>
+    <string name="summary_column_player">Jugador</string>
+    <string name="summary_column_life">Vida</string>
+    <string name="summary_column_dealt">Fet</string>
+    <string name="summary_column_taken">Rebut</string>
+    <string name="summary_column_poison">Verí</string>
+    <string name="summary_column_mulligans">Mull.</string>
+    <string name="summary_column_status">Estat</string>
+    <string name="summary_status_winner">Guanyador</string>
+    <string name="summary_status_eliminated">Eliminat</string>
+    <string name="summary_status_in_play">En joc</string>
+
+    <!-- Ajustes de cuenta -->
+    <string name="settings_title">Ajustos</string>
+    <string name="settings_profile_heading">Perfil</string>
+    <string name="settings_moxfield_heading">Moxfield</string>
+    <string name="settings_moxfield_description">Vincula el teu usuari de Moxfield per poder importar els teus decks públics.</string>
+    <string name="settings_moxfield_username_label">Usuari de Moxfield</string>
+    <string name="settings_security_heading">Seguretat</string>
+    <string name="settings_security_current_password">Contrasenya actual</string>
+    <string name="settings_security_new_password">Contrasenya nova</string>
+    <string name="settings_security_confirm_password">Confirma la contrasenya nova</string>
+    <string name="settings_security_submit">Canvia la contrasenya</string>
+    <string name="settings_security_password_updated">Contrasenya actualitzada</string>
+    <string name="settings_security_no_password">Vas iniciar sessió amb Google, aquest compte no té contrasenya pròpia.</string>
+</resources>
