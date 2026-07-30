@@ -21,6 +21,7 @@
   --input-border: rgba(255, 255, 255, 0.12);
   --dim-bg: rgba(0, 0, 0, 0.25);
   --header-bg: rgba(20, 16, 38, 0.94);
+  --menu-bg: rgba(30, 24, 54, 0.98);
   --toast-bg: rgba(20, 16, 38, 0.85);
   --accent-link: #c4b5fd;
   --accent-link2: #ddd6fe;
@@ -44,6 +45,7 @@
   --input-border: rgba(30, 20, 60, 0.15);
   --dim-bg: rgba(30, 20, 60, 0.05);
   --header-bg: rgba(255, 255, 255, 0.94);
+  --menu-bg: rgba(255, 255, 255, 0.98);
   --toast-bg: rgba(255, 255, 255, 0.92);
   --accent-link: #7c3aed;
   --accent-link2: #9333ea;
