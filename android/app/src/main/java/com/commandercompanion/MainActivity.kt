@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.commandercompanion.presentation.navigation.AppNavigation
+import com.commandercompanion.presentation.theme.AppBackground
 import com.commandercompanion.presentation.theme.CommanderCompanionTheme
-import com.commandercompanion.presentation.theme.MdThemeDarkBackground
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
             CommanderCompanionTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MdThemeDarkBackground
+                    color = AppBackground
                 ) {
                     AppNavigation()
                 }

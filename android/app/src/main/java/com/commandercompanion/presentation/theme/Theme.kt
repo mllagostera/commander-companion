@@ -7,17 +7,27 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryAccent,
+    onPrimary = AppBackgroundDeep,
     secondary = SecondaryAccent,
-    background = MdThemeDarkBackground,
-    surface = MdThemeDarkSurface,
-    onBackground = MdThemeDarkOnBackground,
-    onSurface = MdThemeDarkOnSurface
+    onSecondary = AppBackgroundDeep,
+    background = AppBackground,
+    onBackground = AppOnBackground,
+    surface = AppSurface,
+    onSurface = AppOnBackground,
+    surfaceVariant = AppSurfaceVariant,
+    onSurfaceVariant = AppOnSurfaceVariant,
+    outline = AppOutline,
+    error = StatusDanger,
+    onError = AppBackgroundDeep,
+    errorContainer = Color(0x33F87171),
+    onErrorContainer = StatusDanger
 )
 
 // We force dark theme for Commander Companion by default as it's better for battery and eyes during long games.

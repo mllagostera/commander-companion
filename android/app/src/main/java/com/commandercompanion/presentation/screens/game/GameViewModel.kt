@@ -162,14 +162,23 @@ class GameViewModel @Inject constructor(
         checkForGameOver()
     }
 
-    fun nextTurn() {
-        _state.value = _state.value.copy(currentTurn = _state.value.currentTurn + 1)
+    fun adjustPoison(playerId: Int, amount: Int) {
+        if (_state.value.isFinished) return
+        _state.value = _state.value.copy(
+            players = _state.value.players.map { player ->
+                if (player.id == playerId) {
+                    player.copy(poison = (player.poison + amount).coerceAtLeast(0))
+                } else {
+                    player
+                }
+            }
+        )
+        mirrorPoisonChange(playerId, amount)
+        checkForGameOver()
     }
 
-    fun previousTurn() {
-        if (_state.value.currentTurn > 1) {
-            _state.value = _state.value.copy(currentTurn = _state.value.currentTurn - 1)
-        }
+    fun nextTurn() {
+        _state.value = _state.value.copy(currentTurn = _state.value.currentTurn + 1)
     }
 
     private fun checkForGameOver() {
@@ -192,9 +201,8 @@ class GameViewModel @Inject constructor(
         finishRemoteGame()
     }
 
-    /** Vivo = vida positiva y sin 21+ de daño acumulado de un mismo comandante (regla de Commander). */
-    private fun PlayerState.isAlive(): Boolean =
-        life > 0 && commanderDamage.values.none { it >= COMMANDER_DAMAGE_LETHAL }
+    /** Vivo = no eliminado (ver [isEliminated], compartida con la UI del tracker). */
+    private fun PlayerState.isAlive(): Boolean = !isEliminated()
 
     private fun persistGameResult(winnerId: Int?) {
         val results = _state.value.players.map { player ->
@@ -238,6 +246,16 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /** Espeja un cambio de contadores de veneno de [playerId]; no-op si no tiene `GamePlayer` real. */
+    private fun mirrorPoisonChange(playerId: Int, amount: Int) {
+        launchRemote {
+            val session = activeSession() ?: return@launchRemote
+            val remotePlayerId = session.seatPlayerIds[playerId - 1] ?: return@launchRemote
+            gameRepository.recordPoisonChange(session, remotePlayerId, amount)
+                .onFailure { error -> reportRemoteFailure(error) }
+        }
+    }
+
     /** Finaliza la partida remota, lo que dispara el recálculo de estadísticas server-side. */
     private fun finishRemoteGame() {
         launchRemote {
@@ -267,9 +285,5 @@ class GameViewModel @Inject constructor(
 
     private fun updateRemoteSync(remoteSync: RemoteSyncState) {
         _state.value = _state.value.copy(remoteSync = remoteSync)
-    }
-
-    private companion object {
-        const val COMMANDER_DAMAGE_LETHAL = 21
     }
 }

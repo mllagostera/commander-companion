@@ -232,6 +232,17 @@ class GameRepository @Inject constructor(
             )
         )
 
+    /** Espeja un cambio de contadores de veneno de [playerId] en el backend (sin `target_id`). */
+    suspend fun recordPoisonChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto> =
+        recordAction(
+            gameId = session.gameId,
+            request = CreateActionRequest(
+                actorId = playerId,
+                actionType = GameActionType.POISON_COUNTER,
+                payload = amountPayload(amount)
+            )
+        )
+
     private companion object {
         const val LOCAL_STATUS_IN_PROGRESS = "IN_PROGRESS"
         const val LOCAL_STATUS_FINISHED = "FINISHED"

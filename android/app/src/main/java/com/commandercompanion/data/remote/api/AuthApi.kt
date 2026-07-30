@@ -4,6 +4,7 @@ import com.commandercompanion.data.remote.dto.GoogleLoginRequest
 import com.commandercompanion.data.remote.dto.LoginRequest
 import com.commandercompanion.data.remote.dto.LogoutRequest
 import com.commandercompanion.data.remote.dto.RefreshRequest
+import com.commandercompanion.data.remote.dto.RegisterRequest
 import com.commandercompanion.data.remote.dto.TokenResponse
 import com.commandercompanion.data.remote.dto.UserDto
 import retrofit2.http.Body
@@ -18,14 +19,23 @@ import retrofit2.http.POST
  * extendiendo `CommanderApi.kt` con endpoints de decks/games/etc. en paralelo — mantenerlos
  * separados evita conflictos de merge.
  *
- * `login`/`google`/`refresh`/`logout` son públicos (`security: []` en el spec, no llevan Bearer).
- * `me` sí requiere el access token, pasado explícitamente como header en vez de depender de un
- * interceptor — así este API client no necesita conocer la sesión activa.
+ * `login`/`register`/`google`/`refresh`/`logout` son públicos (`security: []` en el spec, no
+ * llevan Bearer). `me` sí requiere el access token, pasado explícitamente como header en vez de
+ * depender de un interceptor — así este API client no necesita conocer la sesión activa.
  */
 interface AuthApi {
 
     @POST("api/v1/auth/login")
     suspend fun login(@Body request: LoginRequest): TokenResponse
+
+    /**
+     * No deja sesión iniciada (a diferencia de [login]/[loginWithGoogle]): devuelve el usuario
+     * creado, no un [TokenResponse]. Si el backend exige verificación de email
+     * (`REQUIRE_EMAIL_VERIFICATION`), el login posterior falla con 403 hasta confirmarlo — mismo
+     * contrato que el cliente web (ver `web/app/composables/useAuth.ts`).
+     */
+    @POST("api/v1/auth/register")
+    suspend fun register(@Body request: RegisterRequest): UserDto
 
     @POST("api/v1/auth/google")
     suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): TokenResponse
