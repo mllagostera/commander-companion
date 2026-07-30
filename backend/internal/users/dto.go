@@ -9,10 +9,14 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
-// UpdateProfileRequest es el payload para actualizar el perfil propio. Por ahora
-// solo cubre el username de Moxfield; futuros campos de perfil se agregan acá.
+// UpdateProfileRequest es el payload para actualizar el perfil propio: username de la
+// cuenta y/o username de Moxfield. Ambos son punteros para distinguir "no lo mandó" (nil,
+// no tocar el campo) de "lo mandó vacío" (string vacío en MoxfieldUsername = desvincular;
+// en Username, vacío es inválido, ver UpdateUsername). Sin esto, un PATCH que solo manda
+// uno de los dos campos pisaría el otro con su zero-value.
 type UpdateProfileRequest struct {
-	MoxfieldUsername string `json:"moxfield_username"`
+	Username         *string `json:"username,omitempty"`
+	MoxfieldUsername *string `json:"moxfield_username,omitempty"`
 }
 
 // ChangePasswordRequest es el payload de POST /users/:id/password.
@@ -38,6 +42,10 @@ type UserResponse struct {
 	Email            string    `json:"email"`
 	CreatedAt        time.Time `json:"created_at"`
 	MoxfieldUsername *string   `json:"moxfield_username,omitempty"`
+	// HasPassword indica si la cuenta tiene password propio (false = cuenta creada vía
+	// Google Sign-In, sin password_hash) — los clientes lo usan para decidir si mostrar
+	// el flujo de "cambiar contraseña" (ver ChangePassword, que rechaza estas cuentas).
+	HasPassword bool `json:"has_password"`
 }
 
 // UserSearchResult es el DTO de GET /users/search — deliberadamente sin email: a

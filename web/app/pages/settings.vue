@@ -3,8 +3,10 @@ import type { MoxfieldImportJob } from '~/types/api'
 
 const { t, d } = useI18n()
 const { user, fetchSession, logout } = useAuth()
+const { public: publicConfig } = useRuntimeConfig()
 const {
   updateMoxfieldUsername,
+  updateUsername,
   changePassword,
   startMoxfieldImport,
   getMoxfieldImportStatus,
@@ -13,6 +15,25 @@ const { showToast } = useToast()
 
 const userInitial = computed(() => user.value?.username?.[0]?.toUpperCase() ?? '?')
 const memberSince = computed(() => (user.value ? d(new Date(user.value.created_at), 'short') : ''))
+
+// -------------------------------------------------------------- username
+const username = ref(user.value?.username ?? '')
+const usernameError = ref('')
+const isSavingUsername = ref(false)
+
+async function handleSaveUsername() {
+  usernameError.value = ''
+  isSavingUsername.value = true
+  try {
+    await updateUsername(username.value)
+    await fetchSession()
+    showToast(t('toast.usernameUpdated'))
+  } catch (err) {
+    usernameError.value = updateUsernameError(err)
+  } finally {
+    isSavingUsername.value = false
+  }
+}
 
 // ------------------------------------------------------------- contraseña
 const currentPassword = ref('')
@@ -129,6 +150,28 @@ onUnmounted(stopPolling)
         </div>
       </div>
       <p class="text-xs" style="color: var(--text-dim);">{{ $t('settings.memberSince', { date: memberSince }) }}</p>
+
+      <form class="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-start" style="border-color: var(--card-border);" @submit.prevent="handleSaveUsername">
+        <label class="flex-1 text-xs" style="color: var(--text-dim);">
+          {{ $t('settings.username.label') }}
+          <input
+            v-model="username"
+            type="text"
+            :placeholder="$t('settings.username.placeholder')"
+            class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+            style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
+          >
+        </label>
+        <button
+          type="submit"
+          :disabled="isSavingUsername"
+          class="mt-1.5 rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] disabled:opacity-50 sm:mt-[26px]"
+          style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+        >
+          {{ isSavingUsername ? $t('common.saving') : $t('common.save') }}
+        </button>
+      </form>
+      <p v-if="usernameError" class="text-sm" style="color: var(--lose);">{{ usernameError }}</p>
     </section>
 
     <section class="flex flex-col gap-3.5 rounded-[28px] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
@@ -156,7 +199,7 @@ onUnmounted(stopPolling)
       </form>
       <p v-if="moxfieldError" class="text-sm" style="color: var(--lose);">{{ moxfieldError }}</p>
 
-      <div class="border-t pt-4" style="border-color: var(--card-border);">
+      <div v-if="publicConfig.enableBulkMoxfieldImport" class="border-t pt-4" style="border-color: var(--card-border);">
         <button
           type="button"
           :disabled="isStartingImport || !user?.moxfield_username || importJob?.status === 'in_progress'"
@@ -188,7 +231,11 @@ onUnmounted(stopPolling)
     <section class="flex flex-col gap-3.5 rounded-[28px] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
       <h2 class="text-[15px] font-medium">{{ $t('settings.security.heading') }}</h2>
 
-      <form class="flex flex-col gap-3" @submit.prevent="handleChangePassword">
+      <p v-if="!user?.has_password" class="text-[13px]" style="color: var(--text-muted);">
+        {{ $t('settings.security.noPassword') }}
+      </p>
+
+      <form v-else class="flex flex-col gap-3" @submit.prevent="handleChangePassword">
         <label class="text-xs" style="color: var(--text-dim);">
           {{ $t('settings.security.currentPassword') }}
           <input
