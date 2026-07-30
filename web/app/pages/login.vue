@@ -17,11 +17,36 @@ const needsVerification = ref(false)
 const isResending = ref(false)
 const resendSent = ref(false)
 
+// El backend puede estar dormido (cold start) y tardar ~50s en responder la
+// primera petición. Sin este cartel el usuario no tiene forma de saberlo y
+// suele reintentar el login creyendo que no hizo nada.
+const isLoggingIn = ref(false)
+const showSlowHint = ref(false)
+let slowHintTimer: ReturnType<typeof setTimeout> | null = null
+
+function startLoginTimers() {
+  showSlowHint.value = false
+  isLoggingIn.value = true
+  slowHintTimer = setTimeout(() => {
+    showSlowHint.value = true
+  }, 4000)
+}
+
+function stopLoginTimers() {
+  isLoggingIn.value = false
+  showSlowHint.value = false
+  if (slowHintTimer) {
+    clearTimeout(slowHintTimer)
+    slowHintTimer = null
+  }
+}
+
 async function handleSubmit() {
   errorMessage.value = ''
   needsVerification.value = false
   resendSent.value = false
   isSubmitting.value = true
+  startLoginTimers()
   try {
     await login(email.value, password.value)
     await navigateTo('/')
@@ -32,6 +57,7 @@ async function handleSubmit() {
     errorMessage.value = apiErrorMessage(err, t('login.errors.loginFailed'))
   } finally {
     isSubmitting.value = false
+    stopLoginTimers()
   }
 }
 
@@ -49,11 +75,14 @@ async function handleResendVerification() {
 
 async function handleGoogleCredential(idToken: string) {
   errorMessage.value = ''
+  startLoginTimers()
   try {
     await loginWithGoogle(idToken)
     await navigateTo('/')
   } catch (err) {
     errorMessage.value = apiErrorMessage(err, t('login.errors.googleFailed'))
+  } finally {
+    stopLoginTimers()
   }
 }
 
@@ -63,6 +92,10 @@ onMounted(() => {
       theme: theme.value === 'light' ? 'outline' : 'filled_black',
     })
   }
+})
+
+onUnmounted(() => {
+  if (slowHintTimer) clearTimeout(slowHintTimer)
 })
 </script>
 
@@ -149,5 +182,34 @@ onMounted(() => {
         </span>
       </form>
     </div>
+
+    <Transition name="cc-fade">
+      <div
+        v-if="isLoggingIn"
+        class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 p-6 text-center"
+        style="background: rgba(5, 3, 8, 0.72); backdrop-filter: blur(6px);"
+      >
+        <AppLogo size="lg" pulse />
+        <div class="flex flex-col items-center gap-2">
+          <span class="text-sm font-medium" style="color: var(--text);">{{ $t('login.loading.title') }}</span>
+          <Transition name="cc-fade">
+            <span v-if="showSlowHint" class="max-w-[280px] text-xs" style="color: var(--text-muted);">
+              {{ $t('login.loading.slowHint') }}
+            </span>
+          </Transition>
+        </div>
+      </div>
+    </Transition>
   </main>
 </template>
+
+<style scoped>
+.cc-fade-enter-active,
+.cc-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.cc-fade-enter-from,
+.cc-fade-leave-to {
+  opacity: 0;
+}
+</style>

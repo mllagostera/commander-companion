@@ -23,6 +23,10 @@
     "submit": "Inicia sessió",
     "submitting": "Entrant…",
     "divider": "o",
+    "loading": {
+      "title": "Iniciant sessió…",
+      "slowHint": "El servidor estava adormit i s'està despertant, pot trigar uns segons."
+    },
     "verification": {
       "checkInbox": "Fet, revisa la teva safata d'entrada.",
       "resend": "Reenvia el correu de verificació",
