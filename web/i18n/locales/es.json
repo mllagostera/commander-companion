@@ -76,6 +76,7 @@
   "dashboard": {
     "sessionAs": "Sesión iniciada como",
     "greeting": "Hola, {username}",
+    "newGame": "+ Nueva partida",
     "loadError": "No se pudo cargar el resumen.",
     "stats": {
       "games": "Partidas",
@@ -270,6 +271,31 @@
         "empty": "Todavía no se jugó ninguna partida en este grupo.",
         "noPlayers": "Sin jugadores"
       }
+    }
+  },
+  "play": {
+    "setup": {
+      "title": "Nueva partida",
+      "subtitle": "Life tracker local: no se guarda ni cuenta para tus estadísticas.",
+      "playerCountLabel": "Jugadores",
+      "playerPlaceholder": "Jugador {n}",
+      "start": "Empezar partida",
+      "localNote": "Esta partida vive solo en esta pestaña. Si la recargas, se pierde."
+    },
+    "tracker": {
+      "turn": "Turno {n}",
+      "finish": "Finalizar",
+      "poison": "Veneno",
+      "eliminated": "Eliminado",
+      "showCommanderDamage": "Ver daño de comandante",
+      "hideCommanderDamage": "Ocultar daño de comandante"
+    },
+    "summary": {
+      "heading": "Partida finalizada",
+      "winner": "Ganó {name}",
+      "draw": "Empate",
+      "newGame": "Nueva partida",
+      "backHome": "Volver al inicio"
     }
   },
   "toast": {
