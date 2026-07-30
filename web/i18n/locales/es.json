@@ -138,6 +138,7 @@
       "updated": "Actualizado desde Moxfield",
       "upToDate": "Ya estaba al día"
     },
+    "viewOnMoxfield": "Ver en Moxfield",
     "import": {
       "title": "Importar desde Moxfield",
       "placeholder": "https://moxfield.com/decks/abc123 o abc123",
