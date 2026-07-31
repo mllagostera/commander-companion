@@ -285,22 +285,34 @@
       "playerCountLabel": "Jugadors",
       "playerPlaceholder": "Jugador {n}",
       "start": "Comença la partida",
-      "localNote": "Aquesta partida només viu en aquesta pestanya. Si la recarregues, es perd."
+      "localNote": "Aquesta partida només viu en aquesta pestanya. Si la recarregues, es perd.",
+      "cancel": "Cancel·la"
     },
     "tracker": {
       "turn": "Torn {n}",
       "finish": "Finalitza",
       "poison": "Verí",
-      "eliminated": "Eliminat",
-      "showCommanderDamage": "Mostra el dany de comandant",
-      "hideCommanderDamage": "Amaga el dany de comandant"
+      "dead": "ELIMINAT",
+      "commanderDamage": "Dany de comandant",
+      "startRandom": "Tria qui comença",
+      "starterBanner": "Comença {name}",
+      "rotatePrompt": "Gira el teu dispositiu\nper jugar"
     },
     "summary": {
       "heading": "Partida finalitzada",
       "winner": "Ha guanyat {name}",
       "draw": "Empat",
       "newGame": "Nova partida",
-      "backHome": "Torna a l'inici"
+      "backHome": "Torna a l'inici",
+      "columnPlayer": "Jugador",
+      "columnLife": "Vida",
+      "columnDealt": "Fet",
+      "columnTaken": "Rebut",
+      "columnPoison": "Verí",
+      "columnStatus": "Estat",
+      "statusWinner": "Guanyador",
+      "statusEliminated": "Eliminat",
+      "statusInPlay": "En joc"
     }
   },
   "toast": {

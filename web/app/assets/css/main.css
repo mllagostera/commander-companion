@@ -73,6 +73,11 @@ body {
   100% { background-position: 200% 0; }
 }
 
+@keyframes cc-elim-flash {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.85; }
+}
+
 .cc-deck-shimmer {
   position: absolute;
   inset: 0;

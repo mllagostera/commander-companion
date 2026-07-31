@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import type { LocalPlayer } from '~/composables/useLocalGame'
 
+definePageMeta({ layout: false })
+
 const {
-  players, turn, isFinished, winnerId,
-  setup, adjustLife, adjustPoison, adjustCommanderDamage, nextTurn, finishManually, reset,
+  players, turn, isFinished, winnerId, started, startingPlayerId,
+  lotteryActive, lotteryHighlightId, showStarterBanner,
+  setup, startRandomPlayer, adjustLife, adjustPoison, adjustCommanderDamage, finishManually, reset,
   isEliminated,
 } = useLocalGame()
 
@@ -26,181 +29,270 @@ function backToSetup() {
 }
 
 // ----------------------------------------------------------------- tracker
-const expandedCommanderDamage = ref<number | null>(null)
+const expandedPlayerId = ref<number | null>(null)
 
-function toggleCommanderDamage(playerId: number) {
-  expandedCommanderDamage.value = expandedCommanderDamage.value === playerId ? null : playerId
-}
-
-function opponentsOf(player: LocalPlayer): LocalPlayer[] {
-  return players.value.filter((p) => p.id !== player.id)
+function toggleExpand(playerId: number) {
+  expandedPlayerId.value = expandedPlayerId.value === playerId ? null : playerId
 }
 
 const winner = computed<LocalPlayer | null>(() => players.value.find((p) => p.id === winnerId.value) ?? null)
+
+const topRow = computed(() => players.value.slice(0, Math.ceil(players.value.length / 2)))
+const bottomRow = computed(() => players.value.slice(Math.ceil(players.value.length / 2)))
+
+function dealtBy(player: LocalPlayer): number {
+  return players.value.reduce((sum, p) => sum + (p.commanderDamage[player.id] ?? 0), 0)
+}
+
+function takenBy(player: LocalPlayer): number {
+  const values = Object.values(player.commanderDamage)
+  return values.length ? Math.max(...values) : 0
+}
+
+function statusKey(player: LocalPlayer): string {
+  if (winner.value?.id === player.id) return 'play.summary.statusWinner'
+  if (isEliminated(player)) return 'play.summary.statusEliminated'
+  return 'play.summary.statusInPlay'
+}
+
+const starterName = computed(() => players.value.find((p) => p.id === startingPlayerId.value)?.name ?? '')
+const starterColor = computed(() => players.value.find((p) => p.id === startingPlayerId.value)?.color ?? '#8b5cf6')
+
+// El tracker solo tiene sentido en horizontal (igual que Android, que fuerza landscape con
+// RotateDevicePrompt) — se detecta con matchMedia en vez de un timer simulado.
+const isPortrait = ref(false)
+let orientationQuery: MediaQueryList | null = null
+function updateOrientation() {
+  isPortrait.value = orientationQuery?.matches ?? false
+}
+onMounted(() => {
+  orientationQuery = window.matchMedia('(orientation: portrait)')
+  updateOrientation()
+  orientationQuery.addEventListener('change', updateOrientation)
+})
+onUnmounted(() => {
+  orientationQuery?.removeEventListener('change', updateOrientation)
+})
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <section v-if="phase === 'setup'" class="mx-auto flex w-full max-w-md flex-col gap-6">
-      <div>
-        <h1 class="text-2xl font-semibold sm:text-[26px]">{{ $t('play.setup.title') }}</h1>
-        <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('play.setup.subtitle') }}</p>
-      </div>
+  <div>
+    <main
+      v-if="phase === 'setup'"
+      class="relative min-h-screen overflow-hidden"
+      style="background: var(--bg-gradient); color: var(--text);"
+    >
+      <div class="cc-blob top-[-160px] right-[-140px] h-[460px] w-[460px] rounded-[63%_37%_54%_46%/48%_42%_58%_52%]" style="background: radial-gradient(circle, rgba(167,139,250,0.35), rgba(167,139,250,0) 70%);" />
+      <div class="cc-blob bottom-[-200px] left-[-160px] h-[520px] w-[520px] rounded-[42%_58%_65%_35%/55%_45%_55%_45%]" style="background: radial-gradient(circle, rgba(168,85,247,0.22), rgba(168,85,247,0) 70%);" />
 
-      <div>
-        <p class="text-xs" style="color: var(--text-dim);">{{ $t('play.setup.playerCountLabel') }}</p>
-        <div class="mt-2 flex gap-2">
-          <button
-            v-for="n in [2, 3, 4, 5, 6]"
-            :key="n"
-            type="button"
-            class="h-10 w-10 rounded-full border text-sm font-semibold"
-            :style="n === playerCount
-              ? { background: 'linear-gradient(90deg, #8b5cf6, #a855f7)', color: '#0a0714', borderColor: 'transparent' }
-              : { background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text)' }"
-            @click="playerCount = n"
-          >
-            {{ n }}
-          </button>
-        </div>
-      </div>
+      <div class="relative z-[1] flex min-h-screen flex-col items-center justify-center gap-6 p-6">
+        <NuxtLink to="/" class="flex items-center gap-2.5">
+          <AppLogo />
+          <span class="cc-gradient-text text-[15px] font-semibold tracking-wide">Commander Companion</span>
+        </NuxtLink>
 
-      <div class="flex flex-col gap-2.5">
-        <div v-for="i in playerCount" :key="i" class="flex items-center gap-2.5">
-          <span
-            class="h-8 w-8 flex-shrink-0 rounded-full"
-            :style="{ background: LOCAL_PLAYER_COLORS[(i - 1) % LOCAL_PLAYER_COLORS.length] }"
-          />
-          <input
-            v-model="playerNames[i - 1]"
-            type="text"
-            :placeholder="$t('play.setup.playerPlaceholder', { n: i })"
-            class="flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
-            style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
-          >
-        </div>
-      </div>
-
-      <button
-        type="button"
-        class="rounded-full px-5 py-3 text-sm font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.02]"
-        style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
-        @click="startGame"
-      >
-        {{ $t('play.setup.start') }}
-      </button>
-
-      <p class="text-center text-xs" style="color: var(--text-dim);">{{ $t('play.setup.localNote') }}</p>
-    </section>
-
-    <section v-else class="flex flex-col gap-5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <button
-          type="button"
-          class="rounded-full border px-4 py-2 text-[13px]"
-          style="border-color: var(--input-border); color: var(--text);"
-          @click="nextTurn"
-        >
-          {{ $t('play.tracker.turn', { n: turn }) }}
-        </button>
-        <button
-          v-if="!isFinished"
-          type="button"
-          class="rounded-full border px-4 py-2 text-[13px]"
-          style="border-color: rgba(248,113,113,0.35); background: var(--lose-bg); color: var(--lose);"
-          @click="finishManually"
-        >
-          {{ $t('play.tracker.finish') }}
-        </button>
-      </div>
-
-      <div v-if="isFinished" class="rounded-[24px] border p-6 text-center" style="border-color: var(--card-border); background: var(--card-bg);">
-        <p class="text-xs uppercase tracking-wide" style="color: var(--text-dim);">{{ $t('play.summary.heading') }}</p>
-        <p class="mt-2 text-xl font-semibold" :style="{ color: winner ? 'var(--win)' : 'var(--text)' }">
-          {{ winner ? $t('play.summary.winner', { name: winner.name }) : $t('play.summary.draw') }}
-        </p>
-        <div class="mt-4 flex justify-center gap-3">
-          <button
-            type="button"
-            class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714]"
-            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
-            @click="backToSetup"
-          >
-            {{ $t('play.summary.newGame') }}
-          </button>
-          <NuxtLink
-            to="/"
-            class="rounded-full border px-5 py-2.5 text-[13px]"
-            style="border-color: var(--input-border); color: var(--text);"
-          >
-            {{ $t('play.summary.backHome') }}
-          </NuxtLink>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div
-          v-for="player in players"
-          :key="player.id"
-          class="flex flex-col gap-3 rounded-[22px] border-t-4 border p-4"
-          :style="{ borderTopColor: player.color, borderColor: 'var(--card-border)', background: 'var(--card-bg)', opacity: isEliminated(player) ? 0.5 : 1 }"
-        >
-          <div class="flex items-center justify-between">
-            <p class="font-semibold">{{ player.name }}</p>
-            <span v-if="isEliminated(player)" class="rounded-full px-2 py-0.5 text-[11px] font-semibold" style="background: var(--lose-bg); color: var(--lose);">
-              {{ $t('play.tracker.eliminated') }}
-            </span>
+        <section class="flex w-full max-w-md flex-col gap-6 rounded-[28px] border p-[26px]" style="background: var(--card-bg-strong); border-color: var(--card-border);">
+          <div>
+            <h1 class="text-2xl font-semibold sm:text-[26px]">{{ $t('play.setup.title') }}</h1>
+            <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('play.setup.subtitle') }}</p>
           </div>
 
-          <div class="flex items-center justify-between">
-            <button
-              type="button"
-              class="h-10 w-10 rounded-full border text-lg"
-              style="border-color: var(--input-border); color: var(--text);"
-              @click="adjustLife(player.id, -1)"
-            >
-              −
-            </button>
-            <span class="text-3xl font-bold tabular-nums">{{ player.life }}</span>
-            <button
-              type="button"
-              class="h-10 w-10 rounded-full border text-lg"
-              style="border-color: var(--input-border); color: var(--text);"
-              @click="adjustLife(player.id, 1)"
-            >
-              +
-            </button>
-          </div>
-
-          <div class="flex items-center justify-between text-[13px]" style="color: var(--text-muted);">
-            <span>{{ $t('play.tracker.poison') }}: {{ player.poison }}</span>
-            <span class="flex gap-1.5">
-              <button type="button" class="h-6 w-6 rounded-full border text-xs" style="border-color: var(--input-border);" @click="adjustPoison(player.id, -1)">−</button>
-              <button type="button" class="h-6 w-6 rounded-full border text-xs" style="border-color: var(--input-border);" @click="adjustPoison(player.id, 1)">+</button>
-            </span>
-          </div>
-
-          <button
-            type="button"
-            class="text-left text-xs"
-            style="color: var(--accent-link);"
-            @click="toggleCommanderDamage(player.id)"
-          >
-            {{ expandedCommanderDamage === player.id ? $t('play.tracker.hideCommanderDamage') : $t('play.tracker.showCommanderDamage') }}
-          </button>
-
-          <div v-if="expandedCommanderDamage === player.id" class="flex flex-col gap-1.5 border-t pt-2.5" style="border-color: var(--card-border);">
-            <div v-for="opponent in opponentsOf(player)" :key="opponent.id" class="flex items-center justify-between text-xs">
-              <span style="color: var(--text-muted);">{{ opponent.name }}</span>
-              <span class="flex items-center gap-1.5">
-                <button type="button" class="h-6 w-6 rounded-full border" style="border-color: var(--input-border);" @click="adjustCommanderDamage(player.id, opponent.id, -1)">−</button>
-                <span class="w-4 text-center tabular-nums">{{ player.commanderDamage[opponent.id] ?? 0 }}</span>
-                <button type="button" class="h-6 w-6 rounded-full border" style="border-color: var(--input-border);" @click="adjustCommanderDamage(player.id, opponent.id, 1)">+</button>
-              </span>
+          <div>
+            <p class="text-xs" style="color: var(--text-dim);">{{ $t('play.setup.playerCountLabel') }}</p>
+            <div class="mt-2 flex gap-2">
+              <button
+                v-for="n in [2, 3, 4, 5, 6]"
+                :key="n"
+                type="button"
+                class="h-10 w-10 rounded-full border text-sm font-semibold"
+                :style="n === playerCount
+                  ? { background: 'linear-gradient(90deg, #8b5cf6, #a855f7)', color: '#0a0714', borderColor: 'transparent' }
+                  : { background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--text)' }"
+                @click="playerCount = n"
+              >
+                {{ n }}
+              </button>
             </div>
           </div>
-        </div>
+
+          <div class="flex flex-col gap-2.5">
+            <div v-for="i in playerCount" :key="i" class="flex items-center gap-2.5">
+              <span
+                class="h-8 w-8 flex-shrink-0 rounded-full"
+                :style="{ background: LOCAL_PLAYER_COLORS[(i - 1) % LOCAL_PLAYER_COLORS.length] }"
+              />
+              <input
+                v-model="playerNames[i - 1]"
+                type="text"
+                :placeholder="$t('play.setup.playerPlaceholder', { n: i })"
+                class="flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
+                style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
+              >
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="rounded-full px-5 py-3 text-sm font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.02]"
+            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+            @click="startGame"
+          >
+            {{ $t('play.setup.start') }}
+          </button>
+
+          <p class="text-center text-xs" style="color: var(--text-dim);">{{ $t('play.setup.localNote') }}</p>
+        </section>
+
+        <button type="button" class="border-none bg-transparent text-[13px]" style="color: var(--text-dim);" @click="navigateTo('/')">
+          {{ $t('play.setup.cancel') }}
+        </button>
       </div>
-    </section>
+    </main>
+
+    <ClientOnly>
+      <div v-if="phase === 'tracker'" class="fixed inset-0 overflow-hidden" style="background: #0a0714;">
+        <div v-if="isPortrait" class="flex h-full w-full flex-col items-center justify-center gap-3 px-8 text-center">
+          <span class="text-4xl">📱</span>
+          <p class="whitespace-pre-line text-sm font-medium" style="color: #f1f0f6;">{{ $t('play.tracker.rotatePrompt') }}</p>
+        </div>
+
+        <template v-else>
+          <div v-if="isFinished" class="flex h-full w-full flex-col items-center gap-4 overflow-y-auto px-8 py-6">
+            <p class="text-[11px] tracking-wide" style="color: #8b87a3;">{{ $t('play.summary.heading') }}</p>
+
+            <div
+              v-if="winner"
+              class="rounded-[18px_12px_18px_12px] px-5 py-2"
+              :style="{ background: winner.color }"
+            >
+              <p class="text-sm font-bold" style="color: #000;">{{ $t('play.summary.winner', { name: winner.name }) }}</p>
+            </div>
+            <p v-else class="text-sm font-semibold" style="color: #f1f0f6;">{{ $t('play.summary.draw') }}</p>
+
+            <div class="flex w-full max-w-2xl flex-1 flex-col gap-1.5 overflow-y-auto">
+              <div class="flex gap-1 px-2.5 text-[9px]" style="color: #8b87a3;">
+                <span class="flex-[1.3]">{{ $t('play.summary.columnPlayer') }}</span>
+                <span class="flex-[0.7]">{{ $t('play.summary.columnLife') }}</span>
+                <span class="flex-[0.9]">{{ $t('play.summary.columnDealt') }}</span>
+                <span class="flex-[0.9]">{{ $t('play.summary.columnTaken') }}</span>
+                <span class="flex-[0.7]">{{ $t('play.summary.columnPoison') }}</span>
+                <span class="flex-[0.9]">{{ $t('play.summary.columnStatus') }}</span>
+              </div>
+              <div
+                v-for="player in players"
+                :key="player.id"
+                class="flex items-center gap-1 rounded-xl border px-2.5 py-2"
+                style="border-color: rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);"
+              >
+                <span class="flex flex-[1.3] items-center gap-1.5 text-[11px]" style="color: #f1f0f6;">
+                  <span class="h-2 w-2 rounded-full" :style="{ background: player.color }" />
+                  {{ player.name }}
+                </span>
+                <span class="flex-[0.7] text-[11px]" style="color: #a5a3b8;">{{ player.life }}</span>
+                <span class="flex-[0.9] text-[11px]" style="color: #a5a3b8;">{{ dealtBy(player) }}</span>
+                <span class="flex-[0.9] text-[11px]" style="color: #a5a3b8;">{{ takenBy(player) }}</span>
+                <span class="flex-[0.7] text-[11px]" style="color: #a5a3b8;">{{ player.poison }}</span>
+                <span class="flex-[0.9] text-[10px] font-semibold" style="color: #c4b5fd;">{{ $t(statusKey(player)) }}</span>
+              </div>
+            </div>
+
+            <div class="flex gap-3 pb-2">
+              <button
+                type="button"
+                class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714]"
+                style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+                @click="backToSetup"
+              >
+                {{ $t('play.summary.newGame') }}
+              </button>
+              <NuxtLink to="/" class="rounded-full border px-5 py-2.5 text-[13px]" style="border-color: rgba(255,255,255,0.15); color: #f1f0f6;">
+                {{ $t('play.summary.backHome') }}
+              </NuxtLink>
+            </div>
+          </div>
+
+          <template v-else>
+            <div class="flex h-full w-full flex-col gap-1 p-1">
+              <div class="flex flex-1 gap-1">
+                <PlayQuadrant
+                  v-for="player in topRow"
+                  :key="player.id"
+                  :player="player"
+                  :all-players="players"
+                  :rotated="true"
+                  :started="started"
+                  :highlighted="lotteryHighlightId === player.id"
+                  :expanded-id="expandedPlayerId"
+                  @toggle-expand="toggleExpand"
+                  @adjust-life="adjustLife"
+                  @adjust-poison="adjustPoison"
+                  @adjust-commander-damage="adjustCommanderDamage"
+                />
+              </div>
+
+              <div class="flex flex-1 gap-1">
+                <PlayQuadrant
+                  v-for="player in bottomRow"
+                  :key="player.id"
+                  :player="player"
+                  :all-players="players"
+                  :rotated="false"
+                  :started="started"
+                  :highlighted="lotteryHighlightId === player.id"
+                  :expanded-id="expandedPlayerId"
+                  @toggle-expand="toggleExpand"
+                  @adjust-life="adjustLife"
+                  @adjust-poison="adjustPoison"
+                  @adjust-commander-damage="adjustCommanderDamage"
+                />
+              </div>
+            </div>
+
+            <span
+              class="pointer-events-none absolute inset-0 flex items-center justify-center text-[96px] font-extrabold"
+              style="color: rgba(255,255,255,0.05);"
+            >{{ turn }}</span>
+
+            <button
+              v-if="!started && !lotteryActive"
+              type="button"
+              :title="$t('play.tracker.startRandom')"
+              class="absolute left-1/2 top-1/2 flex h-[72px] w-[72px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-[0_10px_30px_rgba(139,92,246,0.45)]"
+              style="background: linear-gradient(135deg, #8b5cf6, #a855f7);"
+              @click="startRandomPlayer"
+            >
+              <span
+                class="ml-1.5 inline-block h-0 w-0"
+                style="border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-left: 17px solid #0a0714;"
+              />
+            </button>
+
+            <div v-if="showStarterBanner" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3.5" style="background: rgba(5,3,8,0.94);">
+              <span class="h-4 w-4 rounded-full" :style="{ background: starterColor, boxShadow: `0 0 20px ${starterColor}` }" />
+              <p class="px-6 text-center font-extrabold" style="color: #ffffff; font-size: clamp(22px, 4vw, 34px);">{{ $t('play.tracker.starterBanner', { name: starterName }) }}</p>
+            </div>
+
+            <button
+              type="button"
+              class="absolute z-[5] flex items-center justify-center rounded-full border"
+              style="left: clamp(8px,1.5vw,16px); top: clamp(8px,1.5vw,16px); width: clamp(36px,5vw,48px); height: clamp(36px,5vw,48px); background: rgba(20,16,38,0.96); border-color: rgba(255,255,255,0.15); color: #f1f0f6; font-size: clamp(14px,1.8vw,18px);"
+              @click="backToSetup"
+            >
+              ✕
+            </button>
+
+            <button
+              v-if="started"
+              type="button"
+              class="absolute z-[5] rounded-full border"
+              style="right: clamp(8px,1.5vw,16px); top: clamp(8px,1.5vw,16px); padding: clamp(8px,1.4vw,12px) clamp(14px,2.5vw,22px); background: rgba(20,16,38,0.96); border-color: rgba(248,113,113,0.35); color: #f87171; font-size: clamp(12px,1.6vw,15px);"
+              @click="finishManually"
+            >
+              {{ $t('play.tracker.finish') }}
+            </button>
+          </template>
+        </template>
+      </div>
+    </ClientOnly>
   </div>
 </template>

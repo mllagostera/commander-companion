@@ -285,22 +285,34 @@
       "playerCountLabel": "Jugadores",
       "playerPlaceholder": "Jugador {n}",
       "start": "Empezar partida",
-      "localNote": "Esta partida vive solo en esta pestaña. Si la recargas, se pierde."
+      "localNote": "Esta partida vive solo en esta pestaña. Si la recargas, se pierde.",
+      "cancel": "Cancelar"
     },
     "tracker": {
       "turn": "Turno {n}",
       "finish": "Finalizar",
       "poison": "Veneno",
-      "eliminated": "Eliminado",
-      "showCommanderDamage": "Ver daño de comandante",
-      "hideCommanderDamage": "Ocultar daño de comandante"
+      "dead": "ELIMINADO",
+      "commanderDamage": "Daño comandante",
+      "startRandom": "Sortear quién empieza",
+      "starterBanner": "{name} empieza",
+      "rotatePrompt": "Gira tu dispositivo\npara jugar"
     },
     "summary": {
       "heading": "Partida finalizada",
       "winner": "Ganó {name}",
       "draw": "Empate",
       "newGame": "Nueva partida",
-      "backHome": "Volver al inicio"
+      "backHome": "Volver al inicio",
+      "columnPlayer": "Jugador",
+      "columnLife": "Vida",
+      "columnDealt": "Hecho",
+      "columnTaken": "Recib.",
+      "columnPoison": "Veneno",
+      "columnStatus": "Estado",
+      "statusWinner": "Ganador",
+      "statusEliminated": "Eliminado",
+      "statusInPlay": "En juego"
     }
   },
   "toast": {
