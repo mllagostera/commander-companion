@@ -15,32 +15,32 @@ import (
 )
 
 var (
-	// ErrDeckNotFound indica que el deck no existe o no pertenece al usuario que lo pide.
+	// ErrDeckNotFound indicates that the deck doesn't exist or doesn't belong to the user requesting it.
 	ErrDeckNotFound = common.NotFound("deck not found")
-	// ErrMoxfieldDeckNotFound indica que Moxfield no tiene ningún deck público con ese ID.
+	// ErrMoxfieldDeckNotFound indicates that Moxfield doesn't have any public deck with that ID.
 	ErrMoxfieldDeckNotFound = common.NotFound("moxfield deck not found")
-	// ErrNoCommander indica que el deck de Moxfield no declara comandante, así que no
-	// es un deck de formato Commander y no tiene sentido importarlo.
+	// ErrNoCommander indicates that the Moxfield deck doesn't declare a commander, so it's
+	// not a Commander-format deck and there's no point importing it.
 	ErrNoCommander = common.InvalidInput("moxfield deck has no commander (not a Commander-format deck?)")
 )
 
-// MoxfieldClient es lo que decks necesita de un cliente de Moxfield (permite mockearlo en tests).
+// MoxfieldClient is what decks needs from a Moxfield client (allows mocking it in tests).
 type MoxfieldClient interface {
 	GetDeck(ctx context.Context, publicID string) (*moxfield.Deck, error)
 }
 
-// Service define la lógica de negocio del módulo decks.
+// Service defines the business logic of the decks module.
 type Service interface {
 	CreateDeck(ctx context.Context, userID string, req CreateDeckRequest) (*DeckResponse, error)
 	GetDeck(ctx context.Context, userID, id string) (*DeckResponse, error)
 	ListDecks(ctx context.Context, userID string, page common.PageRequest) (*DeckListResponse, error)
 	DeleteDeck(ctx context.Context, userID, id string) error
 	ImportFromMoxfield(ctx context.Context, userID string, req ImportMoxfieldRequest) (*DeckResponse, error)
-	// ResyncFromMoxfield vuelve a consultar Moxfield para un deck YA importado y
-	// actualiza nombre y comandante si cambiaron (ver internal/sync).
+	// ResyncFromMoxfield queries Moxfield again for an ALREADY imported deck and
+	// updates the name and commander if they changed (see internal/sync).
 	ResyncFromMoxfield(ctx context.Context, userID, moxfieldID string) (*MoxfieldSyncState, error)
-	// GetMoxfieldSyncState devuelve el estado de sincronización guardado de un deck
-	// importado, sin llamar a Moxfield.
+	// GetMoxfieldSyncState returns the stored sync state of an imported deck,
+	// without calling Moxfield.
 	GetMoxfieldSyncState(ctx context.Context, userID, moxfieldID string) (*MoxfieldSyncState, error)
 }
 
@@ -49,12 +49,12 @@ type service struct {
 	moxfield MoxfieldClient
 }
 
-// NewService crea un nuevo servicio de decks.
+// NewService creates a new decks service.
 func NewService(db *pgxpool.Pool, moxfieldClient MoxfieldClient) Service {
 	return &service{repo: New(db), moxfield: moxfieldClient}
 }
 
-// CreateDeck crea un nuevo deck para el usuario indicado.
+// CreateDeck creates a new deck for the given user.
 func (s *service) CreateDeck(ctx context.Context, userID string, req CreateDeckRequest) (*DeckResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *service) CreateDeck(ctx context.Context, userID string, req CreateDeckR
 	return toDeckResponse(&deck), nil
 }
 
-// GetDeck devuelve un deck por su ID, si pertenece al usuario indicado.
+// GetDeck returns a deck by its ID, if it belongs to the given user.
 func (s *service) GetDeck(ctx context.Context, userID, id string) (*DeckResponse, error) {
 	deck, err := s.getOwnedDeck(ctx, userID, id)
 	if err != nil {
@@ -93,9 +93,9 @@ func (s *service) GetDeck(ctx context.Context, userID, id string) (*DeckResponse
 	return toDeckResponse(deck), nil
 }
 
-// ListDecks devuelve una página de los decks del usuario indicado, del más
-// reciente al más viejo. Ver internal/common/pagination.go para el esquema de
-// cursor.
+// ListDecks returns a page of the given user's decks, from the most
+// recent to the oldest. See internal/common/pagination.go for the cursor
+// scheme.
 func (s *service) ListDecks(
 	ctx context.Context, userID string, page common.PageRequest,
 ) (*DeckListResponse, error) {
@@ -104,8 +104,8 @@ func (s *service) ListDecks(
 		return nil, common.ErrInvalidUser
 	}
 
-	// Se pide una fila de más que el límite: si vuelve, es que hay página
-	// siguiente. Evita un COUNT(*) aparte solo para saber si seguir paginando.
+	// One row more than the limit is requested: if it comes back, there's a next
+	// page. This avoids a separate COUNT(*) just to know whether to keep paginating.
 	params := ListDecksPageParams{UserID: uid, PageLimit: page.Limit + 1}
 	if page.Cursor != "" {
 		cursorCreatedAt, cursorID, decodeErr := decodeCursor(page.Cursor)
@@ -136,7 +136,7 @@ func (s *service) ListDecks(
 	return &DeckListResponse{Items: items, NextCursor: nextCursor}, nil
 }
 
-// decodeCursor traduce el cursor opaco de la request a los parámetros de la query.
+// decodeCursor translates the request's opaque cursor into the query parameters.
 func decodeCursor(encoded string) (pgtype.Timestamp, pgtype.UUID, error) {
 	cursor, err := common.DecodeCursor(encoded)
 	if err != nil {
@@ -149,7 +149,7 @@ func decodeCursor(encoded string) (pgtype.Timestamp, pgtype.UUID, error) {
 	return pgtype.Timestamp{Time: cursor.CreatedAt, Valid: true}, cursorID, nil
 }
 
-// DeleteDeck elimina un deck, si pertenece al usuario indicado.
+// DeleteDeck deletes a deck, if it belongs to the given user.
 func (s *service) DeleteDeck(ctx context.Context, userID, id string) error {
 	if _, err := s.getOwnedDeck(ctx, userID, id); err != nil {
 		return err
@@ -165,7 +165,7 @@ func (s *service) DeleteDeck(ctx context.Context, userID, id string) error {
 	return nil
 }
 
-// ImportFromMoxfield importa un deck público de Moxfield como un deck nuevo del usuario.
+// ImportFromMoxfield imports a public Moxfield deck as a new deck for the user.
 func (s *service) ImportFromMoxfield(
 	ctx context.Context, userID string, req ImportMoxfieldRequest,
 ) (*DeckResponse, error) {
@@ -212,14 +212,14 @@ func (s *service) ImportFromMoxfield(
 	return toDeckResponse(&deck), nil
 }
 
-// ResyncFromMoxfield vuelve a consultar Moxfield para un deck ya importado por el
-// usuario y actualiza nombre y comandante con lo que Moxfield devuelve hoy. A
-// diferencia de ImportFromMoxfield (que crea un deck nuevo), acá el deck tiene que
-// existir: si el usuario no tiene ninguno con ese moxfield_id es un 404, con el
-// mismo criterio que el resto del módulo (no se distingue "no existe" de "no es tuyo").
+// ResyncFromMoxfield queries Moxfield again for a deck already imported by the
+// user and updates the name and commander with what Moxfield returns today. Unlike
+// ImportFromMoxfield (which creates a new deck), here the deck must already
+// exist: if the user has none with that moxfield_id it's a 404, following the
+// same criteria as the rest of the module ("doesn't exist" is not distinguished from "isn't yours").
 //
-// El UPDATE se ejecuta aunque no haya cambios, porque es lo que mueve updated_at:
-// esa columna es el "último sync exitoso" que después reporta GetMoxfieldSyncState.
+// The UPDATE runs even when there are no changes, because that's what moves updated_at:
+// that column is the "last successful sync" that GetMoxfieldSyncState reports afterward.
 func (s *service) ResyncFromMoxfield(
 	ctx context.Context, userID, moxfieldID string,
 ) (*MoxfieldSyncState, error) {
@@ -266,8 +266,8 @@ func (s *service) ResyncFromMoxfield(
 	}, nil
 }
 
-// GetMoxfieldSyncState devuelve el estado guardado de un deck importado sin llamar
-// a Moxfield: solo dice cómo quedó el deck y cuándo fue su último sync.
+// GetMoxfieldSyncState returns the stored state of an imported deck without calling
+// Moxfield: it only reports how the deck ended up and when its last sync happened.
 func (s *service) GetMoxfieldSyncState(
 	ctx context.Context, userID, moxfieldID string,
 ) (*MoxfieldSyncState, error) {
@@ -278,8 +278,8 @@ func (s *service) GetMoxfieldSyncState(
 	return &MoxfieldSyncState{Deck: toDeckResponse(deck), LastSyncedAt: lastSyncedAt(deck)}, nil
 }
 
-// getDeckByMoxfieldID resuelve el deck del usuario asociado a un ID (o URL) de
-// Moxfield.
+// getDeckByMoxfieldID resolves the user's deck associated with a Moxfield ID (or
+// URL).
 func (s *service) getDeckByMoxfieldID(ctx context.Context, userID, moxfieldID string) (*Deck, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
@@ -304,8 +304,8 @@ func (s *service) getDeckByMoxfieldID(ctx context.Context, userID, moxfieldID st
 	return &deck, nil
 }
 
-// lastSyncedAt devuelve el momento del último sync con Moxfield, o nil si el deck
-// se importó y nunca se re-sincronizó (updated_at sigue NULL desde el INSERT).
+// lastSyncedAt returns the moment of the last sync with Moxfield, or nil if the deck
+// was imported and never re-synced (updated_at is still NULL from the INSERT).
 func lastSyncedAt(deck *Deck) *time.Time {
 	if !deck.UpdatedAt.Valid {
 		return nil
@@ -329,7 +329,7 @@ func (s *service) getOwnedDeck(ctx context.Context, userID, id string) (*Deck, e
 	}
 
 	if deck.UserID.String() != userID {
-		// No se distingue "no existe" de "no es tuyo": evita revelar que el deck existe.
+		// "doesn't exist" is not distinguished from "isn't yours": avoids revealing that the deck exists.
 		return nil, ErrDeckNotFound
 	}
 

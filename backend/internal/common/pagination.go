@@ -10,50 +10,50 @@ import (
 )
 
 const (
-	// DefaultPageLimit es el tamaño de página cuando el cliente no pide uno.
+	// DefaultPageLimit is the page size when the client doesn't ask for one.
 	DefaultPageLimit = 20
-	// MaxPageLimit acota lo que puede pedir un cliente; por encima se recorta en
-	// silencio en vez de dar error, para no romper clientes que pidan de más.
+	// MaxPageLimit caps what a client can request; anything above it is
+	// silently clamped instead of erroring, so as not to break clients that ask for more.
 	MaxPageLimit = 100
 
 	cursorSeparator = "|"
 )
 
-// ErrInvalidCursor indica que el cursor recibido no es uno emitido por esta API
-// (mal formado, truncado o manipulado).
+// ErrInvalidCursor indicates that the received cursor wasn't issued by this API
+// (malformed, truncated, or tampered with).
 var ErrInvalidCursor = InvalidInput("invalid cursor")
 
-// ErrInvalidLimit indica que el parámetro limit no es un entero positivo.
+// ErrInvalidLimit indicates that the limit parameter isn't a positive integer.
 var ErrInvalidLimit = InvalidInput("limit must be a positive integer")
 
-// Cursor es la posición de la última fila de una página. La paginación es keyset
-// sobre (created_at, id) DESC: a diferencia de OFFSET, no se saltea ni repite
-// filas cuando se insertan registros nuevos mientras se pagina, y el coste no
-// crece con la profundidad de la página. Se incluye el id además del created_at
-// porque created_at no es único (dos filas creadas en el mismo microsegundo
-// desempatan por id).
+// Cursor is the position of the last row of a page. Pagination is keyset
+// based on (created_at, id) DESC: unlike OFFSET, it doesn't skip or repeat
+// rows when new records are inserted while paginating, and the cost doesn't
+// grow with page depth. The id is included alongside created_at because
+// created_at isn't unique (two rows created in the same microsecond
+// are tie-broken by id).
 type Cursor struct {
 	CreatedAt time.Time
 	ID        string
 }
 
-// PageRequest son los parámetros de paginación ya validados de una request.
-// Cursor vacío significa "primera página".
+// PageRequest holds the already-validated pagination parameters of a request.
+// An empty Cursor means "first page".
 type PageRequest struct {
 	Cursor string
 	Limit  int32
 }
 
-// EncodeCursor serializa un cursor a un string opaco para el cliente. El formato
-// interno (base64url de "<created_at>|<id>") es un detalle de implementación: los
-// clientes deben tratarlo como opaco y devolverlo tal cual.
+// EncodeCursor serializes a cursor to an opaque string for the client. The
+// internal format (base64url of "<created_at>|<id>") is an implementation
+// detail: clients must treat it as opaque and return it as-is.
 func EncodeCursor(c Cursor) string {
 	raw := c.CreatedAt.UTC().Format(time.RFC3339Nano) + cursorSeparator + c.ID
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
-// DecodeCursor deshace EncodeCursor. Devuelve ErrInvalidCursor ante cualquier
-// entrada que no haya salido de esta API.
+// DecodeCursor reverses EncodeCursor. Returns ErrInvalidCursor for any
+// input that didn't come out of this API.
 func DecodeCursor(encoded string) (Cursor, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
@@ -72,7 +72,7 @@ func DecodeCursor(encoded string) (Cursor, error) {
 	return Cursor{CreatedAt: parsed, ID: id}, nil
 }
 
-// ParsePageRequest lee los query params `cursor` y `limit` de una request.
+// ParsePageRequest reads the `cursor` and `limit` query params of a request.
 func ParsePageRequest(c *fiber.Ctx) (PageRequest, error) {
 	limit, err := parsePageLimit(c.Query("limit"))
 	if err != nil {
@@ -81,8 +81,8 @@ func ParsePageRequest(c *fiber.Ctx) (PageRequest, error) {
 	return PageRequest{Cursor: c.Query("cursor"), Limit: limit}, nil
 }
 
-// parsePageLimit valida el query param `limit`: vacío usa el default y cualquier
-// valor por encima del máximo se recorta.
+// parsePageLimit validates the `limit` query param: empty uses the default and any
+// value above the maximum is clamped.
 func parsePageLimit(raw string) (int32, error) {
 	if raw == "" {
 		return DefaultPageLimit, nil
@@ -95,6 +95,6 @@ func parsePageLimit(raw string) (int32, error) {
 	if limit > MaxPageLimit {
 		return MaxPageLimit, nil
 	}
-	//nolint:gosec // acotado a [1, MaxPageLimit] justo arriba
+	//nolint:gosec // bounded to [1, MaxPageLimit] right above
 	return int32(limit), nil
 }

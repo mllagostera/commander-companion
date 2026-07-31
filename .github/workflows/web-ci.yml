@@ -28,12 +28,12 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
-          # 'every': un archivo cambiado cuenta para el filtro 'web' solo si
-          # matchea 'web/**' Y NO matchea ninguna de las exclusiones de .md
-          # (así un README-only change no dispara eslint/typecheck/nuxt build).
-          # El propio workflow file va en un filtro aparte ('web_workflow')
-          # porque bajo 'every' no puede compartir lista con 'web/**' (son
-          # rutas mutuamente excluyentes; ver docs/roadmap/TASKS.md).
+          # 'every': a changed file counts toward the 'web' filter only if it
+          # matches 'web/**' AND does NOT match any of the .md exclusions
+          # (so a README-only change doesn't trigger eslint/typecheck/nuxt build).
+          # The workflow file itself goes in a separate filter ('web_workflow')
+          # because under 'every' it can't share a list with 'web/**' (they're
+          # mutually exclusive patterns; see docs/roadmap/TASKS.md).
           predicate-quantifier: 'every'
           filters: |
             web:

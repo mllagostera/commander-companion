@@ -1,26 +1,26 @@
-// Package moxfieldimport importa en background todos los decks públicos de un
-// usuario de Moxfield, dado el username vinculado a su perfil (ver
-// internal/users: UpdateMoxfieldUsername). Es la contraparte masiva y asíncrona de
-// POST /decks/import/moxfield (un deck puntual, síncrono, ver internal/decks).
+// Package moxfieldimport imports in the background all of a Moxfield user's
+// public decks, given the username linked to their profile (see
+// internal/users: UpdateMoxfieldUsername). It's the bulk, async counterpart of
+// POST /decks/import/moxfield (a single deck, synchronous, see internal/decks).
 //
-// Alcance de esta pasada: el scaffold completo (tabla de jobs, goroutine, endpoints)
-// está implementado, PERO MoxfieldClient.ListDecksByUsername queda como un stub que
-// siempre devuelve un error. No hay forma de verificar ese endpoint de Moxfield
-// desde este entorno (la política de red del sandbox bloquea api2.moxfield.com);
-// hace falta confirmarlo en uno con acceso real antes de que esta feature funcione
-// de punta a punta. StartImport resuelve la lista de decks de forma síncrona antes
-// de crear el job, así que hoy responde 501 en el momento — nunca llega a crear un
-// job ni a lanzar la goroutine. El resto (409 de import duplicado, progreso,
-// finalización) es real y está probado con un MoxfieldClient mockeado.
+// Scope of this pass: the complete scaffold (jobs table, goroutine, endpoints)
+// is implemented, BUT MoxfieldClient.ListDecksByUsername remains a stub that
+// always returns an error. There's no way to verify that Moxfield endpoint
+// from this environment (the sandbox's network policy blocks api2.moxfield.com);
+// it needs to be confirmed in one with real access before this feature works
+// end to end. StartImport resolves the deck list synchronously before
+// creating the job, so today it responds 501 on the spot — it never gets to create a
+// job or launch the goroutine. The rest (409 for duplicate import, progress,
+// completion) is real and tested with a mocked MoxfieldClient.
 //
-// Mecanismo de background: una goroutine simple lanzada desde StartImport, no una
-// cola de verdad (broker/worker pool) — el proyecto es un monolito de un solo
-// proceso (ver ADR-0010) y esta es la primera vez que hace falta algo async
-// desacoplado del ciclo de vida de un request. Limitación explícita, igual que ya
-// documenta el rate limiter de auth en memoria (cmd/api/main.go): esto solo
-// funciona para el despliegue de una sola instancia de hoy. Un job iniciado en un
-// proceso es invisible para otro, y un restart a mitad de import lo deja
-// "in_progress" para siempre, sin reintento. Aceptado, no resuelto, en esta pasada.
+// Background mechanism: a simple goroutine launched from StartImport, not a
+// real queue (broker/worker pool) — the project is a single-process monolith
+// (see ADR-0010) and this is the first time something async decoupled from a
+// request's lifecycle is needed. Explicit limitation, same as already
+// documented by the in-memory auth rate limiter (cmd/api/main.go): this only
+// works for today's single-instance deployment. A job started in one
+// process is invisible to another, and a restart mid-import leaves it
+// "in_progress" forever, with no retry. Accepted, not solved, in this pass.
 package moxfieldimport
 
 import (
@@ -47,49 +47,49 @@ const (
 	statusCompleted  = "completed"
 	statusFailed     = "failed"
 
-	// interDeckDelay espacia las llamadas a Moxfield del import masivo: nada de
-	// fan-out paralelo, para no arriesgar el bloqueo de Cloudflare que ya evita el
-	// User-Agent de moxfield.Client (ver internal/moxfield/client.go).
+	// interDeckDelay spaces out the calls to Moxfield of the bulk import: no
+	// parallel fan-out, so as not to risk the Cloudflare block that
+	// moxfield.Client's User-Agent already avoids (see internal/moxfield/client.go).
 	interDeckDelay = 500 * time.Millisecond
 
-	// activeJobConstraint es el índice único parcial que garantiza un solo job
-	// pending/in_progress por usuario (migración 00010_moxfield_import_jobs.sql).
+	// activeJobConstraint is the partial unique index that guarantees a single
+	// pending/in_progress job per user (migration 00010_moxfield_import_jobs.sql).
 	activeJobConstraint = "moxfield_import_jobs_active_user_idx"
 )
 
 var (
-	// ErrMoxfieldUsernameNotSet indica que el usuario no vinculó un username de
-	// Moxfield a su perfil todavía (ver internal/users: UpdateMoxfieldUsername).
+	// ErrMoxfieldUsernameNotSet indicates that the user hasn't linked a
+	// Moxfield username to their profile yet (see internal/users: UpdateMoxfieldUsername).
 	ErrMoxfieldUsernameNotSet = common.InvalidInput("no moxfield username linked to profile")
-	// ErrImportAlreadyInProgress indica que el usuario ya tiene un import pending/in_progress.
+	// ErrImportAlreadyInProgress indicates that the user already has a pending/in_progress import.
 	ErrImportAlreadyInProgress = common.Conflict("a moxfield import is already in progress")
-	// ErrJobNotFound indica que el job no existe o no es del usuario autenticado.
+	// ErrJobNotFound indicates that the job doesn't exist or doesn't belong to the authenticated user.
 	ErrJobNotFound = common.NotFound("import job not found")
-	// ErrListDecksNotImplemented es lo que MoxfieldClient.ListDecksByUsername debe
-	// devolver hasta que se verifique el endpoint real de Moxfield (ver
-	// docs/roadmap/TASKS.md, Stage 8, y el doc de este paquete).
+	// ErrListDecksNotImplemented is what MoxfieldClient.ListDecksByUsername must
+	// return until Moxfield's real endpoint is verified (see
+	// docs/roadmap/TASKS.md, Stage 8, and this package's doc).
 	ErrListDecksNotImplemented = common.NotImplemented("listing a moxfield user's decks is not implemented yet")
 )
 
-// MoxfieldClient es lo que moxfieldimport necesita del cliente de Moxfield.
-// ListDecksByUsername es un STUB en esta pasada — ver el doc del paquete.
+// MoxfieldClient is what moxfieldimport needs from the Moxfield client.
+// ListDecksByUsername is a STUB in this pass — see the package doc.
 type MoxfieldClient interface {
 	ListDecksByUsername(ctx context.Context, username string) ([]string, error)
 }
 
-// DeckImporter es lo que moxfieldimport necesita del módulo decks: el import
-// puntual de un deck ya existente y probado (ver internal/decks/service.go).
+// DeckImporter is what moxfieldimport needs from the decks module: the
+// single-deck import that's already real and tested (see internal/decks/service.go).
 type DeckImporter interface {
 	ImportFromMoxfield(ctx context.Context, userID string, req decks.ImportMoxfieldRequest) (*decks.DeckResponse, error)
 }
 
-// UserLookup es lo que moxfieldimport necesita del módulo users: leer el
-// moxfield_username vinculado al perfil.
+// UserLookup is what moxfieldimport needs from the users module: reading the
+// moxfield_username linked to the profile.
 type UserLookup interface {
 	GetUser(ctx context.Context, id string) (*users.UserResponse, error)
 }
 
-// Service define la lógica de negocio del import masivo de Moxfield.
+// Service defines the business logic of the bulk Moxfield import.
 type Service interface {
 	StartImport(ctx context.Context, userID string) (*JobResponse, error)
 	GetJobStatus(ctx context.Context, userID, jobID string) (*JobResponse, error)
@@ -102,21 +102,21 @@ type service struct {
 	moxfield MoxfieldClient
 }
 
-// NewService crea un nuevo servicio de import masivo de Moxfield.
+// NewService creates a new bulk Moxfield import service.
 func NewService(
 	db *pgxpool.Pool, userLookup UserLookup, deckImporter DeckImporter, moxfieldClient MoxfieldClient,
 ) Service {
 	return &service{repo: New(db), users: userLookup, decks: deckImporter, moxfield: moxfieldClient}
 }
 
-// StartImport dispara un import en background de todos los decks públicos del
-// username de Moxfield vinculado al perfil del usuario autenticado. Devuelve el job
-// recién creado; el progreso se consulta con GetJobStatus.
+// StartImport triggers a background import of all public decks of the
+// Moxfield username linked to the authenticated user's profile. Returns the
+// newly created job; progress is queried with GetJobStatus.
 //
-// La lista de decks se resuelve de forma SÍNCRONA, antes de crear el job: si
-// Moxfield no puede listarlos (hoy, siempre — MoxfieldClient.ListDecksByUsername es
-// un stub, ver el doc del paquete), el cliente ve un 501 limpio en el momento de la
-// request, en vez de un job que arranca y falla recién después al consultarlo.
+// The deck list is resolved SYNCHRONOUSLY, before creating the job: if
+// Moxfield can't list them (today, always — MoxfieldClient.ListDecksByUsername is
+// a stub, see the package doc), the client sees a clean 501 right at request
+// time, instead of a job that starts and fails only later when queried.
 func (s *service) StartImport(ctx context.Context, userID string) (*JobResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
@@ -141,16 +141,16 @@ func (s *service) StartImport(ctx context.Context, userID string) (*JobResponse,
 		return nil, err
 	}
 
-	//nolint:gosec // G118: intencional, no un descuido -- runImport usa
-	// context.Background() a propósito porque ctx (el del request) deja de ser
-	// válido en cuanto el handler retorna, ver el doc de runImport.
+	//nolint:gosec // G118: intentional, not an oversight -- runImport uses
+	// context.Background() on purpose because ctx (the request's) stops being
+	// valid as soon as the handler returns, see runImport's doc.
 	go s.runImport(job.ID, userID, publicIDs)
 
 	return toJobResponse(&job), nil
 }
 
-// resolveDeckList traduce el stub/error de MoxfieldClient.ListDecksByUsername al
-// error de dominio correspondiente (501 mientras siga sin implementar).
+// resolveDeckList translates MoxfieldClient.ListDecksByUsername's stub/error into the
+// corresponding domain error (501 while it remains unimplemented).
 func (s *service) resolveDeckList(ctx context.Context, moxfieldUsername string) ([]string, error) {
 	publicIDs, err := s.moxfield.ListDecksByUsername(ctx, moxfieldUsername)
 	if err != nil {
@@ -162,8 +162,8 @@ func (s *service) resolveDeckList(ctx context.Context, moxfieldUsername string) 
 	return publicIDs, nil
 }
 
-// createJob inserta el job (pending) y lo marca in_progress con el total de decks ya
-// conocido, en la misma request que lo crea.
+// createJob inserts the job (pending) and marks it in_progress with the total deck
+// count already known, in the same request that creates it.
 func (s *service) createJob(
 	ctx context.Context, uid pgtype.UUID, moxfieldUsername string, totalDecks int,
 ) (MoxfieldImportJob, error) {
@@ -189,19 +189,19 @@ func (s *service) createJob(
 	return job, nil
 }
 
-// deckCount convierte un len() a int32 de forma explícitamente segura (clampeado a
-// math.MaxInt32) en vez de necesitar un nolint:gosec — un usuario real de Moxfield
-// nunca se acerca a esa cantidad de decks.
+// deckCount converts a len() to int32 in an explicitly safe way (clamped to
+// math.MaxInt32) instead of needing a nolint:gosec — a real Moxfield user
+// never gets close to that many decks.
 func deckCount(n int) int32 {
 	if n > math.MaxInt32 {
 		return math.MaxInt32
 	}
-	//nolint:gosec // guarded above, gosec's G115 no distingue el bounds check previo
+	//nolint:gosec // guarded above, gosec's G115 doesn't recognize the bounds check just above
 	return int32(n)
 }
 
-// GetJobStatus devuelve el estado de un job, acotado a que sea del usuario
-// autenticado (404 si no, mismo criterio de "no revelar" que el resto del proyecto).
+// GetJobStatus returns the status of a job, restricted to it belonging to the
+// authenticated user (404 if not, same "don't reveal" criteria as the rest of the project).
 func (s *service) GetJobStatus(ctx context.Context, userID, jobID string) (*JobResponse, error) {
 	jid, err := common.ParseUUID(jobID)
 	if err != nil {
@@ -222,12 +222,12 @@ func (s *service) GetJobStatus(ctx context.Context, userID, jobID string) (*JobR
 	return toJobResponse(&job), nil
 }
 
-// runImport corre en su propia goroutine, desacoplada del request que la disparó:
-// usa context.Background() (Fiber invalida el contexto del request al terminar el
-// handler, no se puede reusar acá) y recupera cualquier panic — a diferencia de un
-// handler HTTP, ya cubierto por recover.New() de Fiber, nada protege a una
-// goroutine suelta, y un panic sin recuperar tumba todo el proceso. La lista de
-// decks ya viene resuelta (ver StartImport): acá solo queda importarlos.
+// runImport runs in its own goroutine, decoupled from the request that triggered
+// it: it uses context.Background() (Fiber invalidates the request's context when
+// the handler finishes, it can't be reused here) and recovers any panic — unlike
+// an HTTP handler, already covered by Fiber's recover.New(), nothing protects a
+// loose goroutine, and an unrecovered panic brings down the whole process. The
+// deck list is already resolved (see StartImport): all that's left here is importing them.
 func (s *service) runImport(jobID pgtype.UUID, userID string, publicIDs []string) {
 	defer func() {
 		if r := recover(); r != nil {

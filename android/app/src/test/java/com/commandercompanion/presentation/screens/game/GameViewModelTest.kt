@@ -26,8 +26,8 @@ import org.junit.Test
 import java.io.IOException
 
 /**
- * Cubre el mapeo de errores de red al estado de UI y el espejo de acciones contra el backend.
- * El tracker local debe seguir funcionando pase lo que pase con la red.
+ * Covers the mapping of network errors to UI state and the mirroring of actions against the
+ * backend. The local tracker must keep working no matter what happens with the network.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class GameViewModelTest {
@@ -39,8 +39,8 @@ class GameViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        // Por defecto, cada join devuelve un GamePlayer distinto por usuario (para poder
-        // distinguir actor/target cuando ambos asientos quedan asignados).
+        // By default, each join returns a different GamePlayer per user (so actor/target can be
+        // distinguished when both seats end up assigned).
         api.onJoinGame = { gameId, request ->
             gamePlayerDto(id = "gp-${request.userId}", gameId = gameId, userId = request.userId!!, deckId = request.deckId)
         }
@@ -51,7 +51,7 @@ class GameViewModelTest {
         Dispatchers.resetMain()
     }
 
-    /** Por defecto, Ana (asiento 1) queda asignada a un usuario real; Beto (asiento 2), invitado. */
+    /** By default, Ana (seat 1) is assigned to a real user; Beto (seat 2) is a guest. */
     private fun viewModel(
         ana: PlayerConfig = PlayerConfig(name = "Ana", colorKey = "blue", assignedUserId = "user-1", deckId = "deck-1"),
         beto: PlayerConfig = PlayerConfig(name = "Beto", colorKey = "red")
@@ -152,8 +152,8 @@ class GameViewModelTest {
     }
 
     /**
-     * Los asientos "invitado" (sin assignedUserId) no tienen `GamePlayer` propio en el backend:
-     * mandar sus cambios corrompería el estado y las estadísticas de otro usuario.
+     * "Guest" seats (without assignedUserId) don't have their own `GamePlayer` in the backend:
+     * sending their changes would corrupt another user's state and statistics.
      */
     @Test
     fun `el cambio de vida de un asiento invitado no se espeja`() = runTest(dispatcher) {
@@ -186,12 +186,12 @@ class GameViewModelTest {
         }
 
     /**
-     * Resuelve lo que antes era una limitación conocida: si el atacante es un asiento invitado
-     * (sin `GamePlayer` propio), no hay a quién atribuirle el daño en el backend.
+     * Resolves what used to be a known limitation: if the attacker is a guest seat
+     * (without its own `GamePlayer`), there's no one to attribute the damage to in the backend.
      */
     @Test
     fun `dano de comandante no se espeja si el atacante es un asiento invitado`() = runTest(dispatcher) {
-        val vm = viewModel() // Ana asignada, Beto invitado
+        val vm = viewModel() // Ana assigned, Beto is a guest
         advanceUntilIdle()
 
         vm.adjustCommanderDamage(targetPlayerId = 1, attackerId = 2, amount = 5)
@@ -214,8 +214,8 @@ class GameViewModelTest {
     }
 
     /**
-     * Si el golpe de gracia y el fin de partida salieran como corrutinas sueltas, el `finish`
-     * podía adelantarse al `LifeChange` y el backend rechazaba la acción con 409.
+     * If the finishing blow and the end of the game went out as separate loose coroutines, the
+     * `finish` could race ahead of the `LifeChange` and the backend would reject the action with 409.
      */
     @Test
     fun `el golpe letal se registra antes de finalizar la partida en el backend`() =
@@ -223,7 +223,7 @@ class GameViewModelTest {
             val vm = viewModel()
             advanceUntilIdle()
 
-            // Deja al asiento asignado en 0 de vida: dispara el fin automático de partida.
+            // Brings the assigned seat down to 0 life: triggers the automatic end of the game.
             vm.adjustLife(playerId = 1, amount = -40)
             advanceUntilIdle()
 
@@ -231,9 +231,9 @@ class GameViewModelTest {
             assertEquals(listOf("recordAction", "finishGame"), remoteCalls)
         }
 
-    /** Regla de Commander: 21+ de daño de comandante de un mismo atacante elimina, aunque la vida siga positiva. */
+    /** Commander rule: 21+ commander damage from the same attacker eliminates, even if life is still positive. */
     @Test
-    fun `21 de daño de un mismo comandante termina la partida aunque la vida siga positiva`() =
+    fun `21 damage from the same commander ends the game even if life stays positive`() =
         runTest(dispatcher) {
             val vm = viewModel()
             advanceUntilIdle()
@@ -247,7 +247,7 @@ class GameViewModelTest {
         }
 
     @Test
-    fun `20 de daño de comandante todavia no elimina`() = runTest(dispatcher) {
+    fun `20 commander damage doesn't eliminate yet`() = runTest(dispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
 
@@ -267,7 +267,7 @@ class GameViewModelTest {
         advanceUntilIdle()
 
         assertTrue(!api.calls.contains("finishGame"))
-        // El resultado local sí se guarda igual.
+        // The local result is still saved regardless.
         assertEquals("FINISHED", dao.finished.single().second)
     }
 }

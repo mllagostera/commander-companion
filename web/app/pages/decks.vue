@@ -12,8 +12,8 @@ const { data: decks, refresh, error: listError } = await useAsyncData<Deck[]>(
   { default: () => [] },
 )
 
-// Stats por deck, solo para ordenar (jugados/victorias/win rate) — el propio
-// Deck no las trae. Best-effort: un deck sin stats no rompe el resto de la lista.
+// Stats per deck, only used for sorting (played/wins/win rate) — the
+// Deck itself doesn't carry them. Best-effort: a deck with no stats doesn't break the rest of the list.
 const statsByDeckId = ref<Record<string, DeckStats | null>>({})
 
 watch(
@@ -61,8 +61,8 @@ async function handleImport() {
   }
 }
 
-// Estado de sincronización por deck (id → mensaje/loading/error), independiente
-// entre filas: sincronizar un deck no debe bloquear ni pisar el estado de otro.
+// Sync state per deck (id → message/loading/error), independent
+// between rows: syncing one deck must not block or overwrite another's state.
 const syncState = reactive<Record<string, { loading: boolean, message: string, isError: boolean }>>({})
 
 async function handleSync(deck: Deck) {
@@ -86,7 +86,7 @@ async function handleSync(deck: Deck) {
   }
 }
 
-// --------------------------------------------------- actualizar todos los decks
+// --------------------------------------------------- resync all decks
 const resyncJob = ref<DeckResyncJob | null>(null)
 const resyncError = ref('')
 const isStartingResync = ref(false)
@@ -103,7 +103,7 @@ function pollResyncStatus(jobId: string) {
     try {
       resyncJob.value = await getResyncAllStatus(jobId)
     } catch {
-      // Best-effort: un error de red puntual no debe cortar el polling.
+      // Best-effort: a one-off network error shouldn't stop polling.
     }
     if (resyncJob.value?.status === 'in_progress') {
       pollResyncStatus(jobId)
@@ -128,7 +128,7 @@ async function handleResyncAll() {
 
 onUnmounted(stopResyncPolling)
 
-// ------------------------------------------------------- búsqueda y orden
+// ------------------------------------------------------- search and sort
 type SortKey = 'played' | 'won' | 'winrate' | 'name'
 const deckSearch = ref('')
 const deckSort = ref<SortKey>('played')

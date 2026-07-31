@@ -32,7 +32,7 @@ func TestRegisterHealthRoute_DBReachable(t *testing.T) {
 
 func TestRegisterHealthRoute_DBUnreachable(t *testing.T) {
 	pool := testutil.DB(t)
-	pool.Close() // simula Postgres caído/inalcanzable sin depender de infra externa
+	pool.Close() // simulates Postgres being down/unreachable without depending on external infra
 
 	db := &common.DB{Pool: pool}
 	app := fiber.New()

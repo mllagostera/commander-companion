@@ -25,8 +25,8 @@ const { data, error, refresh } = await useAsyncData('statistics', async () => {
     })),
   )
 
-  // games_played es best-effort: un grupo que nunca jugó puede devolver 404
-  // (ver GetPlaygroupStats en internal/statistics/service.go).
+  // games_played is best-effort: a group that never played may return 404
+  // (see GetPlaygroupStats in internal/statistics/service.go).
   const groupsSummary: GroupSummary[] = await Promise.all(
     playgroups.map(async (playgroup) => ({
       ...playgroup,
@@ -38,8 +38,8 @@ const { data, error, refresh } = await useAsyncData('statistics', async () => {
   return { user, perDeck, groupsSummary } as { user: UserStats; perDeck: DeckWithStats[]; groupsSummary: GroupSummary[] }
 })
 
-// Mismo motivo que en el dashboard: sin este refresh, useAsyncData reusa el payload cacheado de
-// una visita anterior en vez de reflejar el recálculo que dispara el backend al finalizar una partida.
+// Same reason as in the dashboard: without this refresh, useAsyncData reuses the cached payload from
+// a previous visit instead of reflecting the recalculation the backend triggers when a game finishes.
 onMounted(() => refresh())
 </script>
 

@@ -10,9 +10,9 @@ const password = ref('')
 const passwordConfirm = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
-// Registro exitoso pero sin sesión: el backend deja el email sin confirmar (ver
-// server/api/auth/register.post.ts), así que en vez de navegar al dashboard mostramos
-// esta pantalla en el propio formulario.
+// Successful registration but no session: the backend leaves the email unconfirmed (see
+// server/api/auth/register.post.ts), so instead of navigating to the dashboard we show
+// this screen within the form itself.
 const registeredEmail = ref('')
 
 async function handleSubmit() {

@@ -173,8 +173,8 @@ const listGamesForPlaygroup = `-- name: ListGamesForPlaygroup :many
 SELECT id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id FROM games WHERE playgroup_id = $1 ORDER BY created_at DESC
 `
 
-// Historial de partidas de un grupo. Sin paginar: acotado a un solo playgroup,
-// nunca se acerca al volumen de ListGamesPage (el historial global).
+// Game history for a group. Unpaginated: scoped to a single playgroup,
+// never approaches the volume of ListGamesPage (the global history).
 func (q *Queries) ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) ([]Game, error) {
 	rows, err := q.db.Query(ctx, listGamesForPlaygroup, playgroupID)
 	if err != nil {
@@ -219,9 +219,9 @@ type ListGamesPageParams struct {
 	PageLimit       int32            `json:"page_limit"`
 }
 
-// Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
-// devuelve la primera página; con cursor, las filas estrictamente posteriores en
-// el orden de la lista. Ver internal/common/pagination.go.
+// Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
+// it returns the first page; with a cursor, the rows strictly after it in
+// list order. See internal/common/pagination.go.
 func (q *Queries) ListGamesPage(ctx context.Context, arg ListGamesPageParams) ([]Game, error) {
 	rows, err := q.db.Query(ctx, listGamesPage, arg.CursorCreatedAt, arg.CursorID, arg.PageLimit)
 	if err != nil {

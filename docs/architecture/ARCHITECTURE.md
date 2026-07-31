@@ -1,59 +1,59 @@
-# Arquitectura y Principios de Diseño
+# Architecture and Design Principles
 
-Este documento describe la arquitectura y los principios fundamentales de diseño del proyecto **Commander Companion**.
+This document describes the architecture and the fundamental design principles of the **Commander Companion** project.
 
-## Las 4 Fuentes de Verdad
+## The 4 Sources of Truth
 
-Para garantizar que el proyecto pueda escalar y que el desarrollo paralelo (incluyendo la colaboración con IAs) sea eficiente y coherente, el sistema se basa en cuatro pilares documentales:
+To ensure the project can scale and that parallel development (including collaboration with AIs) is efficient and coherent, the system rests on four documentary pillars:
 
 1. **DBML (Database Markup Language):**
-   Define el esquema de la base de datos, tipos, relaciones, índices y restricciones.
-   Ubicación: `docs/database/schema.dbml`
+   Defines the database schema, types, relationships, indexes, and constraints.
+   Location: `docs/database/schema.dbml`
 
 2. **OpenAPI 3.1:**
-   Es el contrato único e inviolable entre el backend (Go) y los clientes (Android y Web/Nuxt, ver [ADR-0004](../decisions/0004-web-client-nuxt.md)). Cualquier cambio en la comunicación debe reflejarse primero aquí.
-   Ubicación: `docs/api/openapi.yaml`
+   The single, inviolable contract between the backend (Go) and the clients (Android and Web/Nuxt, see [ADR-0004](../decisions/0004-web-client-nuxt.md)). Any change in communication must be reflected here first.
+   Location: `docs/api/openapi.yaml`
 
-3. **Mermaid (Diagramas):**
-   Utilizados para documentar arquitectura, flujos de datos, máquinas de estado y comportamiento de los sistemas.
-   Ubicación: Dentro de los Markdowns en `docs/architecture/` y `docs/diagrams/`.
+3. **Mermaid (Diagrams):**
+   Used to document architecture, data flows, state machines, and system behavior.
+   Location: Inside the Markdown files under `docs/architecture/` and `docs/diagrams/`.
 
 4. **ADR (Architecture Decision Records):**
-   Documentación estructurada sobre decisiones técnicas clave, contexto, opciones consideradas y consecuencias.
-   Ubicación: `docs/decisions/`
+   Structured documentation of key technical decisions, context, options considered, and consequences.
+   Location: `docs/decisions/`
 
 ---
 
-## Arquitectura del Sistema
+## System Architecture
 
 ### Backend (Go)
-- **Patrón:** Monolito Modular.
-- **Estructura Interna:** Clean Architecture enfocada en casos de uso (Service).
-  - `Handler`: Capa de transporte (HTTP/REST, Websocket).
-  - `Service`: Lógica de negocio (pura, sin dependencias de infraestructura).
-  - `Repository`: Persistencia y acceso a datos.
+- **Pattern:** Modular Monolith.
+- **Internal structure:** Clean Architecture focused on use cases (Service).
+  - `Handler`: transport layer (HTTP/REST, WebSocket).
+  - `Service`: business logic (pure, no infrastructure dependencies).
+  - `Repository`: persistence and data access.
 
-### Cliente (Android)
-- **Patrón:** Clean Architecture + MVVM + UDF (Unidirectional Data Flow).
-- **Módulos Lógicos:**
-  - `Presentation`: UI con Jetpack Compose y ViewModels.
-  - `Domain`: casos de uso e interfaces de repositorios — capa todavía no
-    materializada; los `ViewModel` van directo contra `data/repository/` o,
-    en auth, directo contra la API (ver `docs/roadmap/TASKS.md`, Stage 4).
-  - `Data`: repositorios (`GameRepository`, `DeckRepository`) que deciden
-    qué persiste en Room (local) y qué llama al backend real (Retrofit,
-    `CommanderApi`) — no es una capa puramente de paso, ya tiene la lógica
-    de "qué va a cada lado".
+### Client (Android)
+- **Pattern:** Clean Architecture + MVVM + UDF (Unidirectional Data Flow).
+- **Logical modules:**
+  - `Presentation`: UI with Jetpack Compose and ViewModels.
+  - `Domain`: use cases and repository interfaces — a layer that doesn't
+    exist yet; `ViewModel`s go straight against `data/repository/` or,
+    in auth, straight against the API (see `docs/roadmap/TASKS.md`, Stage 4).
+  - `Data`: repositories (`GameRepository`, `DeckRepository`) that decide
+    what's persisted in Room (local) and what calls the real backend (Retrofit,
+    `CommanderApi`) — not a purely pass-through layer, it already holds the
+    logic for "what goes to which side".
 
-### Cliente Web (Nuxt)
-- **Patrón:** SSR con una capa BFF (Nitro) en el medio — ver
+### Web Client (Nuxt)
+- **Pattern:** SSR with a BFF layer (Nitro) in between — see
   [ADR-0004](../decisions/0004-web-client-nuxt.md), `web/README.md`.
-- **Módulos Lógicos:**
-  - `server/` (Nitro): único lugar que toca cookies de sesión (`httpOnly`)
-    y hace de proxy autenticado hacia la API Go — el navegador nunca ve un
-    token ni llama a la API Go directamente.
-  - `app/`: código Nuxt propiamente dicho — `pages/` (rutas), `composables/`
-    (`useAuth`, `useDecks`, `useStatistics`, cada uno envuelve su parte del
-    contrato REST), `middleware/` (gating de rutas autenticadas).
-- 100% desacoplado de Android: comparten el contrato REST
-  (`docs/api/openapi.yaml`), no código ni componentes.
+- **Logical modules:**
+  - `server/` (Nitro): the only place that touches session cookies (`httpOnly`)
+    and acts as an authenticated proxy to the Go API — the browser never sees a
+    token nor calls the Go API directly.
+  - `app/`: the actual Nuxt code — `pages/` (routes), `composables/`
+    (`useAuth`, `useDecks`, `useStatistics`, each wrapping its slice of
+    the REST contract), `middleware/` (gating of authenticated routes).
+- 100% decoupled from Android: they share the REST contract
+  (`docs/api/openapi.yaml`), not code or components.

@@ -1,7 +1,7 @@
-// Package config centraliza la lectura de la configuración del servidor a
-// partir de variables de entorno. Antes de este paquete, cmd/api/main.go leía
-// os.Getenv suelto en 4 puntos distintos (conexión a BD, puerto, auth, CORS)
-// sin un struct que los agrupara.
+// Package config centralizes reading the server configuration from
+// environment variables. Before this package, cmd/api/main.go read
+// loose os.Getenv calls in 4 different places (DB connection, port, auth, CORS)
+// with no struct grouping them.
 package config
 
 import (
@@ -21,26 +21,27 @@ const (
 	defaultWebAppURL       = "http://localhost:3000"
 )
 
-// Config agrupa toda la configuración del servidor leída de variables de
-// entorno.
+// Config groups all of the server configuration read from environment
+// variables.
 type Config struct {
 	DBURL              string
 	Port               string
 	CORSAllowedOrigins string
-	// WebAppURL es la URL pública del cliente web (Nuxt), usada para armar links que
-	// mandan los mails transaccionales (ej. verificación de email).
+	// WebAppURL is the public URL of the web client (Nuxt), used to build links that
+	// are sent in transactional mails (e.g. email verification).
 	WebAppURL string
-	// RequireEmailVerification controla si el registro exige confirmar el email antes
-	// de poder loguearse (ver ADR-0012). Default false: en fase alpha no tiene sentido
-	// ni mandar el mail ni bloquear el login por esto, así que las cuentas nuevas
-	// quedan verificadas de alta y RegisterUser ni genera el token ni llama al mailer.
+	// RequireEmailVerification controls whether registration requires confirming the
+	// email before being able to log in (see ADR-0012). Default false: in the alpha
+	// phase there's no point sending the mail or blocking login over this, so new
+	// accounts are created already verified and RegisterUser neither generates the
+	// token nor calls the mailer.
 	RequireEmailVerification bool
 	Auth                     auth.Config
 	Email                    email.Config
 }
 
-// Load lee la configuración completa desde variables de entorno, con los
-// mismos defaults que usaba cmd/api/main.go antes de este paquete.
+// Load reads the full configuration from environment variables, with the
+// same defaults cmd/api/main.go used before this package existed.
 func Load() (Config, error) {
 	authCfg, err := loadAuthConfig()
 	if err != nil {
@@ -62,7 +63,7 @@ func dbURL() string {
 	if v := os.Getenv("DB_URL"); v != "" {
 		return v
 	}
-	// Credencial de desarrollo local por defecto; se sobreescribe con DB_URL en cualquier otro entorno.
+	// Default local development credential; overridden with DB_URL in any other environment.
 	return "postgres://postgres:postgres@localhost:5432/commander?sslmode=disable"
 }
 
@@ -73,10 +74,10 @@ func port() string {
 	return defaultPort
 }
 
-// corsAllowedOrigins lee los orígenes permitidos para CORS. Por defecto, en
-// desarrollo se permite cualquier origen (no se usan cookies/credentials,
-// solo Bearer tokens); en cualquier otro entorno hay que restringirlo
-// explícitamente.
+// corsAllowedOrigins reads the origins allowed for CORS. By default, in
+// development any origin is allowed (no cookies/credentials are used,
+// only Bearer tokens); in any other environment it must be restricted
+// explicitly.
 func corsAllowedOrigins() string {
 	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
 		return v
@@ -91,9 +92,9 @@ func webAppURL() string {
 	return defaultWebAppURL
 }
 
-// loadEmailConfig lee la configuración de Resend. Si RESEND_API_KEY está vacío (dev
-// sin cuenta de Resend), email.NewResendClient usa un mailer de consola en su lugar
-// (ver internal/email), así que no hace falta validar nada acá.
+// loadEmailConfig reads the Resend configuration. If RESEND_API_KEY is empty (dev
+// without a Resend account), email.NewResendClient uses a console mailer instead
+// (see internal/email), so there's nothing to validate here.
 func loadEmailConfig() email.Config {
 	return email.Config{
 		APIKey:                os.Getenv("RESEND_API_KEY"),
@@ -105,7 +106,7 @@ func loadEmailConfig() email.Config {
 func loadAuthConfig() (auth.Config, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		// Secreto de desarrollo local por defecto; se sobreescribe con JWT_SECRET en cualquier otro entorno.
+		// Default local development secret; overridden with JWT_SECRET in any other environment.
 		//nolint:gosec // dev-only default, not a real secret
 		secret = "dev-insecure-jwt-secret-change-me"
 	}
@@ -128,10 +129,10 @@ func loadAuthConfig() (auth.Config, error) {
 	}, nil
 }
 
-// boolEnv lee una variable de entorno booleana ("true"/"false", case-insensitive vía
-// strconv.ParseBool que también acepta "1"/"0"). Cualquier valor que no parsee cae al
-// default en vez de fallar el arranque: no vale la pena bloquear el servidor por un
-// typo en un flag de este tipo.
+// boolEnv reads a boolean environment variable ("true"/"false", case-insensitive via
+// strconv.ParseBool which also accepts "1"/"0"). Any value that fails to parse falls
+// back to the default instead of failing startup: it's not worth blocking the server
+// over a typo in a flag like this.
 func boolEnv(name string, fallback bool) bool {
 	raw := os.Getenv(name)
 	if raw == "" {

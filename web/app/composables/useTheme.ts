@@ -3,11 +3,11 @@ export type Theme = 'dark' | 'light'
 const STORAGE_KEY = 'cc-theme'
 
 /**
- * Tema claro/oscuro, persistido en localStorage y aplicado como
- * `data-theme` en <html> (ver las custom properties en assets/css/main.css).
- * Solo tiene sentido en el cliente — SSR siempre renderiza el default oscuro,
- * el valor real se aplica en el mount para evitar un flash post-hidratación
- * más notorio que un salto de tema en el primer paint.
+ * Light/dark theme, persisted in localStorage and applied as
+ * `data-theme` on <html> (see the custom properties in assets/css/main.css).
+ * Only makes sense on the client — SSR always renders the dark default,
+ * the real value is applied on mount to avoid a post-hydration flash that would be
+ * more noticeable than a theme jump on the first paint.
  */
 export function useTheme() {
   const theme = useState<Theme>('cc-theme', () => 'dark')

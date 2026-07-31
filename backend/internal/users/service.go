@@ -22,89 +22,89 @@ const (
 	googleIDSuffixLen   = 6
 	usernameConstraint  = "users_username_key"
 
-	// emailVerificationTokenBytes es la longitud en bytes del token opaco de
-	// verificación de email (antes de codificar), igual que el refresh token
-	// (ver internal/auth/token.go).
+	// emailVerificationTokenBytes is the length in bytes of the opaque email
+	// verification token (before encoding), same as the refresh token
+	// (see internal/auth/token.go).
 	emailVerificationTokenBytes = 32
-	// emailVerificationTokenTTL es cuánto tarda en vencer un link de verificación
-	// mandado por mail antes de que haya que pedir un reenvío.
+	// emailVerificationTokenTTL is how long a verification link sent by mail
+	// takes to expire before a resend has to be requested.
 	emailVerificationTokenTTL = 24 * time.Hour
 
-	// minSearchQueryLength evita búsquedas de 1 carácter que devolverían medio
-	// directorio de usuarios (y facilitarían enumeración por fuerza bruta de a un
-	// carácter genérico por vez).
+	// minSearchQueryLength avoids 1-character searches that would return half
+	// the user directory (and would make brute-force enumeration easier one
+	// generic character at a time).
 	minSearchQueryLength = 2
-	// searchResultLimit acota la respuesta de SearchUsers — no hay paginación acá,
-	// es un autocomplete, no un listado.
+	// searchResultLimit caps the SearchUsers response — there's no pagination
+	// here, it's an autocomplete, not a listing.
 	searchResultLimit = 10
 )
 
 var (
-	// ErrInvalidCredentials indica que el email no existe o el password no coincide.
+	// ErrInvalidCredentials indicates that the email doesn't exist or the password doesn't match.
 	ErrInvalidCredentials = common.Unauthorized("invalid email or password")
-	// ErrGoogleOnlyAccount indica que la cuenta no tiene password (se registró con Google).
+	// ErrGoogleOnlyAccount indicates that the account has no password (it was registered with Google).
 	ErrGoogleOnlyAccount = common.Unauthorized("account has no password set, sign in with google instead")
-	// ErrUserNotFound indica que no existe un usuario con el ID indicado.
+	// ErrUserNotFound indicates that no user exists with the given ID.
 	ErrUserNotFound = common.NotFound("user not found")
-	// ErrEmailNotVerified indica que Google no confirma el email asociado a la cuenta.
+	// ErrEmailNotVerified indicates that Google doesn't confirm the email associated with the account.
 	ErrEmailNotVerified = common.InvalidInput("google email not verified")
-	// ErrEmailNotConfirmed indica que la cuenta es válida (password correcto) pero
-	// todavía no confirmó su propio email — distinto de ErrEmailNotVerified (que es
-	// sobre lo que afirma Google), y distinto de ErrInvalidCredentials (acá ya se sabe
-	// quién es). El cliente puede ofrecer reenviar el mail de verificación.
+	// ErrEmailNotConfirmed indicates that the account is valid (correct password) but
+	// hasn't confirmed its own email yet — distinct from ErrEmailNotVerified (which is
+	// about what Google asserts), and distinct from ErrInvalidCredentials (here we
+	// already know who it is). The client can offer to resend the verification email.
 	ErrEmailNotConfirmed = common.Forbidden("email not confirmed, check your inbox")
-	// ErrInvalidVerificationToken indica que el token de verificación de email no
-	// existe, ya se usó o venció.
+	// ErrInvalidVerificationToken indicates that the email verification token
+	// doesn't exist, was already used, or has expired.
 	ErrInvalidVerificationToken = common.InvalidInput("invalid or expired verification token")
-	// ErrUserAlreadyExists indica que el username o el email ya están tomados.
+	// ErrUserAlreadyExists indicates that the username or email is already taken.
 	ErrUserAlreadyExists = common.Conflict("User already exists")
-	// ErrUsernameExhausted indica que no se pudo generar un username único para una cuenta de Google.
-	// No es un error de dominio traducible: sale como 500, porque implica un problema del servidor.
+	// ErrUsernameExhausted indicates that a unique username couldn't be generated for a Google account.
+	// It's not a translatable domain error: it comes out as a 500, because it implies a server problem.
 	ErrUsernameExhausted = errors.New("could not allocate a unique username for google user")
-	// ErrInvalidCurrentPassword indica que el password actual mandado en ChangePassword no coincide.
+	// ErrInvalidCurrentPassword indicates that the current password sent to ChangePassword doesn't match.
 	ErrInvalidCurrentPassword = common.Unauthorized("current password is incorrect")
-	// ErrPasswordTooShort indica que el password nuevo no cumple el largo mínimo.
+	// ErrPasswordTooShort indicates that the new password doesn't meet the minimum length.
 	ErrPasswordTooShort = common.InvalidInput("password must be at least 8 characters long")
-	// ErrSearchQueryTooShort indica que el query de búsqueda es demasiado corto.
+	// ErrSearchQueryTooShort indicates that the search query is too short.
 	ErrSearchQueryTooShort = common.InvalidInput("search query must be at least 2 characters long")
-	// ErrUsernameEmpty indica que se mandó un username vacío/solo-espacios a UpdateUsername.
+	// ErrUsernameEmpty indicates that an empty/whitespace-only username was sent to UpdateUsername.
 	ErrUsernameEmpty = common.InvalidInput("username cannot be empty")
-	// ErrUsernameTaken indica que el username elegido ya está en uso por otra cuenta.
+	// ErrUsernameTaken indicates that the chosen username is already in use by another account.
 	ErrUsernameTaken = common.Conflict("username already taken")
 )
 
-// minPasswordLength es el largo mínimo del password nuevo en ChangePassword, igual al
-// mínimo que ya exige el form de registro del lado del cliente (ver web/app/pages/register.vue).
+// minPasswordLength is the minimum length of the new password in ChangePassword, matching the
+// minimum already enforced by the client-side registration form (see web/app/pages/register.vue).
 const minPasswordLength = 8
 
-// Mailer es lo que users necesita para mandar el mail de verificación de cuenta
-// (permite mockearlo en tests; ver decks.MoxfieldClient para el mismo patrón).
+// Mailer is what users needs to send the account verification email
+// (allows mocking it in tests; see decks.MoxfieldClient for the same pattern).
 type Mailer interface {
 	SendVerificationEmail(ctx context.Context, to, username, verifyURL string) error
 }
 
-// Service interface para la lógica de usuarios.
+// Service is the interface for user logic.
 type Service interface {
 	RegisterUser(ctx context.Context, req RegisterRequest) (*UserResponse, error)
 	GetUser(ctx context.Context, id string) (*UserResponse, error)
 	VerifyCredentials(ctx context.Context, email, password string) (*UserResponse, error)
 	FindOrCreateGoogleUser(ctx context.Context, googleID, email string, emailVerified bool) (*UserResponse, error)
 	UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUsername string) (*UserResponse, error)
-	// UpdateUsername cambia el username de login/perfil (distinto del de Moxfield). Devuelve
-	// ErrUsernameTaken (409) si ya está en uso por otra cuenta.
+	// UpdateUsername changes the login/profile username (distinct from the Moxfield one). Returns
+	// ErrUsernameTaken (409) if it's already in use by another account.
 	UpdateUsername(ctx context.Context, id, username string) (*UserResponse, error)
-	// ChangePassword valida el password actual y, si coincide, lo reemplaza por el nuevo.
+	// ChangePassword validates the current password and, if it matches, replaces it with the new one.
 	ChangePassword(ctx context.Context, id, currentPassword, newPassword string) error
-	// VerifyEmail confirma la cuenta asociada al token de verificación mandado por mail.
+	// VerifyEmail confirms the account associated with the verification token sent by mail.
 	VerifyEmail(ctx context.Context, token string) error
-	// ResendVerification manda un nuevo mail de verificación si corresponde. Nunca
-	// revela si el email existe, ya está verificado, o es una cuenta de Google: siempre
-	// "tiene éxito" desde la perspectiva del caller (mismo criterio anti-enumeración
-	// que VerifyCredentials).
+	// ResendVerification sends a new verification email if applicable. It never
+	// reveals whether the email exists, is already verified, or is a Google account:
+	// it always "succeeds" from the caller's perspective (same anti-enumeration
+	// criteria as VerifyCredentials).
 	ResendVerification(ctx context.Context, email string) error
-	// SearchUsers busca por username (contiene, case-insensitive) o email (exacto, ver
-	// query.sql sobre por qué no es parcial). Excluye al propio requesterID y nunca
-	// expone el email en el resultado (ver UserSearchResult).
+	// SearchUsers searches by username (contains, case-insensitive) or email (exact, see
+	// query.sql for why it's not partial). Excludes the requesterID itself and never
+	// exposes the email in the result (see UserSearchResult).
 	SearchUsers(ctx context.Context, requesterID, query string) ([]UserSearchResult, error)
 }
 
@@ -115,11 +115,11 @@ type service struct {
 	requireEmailVerification bool
 }
 
-// NewService crea un nuevo servicio de usuarios. requireEmailVerification controla si
-// el alta por email/password exige confirmar el email antes de poder loguearse (ver
-// ADR-0012); en false (fase alpha) las cuentas nuevas quedan verificadas de entrada y
-// RegisterUser ni genera el token ni manda mail — no tiene sentido gastar ese envío si
-// nadie va a exigir el click.
+// NewService creates a new users service. requireEmailVerification controls whether
+// signup via email/password requires confirming the email before being able to log in
+// (see ADR-0012); when false (alpha phase) new accounts are left verified upfront and
+// RegisterUser neither generates the token nor sends mail — there's no point spending
+// that send if nobody's going to require the click.
 func NewService(db *pgxpool.Pool, mailer Mailer, webAppURL string, requireEmailVerification bool) Service {
 	return &service{
 		repo:                     New(db),
@@ -129,9 +129,9 @@ func NewService(db *pgxpool.Pool, mailer Mailer, webAppURL string, requireEmailV
 	}
 }
 
-// RegisterUser crea un nuevo usuario con email y contraseña. Si requireEmailVerification
-// está activo, queda sin confirmar y dispara el mail (ver sendVerificationEmail); si no,
-// queda verificada de entrada y no se manda nada.
+// RegisterUser creates a new user with email and password. If requireEmailVerification
+// is active, the account is left unconfirmed and triggers the mail (see sendVerificationEmail);
+// if not, it's left verified upfront and nothing is sent.
 func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserResponse, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -145,8 +145,8 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 		EmailVerified: !s.requireEmailVerification,
 	})
 	if err != nil {
-		//nolint:godox // Deferido a la fase de refinamiento: distinguir username vs. email duplicado.
-		// TODO: inspeccionar pgErr.ConstraintName para devolver un mensaje más preciso.
+		//nolint:godox // Deferred to the refinement phase: distinguish username vs. duplicate email.
+		// TODO: inspect pgErr.ConstraintName to return a more precise message.
 		return nil, ErrUserAlreadyExists
 	}
 
@@ -154,8 +154,8 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 		return toUserResponse(&user), nil
 	}
 
-	// La cuenta ya quedó creada: un mail que no sale no revierte el registro, el
-	// usuario puede pedir el reenvío desde /login.
+	// The account is already created: a mail that fails to send doesn't revert the
+	// registration, the user can request a resend from /login.
 	if err := s.sendVerificationEmail(ctx, &user); err != nil {
 		log.Printf("no se pudo mandar el mail de verificación a %s: %v", user.Email, err)
 	}
@@ -163,8 +163,8 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 	return toUserResponse(&user), nil
 }
 
-// sendVerificationEmail genera un token de verificación nuevo, lo persiste hasheado y
-// dispara el mail con el link armado sobre webAppURL.
+// sendVerificationEmail generates a new verification token, persists it hashed, and
+// triggers the mail with the link built over webAppURL.
 func (s *service) sendVerificationEmail(ctx context.Context, user *User) error {
 	plain, err := common.NewOpaqueToken(emailVerificationTokenBytes)
 	if err != nil {
@@ -186,7 +186,7 @@ func (s *service) sendVerificationEmail(ctx context.Context, user *User) error {
 	return nil
 }
 
-// GetUser devuelve un usuario por su ID.
+// GetUser returns a user by their ID.
 func (s *service) GetUser(ctx context.Context, id string) (*UserResponse, error) {
 	uid, err := common.ParseUUID(id)
 	if err != nil {
@@ -204,9 +204,9 @@ func (s *service) GetUser(ctx context.Context, id string) (*UserResponse, error)
 	return toUserResponse(&user), nil
 }
 
-// UpdateMoxfieldUsername vincula (o cambia) el username de Moxfield del perfil. No
-// valida contra la API de Moxfield que el username exista de verdad — eso queda para
-// cuando se use (ver internal/moxfieldimport).
+// UpdateMoxfieldUsername links (or changes) the profile's Moxfield username. It doesn't
+// validate against the Moxfield API that the username actually exists — that's left for
+// when it's used (see internal/moxfieldimport).
 func (s *service) UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUsername string) (*UserResponse, error) {
 	uid, err := common.ParseUUID(id)
 	if err != nil {
@@ -227,9 +227,9 @@ func (s *service) UpdateMoxfieldUsername(ctx context.Context, id, moxfieldUserna
 	return toUserResponse(&user), nil
 }
 
-// UpdateUsername cambia el username de la cuenta (el que usa para loguearse, distinto
-// del de Moxfield). A diferencia de UpdateMoxfieldUsername, acá un string vacío es
-// inválido (el username de login nunca puede quedar vacío, tiene NOT NULL en la BD).
+// UpdateUsername changes the account's username (the one used to log in, distinct
+// from the Moxfield one). Unlike UpdateMoxfieldUsername, here an empty string is
+// invalid (the login username can never be left empty, it has NOT NULL in the DB).
 func (s *service) UpdateUsername(ctx context.Context, id, username string) (*UserResponse, error) {
 	trimmed := strings.TrimSpace(username)
 	if trimmed == "" {
@@ -256,9 +256,9 @@ func (s *service) UpdateUsername(ctx context.Context, id, username string) (*Use
 	return toUserResponse(&user), nil
 }
 
-// ChangePassword valida currentPassword contra el hash guardado y, si coincide, lo
-// reemplaza por el hash de newPassword. Las cuentas de Google (sin password_hash)
-// no pueden usar este camino: deben seguir entrando por Google Sign-In.
+// ChangePassword validates currentPassword against the stored hash and, if it
+// matches, replaces it with the hash of newPassword. Google accounts (without
+// password_hash) can't use this path: they must keep signing in via Google Sign-In.
 func (s *service) ChangePassword(ctx context.Context, id, currentPassword, newPassword string) error {
 	if len(newPassword) < minPasswordLength {
 		return ErrPasswordTooShort
@@ -302,7 +302,7 @@ func (s *service) ChangePassword(ctx context.Context, id, currentPassword, newPa
 	return nil
 }
 
-// VerifyCredentials valida el email/password y devuelve el usuario si son correctos.
+// VerifyCredentials validates the email/password and returns the user if they're correct.
 func (s *service) VerifyCredentials(ctx context.Context, email, password string) (*UserResponse, error) {
 	user, err := s.repo.GetUserByEmail(ctx, email)
 	if err != nil {
@@ -327,9 +327,9 @@ func (s *service) VerifyCredentials(ctx context.Context, email, password string)
 	return toUserResponse(&user), nil
 }
 
-// FindOrCreateGoogleUser busca un usuario por su Google ID. Si no existe pero el
-// email ya está registrado, vincula la cuenta de Google; si tampoco existe,
-// crea un usuario nuevo sin password.
+// FindOrCreateGoogleUser looks up a user by their Google ID. If it doesn't exist but
+// the email is already registered, it links the Google account; if that doesn't
+// exist either, it creates a new user without a password.
 func (s *service) FindOrCreateGoogleUser(
 	ctx context.Context, googleID, email string, emailVerified bool,
 ) (*UserResponse, error) {
@@ -400,9 +400,9 @@ func usernameFromEmail(email string) string {
 	return local
 }
 
-// VerifyEmail confirma la cuenta asociada al token de verificación mandado por mail.
-// Un token inexistente, ya usado o vencido devuelve el mismo error, para no filtrar
-// cuál de los tres casos es.
+// VerifyEmail confirms the account associated with the verification token sent by mail.
+// A nonexistent, already-used, or expired token returns the same error, so as not to
+// leak which of the three cases it is.
 func (s *service) VerifyEmail(ctx context.Context, token string) error {
 	record, err := s.repo.GetEmailVerificationTokenByHash(ctx, common.HashToken(token))
 	if err != nil {
@@ -426,10 +426,10 @@ func (s *service) VerifyEmail(ctx context.Context, token string) error {
 	return nil
 }
 
-// ResendVerification manda un token de verificación nuevo si corresponde. Nunca revela
-// nada al caller (siempre "éxito"): si el email no existe, ya está verificado, o es una
-// cuenta sin password (Google-only, nunca hace login por password y por lo tanto nunca
-// se bloquea por esto), no hace nada.
+// ResendVerification sends a new verification token if applicable. It never reveals
+// anything to the caller (always "success"): if the email doesn't exist, is already
+// verified, or is an account without a password (Google-only, never logs in by
+// password and therefore never gets blocked by this), it does nothing.
 func (s *service) ResendVerification(ctx context.Context, email string) error {
 	user, err := s.repo.GetUserByEmail(ctx, email)
 	if err != nil {
@@ -449,9 +449,9 @@ func (s *service) ResendVerification(ctx context.Context, email string) error {
 	return nil
 }
 
-// SearchUsers busca por username (ILIKE, contiene) y/o email (exacto). Los dos caminos
-// se combinan y deduplican; el propio requesterID nunca aparece en el resultado (no
-// tiene sentido invitarte a vos mismo a un playgroup) ni tampoco su email (ver
+// SearchUsers searches by username (ILIKE, contains) and/or email (exact). The two
+// paths are combined and deduplicated; the requesterID itself never appears in the
+// result (there's no point inviting yourself to a playgroup) nor does its email (see
 // UserSearchResult).
 func (s *service) SearchUsers(ctx context.Context, requesterID, query string) ([]UserSearchResult, error) {
 	trimmed := strings.TrimSpace(query)
@@ -460,7 +460,7 @@ func (s *service) SearchUsers(ctx context.Context, requesterID, query string) ([
 	}
 
 	seen := map[string]bool{requesterID: true}
-	results := []UserSearchResult{} // nunca nil: sin esto, un resultado vacío serializa a JSON `null` en vez de `[]`
+	results := []UserSearchResult{} // never nil: without this, an empty result serializes to JSON `null` instead of `[]`
 
 	byEmail, err := s.repo.GetUserByEmail(ctx, trimmed)
 	switch {

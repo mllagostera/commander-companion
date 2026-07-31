@@ -1,13 +1,13 @@
 # Commander Companion — Web (Nuxt)
 
-Cliente web, desacoplado del backend (solo consume la API REST vía HTTP, ver
-`docs/api/openapi.yaml`). Ver [ADR-0004](../docs/decisions/0004-web-client-nuxt.md)
-para el contexto de la decisión.
+Web client, decoupled from the backend (it only consumes the REST API via HTTP, see
+`docs/api/openapi.yaml`). See [ADR-0004](../docs/decisions/0004-web-client-nuxt.md)
+for the context behind the decision.
 
-Estado actual: registro y login (email/password + Google Sign-In), sesión con
-refresh automático, import de decks de Moxfield (con thumbnail del art crop
-del comandante, y botón para re-sincronizar un deck ya importado contra
-Moxfield) y pantallas de estadísticas (globales del usuario y por deck).
+Current status: registration and login (email/password + Google Sign-In), session with
+automatic refresh, importing decks from Moxfield (with a thumbnail of the commander's
+art crop, and a button to re-sync an already-imported deck against
+Moxfield), and statistics screens (global user stats and per-deck stats).
 
 ## Stack
 
@@ -18,131 +18,131 @@ Moxfield) y pantallas de estadísticas (globales del usuario y por deck).
 ```bash
 cd web
 npm install
-cp .env.example .env   # completar NUXT_PUBLIC_API_BASE / NUXT_PUBLIC_GOOGLE_CLIENT_ID
+cp .env.example .env   # fill in NUXT_PUBLIC_API_BASE / NUXT_PUBLIC_GOOGLE_CLIENT_ID
 npm run dev            # http://localhost:3000
 ```
 
-Necesita el backend corriendo (ver `backend/README.md` o la sección de Docker
-más abajo) y `CORS_ALLOWED_ORIGINS` en el backend debe incluir el origin de
-este cliente (o dejarlo vacío en dev) — aunque con el flujo normal del
-cliente web ya no hace falta CORS, ver la sección de Nitro más abajo.
+Needs the backend running (see `backend/README.md` or the Docker
+section below) and `CORS_ALLOWED_ORIGINS` in the backend must include this
+client's origin (or be left empty in dev) — although with the web
+client's normal flow CORS isn't needed anymore, see the Nitro section below.
 
-Para que el botón de Google funcione, en Google Cloud Console → **Credentials**
-→ el Web Application OAuth Client → **Authorized JavaScript origins**, agregá
-el origin donde corre este cliente (ej. `http://localhost:3000`).
+For the Google button to work, in Google Cloud Console → **Credentials**
+→ the Web Application OAuth Client → **Authorized JavaScript origins**, add
+the origin this client runs on (e.g. `http://localhost:3000`).
 
 Scripts: `npm run dev`, `npm run build`, `npm run lint`, `npm run typecheck`.
 
-## Sesión: por qué hay una capa de Nitro en el medio
+## Session: why there's a Nitro layer in the middle
 
-El navegador **nunca** habla con la API Go directamente ni ve los tokens.
-Todas las llamadas pasan por endpoints propios de Nitro:
+The browser **never** talks to the Go API directly nor sees the tokens.
+All calls go through Nitro's own endpoints:
 
-- `/api/auth/{register,login,google,logout,session}` — los únicos que tocan
-  cookies de sesión.
-- `/api/backend/**` — proxy autenticado hacia la API Go (`/api/backend/decks`
-  → `GET {API}/decks`). Los paths `auth/*` están bloqueados en el proxy: van
-  por `/api/auth/*` para que ningún camino desde JS devuelva un token.
+- `/api/auth/{register,login,google,logout,session}` — the only ones that touch
+  session cookies.
+- `/api/backend/**` — authenticated proxy to the Go API (`/api/backend/decks`
+  → `GET {API}/decks`). The `auth/*` paths are blocked in the proxy: they go
+  through `/api/auth/*` so no path from JS ever returns a token.
 
-Cookies que maneja Nitro:
+Cookies managed by Nitro:
 
-| Cookie             | `httpOnly` | Contenido                          |
+| Cookie             | `httpOnly` | Content                          |
 | ------------------ | ---------- | ---------------------------------- |
-| `cc_access_token`  | sí         | JWT de acceso                      |
-| `cc_refresh_token` | sí         | refresh token                      |
-| `cc_session`       | no         | solo el marcador `"1"`, sin valor sensible |
+| `cc_access_token`  | yes        | access JWT                      |
+| `cc_refresh_token` | yes        | refresh token                      |
+| `cc_session`       | no         | just the `"1"` marker, no sensitive value |
 
-`cc_session` existe porque el middleware de rutas tiene que decidir si hay
-sesión tanto en SSR como en el cliente, y las cookies `httpOnly` no se leen
-desde JS. No es un credencial: falsificarla solo consigue que la página
-renderice y que el primer request a la API devuelva 401.
+`cc_session` exists because the route middleware has to decide whether
+there's a session both in SSR and on the client, and `httpOnly` cookies
+can't be read from JS. It's not a credential: forging it only gets the
+page to render and the first API request to return 401.
 
-Efecto lateral: como el navegador ya no llama a la API Go, **no hace falta
-CORS** para el flujo normal del cliente web.
+Side effect: since the browser no longer calls the Go API, **CORS isn't
+needed** for the web client's normal flow.
 
-### Refresh automático
+### Automatic refresh
 
-`server/utils/backend.ts` (`backendFetch`) agrega el `Authorization: Bearer`
-desde la cookie y, si la API responde 401, canjea el refresh token contra
-`POST /auth/refresh`, actualiza las cookies y reintenta **una vez**. Mismo
-espíritu que el `AuthAuthenticator` de OkHttp del cliente Android.
+`server/utils/backend.ts` (`backendFetch`) adds the `Authorization: Bearer`
+header from the cookie and, if the API responds with 401, exchanges the refresh token against
+`POST /auth/refresh`, updates the cookies, and retries **once**. Same
+spirit as the Android client's OkHttp `AuthAuthenticator`.
 
-Dos detalles que importan porque el backend **rota** el refresh token (revoca
-el anterior en cada refresh):
+Two details that matter because the backend **rotates** the refresh token (revokes
+the previous one on every refresh):
 
-- Los refresh concurrentes se deduplican en memoria (`inFlightRefresh`), así
-  dos requests que dan 401 a la vez no se pisan revocándose el token.
-- En SSR cada llamada interna corre en su propio `H3Event`, así que
-  `app/composables/useNitroFetch.ts` mantiene un cookie jar por request: copia
-  los `Set-Cookie` a la respuesta que sí ve el navegador **y** los aplica a las
-  llamadas siguientes del mismo render (si no, la segunda llamada iría con un
-  refresh token ya revocado).
+- Concurrent refreshes are deduplicated in memory (`inFlightRefresh`), so
+  two requests that both get a 401 at the same time don't step on each other by revoking the token.
+- In SSR each internal call runs in its own `H3Event`, so
+  `app/composables/useNitroFetch.ts` keeps a cookie jar per request: it copies
+  the `Set-Cookie` headers to the response the browser actually sees **and** applies
+  them to subsequent calls in the same render (otherwise the second call would go out with an
+  already-revoked refresh token).
 
-## Probar contra el backend con Docker
+## Testing against the backend with Docker
 
-Para levantar la web + la API + Postgres juntos sin instalar nada más que
-Docker, desde la raíz del repo:
+To bring up the web app + the API + Postgres together without installing anything
+but Docker, from the repo root:
 
 ```bash
 docker compose up --build
 ```
 
-Esto expone la web en `http://localhost:3000` y la API en
-`http://localhost:8080`. La primera vez hay que aplicar las migraciones
-(no corren solas dentro del contenedor):
+This exposes the web app on `http://localhost:3000` and the API on
+`http://localhost:8080`. The first time, the migrations need to be applied
+(they don't run automatically inside the container):
 
 ```bash
 cd backend
-make migrate-up   # requiere goose local, o correrlo vía Docker (ver Makefile)
+make migrate-up   # requires local goose, or run it via Docker (see Makefile)
 ```
 
-Notas sobre las variables de entorno de `docker-compose.yml`:
+Notes on `docker-compose.yml`'s environment variables:
 
-- `NUXT_PUBLIC_API_BASE`: URL de la API que usa el **navegador** (llamadas
-  hechas desde el cliente, ej. el submit del login) → `http://localhost:8080/api/v1`.
-- `NUXT_API_BASE`: URL de la API que usa el **servidor Nitro dentro del
-  contenedor** (llamadas SSR, ej. `GET /auth/me` al cargar `/`) →
-  `http://api:8080/api/v1`, el hostname interno del servicio `api` en la red
-  de Compose. Sin esta variable separada, el render en servidor intentaría
-  resolver `localhost:8080` dentro del propio contenedor `web` y fallaría.
+- `NUXT_PUBLIC_API_BASE`: API URL used by the **browser** (calls
+  made from the client, e.g. submitting the login form) → `http://localhost:8080/api/v1`.
+- `NUXT_API_BASE`: API URL used by the **Nitro server inside the
+  container** (SSR calls, e.g. `GET /auth/me` when loading `/`) →
+  `http://api:8080/api/v1`, the internal hostname of the `api` service on the
+  Compose network. Without this separate variable, server-side rendering would try to
+  resolve `localhost:8080` inside the `web` container itself and fail.
 
-## Estructura
+## Structure
 
 ```
 web/
-├── server/                       # capa Nitro (BFF); nunca llega al navegador
-│   ├── utils/backend.ts          # cookies httpOnly, refresh + retry, errores
+├── server/                       # Nitro layer (BFF); never reaches the browser
+│   ├── utils/backend.ts          # httpOnly cookies, refresh + retry, errors
 │   └── api/
 │       ├── auth/                 # register, login, google, logout, session
-│       └── backend/[...path].ts  # proxy autenticado hacia la API Go
-└── app/                          # srcDir de Nuxt 4 — código de la app
+│       └── backend/[...path].ts  # authenticated proxy to the Go API
+└── app/                          # Nuxt 4 srcDir — the app's code
     ├── app.vue                   # NuxtLayout + NuxtPage
-    ├── layouts/default.vue       # shell con nav + logout
+    ├── layouts/default.vue       # shell with nav + logout
     ├── pages/
     │   ├── login.vue             # email/password + Google Sign-In
-    │   ├── register.vue          # alta de usuario (registra y loguea)
-    │   ├── index.vue             # dashboard: usuario, resumen y decks
-    │   ├── decks.vue             # import de Moxfield + listado de decks
-    │   └── statistics.vue        # stats globales + por deck
+    │   ├── register.vue          # user sign-up (registers and logs in)
+    │   ├── index.vue             # dashboard: user, summary, and decks
+    │   ├── decks.vue             # Moxfield import + deck listing
+    │   └── statistics.vue        # global stats + per-deck stats
     ├── components/StatCard.vue
     ├── composables/
     │   ├── useAuth.ts            # register/login/loginWithGoogle/logout/fetchSession
-    │   ├── useNitroFetch.ts      # fetch a /api/* con cookie jar por request (SSR)
-    │   ├── useApi.ts             # cliente del proxy + helpers de error
-    │   ├── useDecks.ts           # listado, import y re-sync (POST /sync/moxfield) de Moxfield
-    │   ├── useStatistics.ts      # /statistics/user y /statistics/deck/{id}
-    │   └── useGoogleIdentity.ts  # script de Google Identity Services
-    ├── plugins/session.ts        # hidrata el usuario antes del middleware
-    ├── middleware/auth.global.ts # gating de rutas (/login y /register públicas)
+    │   ├── useNitroFetch.ts      # fetch to /api/* with per-request cookie jar (SSR)
+    │   ├── useApi.ts             # proxy client + error helpers
+    │   ├── useDecks.ts           # listing, import, and re-sync (POST /sync/moxfield) with Moxfield
+    │   ├── useStatistics.ts      # /statistics/user and /statistics/deck/{id}
+    │   └── useGoogleIdentity.ts  # Google Identity Services script
+    ├── plugins/session.ts        # hydrates the user before the middleware
+    ├── middleware/auth.global.ts # route gating (/login and /register are public)
     └── types/
-        ├── api.ts                # Deck (con image_url), SyncResponse, UserStats, DeckStats, PlaygroupStats
-        └── google-identity.d.ts  # tipado mínimo de window.google
+        ├── api.ts                # Deck (with image_url), SyncResponse, UserStats, DeckStats, PlaygroupStats
+        └── google-identity.d.ts  # minimal typing for window.google
 ```
 
-## Notas
+## Notes
 
-- `GET /statistics/playgroup/{id}` está expuesto en `useStatistics()` pero no
-  tiene pantalla: todavía no hay UI de playgroups de donde sacar un id. Queda
-  como mejora futura.
-- No hay lógica compartida con el cliente Android — cada uno implementa el
-  mismo contrato REST por su cuenta.
+- `GET /statistics/playgroup/{id}` is exposed in `useStatistics()` but has
+  no screen: there's no playgroups UI yet to get an id from. Left
+  as a future improvement.
+- There's no shared logic with the Android client — each one implements
+  the same REST contract on its own.

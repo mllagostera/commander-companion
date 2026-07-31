@@ -30,26 +30,25 @@ class GameViewModel @Inject constructor(
     private val playerConfigs = decodePlayerConfigs(checkNotNull(savedStateHandle["playersEncoded"]))
     private val startingPlayerSeat: Int = savedStateHandle["startingPlayerSeat"] ?: -1
 
-    /** Grupo elegido en modo Grupo (`PlayerSetupScreen`), o null en modo Casual. */
+    /** Group chosen in Group mode (`PlayerSetupScreen`), or null in Casual mode. */
     private val playgroupId: String? = savedStateHandle["playgroupId"]
 
     /**
-     * Partida del backend espejada por este dispositivo, o null si no se pudo / no corresponde
-     * (modo Casual, o Grupo sin ningún asiento asignado). Ver [GameRepository]: cualquier
-     * asiento presente en [RemoteGameSession.seatPlayerIds] tiene `GamePlayer` real, no solo el
-     * del usuario autenticado — el modo Grupo puede sentar a varios compañeros de una vez
-     * (proxy-join, ver ADR-0013 del backend).
+     * Backend game mirrored by this device, or null if it couldn't be created / doesn't apply
+     * (Casual mode, or Group mode with no seat assigned). See [GameRepository]: any
+     * seat present in [RemoteGameSession.seatPlayerIds] has a real `GamePlayer`, not just the
+     * authenticated user's — Group mode can seat several teammates at once
+     * (proxy-join, see the backend's ADR-0013).
      */
     private var remoteSession: RemoteGameSession? = null
 
     /**
-     * Serializa las operaciones remotas: su orden importa y no puede quedar librado a cómo se
-     * intercalen dos corrutinas sueltas. Un `LifeChange` que llegue después del `finish` sería
-     * rechazado con 409 ("la partida no está activa"), y una acción emitida antes de que termine
-     * el bootstrap no tendría todavía `GamePlayer` al que atribuirse.
+     * Serializes remote operations: their order matters and can't be left to how two loose
+     * coroutines happen to interleave. A `LifeChange` arriving after `finish` would be
+     * rejected with 409 ("game not active"), and an action emitted before the bootstrap
+     * finishes wouldn't yet have a `GamePlayer` to attribute itself to.
      *
-     * `Mutex` de kotlinx es FIFO, así que las llamadas salen en el mismo orden en que la UI las
-     * generó.
+     * kotlinx's `Mutex` is FIFO, so calls come out in the same order the UI generated them.
      */
     private val remoteMutex = Mutex()
 
@@ -87,12 +86,12 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * Crea la partida en el backend y sienta a todos los asientos que quedaron asignados a un
-     * usuario real con deck elegido (`PlayerConfig.assignedUserId`/`deckId`, seteados por
-     * `PlayerSetupScreen` en modo Grupo).
+     * Creates the game on the backend and seats every seat that ended up assigned to a
+     * real user with a chosen deck (`PlayerConfig.assignedUserId`/`deckId`, set by
+     * `PlayerSetupScreen` in Group mode).
      *
-     * Best-effort a propósito: si falla (sin red, sin sesión) la partida sigue siendo jugable en
-     * local y solo se refleja el motivo en [GameState.remoteSync].
+     * Deliberately best-effort: if it fails (no network, no session) the game is still
+     * playable locally, and only the reason is reflected in [GameState.remoteSync].
      */
     private fun bootstrapRemoteGame() {
         val assignments = playerConfigs.mapIndexedNotNull { index, config ->
@@ -201,7 +200,7 @@ class GameViewModel @Inject constructor(
         finishRemoteGame()
     }
 
-    /** Vivo = no eliminado (ver [isEliminated], compartida con la UI del tracker). */
+    /** Alive = not eliminated (see [isEliminated], shared with the tracker UI). */
     private fun PlayerState.isAlive(): Boolean = !isEliminated()
 
     private fun persistGameResult(winnerId: Int?) {
@@ -216,11 +215,11 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * Espeja el cambio de vida de [playerId]; no-op si ese asiento no tiene `GamePlayer` real o
-     * la partida remota no está activa.
+     * Mirrors [playerId]'s life change; no-op if that seat has no real `GamePlayer` or
+     * the remote game isn't active.
      *
-     * La sesión se lee DENTRO del bloque serializado: si el usuario toca la vida mientras el
-     * bootstrap sigue en vuelo, la acción espera a que termine en vez de descartarse.
+     * The session is read INSIDE the serialized block: if the user touches life while the
+     * bootstrap is still in flight, the action waits for it to finish instead of being dropped.
      */
     private fun mirrorLifeChange(playerId: Int, amount: Int) {
         launchRemote {
@@ -232,9 +231,9 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * Espeja daño de comandante de [attackerId] contra [targetPlayerId]; no-op si CUALQUIERA de
-     * los dos asientos no tiene `GamePlayer` real (atribuirle daño a un `GamePlayer` ajeno, o
-     * mandarlo sin un actor real, corrompería las estadísticas de otro usuario).
+     * Mirrors commander damage from [attackerId] against [targetPlayerId]; no-op if EITHER of
+     * the two seats has no real `GamePlayer` (attributing damage to someone else's `GamePlayer`,
+     * or sending it without a real actor, would corrupt another user's statistics).
      */
     private fun mirrorCommanderDamage(attackerId: Int, targetPlayerId: Int, amount: Int) {
         launchRemote {
@@ -246,7 +245,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    /** Espeja un cambio de contadores de veneno de [playerId]; no-op si no tiene `GamePlayer` real. */
+    /** Mirrors a poison counter change of [playerId]; no-op if it has no real `GamePlayer`. */
     private fun mirrorPoisonChange(playerId: Int, amount: Int) {
         launchRemote {
             val session = activeSession() ?: return@launchRemote
@@ -256,7 +255,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    /** Finaliza la partida remota, lo que dispara el recálculo de estadísticas server-side. */
+    /** Finishes the remote game, which triggers the server-side statistics recalculation. */
     private fun finishRemoteGame() {
         launchRemote {
             val session = activeSession() ?: return@launchRemote
@@ -267,7 +266,7 @@ class GameViewModel @Inject constructor(
 
     private fun activeSession(): RemoteGameSession? = remoteSession?.takeIf { it.isActive }
 
-    /** Encola una operación remota respetando el orden de emisión (ver [remoteMutex]). */
+    /** Queues a remote operation respecting emission order (see [remoteMutex]). */
     private fun launchRemote(block: suspend () -> Unit) {
         viewModelScope.launch { remoteMutex.withLock { block() } }
     }

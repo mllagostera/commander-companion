@@ -6,21 +6,21 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// Handler contiene las dependencias del transporte HTTP para auth.
+// Handler contains the HTTP transport dependencies for auth.
 type Handler struct {
 	svc Service
 }
 
-// NewHandler inicializa y retorna un nuevo Handler.
+// NewHandler initializes and returns a new Handler.
 func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterPublicRoutes registra los endpoints de auth que no requieren un access
-// token vigente. rateLimit se aplica solo a los que emiten tokens (login, google,
-// refresh): son los únicos sin JWT por delante y los más caros de procesar (bcrypt,
-// verificación del id_token contra Google), así que son el blanco natural de fuerza
-// bruta. Logout queda sin límite: es idempotente, barato y no filtra información.
+// RegisterPublicRoutes registers the auth endpoints that don't require a valid access
+// token. rateLimit applies only to the ones that issue tokens (login, google,
+// refresh): they're the only ones without a JWT in front and the most expensive to
+// process (bcrypt, verifying the id_token against Google), so they're the natural
+// target for brute force. Logout is left unlimited: it's idempotent, cheap, and doesn't leak information.
 func (h *Handler) RegisterPublicRoutes(router fiber.Router, rateLimit fiber.Handler) {
 	router.Post("/auth/login", rateLimit, h.Login)
 	router.Post("/auth/google", rateLimit, h.GoogleLogin)
@@ -28,12 +28,12 @@ func (h *Handler) RegisterPublicRoutes(router fiber.Router, rateLimit fiber.Hand
 	router.Post("/auth/logout", h.Logout)
 }
 
-// RegisterProtectedRoutes registra los endpoints de auth que requieren un access token vigente.
+// RegisterProtectedRoutes registers the auth endpoints that require a valid access token.
 func (h *Handler) RegisterProtectedRoutes(router fiber.Router) {
 	router.Get("/auth/me", h.Me)
 }
 
-// Login autentica a un usuario con email y password.
+// Login authenticates a user with email and password.
 func (h *Handler) Login(c *fiber.Ctx) error {
 	var req LoginRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -47,7 +47,7 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// GoogleLogin autentica (o registra) a un usuario a partir de un id_token de Google.
+// GoogleLogin authenticates (or registers) a user from a Google id_token.
 func (h *Handler) GoogleLogin(c *fiber.Ctx) error {
 	var req GoogleLoginRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -64,7 +64,7 @@ func (h *Handler) GoogleLogin(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// Refresh renueva el access token a partir de un refresh token vigente.
+// Refresh renews the access token from a valid refresh token.
 func (h *Handler) Refresh(c *fiber.Ctx) error {
 	var req RefreshRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -78,7 +78,7 @@ func (h *Handler) Refresh(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// Logout invalida el refresh token indicado.
+// Logout invalidates the given refresh token.
 func (h *Handler) Logout(c *fiber.Ctx) error {
 	var req LogoutRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -91,7 +91,7 @@ func (h *Handler) Logout(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// Me devuelve el perfil del usuario autenticado.
+// Me returns the authenticated user's profile.
 func (h *Handler) Me(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 

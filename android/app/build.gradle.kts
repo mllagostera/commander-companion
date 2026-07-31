@@ -23,18 +23,18 @@ android {
             useSupportLibrary = true
         }
 
-        // Base URL del backend. 10.0.2.2 es el alias que el emulador de Android usa para
-        // llegar a "localhost" de la máquina host (donde corre `go run ./cmd/api` en dev).
-        // Override sin tocar código: `./gradlew :app:assembleDebug -PAPI_BASE_URL=http://192.168.1.50:8080/`
-        // (para dispositivo físico en la misma red) o seteando la propiedad en gradle.properties.
+        // Backend base URL. 10.0.2.2 is the alias the Android emulator uses to
+        // reach "localhost" on the host machine (where `go run ./cmd/api` runs in dev).
+        // Override without touching code: `./gradlew :app:assembleDebug -PAPI_BASE_URL=http://192.168.1.50:8080/`
+        // (for a physical device on the same network) or by setting the property in gradle.properties.
         val apiBaseUrl = (project.findProperty("API_BASE_URL") as String?)
             ?: "http://10.0.2.2:8080/"
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
 
-        // PLACEHOLDER: el Web Client ID real todavía no existe (ver docs/roadmap/TASKS.md Stage 1,
-        // "Crear credenciales OAuth en Google Cloud Console" — paso manual externo, pendiente).
-        // Hasta que se cree, Credential Manager va a fallar el flujo de Google Sign-In con este
-        // placeholder porque Google no reconoce el client ID. Override: -PGOOGLE_WEB_CLIENT_ID=...
+        // PLACEHOLDER: the real Web Client ID doesn't exist yet (see docs/roadmap/TASKS.md Stage 1,
+        // "Create OAuth credentials in Google Cloud Console" — pending external manual step).
+        // Until it's created, Credential Manager will fail the Google Sign-In flow with this
+        // placeholder because Google doesn't recognize the client ID. Override: -PGOOGLE_WEB_CLIENT_ID=...
         val googleWebClientId = (project.findProperty("GOOGLE_WEB_CLIENT_ID") as String?)
             ?: "REPLACE_WITH_GOOGLE_CLOUD_WEB_CLIENT_ID.apps.googleusercontent.com"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
@@ -67,9 +67,9 @@ android {
     }
     testOptions {
         unitTests {
-            // Los tests unitarios tocan tipos con dependencias sueltas del framework
-            // (p. ej. android.util.Log vía Room/Compose); sin esto lanzan RuntimeException
-            // "not mocked" en vez de devolver el default del tipo.
+            // Unit tests touch types with loose framework dependencies
+            // (e.g. android.util.Log via Room/Compose); without this they throw RuntimeException
+            // "not mocked" instead of returning the type's default.
             isReturnDefaultValues = true
         }
     }
@@ -103,20 +103,20 @@ dependencies {
     implementation(libs.retrofit.serialization)
     implementation(libs.kotlinx.serialization.json)
 
-    // OkHttp (cliente HTTP subyacente de Retrofit): interceptor de auth + logging
+    // OkHttp (Retrofit's underlying HTTP client): auth + logging interceptor
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
 
-    // DataStore: persistencia de sesión (access/refresh token + expiry)
+    // DataStore: session persistence (access/refresh token + expiry)
     implementation(libs.androidx.datastore.preferences)
 
-    // Credential Manager + Google Identity Services: Google Sign-In real
+    // Credential Manager + Google Identity Services: real Google Sign-In
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
 
     testImplementation(libs.junit)
-    // runTest + Dispatchers.setMain para testear ViewModels y repositorios con corrutinas.
+    // runTest + Dispatchers.setMain to test ViewModels and repositories with coroutines.
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

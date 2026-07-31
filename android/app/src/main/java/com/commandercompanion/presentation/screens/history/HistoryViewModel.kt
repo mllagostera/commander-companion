@@ -11,14 +11,14 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
- * Historial de partidas jugadas en este dispositivo.
+ * History of games played on this device.
  *
- * Va contra [GameRepository] en vez de contra `GameDao` directo: el `ViewModel` ya no sabe si el
- * dato sale de Room o del backend.
+ * Goes through [GameRepository] instead of `GameDao` directly: the `ViewModel` no longer knows
+ * whether the data comes from Room or the backend.
  *
- * TODO: sigue exponiendo `GameWithPlayers` (entidad de Room) porque `HistoryScreen` la consume
- *  tal cual. Mapearla a un modelo de dominio implicaría tocar la pantalla, fuera de alcance acá.
- *  El historial remoto (`GET /games`) tampoco se fusiona todavía con el local.
+ * TODO: still exposes `GameWithPlayers` (a Room entity) because `HistoryScreen` consumes it
+ *  as-is. Mapping it to a domain model would mean touching the screen, out of scope here.
+ *  The remote history (`GET /games`) isn't merged with the local one yet either.
  */
 @HiltViewModel
 class HistoryViewModel @Inject constructor(

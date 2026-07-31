@@ -15,11 +15,11 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Datos para el modo Grupo de [PlayerSetupScreen]: los playgroups del usuario autenticado
- * (con sus miembros ya poblados, sin round-trip extra) y, on-demand, los decks de cualquier
- * miembro (propio o ajeno — ver `GET /playgroups/{id}/members/{userId}/decks`, autorizado por
- * membresía compartida). Best-effort: si falla (sin red, sin sesión) el modo Grupo queda sin
- * grupos para elegir — no bloquea el modo Casual.
+ * Data for [PlayerSetupScreen]'s Group mode: the authenticated user's playgroups
+ * (with their members already populated, no extra round-trip) and, on-demand, the decks of any
+ * member (own or someone else's — see `GET /playgroups/{id}/members/{userId}/decks`, authorized
+ * by shared membership). Best-effort: if it fails (no network, no session) Group mode is left
+ * with no groups to choose from — it doesn't block Casual mode.
  */
 @HiltViewModel
 class PlayerSetupViewModel @Inject constructor(
@@ -30,7 +30,7 @@ class PlayerSetupViewModel @Inject constructor(
     var playgroups by mutableStateOf<List<PlaygroupDto>>(emptyList())
         private set
 
-    /** Username propio, solo para marcar "(vos)" en el picker de miembros. */
+    /** Own username, only to mark "(you)" in the member picker. */
     var ownUsername by mutableStateOf<String?>(null)
         private set
 
@@ -45,7 +45,7 @@ class PlayerSetupViewModel @Inject constructor(
         }
     }
 
-    /** Decks ya cargados de un miembro (propio o ajeno). Vacío hasta que [loadMemberDecks] resuelva. */
+    /** Decks already loaded for a member (own or someone else's). Empty until [loadMemberDecks] resolves. */
     fun decksFor(userId: String): List<DeckDto> = memberDecks[userId] ?: emptyList()
 
     fun loadMemberDecks(playgroupId: String, userId: String) {

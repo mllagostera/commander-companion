@@ -3,13 +3,13 @@ import type { Deck, DeckResyncJob, PaginatedResponse, SyncResponse } from '~/typ
 export function useDecks() {
   const { apiFetch } = useApi()
 
-  /** Devuelve la primera página entera (default 20 decks); no hay UI de paginación todavía. */
+  /** Returns the full first page (default 20 decks); there's no pagination UI yet. */
   async function listDecks(): Promise<Deck[]> {
     const page = await apiFetch<PaginatedResponse<Deck>>('/decks')
     return page.items
   }
 
-  /** `input` acepta la URL completa de Moxfield o solo el ID público. */
+  /** `input` accepts either the full Moxfield URL or just the public ID. */
   function importFromMoxfield(input: string) {
     return apiFetch<Deck>('/decks/import/moxfield', {
       method: 'POST',
@@ -18,9 +18,9 @@ export function useDecks() {
   }
 
   /**
-   * Re-sincroniza un deck ya importado con su versión actual en Moxfield
-   * (nombre, comandante e imagen). `moxfieldId` acepta tanto el ID público
-   * como la URL completa, igual que el import.
+   * Re-syncs an already imported deck with its current version on Moxfield
+   * (name, commander and image). `moxfieldId` accepts either the public ID
+   * or the full URL, same as import.
    */
   function syncFromMoxfield(moxfieldId: string) {
     return apiFetch<SyncResponse>('/sync/moxfield', {
@@ -29,7 +29,7 @@ export function useDecks() {
     })
   }
 
-  /** Dispara en background el resync de TODOS los decks propios con moxfield_id. */
+  /** Triggers in the background a resync of ALL of the user's own decks that have a moxfield_id. */
   function resyncAllDecks() {
     return apiFetch<DeckResyncJob>('/decks/resync-all', { method: 'POST' })
   }
@@ -42,9 +42,9 @@ export function useDecks() {
 }
 
 /**
- * Traduce los errores del import de Moxfield a algo accionable.
- * El backend responde 404 si no existe un deck público con ese ID y 400 si la
- * URL no es válida o el deck no tiene comandante (no es formato Commander).
+ * Translates Moxfield import errors into something actionable.
+ * The backend responds 404 if there's no public deck with that ID, and 400 if the
+ * URL is invalid or the deck has no commander (not Commander format).
  */
 export function moxfieldImportError(err: unknown): string {
   const { t } = useI18n()
@@ -52,8 +52,8 @@ export function moxfieldImportError(err: unknown): string {
     case 404:
       return t('errors.moxfieldImport.notFound')
     case 400:
-      // El '' es un sentinel para probar apiErrorMessage(...).includes('commander')
-      // contra el texto crudo en inglés del backend — no es un mensaje visible, no se traduce.
+      // The '' is a sentinel to test apiErrorMessage(...).includes('commander')
+      // against the backend's raw English text — it's not a visible message, it's not translated.
       return apiErrorMessage(err, '').includes('commander')
         ? t('errors.moxfieldImport.notCommander')
         : t('errors.moxfieldImport.invalidUrl')
@@ -62,7 +62,7 @@ export function moxfieldImportError(err: unknown): string {
   }
 }
 
-/** Traduce los errores de POST /decks/resync-all. */
+/** Translates POST /decks/resync-all errors. */
 export function resyncAllDecksError(err: unknown): string {
   const { t } = useI18n()
   switch (apiErrorStatus(err)) {

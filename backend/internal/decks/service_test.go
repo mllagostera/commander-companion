@@ -16,8 +16,8 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
-// mockMoxfieldClient permite controlar la respuesta de Moxfield sin golpear la
-// API real desde los tests (ver decks.MoxfieldClient, pensada para esto).
+// mockMoxfieldClient allows controlling the Moxfield response without hitting the
+// real API from the tests (see decks.MoxfieldClient, designed for this).
 type mockMoxfieldClient struct {
 	deck *moxfield.Deck
 	err  error
@@ -48,10 +48,10 @@ func createTestUser(t *testing.T, pool *pgxpool.Pool, email string) *users.UserR
 	return user
 }
 
-// asFiberError traduce el error de dominio que devuelve el service a su equivalente
-// HTTP con common.MapError (los services ya no dependen de fiber, ver
-// internal/common/errors.go), para poder seguir verificando el status code que ve
-// el cliente.
+// asFiberError translates the domain error returned by the service to its HTTP
+// equivalent with common.MapError (the services no longer depend on fiber, see
+// internal/common/errors.go), so we can still verify the status code the client
+// sees.
 func asFiberError(t *testing.T, err error) *fiber.Error {
 	t.Helper()
 	var fiberErr *fiber.Error
@@ -99,8 +99,8 @@ func TestGetDeck_OwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 		t.Fatalf("CreateDeck() error = %v", err)
 	}
 
-	// El deck existe (created.ID es válido) pero pertenece a "owner", no a
-	// "intruder": no debe distinguirse de "no existe" (evita revelar el deck).
+	// The deck exists (created.ID is valid) but belongs to "owner", not to
+	// "intruder": it must not be distinguishable from "doesn't exist" (avoids revealing the deck).
 	if _, err := svc.GetDeck(context.Background(), intruder.ID, created.ID); !errors.Is(err, decks.ErrDeckNotFound) {
 		t.Fatalf("GetDeck() de un deck ajeno: error = %v, want ErrDeckNotFound", err)
 	}
@@ -161,7 +161,7 @@ func TestListDecks_OnlyReturnsOwnDecks(t *testing.T) {
 	}
 }
 
-// firstPage pide la primera página con el tamaño por defecto.
+// firstPage requests the first page with the default size.
 func firstPage() common.PageRequest {
 	return common.PageRequest{Limit: common.DefaultPageLimit}
 }
@@ -181,21 +181,21 @@ func TestListDecks_PaginatesWithCursor(t *testing.T) {
 		}
 	}
 
-	// Se recorre la lista entera de a 2 y se verifica que no falte ni se repita
-	// ningún deck: es lo que garantiza la paginación keyset.
+	// The whole list is walked 2 at a time, verifying that no deck is missing
+	// or repeated: that's what keyset pagination guarantees.
 	seen := collectAllPages(t, svc, owner.ID, 2, total)
 	if len(seen) != total {
 		t.Fatalf("ListDecks() paginado devolvió %d decks distintos, want %d", len(seen), total)
 	}
 }
 
-// collectAllPages recorre /decks siguiendo next_cursor y devuelve los IDs vistos,
-// fallando si alguno se repite entre páginas o si la paginación no termina.
+// collectAllPages walks /decks following next_cursor and returns the seen IDs,
+// failing if any repeats across pages or if pagination never ends.
 func collectAllPages(t *testing.T, svc decks.Service, userID string, limit, maxPages int) map[string]bool {
 	t.Helper()
 
 	seen := make(map[string]bool, maxPages*limit)
-	//nolint:gosec // limit es una constante del test, no entrada externa
+	//nolint:gosec // limit is a test constant, not external input
 	page := common.PageRequest{Limit: int32(limit)}
 
 	for pages := 0; pages <= maxPages; pages++ {
@@ -260,7 +260,7 @@ func TestDeleteDeck_OwnedByAnotherUser_DoesNotDelete(t *testing.T) {
 		t.Fatalf("DeleteDeck() por un usuario ajeno: error = %v, want ErrDeckNotFound", err)
 	}
 
-	// El deck sigue existiendo para su dueño real.
+	// The deck still exists for its real owner.
 	if _, err := svc.GetDeck(context.Background(), owner.ID, created.ID); err != nil {
 		t.Fatalf("GetDeck() del dueño tras intento de borrado ajeno: error = %v, want nil", err)
 	}
@@ -318,7 +318,7 @@ func TestImportFromMoxfield_NoCommander_ReturnsBadRequest(t *testing.T) {
 	svc := newDecksSvc(pool, &mockMoxfieldClient{deck: &moxfield.Deck{
 		PublicID: "no-commander",
 		Name:     "Deck sin comandante",
-		// Commander vacío: no es un deck de formato Commander.
+		// Empty Commander: not a Commander-format deck.
 	}})
 
 	_, err := svc.ImportFromMoxfield(context.Background(), owner.ID, decks.ImportMoxfieldRequest{URL: "no-commander"})
@@ -366,8 +366,8 @@ func TestImportFromMoxfield_MissingURL_ReturnsBadRequest(t *testing.T) {
 	}
 }
 
-// importDeck importa un deck de Moxfield con el contenido cargado en el mock y
-// devuelve el servicio (con el mismo mock) para poder re-sincronizarlo después.
+// importDeck imports a Moxfield deck with the content loaded in the mock and
+// returns the service (with the same mock) so it can be re-synced afterward.
 func importDeck(
 	t *testing.T, pool *pgxpool.Pool, userID string, mox *mockMoxfieldClient,
 ) (decks.Service, *decks.DeckResponse) {
@@ -381,8 +381,8 @@ func importDeck(
 	return svc, deck
 }
 
-// Constantes del escenario de resync: el mismo deck de Moxfield antes y después
-// de cambiar en el origen.
+// Constants for the resync scenario: the same Moxfield deck before and after
+// it changes at the source.
 const (
 	resyncPublicID = "abc123"
 	newName        = "Nombre nuevo"
@@ -396,7 +396,7 @@ func TestResyncFromMoxfield_AppliesRemoteChanges(t *testing.T) {
 	mox := &mockMoxfieldClient{deck: &moxfield.Deck{PublicID: resyncPublicID, Name: "Nombre viejo", Commander: "Atraxa"}}
 	svc, imported := importDeck(t, pool, owner.ID, mox)
 
-	// El deck cambió en Moxfield desde el import.
+	// The deck changed in Moxfield since the import.
 	mox.deck = &moxfield.Deck{PublicID: resyncPublicID, Name: newName, Commander: "Kenrith"}
 
 	state, err := svc.ResyncFromMoxfield(context.Background(), owner.ID, resyncPublicID)
@@ -416,7 +416,7 @@ func TestResyncFromMoxfield_AppliesRemoteChanges(t *testing.T) {
 		t.Fatal("ResyncFromMoxfield() last_synced_at = nil, want el momento del sync")
 	}
 
-	// El cambio quedó persistido, no solo en la respuesta.
+	// The change was persisted, not just returned in the response.
 	stored, err := svc.GetDeck(context.Background(), owner.ID, imported.ID)
 	if err != nil {
 		t.Fatalf("GetDeck() tras resync: error = %v", err)
@@ -441,15 +441,15 @@ func TestResyncFromMoxfield_NoRemoteChanges(t *testing.T) {
 	if state.Changed {
 		t.Fatal("ResyncFromMoxfield() changed = true, want false (Moxfield no cambió)")
 	}
-	// Aunque no haya cambios, el sync queda registrado: es lo que reporta después
-	// GetMoxfieldSyncState como last_synced_at.
+	// Even when there are no changes, the sync is still recorded: that's what
+	// GetMoxfieldSyncState reports afterward as last_synced_at.
 	if state.LastSyncedAt == nil {
 		t.Fatal("ResyncFromMoxfield() last_synced_at = nil, want el momento del sync")
 	}
 }
 
-// Re-sincronizar un deck que el usuario no importó es un 404, con el mismo criterio
-// que el resto del módulo: no se distingue "no existe" de "no es tuyo".
+// Re-syncing a deck the user didn't import is a 404, following the same criteria
+// as the rest of the module: "doesn't exist" is not distinguished from "isn't yours".
 func TestResyncFromMoxfield_NotImported_ReturnsNotFound(t *testing.T) {
 	pool := testutil.DB(t)
 	testutil.Truncate(t, pool, "users")
@@ -483,7 +483,7 @@ func TestResyncFromMoxfield_OtherUsersDeck_ReturnsNotFound(t *testing.T) {
 	}
 }
 
-// Un deck importado que nunca se re-sincronizó no tiene last_synced_at.
+// A deck that was imported but never re-synced has no last_synced_at.
 func TestGetMoxfieldSyncState_NeverResynced(t *testing.T) {
 	pool := testutil.DB(t)
 	testutil.Truncate(t, pool, "users")

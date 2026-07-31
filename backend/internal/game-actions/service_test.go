@@ -20,29 +20,29 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
-// noopBroadcaster satisface tanto games.Broadcaster como gameactions.Broadcaster sin
-// retransmitir nada de verdad: estos tests no ejercitan internal/websocket, solo
-// necesitan que la dependencia esté presente para poder construir los servicios.
+// noopBroadcaster satisfies both games.Broadcaster and gameactions.Broadcaster without
+// actually rebroadcasting anything: these tests don't exercise internal/websocket, they
+// just need the dependency to be present to be able to build the services.
 type noopBroadcaster struct{}
 
 func (noopBroadcaster) BroadcastGameFinished(_ string)                              {}
 func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionResponse) {}
 
-// newGamesSvc crea un games.Service con el recalculador de estadísticas y el
-// checker de membresía de playgroups reales (sobre el mismo pool), así FinishGame
-// y los proxy-joins ejercitan el flujo completo en los tests.
+// newGamesSvc creates a games.Service with the real statistics recalculator and
+// playgroup membership checker (over the same pool), so FinishGame
+// and the proxy-joins exercise the full flow in the tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
 	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{}, playgroups.NewService(pool))
 }
 
-// newActionsSvc crea un gameactions.Service con un Broadcaster noop (estos tests no
-// ejercitan internal/websocket).
+// newActionsSvc creates a gameactions.Service with a noop Broadcaster (these tests
+// don't exercise internal/websocket).
 func newActionsSvc(pool *pgxpool.Pool) gameactions.Service {
 	return gameactions.NewService(pool, noopBroadcaster{})
 }
 
-// Vocabulario de action_type que entiende el motor (ver game-actions/service.go);
-// como constantes acá porque el paquete real no las exporta.
+// action_type vocabulary understood by the engine (see game-actions/service.go);
+// kept as constants here because the real package doesn't export them.
 const (
 	actionTypeLifeChange      = "LifeChange"
 	actionTypeCombatDamage    = "CombatDamage"
@@ -57,8 +57,8 @@ const (
 	testPassword = "test-password-123"
 )
 
-// noopMoxfieldClient satisface decks.MoxfieldClient sin golpear la API real;
-// estos tests nunca importan decks de Moxfield, solo necesitan crear decks propios.
+// noopMoxfieldClient satisfies decks.MoxfieldClient without hitting the real API;
+// these tests never import decks from Moxfield, they only need to create their own decks.
 type noopMoxfieldClient struct {
 	deck *moxfield.Deck
 	err  error
@@ -70,15 +70,15 @@ func (m noopMoxfieldClient) GetDeck(_ context.Context, _ string) (*moxfield.Deck
 
 func truncateGameActionsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	// "games" limpia game_players/game_actions por CASCADE; "users" limpia decks
-	// y cualquier resto de game_players/refresh_tokens.
+	// "games" clears game_players/game_actions via CASCADE; "users" clears decks
+	// and any remaining game_players/refresh_tokens.
 	testutil.Truncate(t, pool, "games", "users")
 }
 
-// asFiberError traduce el error de dominio que devuelve el service a su equivalente
-// HTTP con common.MapError (los services ya no dependen de fiber, ver
-// internal/common/errors.go), para poder seguir verificando el status code que ve
-// el cliente.
+// asFiberError translates the domain error returned by the service to its HTTP
+// equivalent with common.MapError (the services no longer depend on fiber, see
+// internal/common/errors.go), so we can still verify the status code the client
+// sees.
 func asFiberError(t *testing.T, err error) *fiber.Error {
 	t.Helper()
 	var fiberErr *fiber.Error
@@ -114,10 +114,10 @@ func mustRegisterUser(t *testing.T, usersSvc users.Service, prefix string) *user
 	return user
 }
 
-// activeGame agrupa los servicios y IDs de una partida de 2 jugadores activa, lista
-// para ejercitar RecordAction/GetTimeline. player1ID/player2ID son GamePlayer.ID
-// (para actor_id/target_id); user1ID/user2ID son los user.ID subyacentes que se
-// unieron a sí mismos (para el caller de RecordAction).
+// activeGame groups the services and IDs of an active 2-player game, ready
+// to exercise RecordAction/GetTimeline. player1ID/player2ID are GamePlayer.ID
+// (for actor_id/target_id); user1ID/user2ID are the underlying user.ID that
+// joined themselves (for the RecordAction caller).
 type activeGame struct {
 	games              games.Service
 	actions            gameactions.Service
@@ -172,11 +172,11 @@ func setupActiveGame(t *testing.T, pool *pgxpool.Pool) activeGame {
 	}
 }
 
-// setupActiveGameWithPlayers crea n usuarios+decks, los une a una partida (en orden,
-// mientras sigue pending) y la inicia. Usado por los tests de CommanderDamage que
-// necesitan más de 2 asientos para verificar que el daño se trackea por par
-// atacante-defensor, no agregado entre distintos atacantes. userIDs es paralelo a
-// playerIDs (userIDs[i] es el dueño de playerIDs[i], para el caller de RecordAction).
+// setupActiveGameWithPlayers creates n users+decks, joins them to a game (in order,
+// while it's still pending) and starts it. Used by the CommanderDamage tests that
+// need more than 2 seats to verify that damage is tracked per attacker-defender
+// pair, not aggregated across different attackers. userIDs is parallel to
+// playerIDs (userIDs[i] is the owner of playerIDs[i], for the RecordAction caller).
 func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
 	gamesSvc games.Service, actionsSvc gameactions.Service, gameID string, playerIDs, userIDs []string,
 ) {
@@ -217,9 +217,9 @@ func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
 	return gamesSvc, actionsSvc, game.ID, playerIDs, userIDs
 }
 
-// proxyJoinedGame es una partida de grupo donde el scorekeeper se sentó a sí mismo
-// y, además, proxy-joineó a teammate (ver ADR-0013) — el escenario de "un solo
-// dispositivo anota por toda la mesa".
+// proxyJoinedGame is a group game where the scorekeeper sat themselves down
+// and also proxy-joined teammate (see ADR-0013) — the "a single
+// device scores for the whole table" scenario.
 type proxyJoinedGame struct {
 	games            games.Service
 	actions          gameactions.Service
@@ -264,14 +264,14 @@ func setupProxyJoinedGame(t *testing.T, pool *pgxpool.Pool) proxyJoinedGame {
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
-	// El scorekeeper une al teammate como proxy: queda con added_by = scorekeeper.
+	// The scorekeeper joins the teammate as a proxy: they end up with added_by = scorekeeper.
 	teammatePlayer, err := gamesSvc.JoinGame(
 		ctx, game.ID, scorekeeper.ID, games.JoinGameRequest{DeckID: teammateDeck.ID, UserID: teammate.ID},
 	)
 	if err != nil {
 		t.Fatalf("JoinGame() proxy error = %v", err)
 	}
-	// Segundo asiento (el propio scorekeeper, self-join) para poder iniciar (minPlayersToStart = 2).
+	// Second seat (the scorekeeper themselves, self-join) so the game can start (minPlayersToStart = 2).
 	if _, joinErr := gamesSvc.JoinGame(
 		ctx, game.ID, scorekeeper.ID, games.JoinGameRequest{DeckID: scorekeeperDeck.ID},
 	); joinErr != nil {
@@ -404,7 +404,7 @@ func TestRecordAction_CommanderDamage_MissingTarget_ReturnsBadRequest(t *testing
 		ActorID:    g.player1ID,
 		ActionType: actionTypeCommanderDamage,
 		Payload:    amountPayload(5),
-		// Sin target_id: CommanderDamage no tiene sentido sin un defensor identificado.
+		// No target_id: CommanderDamage doesn't make sense without an identified defender.
 	})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
 		t.Fatalf("RecordAction(CommanderDamage) sin target_id: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
@@ -596,7 +596,7 @@ func TestRecordAction_MissingAmount_ReturnsBadRequest(t *testing.T) {
 	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
 		ActorID:    g.player1ID,
 		ActionType: actionTypeLifeChange,
-		// Sin payload.amount.
+		// No payload.amount.
 	})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
 		t.Fatalf("RecordAction() sin payload.amount: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
@@ -626,7 +626,7 @@ func TestRecordAction_GameNotActive_ReturnsConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("JoinGame() error = %v", err)
 	}
-	// Partida deliberadamente dejada en pending (no se llama a StartGame).
+	// Game deliberately left in pending (StartGame is not called).
 
 	_, err = actionsSvc.RecordAction(ctx, game.ID, user.ID, gameactions.CreateActionRequest{
 		ActorID: player.ID, ActionType: actionTypeLifeChange, Payload: amountPayload(1),
@@ -665,11 +665,11 @@ func TestRecordAction_ActorNotInGame_ReturnsNotFound(t *testing.T) {
 	}
 }
 
-// El caller siempre fue el dueño del actor en los tests de arriba (el único caso que
-// existía en producción hasta ahora). Estos cubren la regla nueva de autorización
-// (ver ADR-0013): dueño ok, quien lo proxy-joineó ok, cualquier otro 403 — antes de
-// este cambio, cualquier usuario autenticado que conociera el actor_id podía
-// registrar acciones en su nombre.
+// The caller was always the actor's owner in the tests above (the only case that
+// existed in production until now). These cover the new authorization rule
+// (see ADR-0013): owner ok, whoever proxy-joined them ok, anyone else 403 — before
+// this change, any authenticated user who knew the actor_id could
+// record actions on their behalf.
 func TestRecordAction_CallerIsActorOwner_Allowed(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGameActionsTables(t, pool)
@@ -688,8 +688,8 @@ func TestRecordAction_CallerIsUnrelatedUser_ReturnsForbidden(t *testing.T) {
 	truncateGameActionsTables(t, pool)
 	g := setupActiveGame(t, pool)
 
-	// user2 tiene su propio GamePlayer en esta partida, pero no es dueño de
-	// player1ID ni lo proxy-joineó: no puede actuar por él.
+	// user2 has their own GamePlayer in this game, but is not the owner of
+	// player1ID nor did they proxy-join it: they cannot act on its behalf.
 	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user2ID, gameactions.CreateActionRequest{
 		ActorID: g.player1ID, ActionType: actionTypeLifeChange, Payload: amountPayload(-1),
 	})
@@ -703,7 +703,7 @@ func TestRecordAction_CallerProxyJoinedTheActor_Allowed(t *testing.T) {
 	truncateGameActionsTables(t, pool)
 	g := setupProxyJoinedGame(t, pool)
 
-	// El scorekeeper (no el teammate) registra la acción del asiento del teammate.
+	// The scorekeeper (not the teammate) records the action for the teammate's seat.
 	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.scorekeeperID, gameactions.CreateActionRequest{
 		ActorID: g.teammatePlayerID, ActionType: actionTypeLifeChange, Payload: amountPayload(-4),
 	})

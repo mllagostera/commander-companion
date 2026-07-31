@@ -4,12 +4,12 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Envoltorio de paginación cursor-based de `GET /decks` y `GET /games`
- * (`DeckListResponse`/`GameListResponse` en `docs/api/openapi.yaml`).
+ * Cursor-based pagination wrapper for `GET /decks` and `GET /games`
+ * (`DeckListResponse`/`GameListResponse` in `docs/api/openapi.yaml`).
  *
- * [nextCursor] es `null` en la última página. Ningún consumidor de este repo pagina todavía —
- * se lee siempre [items] entero, como si la lista completa cupiera en una página — así que pedir
- * la página siguiente queda para cuando exista una UI que la necesite.
+ * [nextCursor] is `null` on the last page. No consumer in this repo paginates yet —
+ * [items] is always read in full, as if the whole list fit on one page — so fetching
+ * the next page is left for when a UI that needs it exists.
  */
 @Serializable
 data class PagedResponse<T>(

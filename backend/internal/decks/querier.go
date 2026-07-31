@@ -14,16 +14,16 @@ type Querier interface {
 	CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, error)
 	DeleteDeck(ctx context.Context, id pgtype.UUID) error
 	GetDeck(ctx context.Context, id pgtype.UUID) (Deck, error)
-	// Resuelve el deck ya importado de un usuario a partir de su ID público de
-	// Moxfield (ver internal/sync). Un mismo deck de Moxfield puede estar importado
-	// por varios usuarios, por eso el filtro por user_id.
+	// Resolves a user's already-imported deck from its public Moxfield ID
+	// (see internal/sync). The same Moxfield deck can be imported by several
+	// users, hence the filter by user_id.
 	GetDeckByMoxfieldID(ctx context.Context, arg GetDeckByMoxfieldIDParams) (Deck, error)
-	// Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
-	// devuelve la primera página; con cursor, las filas estrictamente posteriores en
-	// el orden de la lista. Ver internal/common/pagination.go.
+	// Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
+	// it returns the first page; with a cursor, the rows strictly after it in
+	// list order. See internal/common/pagination.go.
 	ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([]Deck, error)
-	// Re-sincroniza nombre, comandante e imagen de un deck ya importado con lo que
-	// devuelve Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
+	// Re-syncs name, commander, and image for an already-imported deck with what
+	// Moxfield returns today (see internal/sync). updated_at marks the last successful sync.
 	UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFromMoxfieldParams) (Deck, error)
 }
 

@@ -97,8 +97,8 @@ func TestGetDeck_ImageURL_SingleFacedCard_UsesMainID(t *testing.T) {
 	}
 }
 
-// Cartas transform/MDFC: Moxfield solo cachea el art crop bajo el id de cada
-// cara, nunca bajo el id combinado que trae main.id — ver mainImageURL.
+// Transform/MDFC cards: Moxfield only caches the art crop under each face's
+// id, never under the combined id that main.id carries — see mainImageURL.
 func TestGetDeck_ImageURL_TwoFacedCard_UsesFrontFaceID(t *testing.T) {
 	body := `{
 		"name": "Test Deck",
@@ -133,8 +133,8 @@ func TestGetDeck_RespectsRetryAfterOn429(t *testing.T) {
 	var calls int32
 	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if atomic.AddInt32(&calls, 1) == 1 {
-			// Retry-After de 0s: comprobamos que se respeta el header (en vez del
-			// backoff fijo de 200ms) sin alargar el test innecesariamente.
+			// Retry-After of 0s: we check that the header is respected (instead of
+			// the fixed 200ms backoff) without unnecessarily lengthening the test.
 			w.Header().Set("Retry-After", strconv.Itoa(0))
 			w.WriteHeader(http.StatusTooManyRequests)
 			return

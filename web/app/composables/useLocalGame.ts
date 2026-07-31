@@ -1,20 +1,20 @@
-// Life tracker 100% local para la web: sin llamadas al backend de partidas ni
-// persistencia (ver ADR de alcance en docs/roadmap/TASKS.md, Stage 4b — "crear
-// partidas desde la web"). Mismas reglas que el modo Casual de Android
-// (GameState.kt/GameViewModel.kt): vida, turno, veneno y daño de comandante por
-// oponente, con las mismas 3 condiciones de eliminación.
+// Life tracker 100% local for the web: no calls to the games backend and no
+// persistence (see the scope ADR in docs/roadmap/TASKS.md, Stage 4b — "create
+// games from the web"). Same rules as Android's Casual mode
+// (GameState.kt/GameViewModel.kt): life, turn, poison and commander damage per
+// opponent, with the same 3 elimination conditions.
 export const LOCAL_GAME_STARTING_LIFE = 40
 export const COMMANDER_DAMAGE_LETHAL = 21
 export const POISON_LETHAL = 10
 
-/** Paleta fija de colores por asiento — no hace falta que el usuario elija un hex libre. */
+/** Fixed color palette per seat — no need for the user to pick a free-form hex. */
 export const LOCAL_PLAYER_COLORS = [
-  '#8b5cf6', // violeta (marca de la app)
-  '#3b82f6', // azul
-  '#22c55e', // verde
-  '#ef4444', // rojo
-  '#eab308', // amarillo
-  '#94a3b8', // gris (incoloro)
+  '#8b5cf6', // violet (app brand color)
+  '#3b82f6', // blue
+  '#22c55e', // green
+  '#ef4444', // red
+  '#eab308', // yellow
+  '#94a3b8', // gray (colorless)
 ] as const
 
 export interface LocalPlayer {
@@ -23,7 +23,7 @@ export interface LocalPlayer {
   color: string
   life: number
   poison: number
-  /** Daño de comandante recibido, por id de oponente. */
+  /** Commander damage received, keyed by opponent id. */
   commanderDamage: Record<number, number>
 }
 
@@ -40,18 +40,18 @@ export function useLocalGame() {
   const turn = ref(1)
   const isFinished = ref(false)
   const winnerId = ref<number | null>(null)
-  /** Puesta en marcha real de la partida: separado de `setup()` para poder mostrar los
-   * asientos antes de sortear quién empieza (botón central "Play" en la tracker). */
+  /** Actual game start: kept separate from `setup()` so seats can be shown
+   * before drawing who goes first (the central "Play" button in the tracker). */
   const started = ref(false)
   const startingPlayerId = ref<number | null>(null)
 
-  /** Animación de sorteo (ruleta): resalta asientos en secuencia, desacelerando, antes de
-   * quedarse en el ganador — reemplaza el sorteo instantáneo anterior. */
+  /** Draw animation (roulette): highlights seats in sequence, slowing down, before
+   * landing on the winner — replaces the previous instant draw. */
   const lotteryActive = ref(false)
   const lotteryHighlightId = ref<number | null>(null)
   const showStarterBanner = ref(false)
-  /** Token de cancelación: cualquier reset de la partida invalida los timeouts en vuelo del
-   * sorteo, para que no apliquen estado viejo si el usuario ya salió de la pantalla. */
+  /** Cancellation token: any game reset invalidates the draw's in-flight timeouts,
+   * so they don't apply stale state if the user has already left the screen. */
   let lotteryToken = 0
 
   function setup(names: string[]) {
@@ -74,8 +74,8 @@ export function useLocalGame() {
     showStarterBanner.value = false
   }
 
-  /** Sortea al azar quién empieza con una animación de ruleta (recorre los asientos
-   * desacelerando) antes de anunciar al ganador con un banner de ~1.8s. */
+  /** Randomly draws who goes first with a roulette animation (cycles through the seats
+   * slowing down) before announcing the winner with a ~1.8s banner. */
   function startRandomPlayer() {
     const order = players.value.map((p) => p.id)
     if (started.value || order.length === 0) return
@@ -146,7 +146,7 @@ export function useLocalGame() {
     }
   }
 
-  /** Finalización manual (botón "Finalizar"), sin esperar a que quede 1 solo jugador. */
+  /** Manual finish (the "Finish" button), without waiting for only 1 player to remain. */
   function finishManually() {
     isFinished.value = true
     const alive = alivePlayers()

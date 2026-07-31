@@ -1,6 +1,6 @@
 package statistics
 
-// UserStatsResponse es el DTO de estadísticas globales de un usuario.
+// UserStatsResponse is the DTO for a user's global statistics.
 type UserStatsResponse struct {
 	UserID               string `json:"user_id"`
 	GamesPlayed          int32  `json:"games_played"`
@@ -10,7 +10,7 @@ type UserStatsResponse struct {
 	TotalEliminations    int32  `json:"total_eliminations"`
 }
 
-// DeckStatsResponse es el DTO de estadísticas de un deck.
+// DeckStatsResponse is the DTO for a deck's statistics.
 type DeckStatsResponse struct {
 	DeckID               string `json:"deck_id"`
 	GamesPlayed          int32  `json:"games_played"`
@@ -19,8 +19,8 @@ type DeckStatsResponse struct {
 	TotalCommanderDamage int32  `json:"total_commander_damage_dealt"`
 }
 
-// PlaygroupStatsResponse es el DTO de estadísticas agregadas de un grupo de juego,
-// calculado en vivo (no hay una tabla de resumen precalculada por grupo).
+// PlaygroupStatsResponse is the DTO for a playgroup's aggregated statistics,
+// calculated live (there's no precalculated per-playgroup summary table).
 type PlaygroupStatsResponse struct {
 	PlaygroupID string                 `json:"playgroup_id"`
 	GamesPlayed int32                  `json:"games_played"`

@@ -25,15 +25,15 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 
 /**
- * Endpoints protegidos del backend (`decks`, `games`, `game-actions`, `statistics`),
- * ver `docs/api/openapi.yaml`.
+ * Protected backend endpoints (`decks`, `games`, `game-actions`, `statistics`),
+ * see `docs/api/openapi.yaml`.
  *
- * Se consume siempre a través del cliente HTTP **autenticado** (ver `NetworkModule`): el
- * `AuthInterceptor` adjunta el Bearer y el `AuthAuthenticator` refresca ante un 401. Los endpoints
- * públicos de sesión viven aparte, en [AuthApi].
+ * Always consumed through the **authenticated** HTTP client (see `NetworkModule`): the
+ * `AuthInterceptor` attaches the Bearer and the `AuthAuthenticator` refreshes on a 401. The
+ * public session endpoints live separately, in [AuthApi].
  *
- * No se exponen `Response<T>` ni `Call<T>`: los repositorios de `data/repository/` envuelven cada
- * llamada con `apiCall { }`, que traduce `HttpException`/`IOException` a `ApiError`.
+ * `Response<T>`/`Call<T>` are not exposed: the repositories in `data/repository/` wrap each
+ * call with `apiCall { }`, which translates `HttpException`/`IOException` into `ApiError`.
  */
 interface CommanderApi {
 
@@ -42,7 +42,7 @@ interface CommanderApi {
 
     // ---------------------------------------------------------------- decks
 
-    /** Paginado cursor-based server-side; se pide siempre la primera página (default 20 items). */
+    /** Server-side cursor-based pagination; always requests the first page (default 20 items). */
     @GET("api/v1/decks")
     suspend fun listDecks(): PagedResponse<DeckDto>
 
@@ -60,7 +60,7 @@ interface CommanderApi {
 
     // ---------------------------------------------------------------- games
 
-    /** Paginado cursor-based server-side; se pide siempre la primera página (default 20 items). */
+    /** Server-side cursor-based pagination; always requests the first page (default 20 items). */
     @GET("api/v1/games")
     suspend fun listGames(): PagedResponse<GameDto>
 
@@ -70,25 +70,25 @@ interface CommanderApi {
     @GET("api/v1/games/{id}")
     suspend fun getGame(@Path("id") gameId: String): GameDto
 
-    /** Sienta al usuario autenticado en la partida; devuelve su `GamePlayer` (no el `Game`). */
+    /** Seats the authenticated user in the game; returns their `GamePlayer` (not the `Game`). */
     @POST("api/v1/games/{id}/join")
     suspend fun joinGame(@Path("id") gameId: String, @Body request: JoinGameRequest): GamePlayerDto
 
-    /** 204 sin body. Solo válido mientras la partida siga en `pending`. */
+    /** 204 with no body. Only valid while the game is still `pending`. */
     @POST("api/v1/games/{id}/leave")
     suspend fun leaveGame(@Path("id") gameId: String)
 
-    /** 409 si la partida no está en `pending` o todavía no hay 2 jugadores. */
+    /** 409 if the game isn't `pending` or there aren't yet 2 players. */
     @POST("api/v1/games/{id}/start")
     suspend fun startGame(@Path("id") gameId: String): GameDto
 
-    /** 409 si la partida no está `active`. Dispara el recálculo de estadísticas server-side. */
+    /** 409 if the game isn't `active`. Triggers the server-side statistics recalculation. */
     @POST("api/v1/games/{id}/finish")
     suspend fun finishGame(@Path("id") gameId: String): GameDto
 
     // --------------------------------------------------------- game-actions
 
-    /** 409 si la partida no está `active`; el backend aplica la acción al estado del jugador. */
+    /** 409 if the game isn't `active`; the backend applies the action to the player's state. */
     @POST("api/v1/games/{id}/actions")
     suspend fun recordAction(
         @Path("id") gameId: String,
@@ -100,14 +100,14 @@ interface CommanderApi {
 
     // ------------------------------------------------------------ playgroups
 
-    /** Grupos de los que el usuario autenticado es miembro, con sus miembros poblados. */
+    /** Groups the authenticated user is a member of, with their members populated. */
     @GET("api/v1/playgroups")
     suspend fun listPlaygroups(): List<PlaygroupDto>
 
     @GET("api/v1/playgroups/{id}")
     suspend fun getPlaygroup(@Path("id") playgroupId: String): PlaygroupDto
 
-    /** Decks de OTRO miembro del mismo grupo — para elegir su deck en un proxy-join. */
+    /** Decks of ANOTHER member of the same group — to choose their deck for a proxy-join. */
     @GET("api/v1/playgroups/{id}/members/{userId}/decks")
     suspend fun getMemberDecks(
         @Path("id") playgroupId: String,
@@ -127,11 +127,11 @@ interface CommanderApi {
 
     // ----------------------------------------------------------------- users
 
-    /** 409 si el username ya está en uso por otra cuenta. */
+    /** 409 if the username is already in use by another account. */
     @PATCH("api/v1/users/{id}")
     suspend fun updateProfile(@Path("id") userId: String, @Body request: UpdateProfileRequest): UserDto
 
-    /** 204 sin body. 401 si el password actual no coincide, o si la cuenta no tiene password propio. */
+    /** 204 with no body. 401 if the current password doesn't match, or if the account has no password of its own. */
     @POST("api/v1/users/{id}/password")
     suspend fun changePassword(@Path("id") userId: String, @Body request: ChangePasswordRequest)
 }

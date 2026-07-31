@@ -29,9 +29,9 @@ const (
 
 var errSimulatedResyncFailure = errors.New("simulated resync failure")
 
-// fakeDeckLister simula decks.Service (ListDecks/ResyncFromMoxfield), sin depender
-// del módulo decks real ni de Postgres para los decks en sí (los jobs sí van contra
-// Postgres real, vía testutil.DB, igual que el resto del proyecto).
+// fakeDeckLister simulates decks.Service (ListDecks/ResyncFromMoxfield), without
+// depending on the real decks module or on Postgres for the decks themselves (the
+// jobs do go against real Postgres, via testutil.DB, same as the rest of the project).
 type fakeDeckLister struct {
 	items   []decks.DeckResponse
 	failFor map[string]bool
@@ -92,9 +92,9 @@ func asFiberError(t *testing.T, err error) *fiber.Error {
 	return fiberErr
 }
 
-// waitForTerminalStatus hace polling de GetJobStatus hasta que el job llegue a
-// completed/failed: el resync corre en su propia goroutine, no hay otra forma de
-// sincronizar con su finalización desde el test.
+// waitForTerminalStatus polls GetJobStatus until the job reaches
+// completed/failed: the resync runs in its own goroutine, there's no other way to
+// synchronize with its completion from the test.
 func waitForTerminalStatus(t *testing.T, svc deckresync.Service, userID, jobID string) *deckresync.JobResponse {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -117,7 +117,7 @@ func TestStartResyncAll_NoEligibleDecks_ReturnsBadRequest(t *testing.T) {
 	truncateResyncTables(t, pool)
 	user := registerUser(t, pool, "no-decks@example.com")
 
-	// Un deck sin moxfield_id no cuenta como elegible.
+	// A deck without moxfield_id doesn't count as eligible.
 	lister := &fakeDeckLister{items: []decks.DeckResponse{{ID: "d1", MoxfieldID: ""}}}
 	svc := newTestSvc(pool, lister)
 
@@ -145,7 +145,7 @@ func TestStartResyncAll_Success_CompletesJob(t *testing.T) {
 	lister := &fakeDeckLister{items: []decks.DeckResponse{
 		{ID: "d1", MoxfieldID: testMoxfieldA},
 		{ID: "d2", MoxfieldID: testMoxfieldB},
-		{ID: "d3", MoxfieldID: ""}, // sin moxfield_id, no debe contarse
+		{ID: "d3", MoxfieldID: ""}, // no moxfield_id, shouldn't be counted
 	}}
 	svc := newTestSvc(pool, lister)
 
@@ -221,8 +221,8 @@ func TestStartResyncAll_AlreadyInProgress_ReturnsConflict(t *testing.T) {
 	truncateResyncTables(t, pool)
 	user := registerUser(t, pool, "resync-duplicate@example.com")
 
-	// delay generoso para que el primer job siga in_progress cuando llega el
-	// segundo StartResyncAll, sin depender de timing ajustado.
+	// generous delay so the first job stays in_progress when the second
+	// StartResyncAll arrives, without depending on tight timing.
 	lister := &fakeDeckLister{
 		items: []decks.DeckResponse{{ID: "d1", MoxfieldID: testMoxfieldA}, {ID: "d2", MoxfieldID: testMoxfieldB}},
 		delay: 500 * time.Millisecond,
@@ -239,8 +239,8 @@ func TestStartResyncAll_AlreadyInProgress_ReturnsConflict(t *testing.T) {
 		t.Fatalf("StartResyncAll() con resync ya en curso: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
 	}
 
-	// Limpieza: esperar a que el primer job termine para no dejar una goroutine
-	// escribiendo contra una base que el próximo test va a truncar.
+	// Cleanup: wait for the first job to finish so as not to leave a goroutine
+	// writing against a database that the next test is going to truncate.
 	waitForTerminalStatus(t, svc, user.ID, first.ID)
 }
 

@@ -1,7 +1,7 @@
 name: Docs CI (fuentes de verdad)
 
-# Valida las fuentes de verdad del proyecto (ver README.md, sección 3):
-# OpenAPI (docs/api/openapi.yaml) y DBML (docs/database/schema.dbml).
+# Validates the project's sources of truth (see README.md, section 3):
+# OpenAPI (docs/api/openapi.yaml) and DBML (docs/database/schema.dbml).
 
 on:
   push:

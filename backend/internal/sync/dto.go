@@ -6,28 +6,28 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/decks"
 )
 
-// Request es el payload para sincronizar un deck ya importado con Moxfield.
-// MoxfieldID acepta tanto el ID público como la URL completa del deck, igual que
-// el import (ver moxfield.ExtractPublicID).
+// Request is the payload for syncing a deck already imported with Moxfield.
+// MoxfieldID accepts both the public ID and the deck's full URL, same as
+// the import (see moxfield.ExtractPublicID).
 type Request struct {
 	MoxfieldID string `json:"moxfield_id"`
 }
 
-// Response es el resultado de una sincronización con Moxfield.
+// Response is the result of a sync with Moxfield.
 //
-// Status vale "updated" o "unchanged" en POST /sync/moxfield, según Moxfield haya
-// traído cambios o no; y "synced" o "never_synced" en GET /sync/status, según el
-// deck tenga o no un sync previo registrado.
+// Status is "updated" or "unchanged" in POST /sync/moxfield, depending on whether
+// Moxfield brought changes or not; and "synced" or "never_synced" in GET /sync/status,
+// depending on whether the deck has a previous sync recorded or not.
 //
-// LastSyncedAt es null solo en el segundo caso: un deck importado que nunca se
-// re-sincronizó.
+// LastSyncedAt is null only in the second case: a deck that was imported but never
+// re-synced.
 type Response struct {
 	Status       string             `json:"status"`
 	Deck         decks.DeckResponse `json:"deck"`
 	LastSyncedAt *string            `json:"last_synced_at"`
 }
 
-// toResponse arma el DTO HTTP a partir del estado que devuelve el módulo decks.
+// toResponse builds the HTTP DTO from the state returned by the decks module.
 func toResponse(status string, state *decks.MoxfieldSyncState) *Response {
 	res := &Response{Status: status}
 	if state.Deck != nil {

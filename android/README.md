@@ -1,23 +1,23 @@
 # Commander Companion — Android
 
-Cliente Android nativo (Kotlin + Jetpack Compose), pensado para trackear vida
-*durante* la partida con la app en la mesa — la prioridad es que cualquier
-acción tome menos de dos segundos. Ver [ADR-0009](../docs/decisions/0009-android-nativo-vs-crossplatform.md)
-para el porqué de nativo vs. cross-platform.
+Native Android client (Kotlin + Jetpack Compose), designed to track life
+*during* the game with the app on the table — the priority is that any
+action takes less than two seconds. See [ADR-0009](../docs/decisions/0009-android-nativo-vs-crossplatform.md)
+for the rationale behind native vs. cross-platform.
 
-Estado actual: life tracker local completo (2-6 jugadores, daño de comandante,
-mulligans, historial en Room), auth real contra el backend (email/password +
-Google Sign-In) y un espejo best-effort del asiento local contra
-`games`/`game-actions` de la API. Detalle exacto de qué está hecho y qué no,
-tarea por tarea: [`docs/roadmap/TASKS.md`](../docs/roadmap/TASKS.md) (Stage 4
-y 5).
+Current status: complete local life tracker (2-6 players, commander
+damage, mulligans, history in Room), real auth against the backend
+(email/password + Google Sign-In), and a best-effort mirror of the local
+seat against the API's `games`/`game-actions`. Exact detail of what's
+done and what isn't, task by task: [`docs/roadmap/TASKS.md`](../docs/roadmap/TASKS.md) (Stage 4
+and 5).
 
 ## Stack
 
-Kotlin 2.2 + Jetpack Compose (Material 3), Hilt (DI), Room (persistencia
-local), Retrofit + OkHttp + kotlinx.serialization (red), Navigation Compose,
+Kotlin 2.2 + Jetpack Compose (Material 3), Hilt (DI), Room (local
+persistence), Retrofit + OkHttp + kotlinx.serialization (network), Navigation Compose,
 Credential Manager + Google Identity Services (Google Sign-In). AGP 9.3 /
-Gradle 9.5, requiere **JDK 21** para buildear (ver nota abajo).
+Gradle 9.5, requires **JDK 21** to build (see note below).
 
 ## Setup
 
@@ -26,60 +26,60 @@ cd android
 ./gradlew assembleDebug
 ```
 
-Necesita el backend corriendo (ver [`backend/README.md`](../backend/README.md)).
-Por defecto apunta a `http://10.0.2.2:8080/` (el alias que usa el emulador de
-Android para llegar al `localhost` de la máquina host). Para un dispositivo
-físico en la misma red, o para apuntar a otro host:
+Needs the backend running (see [`backend/README.md`](../backend/README.md)).
+By default it points to `http://10.0.2.2:8080/` (the alias the Android
+emulator uses to reach the host machine's `localhost`). For a physical
+device on the same network, or to point at another host:
 
 ```bash
 ./gradlew :app:assembleDebug -PAPI_BASE_URL=http://192.168.1.50:8080/
 ```
 
-(o seteando `API_BASE_URL` en `gradle.properties`; ver `app/build.gradle.kts`).
+(or by setting `API_BASE_URL` in `gradle.properties`; see `app/build.gradle.kts`).
 
 ### Google Sign-In
 
-`GOOGLE_WEB_CLIENT_ID` es hoy un placeholder (`app/build.gradle.kts`) — las
-credenciales OAuth reales de Google Cloud todavía no existen (paso manual
-externo, ver `docs/roadmap/TASKS.md` Stage 1). El flujo de Credential Manager
-está completo e implementado, pero falla contra Google real hasta que se
-cree el Web Client ID. Una vez creado, se pasa sin tocar código:
+`GOOGLE_WEB_CLIENT_ID` is currently a placeholder (`app/build.gradle.kts`) —
+the real Google Cloud OAuth credentials don't exist yet (an external manual
+step, see `docs/roadmap/TASKS.md` Stage 1). The Credential Manager flow
+is fully implemented, but fails against real Google until the
+Web Client ID is created. Once created, it's passed without touching code:
 
 ```bash
 ./gradlew :app:assembleDebug -PGOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
 ```
 
-### JDK requerido
+### Required JDK
 
-Gradle 9.5 / AGP 9.3 no arrancan con JDK 8. Si `java -version` del sistema no
-es 17+, apuntá `JAVA_HOME` a un JDK compatible (Android Studio trae uno
-embebido en `Android Studio/jbr`) antes de invocar `gradlew`:
+Gradle 9.5 / AGP 9.3 won't start with JDK 8. If the system's `java -version`
+isn't 17+, point `JAVA_HOME` at a compatible JDK (Android Studio ships one
+bundled at `Android Studio/jbr`) before invoking `gradlew`:
 
 ```bash
-JAVA_HOME=/path/a/jdk-21 ./gradlew assembleDebug
+JAVA_HOME=/path/to/jdk-21 ./gradlew assembleDebug
 ```
 
-## Comandos
+## Commands
 
 ```bash
 ./gradlew assembleDebug          # build
-./gradlew testDebugUnitTest      # tests unitarios (JUnit + kotlinx-coroutines-test)
+./gradlew testDebugUnitTest      # unit tests (JUnit + kotlinx-coroutines-test)
 ./gradlew lintDebug              # Android Lint
-./gradlew connectedAndroidTest   # tests instrumentados (requiere emulador/dispositivo)
+./gradlew connectedAndroidTest   # instrumented tests (requires emulator/device)
 ```
 
-Los tres primeros son los mismos que corre `.github/workflows/android-ci.yml`.
+The first three are the same ones run by `.github/workflows/android-ci.yml`.
 
-## Estructura
+## Structure
 
 ```
 android/app/src/main/java/com/commandercompanion/
 ├── data/
 │   ├── remote/
 │   │   ├── api/          # CommanderApi.kt (decks/games/game-actions/statistics), AuthApi.kt
-│   │   ├── dto/           # DTOs de Retrofit
+│   │   ├── dto/           # Retrofit DTOs
 │   │   └── interceptor/   # AuthInterceptor (Bearer), AuthAuthenticator (refresh-on-401)
-│   ├── repository/        # GameRepository, DeckRepository — deciden Room vs. backend
+│   ├── repository/        # GameRepository, DeckRepository — decide Room vs. backend
 │   ├── local/
 │   │   ├── dao/           # GameDao
 │   │   └── entity/        # GameEntity, PlayerResultEntity
@@ -87,30 +87,30 @@ android/app/src/main/java/com/commandercompanion/
 ├── presentation/
 │   ├── screens/           # login, dashboard, setup, pregame, game, history
 │   ├── navigation/        # AppNavigation.kt, Routes.kt, PlayerConfigCodec.kt
-│   ├── components/        # AppComponents (botones, cards, chips), PlayerQuadrant
+│   ├── components/        # AppComponents (buttons, cards, chips), PlayerQuadrant
 │   └── theme/             # Color.kt, Theme.kt, Type.kt (Material 3)
 └── core/
     ├── di/                 # DatabaseModule, NetworkModule (Hilt)
-    └── util/               # ApiCall (mapea HttpException/IOException -> ApiError)
+    └── util/               # ApiCall (maps HttpException/IOException -> ApiError)
 ```
 
-Nota: no hay capa `domain/` (casos de uso) — los `ViewModel` van directo
-contra `data/repository/` (o, en auth, directo contra `AuthApi`). Decisión
-consciente, ver ADR-0009 y `docs/roadmap/TASKS.md` Stage 4.
+Note: there is no `domain/` layer (use cases) — `ViewModel`s go straight
+against `data/repository/` (or, in auth, straight against `AuthApi`). A
+deliberate decision, see ADR-0009 and `docs/roadmap/TASKS.md` Stage 4.
 
-## Notas
+## Notes
 
-- El life tracker local (`GameViewModel`, Room) funciona 100% sin red ni
-  sesión — el espejo contra el backend (`GameRepository.bootstrapRemoteGame`)
-  es best-effort y aditivo, nunca bloquea la partida local. Estado visible en
+- The local life tracker (`GameViewModel`, Room) works 100% without network
+  or session — the mirror against the backend (`GameRepository.bootstrapRemoteGame`)
+  is best-effort and additive, it never blocks the local game. Status is visible in
   `GameState.remoteSync` / `RemoteSyncBanner`.
-- Solo el asiento del usuario autenticado tiene `GamePlayer` remoto; los
-  demás asientos y el daño de comandante de cualquier asiento nunca se
-  espejan (ver comentario en `GameViewModel.adjustCommanderDamage`).
-- Cliente WebSocket (para ver en vivo lo que hacen otros dispositivos en la
-  misma partida) todavía no existe — el servidor y el protocolo ya están
-  implementados (ver [ADR-0005](../docs/decisions/0005-websocket-protocol.md)),
-  falta el consumidor Android. Es la mayor brecha señalada en
+- Only the authenticated user's seat has a remote `GamePlayer`; the
+  other seats and any seat's commander damage are never
+  mirrored (see the comment in `GameViewModel.adjustCommanderDamage`).
+- A WebSocket client (to see live what other devices in the
+  same game are doing) doesn't exist yet — the server and protocol are
+  already implemented (see [ADR-0005](../docs/decisions/0005-websocket-protocol.md)),
+  the Android consumer is missing. It's the biggest gap flagged in
   `docs/roadmap/TASKS.md`.
-- Wireframes de las 6 pantallas reales: [`docs/ux/wireframes.md`](../docs/ux/wireframes.md).
-  Grafo de navegación real: [`docs/diagrams/android-navigation-flow.md`](../docs/diagrams/android-navigation-flow.md).
+- Wireframes of the 6 actual screens: [`docs/ux/wireframes.md`](../docs/ux/wireframes.md).
+  Actual navigation graph: [`docs/diagrams/android-navigation-flow.md`](../docs/diagrams/android-navigation-flow.md).

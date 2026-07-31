@@ -1,38 +1,38 @@
 package playgroups
 
-// CreatePlaygroupRequest es el payload para crear un grupo de juego.
+// CreatePlaygroupRequest is the payload for creating a playgroup.
 type CreatePlaygroupRequest struct {
 	Name string `json:"name"`
 }
 
-// UpdatePlaygroupRequest es el payload para renombrar un grupo de juego.
+// UpdatePlaygroupRequest is the payload for renaming a playgroup.
 type UpdatePlaygroupRequest struct {
 	Name string `json:"name"`
 }
 
-// PlaygroupResponse es el DTO de un grupo de juego enviado al cliente.
+// PlaygroupResponse is the DTO of a playgroup sent to the client.
 type PlaygroupResponse struct {
 	ID      string                    `json:"id"`
 	Name    string                    `json:"name"`
 	Members []PlaygroupMemberResponse `json:"members,omitempty"`
 }
 
-// AddMemberRequest es el payload para añadir un miembro a un grupo de juego.
+// AddMemberRequest is the payload for adding a member to a playgroup.
 type AddMemberRequest struct {
 	UserID string `json:"user_id"`
 }
 
-// PlaygroupMemberResponse es el DTO de la relación entre un grupo y un usuario miembro.
+// PlaygroupMemberResponse is the DTO of the relationship between a group and a member user.
 type PlaygroupMemberResponse struct {
 	PlaygroupID string `json:"playgroup_id"`
 	UserID      string `json:"user_id"`
 	Username    string `json:"username"`
 }
 
-// DeckResponse es el DTO de un deck ajeno enviado al cliente (mismo shape que
-// decks.DeckResponse, ver GET /playgroups/{id}/members/{userId}/decks). Vive acá
-// en vez de importar internal/decks porque la autorización de esta lista es una
-// decisión de playgroups (membresía compartida), no de decks.
+// DeckResponse is the DTO of another user's deck sent to the client (same shape as
+// decks.DeckResponse, see GET /playgroups/{id}/members/{userId}/decks). It lives here
+// instead of importing internal/decks because the authorization for this list is a
+// playgroups decision (shared membership), not a decks one.
 type DeckResponse struct {
 	ID         string `json:"id"`
 	UserID     string `json:"user_id"`

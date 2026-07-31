@@ -1,79 +1,81 @@
-# ADR-0002: Google Sign-In como proveedor adicional de autenticación
+# ADR-0002: Google Sign-In as an additional authentication provider
 
-**Estado:** Aceptada e implementada (2026-07-26)
+**Status:** Accepted and implemented (2026-07-26)
 
-## Contexto
+## Context
 
-El roadmap original preveía email/password como único método de login. Se
-decidió agregar "Sign in with Google" como proveedor adicional (no como
-reemplazo) para reducir fricción de registro, especialmente en Android donde
-Credential Manager + Google Identity Services es el flujo recomendado por
+The original roadmap envisioned email/password as the only login method. It
+was decided to add "Sign in with Google" as an additional provider (not as a
+replacement) to reduce registration friction, especially on Android where
+Credential Manager + Google Identity Services is the flow recommended by
 Google.
 
-Esto obliga a decidir: cómo se relaciona una cuenta de Google con una cuenta
-existente por email/password, y con qué librería se verifica el `id_token`
-en el backend.
+This forces a decision on: how a Google account relates to an existing
+email/password account, and which library is used to verify the `id_token`
+in the backend.
 
-## Decisión
+## Decision
 
-### Modelo de cuenta
+### Account model
 
-- `users.password_hash` pasa a **nullable**; `users.google_id` (varchar,
-  único, nullable) se agrega. `CHECK (password_hash IS NOT NULL OR
-  google_id IS NOT NULL)` a nivel de base — un usuario siempre tiene *al
-  menos* una forma de autenticarse, nunca ninguna.
-- Flujo de `POST /auth/google` (`users.FindOrCreateGoogleUser`):
-  1. Busca por `google_id`. Si existe, login directo.
-  2. Si no, busca por `email`. Si existe una cuenta con ese email **y**
-     Google confirma `email_verified: true` en el `id_token`, se **vincula
-     automáticamente** (`LinkGoogleID`) — no se pide confirmación adicional.
-  3. Si tampoco existe, se crea una cuenta nueva sin password, con un
-     username derivado del local-part del email (con sufijo si hay colisión).
-  4. Si Google no confirma `email_verified`, se rechaza (`400`) antes de
-     buscar/crear nada.
+- `users.password_hash` becomes **nullable**; `users.google_id` (varchar,
+  unique, nullable) is added. `CHECK (password_hash IS NOT NULL OR
+  google_id IS NOT NULL)` at the database level — a user always has *at
+  least* one way to authenticate, never none.
+- `POST /auth/google` flow (`users.FindOrCreateGoogleUser`):
+  1. Looks up by `google_id`. If it exists, direct login.
+  2. If not, looks up by `email`. If an account with that email exists **and**
+     Google confirms `email_verified: true` in the `id_token`, it is
+     **automatically linked** (`LinkGoogleID`) — no additional confirmation
+     is requested.
+  3. If it doesn't exist either, a new account is created without a
+     password, with a username derived from the local part of the email
+     (with a suffix if there's a collision).
+  4. If Google doesn't confirm `email_verified`, the request is rejected
+     (`400`) before looking up/creating anything.
 
-### Librería de verificación del `id_token`
+### `id_token` verification library
 
-Se usa **`github.com/coreos/go-oidc/v3`** en vez de la librería oficial
-`google.golang.org/api/idtoken`.
+**`github.com/coreos/go-oidc/v3`** is used instead of the official
+`google.golang.org/api/idtoken` library.
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **Exigir confirmación manual al vincular por email**: más seguro ante el
-  caso borde de un email verificado por Google pero que en la práctica no
-  controla el dueño de la cuenta password (extremadamente raro, ya que
-  Google solo marca `email_verified: true` tras su propio flujo de
-  verificación). Se descartó por ahora para no agregar un paso de UX extra;
-  documentado como simplificación consciente, no como olvido.
-- **`google.golang.org/api/idtoken`** (librería oficial de Google): hace
-  exactamente lo mismo (discovery + JWKS + validación de issuer/audience/
-  firma), pero arrastra todo el módulo `google.golang.org/api`
-  (`cloud.google.com/go/auth`, gRPC, OpenTelemetry, etc.) — un árbol de
-  dependencias enorme para verificar un token. Confirmado con `go get`: sumaba
-  ~20 paquetes indirectos nuevos. Se descartó por peso/superficie de ataque
-  desproporcionados frente al problema real.
-- **JWKS manual** (`golang-jwt/jwt` + fetch propio del JWKS de Google): la
-  opción más liviana en teoría, pero reimplementa caching/rotación de claves
-  que `go-oidc` ya resuelve correctamente (es la librería estándar de la
-  comunidad Go para verificación OIDC, con muchas menos dependencias que la
-  opción oficial de Google).
+- **Requiring manual confirmation when linking by email**: safer against
+  the edge case of an email verified by Google that, in practice, isn't
+  controlled by the owner of the password account (extremely rare, since
+  Google only marks `email_verified: true` after its own verification
+  flow). Discarded for now to avoid adding an extra UX step; documented as
+  a conscious simplification, not an oversight.
+- **`google.golang.org/api/idtoken`** (Google's official library): does
+  exactly the same thing (discovery + JWKS + issuer/audience/signature
+  validation), but drags along the entire `google.golang.org/api` module
+  (`cloud.google.com/go/auth`, gRPC, OpenTelemetry, etc.) — a huge
+  dependency tree to verify a token. Confirmed with `go get`: it added
+  ~20 new indirect packages. Discarded due to disproportionate weight/attack
+  surface relative to the actual problem.
+- **Manual JWKS** (`golang-jwt/jwt` + a custom fetch of Google's JWKS): the
+  lightest option in theory, but it reimplements key caching/rotation that
+  `go-oidc` already handles correctly (it's the standard library in the Go
+  community for OIDC verification, with far fewer dependencies than
+  Google's official option).
 
-## Consecuencias
+## Consequences
 
-- El discovery document de Google (`https://accounts.google.com/.well-known/
-  openid-configuration` y su JWKS) se resuelve **perezosamente**, en el primer
-  login con Google, no al arrancar el servidor — el arranque no depende de
-  que Google esté alcanzable.
-- Sin `GOOGLE_CLIENT_ID` configurado, `POST /auth/google` responde `501` en
-  vez de fallar el arranque o crashear en runtime.
-- Crear las credenciales OAuth reales (Web Client ID + Android Client ID) en
-  Google Cloud Console es un paso manual externo que no se puede automatizar
-  desde el repo — ver `docs/roadmap/TASKS.md`, sección Auth — Google OAuth.
+- Google's discovery document (`https://accounts.google.com/.well-known/
+  openid-configuration` and its JWKS) is resolved **lazily**, on the first
+  Google login, not at server startup — startup doesn't depend on Google
+  being reachable.
+- Without `GOOGLE_CLIENT_ID` configured, `POST /auth/google` responds `501`
+  instead of failing at startup or crashing at runtime.
+- Creating the real OAuth credentials (Web Client ID + Android Client ID) in
+  Google Cloud Console is a manual, external step that can't be automated
+  from the repo — see `docs/roadmap/TASKS.md`, Auth — Google OAuth section.
 
-## Referencias
+## References
 
-- Implementación: `backend/internal/auth/google.go`,
+- Implementation: `backend/internal/auth/google.go`,
   `backend/internal/users/service.go` (`FindOrCreateGoogleUser`)
-- Migración: `backend/migrations/00002_auth.sql`
-- Ver también [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (mismo par
-  de tokens se emite para login por password o por Google)
+- Migration: `backend/migrations/00002_auth.sql`
+- See also [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (the same
+  pair of tokens is issued for login by password or by Google)

@@ -35,7 +35,7 @@ async function handleSaveUsername() {
   }
 }
 
-// ------------------------------------------------------------- contraseña
+// ------------------------------------------------------------- password
 const currentPassword = ref('')
 const newPassword = ref('')
 const newPasswordConfirm = ref('')
@@ -88,7 +88,7 @@ async function handleSaveMoxfieldUsername() {
   }
 }
 
-// ----------------------------------------------------- import en background
+// ----------------------------------------------------- background import
 const importJob = ref<MoxfieldImportJob | null>(null)
 const importError = ref('')
 const isStartingImport = ref(false)
@@ -105,7 +105,7 @@ function pollImportStatus(jobId: string) {
     try {
       importJob.value = await getMoxfieldImportStatus(jobId)
     } catch {
-      // Best-effort: un error de red puntual no debe cortar el polling.
+      // Best-effort: a one-off network error shouldn't stop polling.
     }
     if (importJob.value?.status === 'in_progress') {
       pollImportStatus(jobId)

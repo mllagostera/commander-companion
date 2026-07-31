@@ -18,7 +18,7 @@ const renamedPlaygroupName = "Nombre nuevo"
 
 func truncatePlaygroupsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	// "playgroups" limpia playgroup_members por CASCADE; "users" limpia cualquier resto.
+	// "playgroups" cleans up playgroup_members via CASCADE; "users" cleans up any remainder.
 	testutil.Truncate(t, pool, "playgroups", "users")
 }
 
@@ -45,10 +45,10 @@ func mustCreatePlaygroup(t *testing.T, svc playgroups.Service, userID, name stri
 	return res
 }
 
-// asFiberError traduce el error de dominio que devuelve el service a su equivalente
-// HTTP con common.MapError (los services ya no dependen de fiber, ver
-// internal/common/errors.go), para poder seguir verificando el status code que ve
-// el cliente.
+// asFiberError translates the domain error returned by the service to its HTTP
+// equivalent with common.MapError (services no longer depend on fiber, see
+// internal/common/errors.go), so we can keep verifying the status code the
+// client sees.
 func asFiberError(t *testing.T, err error) *fiber.Error {
 	t.Helper()
 	var fiberErr *fiber.Error
@@ -102,7 +102,7 @@ func TestGetPlaygroup_NotAMember_ReturnsNotFound(t *testing.T) {
 
 	created := mustCreatePlaygroup(t, svc, owner.ID, "Privado")
 
-	// No se distingue "no existe" de "no sos miembro".
+	// "doesn't exist" isn't distinguished from "you're not a member".
 	_, err := svc.GetPlaygroup(context.Background(), outsider.ID, created.ID)
 	if !errors.Is(err, playgroups.ErrPlaygroupNotFound) {
 		t.Fatalf("GetPlaygroup() de un grupo ajeno: error = %v, want ErrPlaygroupNotFound", err)
@@ -142,8 +142,8 @@ func TestListPlaygroups_OnlyReturnsMemberships(t *testing.T) {
 	}
 }
 
-// El listado necesita los miembros poblados para que la web muestre la cantidad
-// de integrantes sin un GetPlaygroup extra por grupo.
+// The listing needs the members populated so the web can show the member
+// count without an extra GetPlaygroup per group.
 func TestListPlaygroups_IncludesMembers(t *testing.T) {
 	pool := testutil.DB(t)
 	truncatePlaygroupsTables(t, pool)
@@ -226,7 +226,7 @@ func TestAddMember_TargetAlreadyMember_ReturnsConflict(t *testing.T) {
 
 	playgroup := mustCreatePlaygroup(t, svc, owner.ID, "G")
 
-	// El propio creador ya es miembro (se auto-agregó al crear el grupo).
+	// The creator themselves is already a member (they were auto-added when creating the group).
 	_, err := svc.AddMember(context.Background(), playgroup.ID, owner.ID, playgroups.AddMemberRequest{UserID: owner.ID})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
 		t.Fatalf("AddMember() de alguien ya miembro: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
@@ -276,8 +276,8 @@ func TestUpdatePlaygroup_EmptyName_ReturnsBadRequest(t *testing.T) {
 	}
 }
 
-// Mismo criterio de "no revelar" que AddMember: alguien ajeno al grupo no puede
-// editarlo, y la respuesta no distingue "no existe" de "no sos miembro".
+// Same "don't reveal" criteria as AddMember: someone outside the group can't
+// edit it, and the response doesn't distinguish "doesn't exist" from "you're not a member".
 func TestUpdatePlaygroup_RequesterNotMember_ReturnsNotFound(t *testing.T) {
 	pool := testutil.DB(t)
 	truncatePlaygroupsTables(t, pool)

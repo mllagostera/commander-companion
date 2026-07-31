@@ -1,9 +1,9 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- Daño de comandante acumulado por par atacante-defensor dentro de una partida
--- (regla real de Commander: 21+ de una misma fuente elimina, independiente del
--- life_total agregado). Ver internal/game-actions/service.go: applyCommanderDamage.
+-- Commander damage accumulated per attacker-defender pair within a game
+-- (real Commander rule: 21+ from the same source eliminates, independent of
+-- aggregate life_total). See internal/game-actions/service.go: applyCommanderDamage.
 CREATE TABLE commander_damage (
   game_id     uuid REFERENCES games(id),
   attacker_id uuid REFERENCES game_players(id),

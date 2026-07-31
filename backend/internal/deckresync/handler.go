@@ -6,25 +6,25 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// Handler contiene las dependencias del transporte HTTP para deckresync.
+// Handler holds the HTTP transport dependencies for deckresync.
 type Handler struct {
 	svc Service
 }
 
-// NewHandler inicializa y retorna un nuevo Handler.
+// NewHandler initializes and returns a new Handler.
 func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo deckresync.
+// RegisterRoutes registers all the endpoints of the deckresync module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/decks/resync-all", h.StartResyncAll)
 	router.Get("/decks/resync-all/:jobId", h.GetJobStatus)
 }
 
-// StartResyncAll dispara en background la resincronización de todos los decks con
-// moxfield_id del usuario autenticado. Responde 202: el job queda in_progress, el
-// progreso se consulta con GetJobStatus.
+// StartResyncAll triggers in the background the resynchronization of all decks
+// with moxfield_id belonging to the authenticated user. Responds 202: the job is
+// left in_progress, progress is queried with GetJobStatus.
 func (h *Handler) StartResyncAll(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.StartResyncAll(c.Context(), userID)
@@ -34,7 +34,7 @@ func (h *Handler) StartResyncAll(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusAccepted).JSON(res)
 }
 
-// GetJobStatus devuelve el estado de un job de resync, acotado al usuario autenticado.
+// GetJobStatus returns the status of a resync job, restricted to the authenticated user.
 func (h *Handler) GetJobStatus(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetJobStatus(c.Context(), userID, c.Params("jobId"))

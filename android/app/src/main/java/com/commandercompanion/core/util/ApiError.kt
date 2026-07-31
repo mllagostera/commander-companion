@@ -5,25 +5,25 @@ import retrofit2.HttpException
 import java.io.IOException
 
 /**
- * Error normalizado de una llamada a la API.
+ * Normalized error from an API call.
  *
- * Existe para que los repositorios devuelvan siempre el mismo tipo de fallo y los `ViewModel`
- * no tengan que conocer Retrofit/OkHttp (hoy `LoginViewModel` cachea `HttpException`/`IOException`
- * a mano en cada método; todo lo nuevo pasa por acá).
+ * Exists so repositories always return the same failure type and `ViewModel`s don't have to
+ * know about Retrofit/OkHttp (today `LoginViewModel` catches `HttpException`/`IOException`
+ * by hand in each method; everything new goes through here).
  */
 sealed class ApiError(message: String, cause: Throwable? = null) : Exception(message, cause) {
 
-    /** El servidor respondió, pero con un código de error (4xx/5xx). */
+    /** The server responded, but with an error code (4xx/5xx). */
     class Http(val code: Int, cause: Throwable? = null) : ApiError("HTTP $code", cause)
 
-    /** No se pudo hablar con el servidor (sin red, timeout, DNS, etc.). */
+    /** Couldn't reach the server (no network, timeout, DNS, etc.). */
     class Network(cause: IOException) : ApiError("Sin conexión con el servidor", cause)
 
-    /** Cualquier otra cosa: parseo de JSON, error de programación, etc. */
+    /** Anything else: JSON parsing, a programming error, etc. */
     class Unexpected(cause: Throwable) : ApiError(cause.message ?: "Error inesperado", cause)
 }
 
-/** Mensaje listo para mostrar en la UI. Genérico a propósito: cada pantalla puede afinarlo. */
+/** Message ready to show in the UI. Deliberately generic: each screen can refine it. */
 fun ApiError.toUserMessage(): String = when (this) {
     is ApiError.Http -> when (code) {
         401 -> "Tu sesión expiró, iniciá sesión de nuevo"
@@ -37,11 +37,11 @@ fun ApiError.toUserMessage(): String = when (this) {
 }
 
 /**
- * Envuelve una llamada de red y traduce sus excepciones a [ApiError].
+ * Wraps a network call and translates its exceptions into [ApiError].
  *
- * `CancellationException` se **re-lanza** en vez de convertirse en `Result.failure`: si el scope
- * de la corrutina se canceló (el usuario salió de la pantalla), tragarla rompería la cancelación
- * estructurada y el llamador seguiría ejecutando código de "error" sobre una pantalla muerta.
+ * `CancellationException` is **re-thrown** instead of becoming a `Result.failure`: if the
+ * coroutine's scope was cancelled (the user left the screen), swallowing it would break
+ * structured cancellation and the caller would keep running "error" code on a dead screen.
  */
 suspend fun <T> apiCall(block: suspend () -> T): Result<T> =
     try {

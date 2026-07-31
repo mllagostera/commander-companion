@@ -17,11 +17,11 @@ import (
 const (
 	statusActive = "active"
 
-	// Umbrales de eliminación automática según las reglas estándar de Commander.
+	// Automatic elimination thresholds per standard Commander rules.
 	eliminationLifeTotal      = 0
 	eliminationPoisonCounters = 10
-	// eliminationCommanderDamage: 21+ de daño de comandante de una misma fuente
-	// elimina, independiente del life_total agregado (ver applyCommanderDamage).
+	// eliminationCommanderDamage: 21+ commander damage from a single source
+	// eliminates, regardless of aggregate life_total (see applyCommanderDamage).
 	eliminationCommanderDamage = 21
 
 	actionLifeChange      = "LifeChange"
@@ -44,46 +44,46 @@ func isValidActionType(actionType string) bool {
 }
 
 var (
-	// ErrGameNotFound indica que la partida no existe.
+	// ErrGameNotFound indicates that the game doesn't exist.
 	ErrGameNotFound = common.NotFound("game not found")
-	// ErrPlayerNotInGame indica que el actor/target indicado no tiene asiento en esa partida.
+	// ErrPlayerNotInGame indicates that the given actor/target doesn't have a seat in that game.
 	ErrPlayerNotInGame = common.NotFound("player not found in this game")
-	// ErrInvalidActionType indica que el action_type no pertenece al vocabulario soportado.
+	// ErrInvalidActionType indicates that action_type isn't part of the supported vocabulary.
 	ErrInvalidActionType = common.InvalidInput("invalid action_type")
-	// ErrInvalidActorID indica que el actor_id recibido no es un UUID válido.
+	// ErrInvalidActorID indicates that the received actor_id isn't a valid UUID.
 	ErrInvalidActorID = common.InvalidInput("invalid actor_id")
-	// ErrInvalidTargetID indica que el target_id recibido no es un UUID válido.
+	// ErrInvalidTargetID indicates that the received target_id isn't a valid UUID.
 	ErrInvalidTargetID = common.InvalidInput("invalid target_id")
-	// ErrAmountRequired indica que la acción necesita un payload.amount y no lo trae.
+	// ErrAmountRequired indicates that the action needs a payload.amount and doesn't have one.
 	ErrAmountRequired = common.InvalidInput("payload.amount is required")
-	// ErrAmountNotNumeric indica que payload.amount no es un número.
+	// ErrAmountNotNumeric indicates that payload.amount isn't a number.
 	ErrAmountNotNumeric = common.InvalidInput("payload.amount must be a number")
-	// ErrGameNotActive indica que solo se pueden registrar acciones en una partida activa.
+	// ErrGameNotActive indicates that actions can only be recorded in an active game.
 	ErrGameNotActive = common.Conflict("game is not active")
-	// ErrCommanderDamageTargetRequired indica que CommanderDamage necesita un
-	// target_id distinto del actor (no tiene sentido sin un defensor identificado,
-	// ya que el daño se trackea por par atacante-defensor).
+	// ErrCommanderDamageTargetRequired indicates that CommanderDamage needs a
+	// target_id different from the actor (it doesn't make sense without an
+	// identified defender, since the damage is tracked per attacker-defender pair).
 	ErrCommanderDamageTargetRequired = common.InvalidInput("commander damage requires a target_id different from actor_id")
-	// ErrNotAuthorizedForActor indica que el caller no es dueño del GamePlayer actor
-	// ni quien lo unió como proxy (game_players.added_by, ver ADR-0013).
+	// ErrNotAuthorizedForActor indicates that the caller isn't the owner of the
+	// actor GamePlayer nor the one who added them as a proxy (game_players.added_by, see ADR-0013).
 	ErrNotAuthorizedForActor = common.Forbidden("not authorized to act on behalf of this player")
 )
 
-// Broadcaster es lo que game-actions necesita para retransmitir en vivo, por
-// WebSocket, una acción recién registrada a los clientes conectados a esa partida
-// (permite mockearlo en tests y evita que este paquete dependa de internal/websocket,
-// mismo patrón que games.StatisticsRecalculator). El broadcast es best-effort y
-// asíncrono: la implementación nunca debe bloquear ni fallar RecordAction. Ver
+// Broadcaster is what game-actions needs to relay a just-recorded action live, via
+// WebSocket, to the clients connected to that game (allows mocking it in tests and
+// keeps this package from depending on internal/websocket, same pattern as
+// games.StatisticsRecalculator). The broadcast is best-effort and
+// asynchronous: the implementation must never block or fail RecordAction. See
 // ADR-0005 (docs/decisions/0005-websocket-protocol.md).
 type Broadcaster interface {
 	BroadcastAction(gameID string, action *GameActionResponse)
 }
 
-// Service define la lógica de negocio del módulo game-actions.
+// Service defines the business logic of the game-actions module.
 type Service interface {
-	// RecordAction registra una acción. callerUserID es el usuario autenticado
-	// (JWT): debe ser el dueño del GamePlayer actor o quien lo unió como proxy
-	// (ver ADR-0013), o se rechaza con ErrNotAuthorizedForActor.
+	// RecordAction records an action. callerUserID is the authenticated user
+	// (JWT): they must be the owner of the actor GamePlayer or the one who added
+	// them as a proxy (see ADR-0013), or it's rejected with ErrNotAuthorizedForActor.
 	RecordAction(ctx context.Context, gameID, callerUserID string, req CreateActionRequest) (*GameActionResponse, error)
 	GetTimeline(ctx context.Context, gameID string) ([]GameActionResponse, error)
 }
@@ -94,20 +94,20 @@ type service struct {
 	broadcaster Broadcaster
 }
 
-// NewService crea un nuevo servicio de game-actions.
+// NewService creates a new game-actions service.
 func NewService(db *pgxpool.Pool, broadcaster Broadcaster) Service {
 	return &service{repo: New(db), pool: db, broadcaster: broadcaster}
 }
 
-// RecordAction registra una nueva acción (LifeChange, CombatDamage, CommanderDamage,
-// PoisonCounter, TurnStart, TurnEnd, Elimination) dentro de una partida activa, y
-// aplica sus efectos sobre el estado del jugador afectado (vida, veneno, eliminación).
+// RecordAction records a new action (LifeChange, CombatDamage, CommanderDamage,
+// PoisonCounter, TurnStart, TurnEnd, Elimination) within an active game, and
+// applies its effects to the affected player's state (life, poison, elimination).
 //
-// El camino de escritura completo (resolución de actor/target, mutación de estado, y
-// el log de la acción) corre dentro de una única transacción: antes de CommanderDamage
-// (que necesita dos escrituras atómicas — la tabla de daño por fuente y life_total)
-// cada paso era una llamada independiente, con la posibilidad de que un crash a mitad
-// de camino dejara un cambio de vida aplicado sin su entrada de log correspondiente.
+// The complete write path (actor/target resolution, state mutation, and the
+// action log) runs inside a single transaction: before CommanderDamage
+// (which needs two atomic writes — the per-source damage table and life_total)
+// each step was an independent call, with the possibility that a crash mid-way
+// through would leave a life change applied without its corresponding log entry.
 func (s *service) RecordAction(
 	ctx context.Context, gameID, callerUserID string, req CreateActionRequest,
 ) (*GameActionResponse, error) {
@@ -162,7 +162,7 @@ func (s *service) RecordAction(
 	return res, nil
 }
 
-// resolveActiveGame valida que la partida exista y esté activa, y devuelve su ID parseado.
+// resolveActiveGame validates that the game exists and is active, and returns its parsed ID.
 func (s *service) resolveActiveGame(ctx context.Context, q *Queries, gameID string) (pgtype.UUID, error) {
 	gid, err := common.ParseUUID(gameID)
 	if err != nil {
@@ -182,9 +182,9 @@ func (s *service) resolveActiveGame(ctx context.Context, q *Queries, gameID stri
 	return gid, nil
 }
 
-// resolveActionSubject resuelve el actor y, si se indicó, el target de la acción. El
-// sujeto sobre el que se aplican los efectos es el target si se indicó uno; si no, el
-// propio actor (p. ej. LifeChange sobre uno mismo, o Elimination por rendición voluntaria).
+// resolveActionSubject resolves the actor and, if given, the target of the action. The
+// subject the effects are applied to is the target if one was given; if not, the
+// actor themselves (e.g. LifeChange on oneself, or Elimination by voluntary concession).
 func (s *service) resolveActionSubject(
 	ctx context.Context, q *Queries, gid pgtype.UUID, callerUserID string, req CreateActionRequest,
 ) (actorID pgtype.UUID, subject *GamePlayer, targetID pgtype.UUID, err error) {
@@ -215,7 +215,7 @@ func (s *service) resolveActionSubject(
 	return actorID, target, targetID, nil
 }
 
-// GetTimeline devuelve el historial completo de acciones de una partida.
+// GetTimeline returns the complete action history of a game.
 func (s *service) GetTimeline(ctx context.Context, gameID string) ([]GameActionResponse, error) {
 	gid, err := common.ParseUUID(gameID)
 	if err != nil {
@@ -241,11 +241,11 @@ func (s *service) GetTimeline(ctx context.Context, gameID string) ([]GameActionR
 	return result, nil
 }
 
-// applyAction muta el estado del jugador afectado según el tipo de acción. player es
-// el sujeto de la mutación (target si se indicó, si no el propio actor); actorID y
-// hasTarget se necesitan aparte para CommanderDamage, que trackea daño por par
-// atacante-defensor y por eso sí distingue al actor del sujeto (a diferencia del
-// resto de las acciones, para las que alcanza con el sujeto).
+// applyAction mutates the affected player's state according to the action type. player
+// is the subject of the mutation (target if given, otherwise the actor themselves);
+// actorID and hasTarget are needed separately for CommanderDamage, which tracks
+// damage per attacker-defender pair and therefore does distinguish the actor from the
+// subject (unlike the rest of the actions, for which the subject is enough).
 func (s *service) applyAction(
 	ctx context.Context, q *Queries, actionType string, gid, actorID pgtype.UUID, hasTarget bool,
 	player *GamePlayer, payload map[string]interface{},
@@ -285,9 +285,9 @@ func (s *service) adjustLife(ctx context.Context, q *Queries, playerID pgtype.UU
 	return nil
 }
 
-// applyLifeDelta lee payload.amount y lo aplica a life_total multiplicado por sign:
-// 1 para LifeChange (el amount ya viene con el signo que quiere el cliente), -1 para
-// CombatDamage (amount es siempre "cuánto daño", nunca negativo).
+// applyLifeDelta reads payload.amount and applies it to life_total multiplied by sign:
+// 1 for LifeChange (the amount already comes with the sign the client wants), -1 for
+// CombatDamage (amount is always "how much damage", never negative).
 func (s *service) applyLifeDelta(
 	ctx context.Context, q *Queries, playerID pgtype.UUID, payload map[string]interface{}, sign int32,
 ) error {
@@ -298,13 +298,13 @@ func (s *service) applyLifeDelta(
 	return s.adjustLife(ctx, q, playerID, sign*amount)
 }
 
-// applyCommanderDamage acumula el daño de comandante del atacante contra el defensor
-// (commander_damage.amount, upsert atómico) y aplica la misma cantidad a life_total
-// como cualquier otro daño. Elimina al defensor si su vida llega a 0, igual que
-// adjustLife, o si el daño acumulado de ESTE atacante llega a 21 (regla real de
-// Commander), aunque le quede vida positiva de otras fuentes. Requiere un target_id
-// distinto del actor (no tiene sentido trackear daño de comandante sin un defensor
-// identificado).
+// applyCommanderDamage accumulates the attacker's commander damage against the
+// defender (commander_damage.amount, atomic upsert) and applies the same amount to
+// life_total like any other damage. It eliminates the defender if their life reaches
+// 0, same as adjustLife, or if THIS attacker's accumulated damage reaches 21 (real
+// Commander rule), even if they still have positive life from other sources. Requires
+// a target_id different from the actor (it doesn't make sense to track commander
+// damage without an identified defender).
 func (s *service) applyCommanderDamage(
 	ctx context.Context, q *Queries, gid, attackerID, defenderID pgtype.UUID, hasTarget bool,
 	payload map[string]interface{},
@@ -361,8 +361,8 @@ func (s *service) eliminate(ctx context.Context, q *Queries, playerID pgtype.UUI
 	return nil
 }
 
-// setCurrentTurn fija de quién es el turno ahora (TurnStart). No modela orden de
-// turno (quién sigue) — solo responde "de quién es el turno ahora".
+// setCurrentTurn sets whose turn it is now (TurnStart). It doesn't model turn
+// order (who's next) — it only answers "whose turn is it now".
 func (s *service) setCurrentTurn(ctx context.Context, q *Queries, gid, playerID pgtype.UUID) error {
 	_, err := q.SetCurrentTurnPlayer(ctx, SetCurrentTurnPlayerParams{
 		ID:                  gid,
@@ -374,8 +374,8 @@ func (s *service) setCurrentTurn(ctx context.Context, q *Queries, gid, playerID 
 	return nil
 }
 
-// clearCurrentTurn limpia de quién es el turno (TurnEnd); el siguiente TurnStart lo
-// vuelve a fijar.
+// clearCurrentTurn clears whose turn it is (TurnEnd); the next TurnStart
+// sets it again.
 func (s *service) clearCurrentTurn(ctx context.Context, q *Queries, gid pgtype.UUID) error {
 	_, err := q.SetCurrentTurnPlayer(ctx, SetCurrentTurnPlayerParams{ID: gid})
 	if err != nil {
@@ -384,10 +384,10 @@ func (s *service) clearCurrentTurn(ctx context.Context, q *Queries, gid pgtype.U
 	return nil
 }
 
-// authorizeActor exige que callerUserID sea el dueño del GamePlayer actor o quien lo
-// unió como proxy (added_by, ver ADR-0013). Antes de esto, RecordAction no validaba
-// en absoluto que actor_id perteneciera al caller — cualquier usuario autenticado que
-// conociera un game_id y un actor_id podía registrar acciones en su nombre.
+// authorizeActor requires that callerUserID be the owner of the actor GamePlayer or
+// the one who added them as a proxy (added_by, see ADR-0013). Before this,
+// RecordAction didn't validate at all that actor_id belonged to the caller — any
+// authenticated user who knew a game_id and an actor_id could record actions on their behalf.
 func authorizeActor(actor *GamePlayer, callerUserID string) error {
 	if actor.UserID.String() == callerUserID {
 		return nil

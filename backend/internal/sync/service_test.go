@@ -10,9 +10,9 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/sync"
 )
 
-// mockResyncer satisface sync.DeckResyncer: el trabajo real (BD + Moxfield) vive en
-// internal/decks y ya está cubierto por sus propios tests de integración, así que acá
-// solo se verifica la traducción estado-de-deck → DTO de sync, sin tocar Postgres.
+// mockResyncer satisfies sync.DeckResyncer: the real work (DB + Moxfield) lives in
+// internal/decks and is already covered by its own integration tests, so here we
+// only verify the deck-state → sync DTO translation, without touching Postgres.
 type mockResyncer struct {
 	state *decks.MoxfieldSyncState
 	err   error
@@ -78,8 +78,8 @@ func TestTriggerSync_Unchanged(t *testing.T) {
 	}
 }
 
-// Los errores de dominio de decks se propagan tal cual: el 404 de un deck no
-// importado tiene que llegar al handler como decks.ErrDeckNotFound.
+// Deck domain errors propagate as-is: the 404 for a deck that wasn't
+// imported has to reach the handler as decks.ErrDeckNotFound.
 func TestTriggerSync_PropagatesDeckError(t *testing.T) {
 	mock := &mockResyncer{err: decks.ErrDeckNotFound}
 

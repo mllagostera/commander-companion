@@ -1,9 +1,9 @@
-// Tipos de la API Go. Espejo de los schemas de docs/api/openapi.yaml.
+// Go API types. Mirrors the schemas from docs/api/openapi.yaml.
 
 /**
- * Envoltorio de paginación cursor-based de `GET /decks` y `GET /games`
- * (`DeckListResponse`/`GameListResponse`). `next_cursor` es `null` en la última página.
- * Ningún consumidor de este cliente pagina todavía — se lee siempre `items` entero.
+ * Cursor-based pagination wrapper for `GET /decks` and `GET /games`
+ * (`DeckListResponse`/`GameListResponse`). `next_cursor` is `null` on the last page.
+ * No consumer of this client paginates yet — `items` is always read in full.
  */
 export interface PaginatedResponse<T> {
   items: T[]
@@ -20,10 +20,10 @@ export interface Deck {
 }
 
 /**
- * Respuesta de `POST /sync/moxfield` y `GET /sync/status`.
- * status: "updated"/"unchanged" en el POST (según Moxfield trajo cambios o
- * no), "synced"/"never_synced" en el GET (según el deck tenga o no un sync
- * previo registrado).
+ * Response from `POST /sync/moxfield` and `GET /sync/status`.
+ * status: "updated"/"unchanged" on the POST (depending on whether Moxfield had
+ * changes or not), "synced"/"never_synced" on the GET (depending on whether the
+ * deck has a previous sync recorded or not).
  */
 export interface SyncResponse {
   status: 'updated' | 'unchanged' | 'synced' | 'never_synced'
@@ -32,9 +32,9 @@ export interface SyncResponse {
 }
 
 /**
- * Job de importación masiva de Moxfield (`POST /moxfield-import`,
- * `GET /moxfield-import/{jobId}`). Importa en background todos los decks
- * públicos del moxfield_username vinculado al perfil.
+ * Bulk Moxfield import job (`POST /moxfield-import`,
+ * `GET /moxfield-import/{jobId}`). Imports in the background all the public
+ * decks of the moxfield_username linked to the profile.
  */
 export interface MoxfieldImportJob {
   id: string
@@ -47,10 +47,10 @@ export interface MoxfieldImportJob {
 }
 
 /**
- * Job de resync masivo de decks (`POST /decks/resync-all`,
- * `GET /decks/resync-all/{jobId}`). Actualiza en background todos los decks
- * YA IMPORTADOS que tengan moxfield_id — distinto de MoxfieldImportJob, que
- * trae decks nuevos a partir de un username.
+ * Bulk deck resync job (`POST /decks/resync-all`,
+ * `GET /decks/resync-all/{jobId}`). Updates in the background all decks
+ * ALREADY IMPORTED that have a moxfield_id — different from MoxfieldImportJob, which
+ * brings in new decks from a username.
  */
 export interface DeckResyncJob {
   id: string
@@ -79,8 +79,8 @@ export interface DeckStats {
 }
 
 /**
- * Grupo de juego (`GET/POST /playgroups`, `GET /playgroups/{id}`). `members`
- * viene poblado tanto en el listado como en el detalle.
+ * Playgroup (`GET/POST /playgroups`, `GET /playgroups/{id}`). `members`
+ * comes populated both in the listing and in the detail view.
  */
 export interface Playgroup {
   id: string
@@ -95,16 +95,16 @@ export interface PlaygroupMember {
 }
 
 /**
- * Resultado de `GET /users/search`. A diferencia de un miembro de playgroup, no trae
- * `playgroup_id` (no está atado a ningún grupo todavía) ni email (ver UserSearchResult
- * en el backend — nunca se expone el email de un tercero en una búsqueda).
+ * Result of `GET /users/search`. Unlike a playgroup member, it doesn't carry
+ * `playgroup_id` (not tied to any group yet) or email (see UserSearchResult
+ * in the backend — a third party's email is never exposed in a search).
  */
 export interface UserSearchResult {
   id: string
   username: string
 }
 
-/** Estado de un jugador dentro de una partida (`GameResponse.players`). */
+/** State of a player within a game (`GameResponse.players`). */
 export interface GamePlayer {
   id: string
   game_id: string
@@ -118,9 +118,9 @@ export interface GamePlayer {
 }
 
 /**
- * Partida (`GET /games`, `GET /games/{id}`, historial de un grupo vía
- * `GET /games?playgroup_id=`). `players` viene poblado en el detalle y en el
- * historial de grupo, pero no en el listado global paginado.
+ * Game (`GET /games`, `GET /games/{id}`, a group's history via
+ * `GET /games?playgroup_id=`). `players` comes populated in the detail view and in the
+ * group history, but not in the paginated global listing.
  */
 export interface Game {
   id: string

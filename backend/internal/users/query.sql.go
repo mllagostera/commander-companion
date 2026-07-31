@@ -56,10 +56,10 @@ type CreateUserParams struct {
 	EmailVerified bool        `json:"email_verified"`
 }
 
-// email_verified es explícito (no el default de la columna): RegisterUser decide su
-// valor según config.RequireEmailVerification (ver ADR-0012). CreateUserWithGoogle no
-// lo toca a propósito, así que usa el default de la columna (true) — Google ya confirma
-// el email en su id_token.
+// email_verified is explicit (not the column default): RegisterUser decides its
+// value based on config.RequireEmailVerification (see ADR-0012). CreateUserWithGoogle
+// deliberately doesn't touch it, so it uses the column default (true) — Google already
+// confirms the email in its id_token.
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createUser,
 		arg.Username,
@@ -210,9 +210,9 @@ type LinkGoogleIDParams struct {
 	GoogleID pgtype.Text `json:"google_id"`
 }
 
-// email_verified se fuerza a true al vincular: FindOrCreateGoogleUser ya comprobó que
-// Google confirma este email antes de llamar a esta query, así que una cuenta
-// email/password todavía no verificada queda verificada por esta vía también.
+// email_verified is forced to true when linking: FindOrCreateGoogleUser already checked
+// that Google confirms this email before calling this query, so an email/password
+// account that isn't verified yet also gets verified through this path.
 func (q *Queries) LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (User, error) {
 	row := q.db.QueryRow(ctx, linkGoogleID, arg.ID, arg.GoogleID)
 	var i User
@@ -252,10 +252,10 @@ type SearchUsersByUsernameParams struct {
 	ResultLimit int32       `json:"result_limit"`
 }
 
-// Búsqueda parcial case-insensitive de username, para invitar gente a un playgroup sin
-// conocer su UUID (ver internal/playgroups). A propósito NO busca por email de esta
-// forma (parcial): permitiría enumerar direcciones de correo ajenas por prefijo/substring.
-// La búsqueda por email exacta se resuelve aparte, con GetUserByEmail.
+// Partial, case-insensitive username search, to invite people to a playgroup without
+// knowing their UUID (see internal/playgroups). Deliberately does NOT search by email
+// this way (partial): it would allow enumerating other people's email addresses by
+// prefix/substring. Exact email search is handled separately, via GetUserByEmail.
 func (q *Queries) SearchUsersByUsername(ctx context.Context, arg SearchUsersByUsernameParams) ([]User, error) {
 	rows, err := q.db.Query(ctx, searchUsersByUsername, arg.Pattern, arg.ResultLimit)
 	if err != nil {

@@ -1,11 +1,11 @@
-// Package email manda el mail transaccional de verificación de cuenta vía Resend.
+// Package email sends the transactional account verification mail via Resend.
 //
-// El contenido (asunto, copy, layout) vive en un Template del dashboard de Resend, no
-// acá: este paquete solo referencia el template por ID y le pasa las variables
-// (USERNAME, VERIFY_URL). El link de verificación se renderiza en el template como
-// texto plano (no como botón/href) porque la REST API de Resend rompe las URLs que
-// van dentro de un atributo href cuando vienen de una variable de template (bug
-// abierto: https://github.com/resend/react-email/issues/3247).
+// The content (subject, copy, layout) lives in a Template in the Resend dashboard, not
+// here: this package only references the template by ID and passes it the variables
+// (USERNAME, VERIFY_URL). The verification link is rendered in the template as
+// plain text (not as a button/href) because Resend's REST API breaks URLs that
+// go inside an href attribute when they come from a template variable (see the
+// open issue at https://github.com/resend/react-email/issues/3247).
 package email
 
 import (
@@ -24,27 +24,27 @@ const resendEmailsURL = "https://api.resend.com/emails"
 
 const httpTimeout = 10 * time.Second
 
-// ErrResendRequestFailed indica que Resend respondió con un status de error al mandar
-// el mail (API key inválida, template no publicado, etc.).
+// ErrResendRequestFailed indicates that Resend responded with an error status when sending
+// the mail (invalid API key, unpublished template, etc.).
 var ErrResendRequestFailed = errors.New("resend request failed")
 
-// Config agrupa los parámetros de configuración del envío de mail transaccional.
+// Config groups the configuration parameters for sending transactional mail.
 type Config struct {
 	APIKey                string
 	FromAddress           string
 	VerifyEmailTemplateID string
 }
 
-// Sender es lo que el resto del backend necesita para mandar el mail de verificación
-// de cuenta.
+// Sender is what the rest of the backend needs to send the account verification
+// mail.
 type Sender interface {
 	SendVerificationEmail(ctx context.Context, to, username, verifyURL string) error
 }
 
-// NewResendClient construye el cliente de envío de mail. Si cfg.APIKey está vacío
-// (sin cuenta de Resend configurada) devuelve un mailer "de consola" que loguea el
-// link de verificación en vez de mandarlo, para que el desarrollo local no dependa de
-// tener una cuenta de Resend (ver docker-compose.yml).
+// NewResendClient builds the mail-sending client. If cfg.APIKey is empty
+// (no Resend account configured) it returns a "console" mailer that logs the
+// verification link instead of sending it, so local development doesn't depend on
+// having a Resend account (see docker-compose.yml).
 func NewResendClient(cfg Config) Sender {
 	if cfg.APIKey == "" {
 		return &consoleClient{}
@@ -59,7 +59,7 @@ func NewResendClient(cfg Config) Sender {
 
 type consoleClient struct{}
 
-// SendVerificationEmail loguea el link de verificación en vez de mandarlo (ver
+// SendVerificationEmail logs the verification link instead of sending it (see
 // NewResendClient).
 func (c *consoleClient) SendVerificationEmail(_ context.Context, to, username, verifyURL string) error {
 	log.Printf("[email consola] verificación para %s (%s): %s", username, to, verifyURL)
@@ -84,7 +84,7 @@ type resendSendRequest struct {
 	Template resendTemplate `json:"template"`
 }
 
-// SendVerificationEmail manda el mail vía el Template de Resend configurado (ver
+// SendVerificationEmail sends the mail via the configured Resend Template (see
 // Config.VerifyEmailTemplateID).
 func (c *resendClient) SendVerificationEmail(ctx context.Context, to, username, verifyURL string) error {
 	payload, err := json.Marshal(resendSendRequest{

@@ -36,9 +36,9 @@ import com.commandercompanion.presentation.theme.AccentSoft
 import com.commandercompanion.presentation.theme.AppFaint
 
 /**
- * Login real: email/password contra `POST /auth/login`, Google Sign-In (Credential Manager)
- * contra `POST /auth/google`, ambos vía [LoginViewModel]. Antes esto era un shell de navegación
- * puro que no autenticaba contra nada (ver historial de decisiones en `docs/roadmap/TASKS.md`).
+ * Real login: email/password against `POST /auth/login`, Google Sign-In (Credential Manager)
+ * against `POST /auth/google`, both via [LoginViewModel]. This used to be a pure navigation
+ * shell that didn't authenticate against anything (see the decision history in `docs/roadmap/TASKS.md`).
  */
 @Composable
 fun LoginScreen(

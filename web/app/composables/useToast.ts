@@ -1,8 +1,8 @@
 /**
- * Toast global de confirmación ("Grupo creado", "Sesión cerrada", etc.).
- * Aditivo a los mensajes inline de cada formulario, no un reemplazo: errores
- * y éxitos de un form puntual se siguen mostrando ahí mismo, el toast es para
- * acciones que no tienen "un lugar" propio en la pantalla donde mostrarse.
+ * Global confirmation toast ("Group created", "Session closed", etc.).
+ * Additive to each form's inline messages, not a replacement: a specific form's
+ * errors and successes still show right there, the toast is for
+ * actions that don't have "a place" of their own on screen to show in.
  */
 export function useToast() {
   const message = useState<string | null>('cc-toast', () => null)

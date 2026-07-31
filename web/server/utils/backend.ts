@@ -1,18 +1,18 @@
 import type { H3Event } from 'h3'
 
 /**
- * Capa BFF (Backend For Frontend) entre el navegador y la API Go.
+ * BFF (Backend For Frontend) layer between the browser and the Go API.
  *
- * Diseño de sesión (ver web/README.md):
- *  - `cc_access_token` y `cc_refresh_token` son cookies **httpOnly**: las setea
- *    y las lee solo Nitro, el JS del navegador nunca las ve. Un XSS ya no puede
- *    robar los tokens.
- *  - `cc_session` es una cookie NO httpOnly que solo contiene el marcador "1".
- *    No es un credencial: sirve para que el middleware de rutas sepa, tanto en
- *    SSR como en el cliente, si hay sesión sin tener que pegarle a la API.
- *  - El navegador nunca habla con la API Go directamente: todo pasa por
- *    `/api/auth/*` y por el proxy `/api/backend/**`, que inyectan el Bearer
- *    desde la cookie httpOnly.
+ * Session design (see web/README.md):
+ *  - `cc_access_token` and `cc_refresh_token` are **httpOnly** cookies: only Nitro
+ *    sets and reads them, the browser's JS never sees them. An XSS can no longer
+ *    steal the tokens.
+ *  - `cc_session` is a NON-httpOnly cookie that only contains the "1" marker.
+ *    It's not a credential: it lets the route middleware know, both in
+ *    SSR and on the client, whether there's a session without having to hit the API.
+ *  - The browser never talks to the Go API directly: everything goes through
+ *    `/api/auth/*` and the `/api/backend/**` proxy, which inject the Bearer
+ *    from the httpOnly cookie.
  */
 
 export interface AuthUser {
@@ -21,7 +21,7 @@ export interface AuthUser {
   email: string
   created_at: string
   moxfield_username?: string | null
-  /** false = cuenta creada vía Google Sign-In, sin password propio. */
+  /** false = account created via Google Sign-In, with no password of its own. */
   has_password: boolean
 }
 
@@ -35,15 +35,15 @@ export interface TokenResponse {
 
 export const ACCESS_COOKIE = 'cc_access_token'
 export const REFRESH_COOKIE = 'cc_refresh_token'
-/** Marcador legible desde JS. NO contiene el token, solo indica "hay sesión". */
+/** Marker readable from JS. Does NOT contain the token, only signals "there's a session". */
 export const SESSION_COOKIE = 'cc_session'
 
-/** Debe cubrir al menos REFRESH_TOKEN_TTL del backend (720h = 30 días). */
+/** Must cover at least the backend's REFRESH_TOKEN_TTL (720h = 30 days). */
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30
-/** Fallback si el backend no informa expires_in. */
+/** Fallback if the backend doesn't report expires_in. */
 const DEFAULT_ACCESS_MAX_AGE = 15 * 60
 
-/** URL base de la API Go vista desde el proceso Nitro (ver nuxt.config.ts). */
+/** Base URL of the Go API as seen from the Nitro process (see nuxt.config.ts). */
 export function backendBase(event: H3Event): string {
   const config = useRuntimeConfig(event)
   return config.apiBase || config.public.apiBase
@@ -53,8 +53,8 @@ function baseCookieOptions(event: H3Event) {
   return {
     path: '/',
     sameSite: 'lax' as const,
-    // En dev y en Docker Compose se sirve por http://localhost, donde `secure`
-    // haría que el navegador descarte la cookie.
+    // In dev and Docker Compose it's served over http://localhost, where `secure`
+    // would make the browser discard the cookie.
     secure: getRequestProtocol(event) === 'https',
   }
 }
@@ -85,7 +85,7 @@ export function clearSessionCookies(event: H3Event) {
   }
 }
 
-/** Traduce un error de ofetch contra la API Go a un error de h3 equivalente. */
+/** Translates an ofetch error against the Go API into an equivalent h3 error. */
 export function toBackendError(err: unknown) {
   const e = err as {
     status?: number
@@ -111,12 +111,12 @@ function statusOf(err: unknown): number | undefined {
 }
 
 /**
- * Refrescos en vuelo, indexados por refresh token.
+ * In-flight refreshes, indexed by refresh token.
  *
- * El backend **rota** el refresh token (revoca el anterior en cada /auth/refresh),
- * así que si dos requests paralelos reciben 401 a la vez y ambos refrescan, el
- * segundo fallaría y cerraría la sesión. Nitro es un único proceso Node, así
- * que alcanza con deduplicar la llamada en memoria.
+ * The backend **rotates** the refresh token (revokes the previous one on every /auth/refresh),
+ * so if two parallel requests get a 401 at the same time and both refresh, the
+ * second one would fail and end the session. Nitro is a single Node process, so
+ * it's enough to deduplicate the call in memory.
  */
 const inFlightRefresh = new Map<string, Promise<TokenResponse | null>>()
 
@@ -142,8 +142,8 @@ async function callRefresh(
 }
 
 /**
- * Canjea el refresh token por un access token nuevo y actualiza las cookies.
- * Devuelve null (y limpia la sesión) si el refresh token ya no sirve.
+ * Exchanges the refresh token for a new access token and updates the cookies.
+ * Returns null (and clears the session) if the refresh token is no longer valid.
  */
 export async function refreshSession(event: H3Event): Promise<string | null> {
   const refreshToken = getCookie(event, REFRESH_COOKIE)
@@ -179,9 +179,9 @@ export interface BackendFetchOptions {
 }
 
 /**
- * Llama a la API Go con el access token de la cookie httpOnly. Si la API
- * responde 401 (access token expirado), refresca una única vez y reintenta.
- * Mismo espíritu que el `AuthAuthenticator` de OkHttp en el cliente Android.
+ * Calls the Go API with the access token from the httpOnly cookie. If the API
+ * responds with 401 (expired access token), refreshes once and retries.
+ * Same spirit as the `AuthAuthenticator` from OkHttp in the Android client.
  */
 export async function backendFetch<T>(
   event: H3Event,
@@ -199,8 +199,8 @@ export async function backendFetch<T>(
 
   let token = getCookie(event, ACCESS_COOKIE)
 
-  // Sin access token (la cookie caducó antes que el refresh token): refrescamos
-  // de entrada en vez de gastar un request que sabemos que va a dar 401.
+  // No access token (the cookie expired before the refresh token): we refresh
+  // upfront instead of spending a request we already know will return 401.
   if (!token) {
     token = (await refreshSession(event)) ?? undefined
     if (!token) throw sessionExpired()

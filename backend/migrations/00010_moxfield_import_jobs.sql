@@ -1,10 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- Import masivo y asíncrono de todos los decks públicos de un usuario de Moxfield
--- (ver internal/moxfieldimport). Contadores agregados, no un ítem por deck: alcanza
--- para una barra de progreso; una tabla moxfield_import_job_items queda como
--- expansión futura si hace falta detalle por deck.
+-- Bulk, asynchronous import of all of a Moxfield user's public decks
+-- (see internal/moxfieldimport). Aggregate counters, not one item per deck: this is
+-- enough for a progress bar; a moxfield_import_job_items table is left as a
+-- future expansion if per-deck detail is ever needed.
 CREATE TABLE moxfield_import_jobs (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           uuid REFERENCES users(id),
@@ -21,8 +21,8 @@ CREATE TABLE moxfield_import_jobs (
     CHECK (status IN ('pending', 'in_progress', 'completed', 'failed'))
 );
 
--- Un solo job activo por usuario a la vez, para no permitir dos importaciones
--- concurrentes del mismo usuario machacando Moxfield en paralelo.
+-- Only one active job per user at a time, to prevent two concurrent
+-- imports for the same user from hammering Moxfield in parallel.
 CREATE UNIQUE INDEX moxfield_import_jobs_active_user_idx
   ON moxfield_import_jobs (user_id) WHERE status IN ('pending', 'in_progress');
 

@@ -45,9 +45,9 @@ import com.commandercompanion.presentation.theme.colorForKey
 import kotlin.random.Random
 
 /**
- * Solo tiene sentido jugada en horizontal (cada asiento mira hacia su propio borde de la
- * "mesa"), así que en portrait mostramos el prompt de girar el dispositivo — orientación real
- * vía `LocalConfiguration`, no un timer simulado.
+ * Only makes sense played in landscape (each seat faces its own edge of the
+ * "table"), so in portrait we show the prompt to rotate the device — real orientation
+ * via `LocalConfiguration`, not a simulated timer.
  */
 @Composable
 fun PreGameScreen(

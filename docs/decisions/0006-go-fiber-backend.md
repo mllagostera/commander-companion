@@ -1,73 +1,71 @@
-# ADR-0006: Backend en Go con Fiber como framework HTTP
+# ADR-0006: Backend in Go with Fiber as the HTTP framework
 
-**Estado:** Aceptada e implementada — **decisión heredada, contexto
-reconstruido**. Esta decisión es anterior al inicio del historial de ADRs
-del proyecto (0001-0004, tomadas 2026-07-26); no hay registro contemporáneo
-de por qué se eligió. Este documento se redacta retroactivamente
-(2026-07-27) a partir de lo que ya está construido y confirmado en el
-código (`backend/go.mod`, `backend/cmd/api/main.go`), no de una discusión
-real que se haya presenciado.
+**Status:** Accepted and implemented — **inherited decision, context
+reconstructed**. This decision predates the start of the project's ADR
+history (0001-0004, made 2026-07-26); there's no contemporary record of why
+it was chosen. This document is written retroactively (2026-07-27) based on
+what's already built and confirmed in the code (`backend/go.mod`,
+`backend/cmd/api/main.go`), not from a real discussion that was witnessed.
 
-## Contexto
+## Context
 
-El ROADMAP (`docs/roadmap/ROADMAP.md`) fija desde el principio "Go,
-Gin/Fiber, PostgreSQL, sqlc, goose, Docker" como stack de Stage 1, y
-"Arquitectura escalable" y "rapidez durante la partida" como objetivos de
-producto. Había que elegir lenguaje y framework HTTP para una API REST
-stateless, versionada (`/api/v1`), que sirve tanto al cliente Android nativo
-como, después, a un cliente web (ver ADR-0004).
+The ROADMAP (`docs/roadmap/ROADMAP.md`) sets "Go, Gin/Fiber, PostgreSQL,
+sqlc, goose, Docker" as the Stage 1 stack from the outset, and "scalable
+architecture" and "speed during the game" as product goals. A language and
+HTTP framework had to be chosen for a stateless, versioned REST API
+(`/api/v1`), serving both the native Android client and, later, a web
+client (see ADR-0004).
 
-## Decisión
+## Decision
 
-- **Lenguaje: Go** (`go 1.25.0` en `go.mod`).
-- **Framework HTTP: Fiber v2** (`github.com/gofiber/fiber/v2 v2.52.14`),
-  sobre `fasthttp` en vez del router `net/http` estándar o Gin (la otra
-  opción que el propio ROADMAP dejaba abierta con "Gin/Fiber").
+- **Language: Go** (`go 1.25.0` in `go.mod`).
+- **HTTP framework: Fiber v2** (`github.com/gofiber/fiber/v2 v2.52.14`),
+  built on `fasthttp` instead of the standard `net/http` router or Gin (the
+  other option the ROADMAP itself left open with "Gin/Fiber").
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **Gin**: el ROADMAP lo menciona como alternativa explícita
-  ("Gin/Fiber"). Ambos son frameworks maduros de rendimiento comparable en
-  el ecosistema Go; se optó por Fiber probablemente por su API inspirada en
-  Express (`c.Params`, `c.BodyParser`, middlewares con la misma firma que
-  Node/Express), que reduce fricción de onboarding si el equipo viene de un
-  stack JS/TS — el propio proyecto termina sumando un cliente Nuxt (ADR-0004)
-  y una herramienta de test HTML (`tools/auth-test/`), consistente con
-  familiaridad JS en el equipo.
-- **`net/http` + router estándar (`chi`, `gorilla/mux`)**: más "sin
-  dependencias" y más cercano a la librería estándar, pero requiere ensamblar
-  a mano cosas que Fiber trae integradas (grouping de rutas, middleware de
-  CORS ya usado vía `github.com/gofiber/fiber/v2/middleware/cors`, parsing de
-  body). Para un equipo chico shippeando rápido, la superficie de Fiber ya
-  lista se paga sola.
-- **Otro lenguaje (Node/TypeScript, Python)**: dado que el cliente principal
-  es Android nativo (no un framework JS compartido tipo React Native), no
-  había presión de compartir código de dominio con el cliente; Go ofrece
-  binarios de despliegue simples (un solo ejecutable + Docker liviano),
-  tipado estático y buen soporte de concurrencia — razonable para una API
-  que en fases posteriores (ver `ROADMAP.md`, "en fases posteriores") crece
-  a Match Engine + Statistics Engine con Websocket.
+- **Gin**: the ROADMAP mentions it as an explicit alternative
+  ("Gin/Fiber"). Both are mature frameworks with comparable performance in
+  the Go ecosystem; Fiber was probably chosen for its Express-inspired API
+  (`c.Params`, `c.BodyParser`, middlewares with the same signature as
+  Node/Express), which reduces onboarding friction if the team comes from a
+  JS/TS stack — the project itself ends up adding a Nuxt client (ADR-0004)
+  and an HTML test tool (`tools/auth-test/`), consistent with JS
+  familiarity on the team.
+- **`net/http` + a standard router (`chi`, `gorilla/mux`)**: more
+  "dependency-free" and closer to the standard library, but requires
+  manually assembling things Fiber already includes (route grouping, CORS
+  middleware already used via `github.com/gofiber/fiber/v2/middleware/cors`,
+  body parsing). For a small team shipping fast, Fiber's ready-made surface
+  pays for itself.
+- **Another language (Node/TypeScript, Python)**: given that the main
+  client is native Android (not a shared JS framework like React Native),
+  there was no pressure to share domain code with the client; Go offers
+  simple deployment binaries (a single executable + lightweight Docker),
+  static typing, and good concurrency support — reasonable for an API that,
+  in later phases (see `ROADMAP.md`, "in later phases"), grows into a Match
+  Engine + Statistics Engine with WebSocket.
 
-## Consecuencias
+## Consequences
 
-- Fiber está construido sobre `fasthttp`, no sobre `net/http` — algunas
-  librerías del ecosistema Go estándar que asumen `http.Handler` no son
-  directamente compatibles y requieren un adaptador o el equivalente nativo
-  de Fiber (en la práctica no ha sido un problema: auth, CORS, y las rutas
-  de todos los módulos usan la API nativa de Fiber).
-- La elección ya está profundamente enraizada en el código (`main.go`
-  registra todos los módulos como grupos de rutas Fiber,
-  `fiber.NewError` se usa como mecanismo estándar de mapear errores de
-  dominio a códigos HTTP en todos los `service.go`) — revertir a otro
-  framework HTTP hoy implicaría tocar el código de error-handling de los
-  ocho módulos de `internal/`.
-- Go como lenguaje fija el resto de la cadena de herramientas del backend:
-  `sqlc` para generar código de acceso a datos tipado (ver ADR-0008),
-  `golangci-lint` para linting, y el propio modelo de concurrencia de Go para
-  cuando se implemente el Websocket de Stage 6.
+- Fiber is built on `fasthttp`, not on `net/http` — some standard Go
+  ecosystem libraries that assume `http.Handler` aren't directly
+  compatible and require an adapter or Fiber's native equivalent (in
+  practice this hasn't been a problem: auth, CORS, and the routes of all
+  modules use Fiber's native API).
+- The choice is already deeply rooted in the code (`main.go` registers all
+  modules as Fiber route groups, `fiber.NewError` is used as the standard
+  mechanism to map domain errors to HTTP codes across all `service.go`
+  files) — reverting to another HTTP framework today would mean touching
+  the error-handling code of all eight `internal/` modules.
+- Go as the language fixes the rest of the backend toolchain: `sqlc` to
+  generate typed data-access code (see ADR-0008), `golangci-lint` for
+  linting, and Go's own concurrency model for when the Stage 6 WebSocket is
+  implemented.
 
-## Referencias
+## References
 
 - `backend/go.mod`
 - `backend/cmd/api/main.go`
-- `docs/roadmap/ROADMAP.md`, sección "Stage 1: Backend"
+- `docs/roadmap/ROADMAP.md`, "Stage 1: Backend" section

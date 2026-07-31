@@ -1,9 +1,9 @@
 import type { TokenResponse } from '../../utils/backend'
 
 /**
- * Login (o alta) con Google. El id_token de Google Identity Services viaja del
- * navegador a Nitro y de Nitro a la API Go; los tokens de sesión que devuelve
- * la API quedan en cookies httpOnly.
+ * Login (or sign-up) with Google. The Google Identity Services id_token travels from the
+ * browser to Nitro and from Nitro to the Go API; the session tokens the API
+ * returns end up in httpOnly cookies.
  */
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ id_token?: string }>(event)

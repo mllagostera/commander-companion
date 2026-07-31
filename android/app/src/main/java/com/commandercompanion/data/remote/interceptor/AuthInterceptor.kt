@@ -7,12 +7,12 @@ import okhttp3.Response
 import javax.inject.Inject
 
 /**
- * Adjunta el access token (si hay sesión) como Bearer a cada request del cliente HTTP
- * autenticado (ver `NetworkModule` — usado por `CommanderApi`, no por `AuthApi`: login/google/
- * refresh/logout son públicos según el spec).
+ * Attaches the access token (if there's a session) as a Bearer to every request of the
+ * authenticated HTTP client (see `NetworkModule` — used by `CommanderApi`, not by `AuthApi`:
+ * login/google/refresh/logout are public per the spec).
  *
- * `runBlocking` es intencional: `Interceptor.intercept` es una API síncrona de OkHttp (corre en
- * el dispatcher de OkHttp, no en una corrutina), y la lectura de DataStore es rápida (I/O local).
+ * `runBlocking` is intentional: `Interceptor.intercept` is a synchronous OkHttp API (it runs on
+ * OkHttp's dispatcher, not in a coroutine), and reading from DataStore is fast (local I/O).
  */
 class AuthInterceptor @Inject constructor(
     private val sessionManager: SessionManager

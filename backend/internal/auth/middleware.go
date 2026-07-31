@@ -10,8 +10,8 @@ import (
 
 const bearerPrefix = "Bearer "
 
-// RequireAuth valida el Bearer token del header Authorization y guarda el ID del
-// usuario autenticado en el contexto de la request bajo common.UserIDKey.
+// RequireAuth validates the Bearer token from the Authorization header and stores the
+// authenticated user's ID in the request context under common.UserIDKey.
 func RequireAuth(secret []byte) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		header := c.Get(fiber.HeaderAuthorization)

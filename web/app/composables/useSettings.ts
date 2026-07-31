@@ -2,10 +2,10 @@ import type { AuthUser } from './useAuth'
 import type { MoxfieldImportJob } from '~/types/api'
 
 /**
- * Ajustes de la cuenta propia: cambio de password y vínculo con Moxfield
- * (username de perfil + import masivo en background). Separado de `useAuth`
- * porque estos endpoints van por el proxy autenticado (`useApi`/`/api/backend`),
- * no por `/api/auth/*` (ver el comentario de `useApi.ts`).
+ * Own account settings: password change and Moxfield linking
+ * (profile username + background bulk import). Kept separate from `useAuth`
+ * because these endpoints go through the authenticated proxy (`useApi`/`/api/backend`),
+ * not through `/api/auth/*` (see the comment in `useApi.ts`).
  */
 export function useSettings() {
   const { apiFetch } = useApi()
@@ -17,7 +17,7 @@ export function useSettings() {
     return id
   }
 
-  /** Vincula (o cambia) el username de Moxfield del perfil propio. */
+  /** Links (or changes) the profile's own Moxfield username. */
   function updateMoxfieldUsername(moxfieldUsername: string) {
     return apiFetch<AuthUser>(`/users/${requireUserId()}`, {
       method: 'PATCH',
@@ -25,7 +25,7 @@ export function useSettings() {
     })
   }
 
-  /** Cambia el username de login/perfil propio (distinto del de Moxfield). 409 si ya está en uso. */
+  /** Changes the own login/profile username (different from the Moxfield one). 409 if already in use. */
   function updateUsername(username: string) {
     return apiFetch<AuthUser>(`/users/${requireUserId()}`, {
       method: 'PATCH',
@@ -33,7 +33,7 @@ export function useSettings() {
     })
   }
 
-  /** 204 sin body si el password actual es correcto y el nuevo se aplicó. */
+  /** 204 with no body if the current password is correct and the new one was applied. */
   function changePassword(currentPassword: string, newPassword: string) {
     return apiFetch<null>(`/users/${requireUserId()}/password`, {
       method: 'POST',
@@ -41,7 +41,7 @@ export function useSettings() {
     })
   }
 
-  /** Dispara el import masivo de todos los decks públicos del moxfield_username vinculado. */
+  /** Triggers the bulk import of all public decks of the linked moxfield_username. */
   function startMoxfieldImport() {
     return apiFetch<MoxfieldImportJob>('/moxfield-import', { method: 'POST' })
   }
@@ -60,11 +60,11 @@ export function useSettings() {
 }
 
 /**
- * Traduce los errores de POST /users/{id}/password. 401 cubre dos casos de
- * dominio distintos (password actual incorrecto y cuenta de Google sin
- * password propio, ver internal/users/service.go): se distinguen por el
- * contenido del mensaje, mismo criterio que moxfieldImportError con el 400
- * de "sin comandante".
+ * Translates POST /users/{id}/password errors. 401 covers two distinct
+ * domain cases (incorrect current password and a Google account with no
+ * password of its own, see internal/users/service.go): they're distinguished by the
+ * message content, same approach as moxfieldImportError with the 400
+ * for "no commander".
  */
 export function changePasswordError(err: unknown): string {
   const { t } = useI18n()
@@ -80,12 +80,12 @@ export function changePasswordError(err: unknown): string {
   }
 }
 
-/** Traduce los errores de PATCH /users/{id} al actualizar moxfield_username. */
+/** Translates PATCH /users/{id} errors when updating moxfield_username. */
 export function updateMoxfieldUsernameError(err: unknown): string {
   return apiErrorMessage(err, useI18n().t('errors.updateMoxfieldUsername.generic'))
 }
 
-/** Traduce los errores de PATCH /users/{id} al actualizar el username de login. */
+/** Translates PATCH /users/{id} errors when updating the login username. */
 export function updateUsernameError(err: unknown): string {
   const { t } = useI18n()
   if (apiErrorStatus(err) === 409) return t('errors.updateUsername.taken')
@@ -93,9 +93,9 @@ export function updateUsernameError(err: unknown): string {
 }
 
 /**
- * Traduce los errores de POST /moxfield-import. 501 es el estado esperado hoy:
- * MoxfieldClient.ListDecksByUsername es un stub (ver internal/moxfieldimport,
- * doc del paquete) hasta confirmar el endpoint real de Moxfield.
+ * Translates POST /moxfield-import errors. 501 is the expected state today:
+ * MoxfieldClient.ListDecksByUsername is a stub (see internal/moxfieldimport,
+ * the package doc) until the real Moxfield endpoint is confirmed.
  */
 export function startMoxfieldImportError(err: unknown): string {
   const { t } = useI18n()

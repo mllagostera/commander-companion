@@ -4,11 +4,11 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * DTOs de `/statistics`, siguiendo `UserStatsResponse`/`DeckStatsResponse`/`PlaygroupStatsResponse`
- * de `docs/api/openapi.yaml`.
+ * DTOs for `/statistics`, following `UserStatsResponse`/`DeckStatsResponse`/`PlaygroupStatsResponse`
+ * in `docs/api/openapi.yaml`.
  *
- * El backend devuelve ceros (no 404) cuando el usuario/deck todavía no terminó ninguna partida,
- * así que no hace falta modelar "sin datos" como un caso aparte.
+ * The backend returns zeros (not 404) when the user/deck hasn't finished any game yet,
+ * so there's no need to model "no data" as a separate case.
  */
 
 @Serializable

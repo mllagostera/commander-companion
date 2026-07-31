@@ -17,8 +17,8 @@ const { data: playgroup, refresh, error: loadError } = await useAsyncData<Playgr
   { default: () => null },
 )
 
-// Las stats son best-effort: un grupo recién creado, sin partidas todavía, no
-// tiene fila en playgroup_statistics_summary y el endpoint puede devolver 404.
+// Stats are best-effort: a freshly created group, with no games yet, doesn't
+// have a row in playgroup_statistics_summary and the endpoint may return 404.
 const { data: stats } = await useAsyncData<PlaygroupStats | null>(
   `playgroup-stats-${playgroupId}`,
   () => playgroupStats(playgroupId).catch(() => null),
@@ -31,7 +31,7 @@ const { data: games, error: gamesError } = await useAsyncData<Game[]>(
   { default: () => [] },
 )
 
-/** user_id -> username, para no mostrar UUIDs crudos en stats ni en el historial. */
+/** user_id -> username, to avoid showing raw UUIDs in stats or in the history. */
 const usernameByUserId = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {}
   for (const member of playgroup.value?.members ?? []) map[member.user_id] = member.username
@@ -59,8 +59,8 @@ const rankedMembers = computed(() => {
     .map((m, i) => ({ ...m, rank: i + 1, username: usernameFor(m.user_id) }))
 })
 
-// -------------------------------------------------------------- renombrar
-const isRenaming_ = ref(false) // abre/cierra el input inline junto al título
+// -------------------------------------------------------------- rename
+const isRenaming_ = ref(false) // opens/closes the inline input next to the title
 const editedName = ref(playgroup.value?.name ?? '')
 const renameError = ref('')
 const isRenaming = ref(false)
@@ -86,12 +86,12 @@ async function handleRename() {
   }
 }
 
-// ------------------------------------------------------------ miembros
+// ------------------------------------------------------------ members
 const isAddMemberOpen = ref(false)
 const addError = ref('')
 const isAdding = ref(false)
 
-// ------------------------------------------------------- busqueda de usuarios
+// ------------------------------------------------------- user search
 const memberQuery = ref('')
 const searchResults = ref<UserSearchResult[]>([])
 const isSearching = ref(false)

@@ -38,7 +38,7 @@ SELECT * FROM playgroup_members WHERE playgroup_id = $1 AND user_id = $2 LIMIT 1
 SELECT * FROM users WHERE id = $1 LIMIT 1;
 
 -- name: ListDecksByUserID :many
--- Decks de un usuario, para el picker de "con qué deck juega" un compañero de
--- grupo en un proxy-join (ver ADR-0013). La autorización (¿comparte el caller un
--- playgroup con este usuario?) la hace el service, no esta query.
+-- A user's decks, for the "which deck are they playing" picker when proxy-joining
+-- a fellow group member (see ADR-0013). Authorization (does the caller share a
+-- playgroup with this user?) is done by the service, not this query.
 SELECT * FROM decks WHERE user_id = $1 ORDER BY created_at DESC;

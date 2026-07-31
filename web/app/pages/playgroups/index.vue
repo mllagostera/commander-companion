@@ -15,8 +15,8 @@ const { data: playgroups, refresh, error: listError } = await useAsyncData<Playg
   'playgroups',
   async () => {
     const list = await listPlaygroups()
-    // games_played es best-effort: un grupo que nunca jugó puede devolver 404
-    // (ver GetPlaygroupStats en internal/statistics/service.go).
+    // games_played is best-effort: a group that never played may return 404
+    // (see GetPlaygroupStats in internal/statistics/service.go).
     return Promise.all(
       list.map(async (playgroup) => ({
         ...playgroup,

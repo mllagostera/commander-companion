@@ -13,33 +13,33 @@ import (
 )
 
 var (
-	// ErrPlaygroupNotFound indica que el grupo no existe o el usuario no es miembro de él.
+	// ErrPlaygroupNotFound indicates that the group doesn't exist or the user isn't a member of it.
 	ErrPlaygroupNotFound = common.NotFound("playgroup not found")
-	// ErrUserNotFound indica que el usuario a añadir al grupo no existe.
+	// ErrUserNotFound indicates that the user to add to the group doesn't exist.
 	ErrUserNotFound = common.NotFound("user not found")
-	// ErrNameRequired indica que se intentó crear un grupo sin nombre.
+	// ErrNameRequired indicates an attempt to create a group without a name.
 	ErrNameRequired = common.InvalidInput("name is required")
-	// ErrInvalidUserID indica que el user_id recibido no es un UUID válido.
+	// ErrInvalidUserID indicates that the received user_id isn't a valid UUID.
 	ErrInvalidUserID = common.InvalidInput("invalid user_id")
-	// ErrAlreadyMember indica que el usuario ya pertenece al grupo.
+	// ErrAlreadyMember indicates that the user already belongs to the group.
 	ErrAlreadyMember = common.Conflict("user is already a member")
 )
 
-// Service define la lógica de negocio del módulo playgroups.
+// Service defines the business logic of the playgroups module.
 type Service interface {
 	CreatePlaygroup(ctx context.Context, userID string, req CreatePlaygroupRequest) (*PlaygroupResponse, error)
 	GetPlaygroup(ctx context.Context, userID, id string) (*PlaygroupResponse, error)
 	ListPlaygroups(ctx context.Context, userID string) ([]PlaygroupResponse, error)
 	AddMember(ctx context.Context, playgroupID, requesterID string, req AddMemberRequest) (*PlaygroupMemberResponse, error)
-	// UpdatePlaygroup renombra un grupo. Solo un miembro existente puede hacerlo.
+	// UpdatePlaygroup renames a group. Only an existing member can do it.
 	UpdatePlaygroup(
 		ctx context.Context, playgroupID, requesterID string, req UpdatePlaygroupRequest,
 	) (*PlaygroupResponse, error)
-	// IsMember confirma si userID pertenece a playgroupID. Usado por games.JoinGame
-	// para autorizar un proxy-join (ver ADR-0013) — implementa games.PlaygroupMembership.
+	// IsMember confirms whether userID belongs to playgroupID. Used by games.JoinGame
+	// to authorize a proxy-join (see ADR-0013) — implements games.PlaygroupMembership.
 	IsMember(ctx context.Context, playgroupID, userID string) (bool, error)
-	// ListMemberDecks devuelve los decks de memberUserID, si requesterID también es
-	// miembro de playgroupID (ver ADR-0013).
+	// ListMemberDecks returns memberUserID's decks, if requesterID is also a
+	// member of playgroupID (see ADR-0013).
 	ListMemberDecks(ctx context.Context, playgroupID, requesterID, memberUserID string) ([]DeckResponse, error)
 }
 
@@ -47,12 +47,12 @@ type service struct {
 	repo *Queries
 }
 
-// NewService crea un nuevo servicio de playgroups.
+// NewService creates a new playgroups service.
 func NewService(db *pgxpool.Pool) Service {
 	return &service{repo: New(db)}
 }
 
-// CreatePlaygroup crea un nuevo grupo de juego y añade al creador como primer miembro.
+// CreatePlaygroup creates a new playgroup and adds the creator as its first member.
 func (s *service) CreatePlaygroup(
 	ctx context.Context, userID string, req CreatePlaygroupRequest,
 ) (*PlaygroupResponse, error) {
@@ -83,7 +83,7 @@ func (s *service) CreatePlaygroup(
 	return toPlaygroupResponse(&playgroup, members), nil
 }
 
-// GetPlaygroup devuelve el detalle de un grupo, si el usuario indicado es miembro.
+// GetPlaygroup returns the detail of a group, if the given user is a member.
 func (s *service) GetPlaygroup(ctx context.Context, userID, id string) (*PlaygroupResponse, error) {
 	playgroup, err := s.getMemberPlaygroup(ctx, userID, id)
 	if err != nil {
@@ -97,9 +97,9 @@ func (s *service) GetPlaygroup(ctx context.Context, userID, id string) (*Playgro
 	return toPlaygroupResponse(playgroup, members), nil
 }
 
-// ListPlaygroups devuelve los grupos de los que el usuario indicado es miembro,
-// con sus miembros poblados (a diferencia de antes: el listado de la web necesita
-// mostrar la cantidad de miembros sin un round-trip extra por grupo).
+// ListPlaygroups returns the groups the given user is a member of,
+// with their members populated (unlike before: the web listing needs
+// to show the member count without an extra round-trip per group).
 func (s *service) ListPlaygroups(ctx context.Context, userID string) ([]PlaygroupResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
@@ -122,8 +122,8 @@ func (s *service) ListPlaygroups(ctx context.Context, userID string) ([]Playgrou
 	return result, nil
 }
 
-// AddMember añade un usuario a un grupo de juego. Solo un miembro existente puede
-// invitar a otros; el usuario a añadir debe existir y no estar ya en el grupo.
+// AddMember adds a user to a playgroup. Only an existing member can
+// invite others; the user to add must exist and not already be in the group.
 func (s *service) AddMember(
 	ctx context.Context, playgroupID, requesterID string, req AddMemberRequest,
 ) (*PlaygroupMemberResponse, error) {
@@ -164,9 +164,9 @@ func (s *service) AddMember(
 	}, nil
 }
 
-// UpdatePlaygroup renombra un grupo de juego. Mismo criterio de autorización que
-// AddMember: solo un miembro existente puede editarlo, y un grupo ajeno o
-// inexistente responde igual (ErrPlaygroupNotFound), sin distinguir.
+// UpdatePlaygroup renames a playgroup. Same authorization criteria as
+// AddMember: only an existing member can edit it, and a group belonging to
+// someone else or a nonexistent one respond the same way (ErrPlaygroupNotFound), without distinguishing.
 func (s *service) UpdatePlaygroup(
 	ctx context.Context, playgroupID, requesterID string, req UpdatePlaygroupRequest,
 ) (*PlaygroupResponse, error) {
@@ -192,17 +192,17 @@ func (s *service) UpdatePlaygroup(
 	return toPlaygroupResponse(&updated, members), nil
 }
 
-// IsMember confirma si userID pertenece a playgroupID. IDs malformados se tratan
-// como "no es miembro" en vez de propagar un error de parseo: quien llama (games,
-// para un proxy-join) ya validó sus propios IDs antes de llegar acá.
+// IsMember confirms whether userID belongs to playgroupID. Malformed IDs are treated
+// as "not a member" instead of propagating a parse error: the caller (games,
+// for a proxy-join) has already validated its own IDs before getting here.
 func (s *service) IsMember(ctx context.Context, playgroupID, userID string) (bool, error) {
 	pid, err := common.ParseUUID(playgroupID)
 	if err != nil {
-		return false, nil //nolint:nilerr // ID malformado tratado como "no es miembro" a propósito, ver doc del método
+		return false, nil //nolint:nilerr // malformed ID treated as "not a member" on purpose, see method doc
 	}
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
-		return false, nil //nolint:nilerr // idem
+		return false, nil //nolint:nilerr // same as above
 	}
 
 	_, err = s.repo.GetPlaygroupMember(ctx, GetPlaygroupMemberParams{PlaygroupID: pid, UserID: uid})
@@ -215,10 +215,10 @@ func (s *service) IsMember(ctx context.Context, playgroupID, userID string) (boo
 	return true, nil
 }
 
-// ListMemberDecks devuelve los decks de memberUserID. Autorización: requesterID
-// tiene que ser miembro de playgroupID (getMemberPlaygroup) Y memberUserID también
-// — sin distinguir "grupo ajeno" de "ese usuario no es miembro", mismo criterio de
-// no revelar que el resto del módulo.
+// ListMemberDecks returns memberUserID's decks. Authorization: requesterID
+// has to be a member of playgroupID (getMemberPlaygroup) AND memberUserID too
+// — without distinguishing "someone else's group" from "that user isn't a member",
+// same "don't reveal" criteria as the rest of the module.
 func (s *service) ListMemberDecks(
 	ctx context.Context, playgroupID, requesterID, memberUserID string,
 ) ([]DeckResponse, error) {
@@ -252,8 +252,8 @@ func (s *service) ListMemberDecks(
 	return result, nil
 }
 
-// getMemberPlaygroup resuelve un grupo por ID solo si el usuario indicado es miembro; no
-// distingue "el grupo no existe" de "no sos miembro", para no revelar grupos ajenos.
+// getMemberPlaygroup resolves a group by ID only if the given user is a member; it doesn't
+// distinguish "the group doesn't exist" from "you're not a member", so as not to reveal other users' groups.
 func (s *service) getMemberPlaygroup(ctx context.Context, userID, id string) (*Playgroup, error) {
 	pid, err := common.ParseUUID(id)
 	if err != nil {

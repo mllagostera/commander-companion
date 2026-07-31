@@ -6,17 +6,17 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// Handler contiene las dependencias del transporte HTTP para decks.
+// Handler contains the HTTP transport dependencies for decks.
 type Handler struct {
 	svc Service
 }
 
-// NewHandler inicializa y retorna un nuevo Handler.
+// NewHandler initializes and returns a new Handler.
 func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo decks.
+// RegisterRoutes registers all endpoints of the decks module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/decks", h.ListDecks)
 	router.Post("/decks", h.CreateDeck)
@@ -25,7 +25,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Delete("/decks/:id", h.DeleteDeck)
 }
 
-// CreateDeck maneja la creación manual de un deck.
+// CreateDeck handles the manual creation of a deck.
 func (h *Handler) CreateDeck(c *fiber.Ctx) error {
 	var req CreateDeckRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -40,7 +40,7 @@ func (h *Handler) CreateDeck(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// ImportMoxfield importa un deck público de Moxfield como un deck nuevo del usuario autenticado.
+// ImportMoxfield imports a public Moxfield deck as a new deck for the authenticated user.
 func (h *Handler) ImportMoxfield(c *fiber.Ctx) error {
 	var req ImportMoxfieldRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -55,8 +55,8 @@ func (h *Handler) ImportMoxfield(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// ListDecks devuelve una página de los decks del usuario autenticado. Acepta los
-// query params `cursor` y `limit` (ver internal/common/pagination.go).
+// ListDecks returns a page of the authenticated user's decks. Accepts the
+// `cursor` and `limit` query params (see internal/common/pagination.go).
 func (h *Handler) ListDecks(c *fiber.Ctx) error {
 	page, err := common.ParsePageRequest(c)
 	if err != nil {
@@ -71,7 +71,7 @@ func (h *Handler) ListDecks(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// GetDeck devuelve el detalle de un deck del usuario autenticado.
+// GetDeck returns the detail of a deck belonging to the authenticated user.
 func (h *Handler) GetDeck(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetDeck(c.Context(), userID, c.Params("id"))
@@ -81,7 +81,7 @@ func (h *Handler) GetDeck(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// DeleteDeck elimina un deck del usuario autenticado.
+// DeleteDeck deletes a deck belonging to the authenticated user.
 func (h *Handler) DeleteDeck(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	if err := h.svc.DeleteDeck(c.Context(), userID, c.Params("id")); err != nil {

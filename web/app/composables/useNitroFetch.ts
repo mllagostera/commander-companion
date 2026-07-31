@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 
-/** Opciones soportadas al hablar con los endpoints propios de Nitro. */
+/** Supported options when talking to Nitro's own endpoints. */
 export interface NitroFetchArgs {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: Record<string, unknown>
@@ -8,29 +8,29 @@ export interface NitroFetchArgs {
   headers?: Record<string, string>
 }
 
-/** Clave del "cookie jar" por request que vive en el contexto del H3Event. */
+/** Key of the per-request "cookie jar" that lives in the H3Event context. */
 const JAR_KEY = '__ccCookieJar'
 
 type CookieJar = Map<string, string>
 
 /**
- * `$fetch` hacia los endpoints propios de Nitro (`/api/auth/*`,
- * `/api/backend/**`), usable indistintamente en SSR y en el cliente.
+ * `$fetch` to Nitro's own endpoints (`/api/auth/*`,
+ * `/api/backend/**`), usable interchangeably in SSR and on the client.
  *
- * En el navegador no hace falta nada especial: las cookies van y vienen solas.
- * En SSR, en cambio, cada llamada interna corre en su propio H3Event, así que
- * este composable mantiene un cookie jar por request para que:
+ * In the browser nothing special is needed: cookies come and go on their own.
+ * In SSR, on the other hand, every internal call runs in its own H3Event, so
+ * this composable keeps a per-request cookie jar so that:
  *
- *  1. La llamada lleve las cookies de sesión (sin ellas Nitro no vería la
- *     sesión httpOnly). No se usa `useRequestFetch` porque el fetch ligado al
- *     evento que devuelve en SSR no expone `.raw`, y sin `.raw` no se pueden
- *     leer los `Set-Cookie` de la respuesta.
- *  2. Los `Set-Cookie` que emita el handler lleguen al navegador (hay que
- *     copiarlos a mano a la respuesta que sí se envía).
- *  3. **Las llamadas siguientes del mismo render vean esas cookies nuevas.**
- *     Importa porque el backend rota el refresh token: si el plugin de sesión
- *     refresca y después la página pide datos con el header de cookies
- *     original, iría con un refresh token ya revocado y la sesión se caería.
+ *  1. The call carries the session cookies (without them Nitro wouldn't see the
+ *     httpOnly session). `useRequestFetch` isn't used because the fetch bound to
+ *     the event that it returns in SSR doesn't expose `.raw`, and without `.raw` the
+ *     response's `Set-Cookie` headers can't be read.
+ *  2. The `Set-Cookie` headers the handler emits reach the browser (they have to
+ *     be copied by hand to the response that's actually sent).
+ *  3. **Subsequent calls in the same render see those new cookies.**
+ *     This matters because the backend rotates the refresh token: if the session plugin
+ *     refreshes and the page then requests data with the original cookie
+ *     header, it would go with an already-revoked refresh token and the session would drop.
  */
 export function useNitroFetch() {
   const event = import.meta.server ? useRequestEvent() : undefined
@@ -88,7 +88,7 @@ function getJar(event: H3Event, initialCookie: string): CookieJar {
   return jar
 }
 
-/** Aplica un header `Set-Cookie` al jar (alta, cambio o borrado). */
+/** Applies a `Set-Cookie` header to the jar (add, change, or delete). */
 function applySetCookie(jar: CookieJar, setCookie: string) {
   const [pair = '', ...attributes] = setCookie.split(';')
   const separator = pair.indexOf('=')

@@ -24,12 +24,12 @@ const testPassword = "test-password-123"
 type noopMoxfieldClient struct{}
 
 func (noopMoxfieldClient) GetDeck(_ context.Context, _ string) (*moxfield.Deck, error) {
-	return nil, nil //nolint:nilnil // stub nunca invocado en estos tests
+	return nil, nil //nolint:nilnil // stub never invoked in these tests
 }
 
-// noopBroadcaster satisface tanto games.Broadcaster como gameactions.Broadcaster sin
-// retransmitir nada de verdad: estos tests no ejercitan internal/websocket, solo
-// necesitan que la dependencia esté presente para poder construir los servicios.
+// noopBroadcaster satisfies both games.Broadcaster and gameactions.Broadcaster without
+// actually broadcasting anything: these tests don't exercise internal/websocket, they
+// just need the dependency to be present to be able to construct the services.
 type noopBroadcaster struct{}
 
 func (noopBroadcaster) BroadcastGameFinished(_ string)                              {}
@@ -37,8 +37,8 @@ func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionRespon
 
 func truncateStatsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	// "games"/"playgroups" limpian por CASCADE game_players/game_actions/playgroup_members;
-	// "users" limpia decks y los resúmenes de estadísticas (FK a users/decks).
+	// "games"/"playgroups" clean up game_players/game_actions/playgroup_members via CASCADE;
+	// "users" cleans up decks and the statistics summaries (FK to users/decks).
 	testutil.Truncate(t, pool, "games", "playgroups", "users")
 }
 
@@ -263,7 +263,7 @@ func TestRecalculateForGame_WinnerGetsCreditForWinAndDamage(t *testing.T) {
 	loserDeckStats := mustGetDeckStats(t, g.stats, g.user2.ID, g.deck2ID)
 	if loserDeckStats.HighestLifeTotal != 40 {
 		t.Fatalf(
-			"GetDeckStats(loser).HighestLifeTotal = %d, want 40 (nunca ganó vida de más)",
+			"GetDeckStats(loser).HighestLifeTotal = %d, want 40 (never gained extra life)",
 			loserDeckStats.HighestLifeTotal,
 		)
 	}
@@ -280,7 +280,7 @@ func TestRecalculateForGame_NoSurvivors_NoWinnerCredited(t *testing.T) {
 	stats1 := mustGetUserStats(t, g.stats, g.user1.ID)
 	stats2 := mustGetUserStats(t, g.stats, g.user2.ID)
 	if stats1.GamesPlayed != 1 || stats1.GamesWon != 0 || stats2.GamesPlayed != 1 || stats2.GamesWon != 0 {
-		t.Fatalf("sin ganador claro nadie debería sumar games_won: p1=%+v p2=%+v", stats1, stats2)
+		t.Fatalf("with no clear winner, nobody should get games_won: p1=%+v p2=%+v", stats1, stats2)
 	}
 }
 
@@ -292,9 +292,9 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	g1 := setupTwoPlayerGame(t, pool, "")
 	mustFinishGame(t, g1.games, g1.gameID)
 
-	// setupTwoPlayerGame crea usuarios nuevos en cada llamada; para probar la
-	// acumulación real hace falta jugar 2 veces con el MISMO usuario, así que la
-	// segunda partida se arma a mano reutilizando g1.user1/g1.deck1ID.
+	// setupTwoPlayerGame creates new users on every call; to test real
+	// accumulation you need to play twice with the SAME user, so the
+	// second game is built by hand reusing g1.user1/g1.deck1ID.
 	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
 	statsSvc := statistics.NewService(pool)

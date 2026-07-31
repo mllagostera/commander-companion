@@ -4,13 +4,13 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 
 /**
- * Un asiento del tracker. En modo Casual, [assignedUserId]/[assignedUsername]/[deckId] son
- * siempre null (sin identidad remota, sin sync — ver [PlaygroupRepository]). En modo Grupo,
- * un asiento puede quedar asignado a un miembro real del playgroup ([assignedUserId] +
- * [deckId] elegido) o quedar como "invitado" (mismos campos null, igual que Casual). No hace
- * falta saber "cuál asiento soy yo": [GameRepository.bootstrapRemoteGame] pasa el
- * [assignedUserId] de cada asiento asignado tal cual al `join` — el backend decide si es un
- * self-join o un proxy-join comparándolo contra el usuario autenticado.
+ * A tracker seat. In Casual mode, [assignedUserId]/[assignedUsername]/[deckId] are
+ * always null (no remote identity, no sync — see [PlaygroupRepository]). In Group mode,
+ * a seat can be assigned to a real playgroup member ([assignedUserId] + a chosen
+ * [deckId]) or stay a "guest" (same fields null, just like Casual). There's no need to
+ * know "which seat am I": [GameRepository.bootstrapRemoteGame] passes each assigned seat's
+ * [assignedUserId] as-is to `join` — the backend decides whether it's a self-join or a
+ * proxy-join by comparing it against the authenticated user.
  */
 data class PlayerConfig(
     val name: String,

@@ -13,8 +13,8 @@ class DashboardViewModel @Inject constructor(
 ) : ViewModel() {
 
     /**
-     * Revoca el refresh token contra el backend (best-effort), limpia la sesión local (DataStore)
-     * y el estado de credenciales de Google (`clearCredentialState`), y recién entonces navega.
+     * Revokes the refresh token against the backend (best-effort), clears the local session
+     * (DataStore) and the Google credential state (`clearCredentialState`), and only then navigates.
      */
     fun logout(onComplete: () -> Unit) {
         viewModelScope.launch {

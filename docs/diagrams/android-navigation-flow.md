@@ -1,17 +1,17 @@
-# Diagrama: flujo de navegación de Android
+# Diagram: Android navigation flow
 
-Fuente de verdad: `android/app/src/main/java/com/commandercompanion/
-presentation/navigation/AppNavigation.kt` (grafo real del `NavHost`) y
-`Routes.kt` (definición de cada ruta y sus argumentos, con
-`kotlinx.serialization` vía `ExperimentalSafeArgsApi`/`toRoute`).
+Source of truth: `android/app/src/main/java/com/commandercompanion/
+presentation/navigation/AppNavigation.kt` (the real `NavHost` graph) and
+`Routes.kt` (definition of each route and its arguments, with
+`kotlinx.serialization` via `ExperimentalSafeArgsApi`/`toRoute`).
 
-## Grafo de navegación
+## Navigation graph
 
 ```mermaid
 flowchart TD
-    Start([App inicia]) --> Login[LoginRoute\nLoginScreen]
+    Start([App starts]) --> Login[LoginRoute\nLoginScreen]
 
-    Login -->|onLoginSuccess tras login real\nPOST /auth/login o /auth/google\npopUpTo LoginRoute inclusive=true| Dashboard[DashboardRoute\nDashboardScreen]
+    Login -->|onLoginSuccess after real login\nPOST /auth/login or /auth/google\npopUpTo LoginRoute inclusive=true| Dashboard[DashboardRoute\nDashboardScreen]
 
     Dashboard -->|onNewGame| Setup[PlayerSetupRoute\nPlayerSetupScreen]
     Dashboard -->|onViewHistory| History[HistoryRoute\nHistoryScreen]
@@ -25,65 +25,68 @@ flowchart TD
 
     History -->|onBack\npopBackStack| Dashboard
 
-    SessionViewModel["SessionViewModel.forcedLogoutEvents\n(refresh fallido en CUALQUIER pantalla)"] -.->|popUpTo 0 inclusive=true| Login
+    SessionViewModel["SessionViewModel.forcedLogoutEvents\n(failed refresh on ANY screen)"] -.->|popUpTo 0 inclusive=true| Login
 ```
 
-## Detalle de cada ruta
+## Detail of each route
 
-| Ruta | Tipo | Argumentos | Pantalla | Notas |
+| Route | Type | Arguments | Screen | Notes |
 |---|---|---|---|---|
-| `LoginRoute` | `object` | ninguno | `LoginScreen` | `startDestination` del `NavHost`; login real (password o Google) vía `LoginViewModel`, un solo callback `onLoginSuccess` (no uno por método) |
-| `DashboardRoute` | `object` | ninguno | `DashboardScreen` | hub central; se llega acá tras login y tras terminar cualquier partida; expone `onLogout` (`popUpTo(0) { inclusive = true }`, vuelve a `LoginRoute` limpiando todo el back stack) |
-| `PlayerSetupRoute` | `object` | ninguno | `PlayerSetupScreen` | genera el `gameId` (UUID local) y codifica los jugadores antes de navegar; modo Grupo (2026-07-28) también resuelve un `playgroupId`, ver `docs/ux/wireframes.md` |
-| `PreGameRoute` | `data class` | `gameId: String`, `playersEncoded: String`, `playgroupId: String? = null` | `PreGameScreen` | agrega sorteo de turno + mulligans a los `PlayerConfig` recibidos; `playgroupId` (2026-07-28) solo viaja de paso hacia `GameTrackerRoute`, esta pantalla no lo usa |
-| `GameTrackerRoute` | `data class` | `gameId: String`, `playersEncoded: String`, `startingPlayerSeat: Int`, `playgroupId: String? = null` | `GameTrackerScreen` | consumido por `GameViewModel` vía `SavedStateHandle`; `null` = partida Casual (`GameRepository.bootstrapRemoteGame` no crea nada remoto si además ningún asiento tiene `assignedUserId`) |
-| `HistoryRoute` | `object` | ninguno | `HistoryScreen` | lee de Room, no depende de ningún argumento de ruta |
+| `LoginRoute` | `object` | none | `LoginScreen` | `startDestination` of the `NavHost`; real login (password or Google) via `LoginViewModel`, a single `onLoginSuccess` callback (not one per method) |
+| `DashboardRoute` | `object` | none | `DashboardScreen` | central hub; reached after login and after finishing any game; exposes `onLogout` (`popUpTo(0) { inclusive = true }`, returns to `LoginRoute` clearing the whole back stack) |
+| `PlayerSetupRoute` | `object` | none | `PlayerSetupScreen` | generates the `gameId` (local UUID) and encodes the players before navigating; Group mode (2026-07-28) also resolves a `playgroupId`, see `docs/ux/wireframes.md` |
+| `PreGameRoute` | `data class` | `gameId: String`, `playersEncoded: String`, `playgroupId: String? = null` | `PreGameScreen` | adds turn draw + mulligans to the received `PlayerConfig` values; `playgroupId` (2026-07-28) only passes through on the way to `GameTrackerRoute`, this screen doesn't use it |
+| `GameTrackerRoute` | `data class` | `gameId: String`, `playersEncoded: String`, `startingPlayerSeat: Int`, `playgroupId: String? = null` | `GameTrackerScreen` | consumed by `GameViewModel` via `SavedStateHandle`; `null` = Casual game (`GameRepository.bootstrapRemoteGame` creates nothing remote if, additionally, no seat has an `assignedUserId`) |
+| `HistoryRoute` | `object` | none | `HistoryScreen` | reads from Room, does not depend on any route argument |
 
-`playersEncoded` es un string producido por `PlayerConfigCodec`
-(`encodePlayerConfigs`/`decodePlayerConfigs`) con formato
-`name|colorKey|mulligans|assignedUserId|assignedUsername|deckId` por jugador
-(los últimos tres campos, agregados 2026-07-28 para el modo Grupo, van vacíos
-en modo Casual) — decodificación retrocompatible con encodes de menos campos
-(hasta el formato original de 2, sin `mulligans`) para no romper si algún
-caller viejo todavía no los manda.
+`playersEncoded` is a string produced by `PlayerConfigCodec`
+(`encodePlayerConfigs`/`decodePlayerConfigs`) with the format
+`name|colorKey|mulligans|assignedUserId|assignedUsername|deckId` per player
+(the last three fields, added 2026-07-28 for Group mode, are left empty in
+Casual mode) — decoding is backward-compatible with encodes that have fewer
+fields (down to the original 2-field format, without `mulligans`) so as not
+to break if some old caller still doesn't send them.
 
-## Reglas de back stack explícitas en el código
+## Back stack rules explicit in the code
 
-- **Login → Dashboard**: `popUpTo(LoginRoute) { inclusive = true }` — una
-  vez "dentro" de la app, el botón atrás no debe poder volver al login.
-- **PreGame → GameTracker**: `popUpTo(DashboardRoute)` (sin `inclusive`) —
-  al llegar al tracker, tanto `PlayerSetupRoute` como `PreGameRoute`
-  desaparecen del back stack, pero `DashboardRoute` se conserva como tope.
-  Efecto práctico: desde `GameTrackerScreen`, el botón atrás del sistema
-  volvería directo a `DashboardScreen`, no a repetir el setup.
-- **GameTracker → Dashboard** (al finalizar): `popBackStack(DashboardRoute,
-  inclusive = false)` — vuelve al dashboard sin sacarlo del stack.
-- **History → Dashboard**: `popBackStack()` simple (no hay argumentos que
-  limpiar).
+- **Login → Dashboard**: `popUpTo(LoginRoute) { inclusive = true }` — once
+  "inside" the app, the back button must not be able to return to login.
+- **PreGame → GameTracker**: `popUpTo(DashboardRoute)` (without
+  `inclusive`) — on reaching the tracker, both `PlayerSetupRoute` and
+  `PreGameRoute` disappear from the back stack, but `DashboardRoute` is
+  kept as the base. Practical effect: from `GameTrackerScreen`, the
+  system's back button would go straight back to `DashboardScreen`, not
+  repeat the setup.
+- **GameTracker → Dashboard** (on finishing): `popBackStack(DashboardRoute,
+  inclusive = false)` — returns to the dashboard without removing it from
+  the stack.
+- **History → Dashboard**: simple `popBackStack()` (no arguments to
+  clear).
 
-## Qué falta para el flujo objetivo (Stage 4/5)
+## What's missing for the target flow (Stage 4/5)
 
-Este grafo es la **estructura** de navegación, ya considerada "definida"
-como decisión de diseño (`TASKS.md`, Stage 4: "Flujo de navegación de la app
-definido"). **Actualizado 2026-07-27:** `LoginRoute` ya autentica de verdad
-(ver tabla arriba) y el sub-grafo `PlayerSetupRoute → PreGameRoute →
-GameTrackerRoute` ya no es 100% local — `GameTrackerScreen` espeja
-best-effort el asiento del usuario autenticado contra `games`/`game-actions`
-reales (`GameRepository.bootstrapRemoteGame`/`recordLifeChange`/`finishGame`,
-ver `docs/ux/casos-de-uso.md`), aunque sigue sin haber ninguna ruta/pantalla
-*dedicada* a esa integración (no hay indicador visual más allá del
-`RemoteSyncBanner` en el propio tracker, ver `docs/ux/wireframes.md`). Lo
-que falta realmente:
+This graph is the navigation **structure**, already considered "defined"
+as a design decision (`TASKS.md`, Stage 4: "App navigation flow defined").
+**Updated 2026-07-27:** `LoginRoute` already authenticates for real (see
+table above) and the `PlayerSetupRoute → PreGameRoute → GameTrackerRoute`
+sub-graph is no longer 100% local — `GameTrackerScreen` mirrors
+best-effort the authenticated user's seat against real
+`games`/`game-actions`
+(`GameRepository.bootstrapRemoteGame`/`recordLifeChange`/`finishGame`, see
+`docs/ux/casos-de-uso.md`), although there is still no route/screen
+*dedicated* to that integration (no visual indicator beyond the
+`RemoteSyncBanner` in the tracker itself, see `docs/ux/wireframes.md`).
+What's actually still missing:
 
-- Ruta de "unirse a una partida existente" (join por código/invitación desde
-  otro dispositivo) — hoy el único `join` real es automático, del asiento 1
-  contra la partida que él mismo crea.
-- Ruta de selección de deck — `bootstrapRemoteGame` usa
-  `DeckRepository.firstDeckId()` (el primero de la lista) en vez de dejar
-  elegir.
-- Ruta de "estadísticas" — `/statistics/*` ya está implementado en el
-  backend y ya tiene los tres métodos en `CommanderApi.kt`, pero no hay
-  pantalla ni repositorio en Android que los consuma.
-- Cliente WebSocket (Stage 6) para ver en vivo lo que hacen *otros*
-  dispositivos sentados en la misma partida — el espejo de hoy es solo REST
-  unidireccional (Android → backend), no hay suscripción de entrada.
+- Route for "joining an existing game" (join by code/invitation from
+  another device) — today the only real `join` is automatic, for seat 1
+  against the game it creates itself.
+- Deck selection route — `bootstrapRemoteGame` uses
+  `DeckRepository.firstDeckId()` (the first one in the list) instead of
+  letting the user choose.
+- "Statistics" route — `/statistics/*` is already implemented in the
+  backend and already has all three methods in `CommanderApi.kt`, but
+  there is no screen or repository in Android that consumes them.
+- WebSocket client (Stage 6) to see live what *other* devices seated in
+  the same game are doing — today's mirror is REST-only, one-way (Android
+  → backend), with no inbound subscription.

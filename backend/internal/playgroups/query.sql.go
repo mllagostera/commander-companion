@@ -104,9 +104,9 @@ const listDecksByUserID = `-- name: ListDecksByUserID :many
 SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks WHERE user_id = $1 ORDER BY created_at DESC
 `
 
-// Decks de un usuario, para el picker de "con qué deck juega" un compañero de
-// grupo en un proxy-join (ver ADR-0013). La autorización (¿comparte el caller un
-// playgroup con este usuario?) la hace el service, no esta query.
+// A user's decks, for the "which deck are they playing" picker when proxy-joining
+// a fellow group member (see ADR-0013). Authorization (does the caller share a
+// playgroup with this user?) is done by the service, not this query.
 func (q *Queries) ListDecksByUserID(ctx context.Context, userID pgtype.UUID) ([]Deck, error) {
 	rows, err := q.db.Query(ctx, listDecksByUserID, userID)
 	if err != nil {

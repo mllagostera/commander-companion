@@ -1,19 +1,19 @@
-// Package deckresync resincroniza en background TODOS los decks que un usuario ya
-// tiene importados y tienen moxfield_id seteado. Es la contraparte "actualizar lo que
-// ya tengo" del import masivo por username de internal/moxfieldimport (que trae decks
-// NUEVOS) — comparten el mismo patrón de job asíncrono (goroutine propia, tabla de
-// progreso, endpoints de start/status) pero son conceptos distintos, no se
-// reutiliza la tabla ni el paquete.
+// Package deckresync resynchronizes in the background ALL the decks a user already
+// has imported and that have moxfield_id set. It's the "update what I already have"
+// counterpart to the bulk import by username in internal/moxfieldimport (which brings
+// in NEW decks) — they share the same async job pattern (own goroutine, progress
+// table, start/status endpoints) but are distinct concepts, the table and the
+// package aren't reused.
 //
-// Reutiliza decks.Service.ResyncFromMoxfield (ya real y probado, un fetch + UPDATE
-// por deck) en un loop espaciado por interDeckDelay, mismo motivo que
-// moxfieldimport: nada de fan-out paralelo, para no arriesgar el bloqueo de
-// Cloudflare que ya evita el User-Agent de moxfield.Client.
+// It reuses decks.Service.ResyncFromMoxfield (already real and tested, a fetch +
+// UPDATE per deck) in a loop spaced out by interDeckDelay, same reason as
+// moxfieldimport: no parallel fan-out, so as not to risk the Cloudflare block that
+// moxfield.Client's User-Agent already avoids.
 //
-// Mismo mecanismo de background y misma limitación explícita que moxfieldimport: una
-// goroutine simple (no una cola de verdad), válida solo para el despliegue de una
-// sola instancia de hoy — un job iniciado en un proceso es invisible para otro, y un
-// restart a mitad de resync lo deja "in_progress" para siempre, sin reintento.
+// Same background mechanism and same explicit limitation as moxfieldimport: a
+// simple goroutine (not a real queue), valid only for today's single-instance
+// deployment — a job started in one process is invisible to another, and a
+// restart mid-resync leaves it "in_progress" forever, with no retry.
 package deckresync
 
 import (
@@ -36,39 +36,39 @@ const (
 	statusCompleted = "completed"
 	statusFailed    = "failed"
 
-	// interDeckDelay espacia las llamadas a Moxfield del resync masivo, mismo valor
-	// y mismo motivo que moxfieldimport.interDeckDelay.
+	// interDeckDelay spaces out the calls to Moxfield of the bulk resync, same value
+	// and same reason as moxfieldimport.interDeckDelay.
 	interDeckDelay = 500 * time.Millisecond
 
-	// activeJobConstraint es el índice único parcial que garantiza un solo job
-	// pending/in_progress por usuario (migración 00013_deck_resync_jobs.sql).
+	// activeJobConstraint is the partial unique index that guarantees a single
+	// pending/in_progress job per user (migration 00013_deck_resync_jobs.sql).
 	activeJobConstraint = "deck_resync_jobs_active_user_idx"
 
-	// listPageSize es el tamaño de página usado para enumerar TODOS los decks del
-	// usuario antes de crear el job (ver resolveDeckList) — el máximo permitido por
-	// decks.ListDecks, para minimizar la cantidad de páginas.
+	// listPageSize is the page size used to enumerate ALL of the user's decks
+	// before creating the job (see resolveDeckList) — the maximum allowed by
+	// decks.ListDecks, to minimize the number of pages.
 	listPageSize = common.MaxPageLimit
 )
 
-// ErrNoDecksToResync indica que el usuario no tiene ningún deck importado de
-// Moxfield (con moxfield_id seteado) para resincronizar.
+// ErrNoDecksToResync indicates that the user has no deck imported from
+// Moxfield (with moxfield_id set) to resynchronize.
 var ErrNoDecksToResync = common.InvalidInput("no decks with a linked moxfield id to resync")
 
-// ErrResyncAlreadyInProgress indica que el usuario ya tiene un resync pending/in_progress.
+// ErrResyncAlreadyInProgress indicates that the user already has a pending/in_progress resync.
 var ErrResyncAlreadyInProgress = common.Conflict("a deck resync is already in progress")
 
-// ErrJobNotFound indica que el job no existe o no es del usuario autenticado.
+// ErrJobNotFound indicates that the job doesn't exist or doesn't belong to the authenticated user.
 var ErrJobNotFound = common.NotFound("resync job not found")
 
-// DeckLister es lo que deckresync necesita del módulo decks: enumerar los decks del
-// usuario (para encontrar los que tienen moxfield_id) y resincronizar uno puntual
-// (misma lógica real que ya usa POST /sync/moxfield).
+// DeckLister is what deckresync needs from the decks module: enumerate the user's
+// decks (to find the ones with moxfield_id) and resynchronize a specific one
+// (same real logic already used by POST /sync/moxfield).
 type DeckLister interface {
 	ListDecks(ctx context.Context, userID string, page common.PageRequest) (*decks.DeckListResponse, error)
 	ResyncFromMoxfield(ctx context.Context, userID, moxfieldID string) (*decks.MoxfieldSyncState, error)
 }
 
-// Service define la lógica de negocio del resync masivo de decks.
+// Service defines the business logic of the bulk deck resync.
 type Service interface {
 	StartResyncAll(ctx context.Context, userID string) (*JobResponse, error)
 	GetJobStatus(ctx context.Context, userID, jobID string) (*JobResponse, error)
@@ -79,15 +79,15 @@ type service struct {
 	decks DeckLister
 }
 
-// NewService crea un nuevo servicio de resync masivo de decks.
+// NewService creates a new bulk deck resync service.
 func NewService(db *pgxpool.Pool, deckLister DeckLister) Service {
 	return &service{repo: New(db), decks: deckLister}
 }
 
-// StartResyncAll dispara en background el resync de todos los decks del usuario
-// autenticado que tengan moxfield_id. La lista de decks se resuelve de forma
-// SÍNCRONA antes de crear el job (mismo criterio que moxfieldimport.StartImport):
-// si no hay ninguno, el cliente ve un 400 limpio en el momento, sin crear un job vacío.
+// StartResyncAll triggers in the background the resync of all the authenticated
+// user's decks that have moxfield_id. The deck list is resolved SYNCHRONOUSLY
+// before creating the job (same criteria as moxfieldimport.StartImport):
+// if there's none, the client sees a clean 400 right away, without creating an empty job.
 func (s *service) StartResyncAll(ctx context.Context, userID string) (*JobResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
@@ -107,16 +107,16 @@ func (s *service) StartResyncAll(ctx context.Context, userID string) (*JobRespon
 		return nil, err
 	}
 
-	//nolint:gosec // G118: intencional -- runResync usa context.Background() a
-	// propósito porque ctx (el del request) deja de ser válido en cuanto el handler
-	// retorna, ver el doc de runResync.
+	//nolint:gosec // G118: intentional -- runResync uses context.Background() on
+	// purpose because ctx (the request's) stops being valid as soon as the handler
+	// returns, see runResync's doc.
 	go s.runResync(job.ID, userID, moxfieldIDs)
 
 	return toJobResponse(&job), nil
 }
 
-// resolveDeckList pagina sobre TODOS los decks del usuario (ListDecks ya está
-// acotado a userID) y devuelve el moxfield_id de los que lo tienen seteado.
+// resolveDeckList paginates over ALL of the user's decks (ListDecks is already
+// scoped to userID) and returns the moxfield_id of the ones that have it set.
 func (s *service) resolveDeckList(ctx context.Context, userID string) ([]string, error) {
 	var moxfieldIDs []string
 	cursor := ""
@@ -141,7 +141,7 @@ func (s *service) resolveDeckList(ctx context.Context, userID string) ([]string,
 func (s *service) createJob(ctx context.Context, uid pgtype.UUID, totalDecks int) (DeckResyncJob, error) {
 	job, err := s.repo.CreateResyncJob(ctx, CreateResyncJobParams{
 		UserID:     uid,
-		TotalDecks: int32(totalDecks), //nolint:gosec // acotado por MaxPageLimit*páginas, nunca se acerca a overflow
+		TotalDecks: int32(totalDecks), //nolint:gosec // bounded by MaxPageLimit*pages, never gets close to overflow
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -153,8 +153,8 @@ func (s *service) createJob(ctx context.Context, uid pgtype.UUID, totalDecks int
 	return job, nil
 }
 
-// GetJobStatus devuelve el estado de un job, acotado a que sea del usuario
-// autenticado (404 si no, mismo criterio de "no revelar" que el resto del proyecto).
+// GetJobStatus returns the status of a job, restricted to it belonging to the
+// authenticated user (404 if not, same "don't reveal" criteria as the rest of the project).
 func (s *service) GetJobStatus(ctx context.Context, userID, jobID string) (*JobResponse, error) {
 	jid, err := common.ParseUUID(jobID)
 	if err != nil {
@@ -175,10 +175,10 @@ func (s *service) GetJobStatus(ctx context.Context, userID, jobID string) (*JobR
 	return toJobResponse(&job), nil
 }
 
-// runResync corre en su propia goroutine, desacoplada del request que la disparó —
-// ver el doc del paquete. "Actualizado" (updated_count) cuenta cualquier deck
-// procesado sin error, tenga o no cambios reales en Moxfield (mismo criterio laxo
-// que moxfieldimport.imported_count = "procesado OK", no "trajo algo nuevo").
+// runResync runs in its own goroutine, decoupled from the request that triggered
+// it — see the package doc. "Updated" (updated_count) counts any deck processed
+// without error, whether or not it has actual changes in Moxfield (same lax
+// criteria as moxfieldimport.imported_count = "processed OK", not "brought something new").
 func (s *service) runResync(jobID pgtype.UUID, userID string, moxfieldIDs []string) {
 	defer func() {
 		if r := recover(); r != nil {

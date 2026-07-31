@@ -1,8 +1,8 @@
 /**
- * Reenvía el mail de verificación. Proxy fino a `POST /auth/resend-verification` de la
- * API Go, que nunca revela si el email existe o ya está verificado (ver
- * internal/users/service.go: ResendVerification) — este endpoint responde éxito igual
- * en todos los casos.
+ * Resends the verification email. A thin proxy to the Go API's
+ * `POST /auth/resend-verification`, which never reveals whether the email exists or is
+ * already verified (see internal/users/service.go: ResendVerification) — this endpoint
+ * responds success in every case.
  */
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ email?: string }>(event)

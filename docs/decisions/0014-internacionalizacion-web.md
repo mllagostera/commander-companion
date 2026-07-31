@@ -1,32 +1,32 @@
-# ADR-0014: Internacionalización de la web con `@nuxtjs/i18n`
+# ADR-0014: Web internationalization with `@nuxtjs/i18n`
 
-**Estado:** Aceptada (2026-07-29), actualizada (2026-07-30) — inglés y catalán agregados
+**Status:** Accepted (2026-07-29), updated (2026-07-30) — English and Catalan added
 
-## Contexto
+## Context
 
-Toda la interfaz de la web (`web/app`) tenía el texto hardcodeado
-directamente en templates, atributos y composables: ~200-250 literales
-distintos repartidos en las 9 páginas, el layout y los composables que arman
-mensajes de error/toast. No había ningún paquete de i18n instalado ni
-precedente de esta decisión en ningún ADR previo — internacionalizar la web
-era una tarea desde cero.
+The entire web UI (`web/app`) had text hardcoded
+directly in templates, attributes, and composables: ~200-250 distinct
+literals spread across the 9 pages, the layout, and the composables that build
+error/toast messages. There was no i18n package installed nor
+any precedent for this decision in any prior ADR — internationalizing the web
+was a task starting from scratch.
 
-Además, el copy original estaba escrito en voseo argentino ("tenés", "sos",
-"jugás", "Creá", "Registrate"...), sin que eso fuera una decisión consciente
-de estilo — simplemente el dialecto con el que se fue escribiendo la app.
+Additionally, the original copy was written in Argentine "voseo" ("tenés",
+"sos", "jugás", "Creá", "Registrate"...), without this being a conscious
+style decision — it was simply the dialect the app happened to be written in.
 
-## Decisión
+## Decision
 
-### Librería: `@nuxtjs/i18n`
+### Library: `@nuxtjs/i18n`
 
-Se adopta `@nuxtjs/i18n` (envuelve vue-i18n) como base de
-internacionalización de la web, en vez de integrar vue-i18n a mano. Es el
-módulo oficial de Nuxt: se registra en `modules` igual que
-`@nuxtjs/tailwindcss`/`@nuxt/eslint` (ya presentes), auto-importa
-`useI18n()`/`$t`/`t`/`d`, e integra SSR sin plugin propio.
+`@nuxtjs/i18n` (which wraps vue-i18n) is adopted as the base for
+web internationalization, instead of integrating vue-i18n manually. It's the
+official Nuxt module: it's registered under `modules` just like
+`@nuxtjs/tailwindcss`/`@nuxt/eslint` (already present), auto-imports
+`useI18n()`/`$t`/`t`/`d`, and integrates SSR without its own plugin.
 
-Configuración (`web/nuxt.config.ts`), actualizada al agregar inglés y
-catalán (2026-07-30):
+Configuration (`web/nuxt.config.ts`), updated when English and
+Catalan were added (2026-07-30):
 
 ```ts
 i18n: {
@@ -44,79 +44,79 @@ i18n: {
 },
 ```
 
-- `strategy: 'no_prefix'` se mantiene: con `detectBrowserLanguage` +
-  selector manual alcanza para elegir idioma sin necesidad de rutas
-  `/en/...`/`/ca/...` — más simple para un dominio único sin SEO
-  multi-idioma real detrás.
-- `detectBrowserLanguage` pasa de `false` a activo ahora que hay 3 locales:
-  detecta el idioma del navegador solo si todavía no hay cookie (`cc_locale`)
-  — una vez que el usuario elige explícitamente por el selector del layout
-  (`setLocale()`, ver más abajo) o ya se detectó una vez, esa cookie
-  prevalece y no se vuelve a re-detectar en cargas siguientes.
-- Los mensajes viven en `web/i18n/locales/{es,en,ca}.json`, mismas ~250
-  claves en los tres archivos (namespacing sin cambios, ver más abajo) — se
-  verificó paridad de claves y de placeholders de interpolación (`{count}`,
-  `{username}`, etc.) entre los tres antes de mergear. El formateo de fechas
-  (`datetimeFormats`) en `web/i18n/i18n.config.ts` ahora tiene entrada para
-  los tres locales (antes solo `es`).
-- Selector de idioma nuevo en el menú de usuario del layout
-  (`app/layouts/default.vue`, junto al toggle de tema oscuro): tres pills
-  `ES`/`EN`/`CA`, `useI18n().setLocale(code)` al click — la única forma de
-  cambiar de idioma manualmente hoy (antes no había ninguna).
+- `strategy: 'no_prefix'` is kept: with `detectBrowserLanguage` +
+  a manual selector it's enough to choose a language without needing `/en/...`/`/ca/...`
+  routes — simpler for a single domain without real multi-language
+  SEO behind it.
+- `detectBrowserLanguage` goes from `false` to active now that there are 3 locales:
+  it detects the browser's language only if there is no cookie yet (`cc_locale`)
+  — once the user explicitly chooses via the layout selector
+  (`setLocale()`, see below) or it has already been detected once, that cookie
+  takes precedence and it isn't re-detected on subsequent loads.
+- Messages live in `web/i18n/locales/{es,en,ca}.json`, the same ~250
+  keys across all three files (namespacing unchanged, see below) — key
+  parity and interpolation placeholder parity (`{count}`,
+  `{username}`, etc.) across all three were verified before merging. Date formatting
+  (`datetimeFormats`) in `web/i18n/i18n.config.ts` now has an entry for
+  all three locales (previously only `es`).
+- New language selector in the user menu of the layout
+  (`app/layouts/default.vue`, next to the dark mode toggle): three pills
+  `ES`/`EN`/`CA`, `useI18n().setLocale(code)` on click — the only way to
+  change language manually today (there wasn't one before).
 
-### Convención de claves
+### Key naming convention
 
-Namespacing por página/composable (`login.*`, `settings.*`,
-`playgroups.list.*`, `playgroups.detail.*`, etc.), con `errors.*` reservado
-para los mensajes que arman los composables de error (`useSettings.ts`,
-`usePlaygroups.ts`, `useDecks.ts`, `useGames.ts`, `useUsers.ts`) — son
-compartidos entre quien los llama, no se duplican por página — y `toast.*`
-para los mensajes de `useToast()`. `common.*` agrupa los labels repetidos
-entre páginas ("Cancelar", "Guardar", "Guardando…").
+Namespacing by page/composable (`login.*`, `settings.*`,
+`playgroups.list.*`, `playgroups.detail.*`, etc.), with `errors.*` reserved
+for the messages built by the error composables (`useSettings.ts`,
+`usePlaygroups.ts`, `useDecks.ts`, `useGames.ts`, `useUsers.ts`) — they are
+shared among their callers, not duplicated per page — and `toast.*`
+for `useToast()` messages. `common.*` groups the labels repeated
+across pages ("Cancel," "Save," "Saving…").
 
-Pluralización (`playgroups.list.gamesPlayedCount`/`memberCount`) usa la
-sintaxis nativa de vue-i18n (`"{count} forma singular | {count} forma
-plural"`) en vez de los ternarios manuales que había antes. Interpolación de
-variables usa `{variable}` con `t(key, { variable })`.
+Pluralization (`playgroups.list.gamesPlayedCount`/`memberCount`) uses vue-i18n's
+native syntax (`"{count} singular form | {count} plural
+form"`) instead of the manual ternaries used before. Variable interpolation uses
+`{variable}` with `t(key, { variable })`.
 
-### El idioma base pasa a ser español de España (tuteo)
+### The base language becomes Spanish from Spain ("tuteo")
 
-Al extraer cada string a `es.json` se corrigió la conjugación de voseo a
-tuteo ("tenés" → "tienes", "sos" → "eres", "Creá" → "Crea", "Registrate" →
-"Regístrate", etc.) — no fue una extracción mecánica 1:1 del texto que
-había. Español de España (tuteo) queda como el criterio de estilo para todo
-texto nuevo en la web de acá en adelante.
+When extracting each string into `es.json`, the "voseo" conjugation was corrected
+to "tuteo" ("tenés" → "tienes", "sos" → "eres", "Creá" → "Crea",
+"Registrate" → "Regístrate", etc.) — it was not a mechanical 1:1 extraction of the text
+that was there. Spanish from Spain ("tuteo") is now the style criterion for all
+new text in the web going forward.
 
-## Actualización 2026-07-30: inglés y catalán
+## 2026-07-30 update: English and Catalan
 
-Confirmado lo que predecía la ADR original: agregar los dos locales fue
-exactamente sumar `en.json`/`ca.json` (misma estructura de claves,
-traducidas) + una entrada en `locales` — sin tocar ningún componente. Lo
-único nuevo fuera de eso fue el selector de idioma en el layout (no existía
-ningún control de UI para cambiar de idioma) y activar
-`detectBrowserLanguage` (no tenía sentido con un solo locale).
+This confirms what the original ADR predicted: adding the two locales was
+exactly adding `en.json`/`ca.json` (same key structure,
+translated) + one entry in `locales` — without touching any component. The
+only thing new beyond that was the language selector in the layout (there was
+no UI control to change language before) and enabling
+`detectBrowserLanguage` (which made no sense with a single locale).
 
-## Próximos pasos (explícitamente fuera de esta tarea)
+## Next steps (explicitly out of scope for this task)
 
-- La app Android (Kotlin/Compose) tiene el mismo problema de texto
-  hardcodeado, pero es una stack completamente distinta (string resources,
-  `res/values-en/`, `res/values-ca/`) y queda fuera de esta decisión —
-  extracción a `strings.xml` resuelta por separado, agregar los locales de
-  Android se documenta en `docs/roadmap/TASKS.md`, no en esta ADR.
-- Los mensajes de error del backend (`backend/internal/common/errors.go`)
-  siguen siendo strings en inglés + status HTTP, no códigos de error
-  estables. La web ya no depende de ese texto crudo para las rutas felices
-  de traducción (arma su propio copy en español por status code), salvo un
-  caso puntual en `useDecks.ts`/`useSettings.ts` que hace `.includes(...)`
-  sobre el mensaje crudo en inglés del backend para distinguir dos casos de
-  error 400 — eso se preservó tal cual, es un problema de diseño de API
-  preexistente y separado de esta ADR.
+- The Android app (Kotlin/Compose) has the same hardcoded-text problem,
+  but it's a completely different stack (string resources,
+  `res/values-en/`, `res/values-ca/`) and is out of scope for this decision —
+  extraction into `strings.xml` handled separately; adding the Android
+  locales is documented in `docs/roadmap/TASKS.md`, not in this ADR.
+- Backend error messages (`backend/internal/common/errors.go`)
+  remain plain English strings + HTTP status, not stable error codes.
+  The web no longer depends on that raw text for the happy-path
+  translation flows (it builds its own Spanish copy by status code), except for
+  one specific case in `useDecks.ts`/`useSettings.ts` that does
+  `.includes(...)` on the backend's raw English message to distinguish two
+  400-error cases — that was kept as-is, it's a pre-existing API design
+  issue separate from this ADR.
 
-## Referencias
+## References
 
-- `web/nuxt.config.ts` (registro del módulo y config `i18n`)
+- `web/nuxt.config.ts` (module registration and `i18n` config)
 - `web/i18n/i18n.config.ts` (`datetimeFormats`)
-- `web/i18n/locales/{es,en,ca}.json` (todas las claves, en los tres idiomas)
-- `web/app/layouts/default.vue` (selector de idioma)
-- `web/app/composables/useDecks.ts` (`moxfieldImportError`, ejemplo de
-  composable de error convertido a claves)
+- `web/i18n/locales/{es,en,ca}.json` (all keys, in all three languages)
+- `web/app/layouts/default.vue` (language selector)
+- `web/app/composables/useDecks.ts` (`moxfieldImportError`, an example of a
+  composable converted from raw error text to keys)

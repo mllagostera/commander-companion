@@ -6,24 +6,24 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// Handler contiene las dependencias del transporte HTTP para moxfieldimport.
+// Handler holds the HTTP transport dependencies for moxfieldimport.
 type Handler struct {
 	svc Service
 }
 
-// NewHandler inicializa y retorna un nuevo Handler.
+// NewHandler initializes and returns a new Handler.
 func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo moxfieldimport.
+// RegisterRoutes registers all the endpoints of the moxfieldimport module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/moxfield-import", h.StartImport)
 	router.Get("/moxfield-import/:jobId", h.GetJobStatus)
 }
 
-// StartImport dispara un import masivo en background para el usuario autenticado.
-// Responde 202: el job queda pending/in_progress, el progreso se consulta con
+// StartImport triggers a background bulk import for the authenticated user.
+// Responds 202: the job is left pending/in_progress, progress is queried with
 // GetJobStatus.
 func (h *Handler) StartImport(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
@@ -34,7 +34,7 @@ func (h *Handler) StartImport(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusAccepted).JSON(res)
 }
 
-// GetJobStatus devuelve el estado de un job de import, acotado al usuario autenticado.
+// GetJobStatus returns the status of an import job, restricted to the authenticated user.
 func (h *Handler) GetJobStatus(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetJobStatus(c.Context(), userID, c.Params("jobId"))

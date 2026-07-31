@@ -1,20 +1,23 @@
 <!--
-  Fuente de referencia del Template de Resend usado por internal/email/resend.go para
-  el mail de verificación de cuenta (ver ADR-0012). No lo lee ningún código: se pega tal
-  cual en el dashboard de Resend (Templates → Create template → From code) y ahí se
-  edita/publica. Variables usadas por el backend (deben llamarse exactamente así):
+  Reference source for the Resend Template used by internal/email/resend.go for
+  the account verification email (see ADR-0012). No code reads this file: it's pasted
+  as-is into the Resend dashboard (Templates → Create template → From code) and edited/
+  published there. Variables used by the backend (must be named exactly this way):
 
-    {{USERNAME}}    — username de la cuenta que se registró
-    {{VERIFY_URL}}  — link de verificación completo
+    {{USERNAME}}    — username of the account that registered
+    {{VERIFY_URL}}  — the full verification link
 
-  IMPORTANTE: VERIFY_URL va como texto plano, nunca dentro de un href/botón. Mandar por
-  la REST API de Resend un template con una variable de URL dentro de un atributo href
-  rompe el link (bug abierto: https://github.com/resend/react-email/issues/3247). El
-  bloque de abajo ya lo respeta — no lo conviertas en botón sin volver a chequear ese
-  issue.
+  IMPORTANT: VERIFY_URL goes in as plain text, never inside an href/button. Sending a
+  template with a URL variable inside an href attribute via Resend's REST API breaks
+  the link (open bug: https://github.com/resend/react-email/issues/3247). The block
+  below already respects this — don't turn it into a button without re-checking that
+  issue first.
 
-  El asunto del mail se configura aparte, en el campo "Subject" del template en el
-  dashboard (no va en este HTML). Sugerido: "Confirmá tu cuenta en Commander Companion".
+  The email's subject is configured separately, in the "Subject" field of the template
+  in the dashboard (it doesn't go in this HTML). Note: the actual email body below is
+  end-user-facing product copy (in Spanish, matching the app's active locale, see
+  ADR-0014) — it's not documentation prose, so it isn't translated as part of this
+  repo's English-only docs/comments policy.
 -->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;padding:32px 16px;">
   <tr>

@@ -1,8 +1,8 @@
 /**
- * Confirma la cuenta a partir del token que llegó por mail. Proxy fino a
- * `POST /auth/verify-email` de la API Go: el token viaja en el body (no en una query
- * string) porque el mail linkea a la página `/verify-email?token=...` de este mismo
- * cliente, que es quien hace este POST (ver internal/users/handler.go: VerifyEmail).
+ * Confirms the account from the token that arrived by email. A thin proxy to
+ * the Go API's `POST /auth/verify-email`: the token travels in the body (not in a query
+ * string) because the email links to this same client's `/verify-email?token=...`
+ * page, which is what makes this POST (see internal/users/handler.go: VerifyEmail).
  */
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ token?: string }>(event)

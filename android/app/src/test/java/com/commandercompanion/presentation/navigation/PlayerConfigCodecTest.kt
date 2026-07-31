@@ -21,7 +21,7 @@ class PlayerConfigCodecTest {
     }
 
     @Test
-    fun `nombre con caracteres especiales sobrevive el encode-decode`() {
+    fun `name with special characters survives encode-decode`() {
         val configs = listOf(PlayerConfig(name = "José | Ana, Beto", colorKey = "green"))
 
         val decoded = decodePlayerConfigs(encodePlayerConfigs(configs))

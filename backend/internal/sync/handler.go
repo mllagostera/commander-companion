@@ -6,24 +6,24 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// Handler contiene las dependencias del transporte HTTP para sync.
+// Handler contains the HTTP transport dependencies for sync.
 type Handler struct {
 	svc Service
 }
 
-// NewHandler inicializa y retorna un nuevo Handler.
+// NewHandler initializes and returns a new Handler.
 func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo sync.
+// RegisterRoutes registers all endpoints of the sync module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/sync/moxfield", h.SyncMoxfield)
 	router.Get("/sync/status", h.GetStatus)
 }
 
-// SyncMoxfield re-sincroniza un deck del usuario autenticado con Moxfield. Responde
-// 200 y no 202 porque el sync ya se aplicó dentro del request; ver el doc del paquete.
+// SyncMoxfield re-syncs a deck of the authenticated user with Moxfield. Responds
+// 200 and not 202 because the sync was already applied within the request; see the package doc.
 func (h *Handler) SyncMoxfield(c *fiber.Ctx) error {
 	var req Request
 	if err := c.BodyParser(&req); err != nil {
@@ -38,8 +38,8 @@ func (h *Handler) SyncMoxfield(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// GetStatus devuelve el estado de sincronización de un deck del usuario
-// autenticado, identificado por el query param `moxfield_id`.
+// GetStatus returns the sync state of a deck belonging to the authenticated
+// user, identified by the `moxfield_id` query param.
 func (h *Handler) GetStatus(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetSyncStatus(c.Context(), userID, c.Query("moxfield_id"))

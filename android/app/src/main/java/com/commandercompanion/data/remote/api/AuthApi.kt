@@ -13,15 +13,15 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 
 /**
- * Endpoints de autenticación (`/auth`), ver `docs/api/openapi.yaml`.
+ * Authentication endpoints (`/auth`), see `docs/api/openapi.yaml`.
  *
- * Vive en su propio archivo, separado de [CommanderApi], porque otro agente puede estar
- * extendiendo `CommanderApi.kt` con endpoints de decks/games/etc. en paralelo — mantenerlos
- * separados evita conflictos de merge.
+ * Lives in its own file, separate from [CommanderApi], because another agent might be
+ * extending `CommanderApi.kt` with decks/games/etc. endpoints in parallel — keeping them
+ * separate avoids merge conflicts.
  *
- * `login`/`register`/`google`/`refresh`/`logout` son públicos (`security: []` en el spec, no
- * llevan Bearer). `me` sí requiere el access token, pasado explícitamente como header en vez de
- * depender de un interceptor — así este API client no necesita conocer la sesión activa.
+ * `login`/`register`/`google`/`refresh`/`logout` are public (`security: []` in the spec, no
+ * Bearer). `me` does require the access token, passed explicitly as a header instead of
+ * relying on an interceptor — that way this API client doesn't need to know about the active session.
  */
 interface AuthApi {
 
@@ -29,10 +29,10 @@ interface AuthApi {
     suspend fun login(@Body request: LoginRequest): TokenResponse
 
     /**
-     * No deja sesión iniciada (a diferencia de [login]/[loginWithGoogle]): devuelve el usuario
-     * creado, no un [TokenResponse]. Si el backend exige verificación de email
-     * (`REQUIRE_EMAIL_VERIFICATION`), el login posterior falla con 403 hasta confirmarlo — mismo
-     * contrato que el cliente web (ver `web/app/composables/useAuth.ts`).
+     * Doesn't leave a session started (unlike [login]/[loginWithGoogle]): returns the created
+     * user, not a [TokenResponse]. If the backend requires email verification
+     * (`REQUIRE_EMAIL_VERIFICATION`), the subsequent login fails with 403 until it's confirmed — same
+     * contract as the web client (see `web/app/composables/useAuth.ts`).
      */
     @POST("api/v1/auth/register")
     suspend fun register(@Body request: RegisterRequest): UserDto

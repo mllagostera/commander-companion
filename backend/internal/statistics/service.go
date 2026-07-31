@@ -25,17 +25,17 @@ const (
 var (
 	// ErrDeckNotFound indica que el deck no existe o no pertenece al usuario autenticado.
 	ErrDeckNotFound = common.NotFound("deck not found")
-	// ErrInvalidPlaygroupID indica que el ID de grupo recibido no es un UUID válido.
+	// ErrInvalidPlaygroupID indicates the received playgroup ID isn't a valid UUID.
 	ErrInvalidPlaygroupID = common.InvalidInput("invalid playgroup id")
 )
 
-// Service define la lógica de negocio del módulo statistics.
+// Service defines the business logic of the statistics module.
 type Service interface {
 	GetUserStats(ctx context.Context, userID string) (*UserStatsResponse, error)
 	GetDeckStats(ctx context.Context, userID, deckID string) (*DeckStatsResponse, error)
 	GetPlaygroupStats(ctx context.Context, playgroupID string) (*PlaygroupStatsResponse, error)
-	// RecalculateForGame recalcula las estadísticas agregadas de usuario y deck a partir
-	// del resultado y las acciones de una partida ya finalizada.
+	// RecalculateForGame recalculates the aggregated user and deck statistics from
+	// the result and actions of an already-finished game.
 	RecalculateForGame(ctx context.Context, gameID string) error
 }
 
@@ -48,9 +48,9 @@ func NewService(db *pgxpool.Pool) Service {
 	return &service{repo: New(db)}
 }
 
-// GetUserStats devuelve las estadísticas globales precalculadas de un usuario. Un
-// usuario que nunca terminó una partida no tiene fila propia: se devuelven ceros
-// en vez de un 404, porque "cero partidas jugadas" es un estado válido.
+// GetUserStats returns a user's precalculated global statistics. A user who
+// never finished a game doesn't have their own row: zeros are returned
+// instead of a 404, because "zero games played" is a valid state.
 func (s *service) GetUserStats(ctx context.Context, userID string) (*UserStatsResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
@@ -67,7 +67,7 @@ func (s *service) GetUserStats(ctx context.Context, userID string) (*UserStatsRe
 	return toUserStatsResponse(&stats), nil
 }
 
-// GetDeckStats devuelve las estadísticas de un deck, si pertenece al usuario indicado.
+// GetDeckStats returns a deck's statistics, if it belongs to the given user.
 func (s *service) GetDeckStats(ctx context.Context, userID, deckID string) (*DeckStatsResponse, error) {
 	did, err := common.ParseUUID(deckID)
 	if err != nil {
@@ -96,8 +96,8 @@ func (s *service) GetDeckStats(ctx context.Context, userID, deckID string) (*Dec
 	return toDeckStatsResponse(&stats), nil
 }
 
-// GetPlaygroupStats devuelve estadísticas agregadas por miembro dentro de un grupo,
-// calculadas en vivo sobre las partidas finalizadas (no hay tabla de resumen para esto).
+// GetPlaygroupStats returns statistics aggregated per member within a playgroup,
+// calculated live over the finished games (there's no summary table for this).
 func (s *service) GetPlaygroupStats(ctx context.Context, playgroupID string) (*PlaygroupStatsResponse, error) {
 	pid, err := common.ParseUUID(playgroupID)
 	if err != nil {
@@ -131,10 +131,10 @@ func (s *service) GetPlaygroupStats(ctx context.Context, playgroupID string) (*P
 }
 
 // RecalculateForGame recorre a los jugadores y las acciones de una partida ya
-// finalizada y acumula el resultado en user_statistics_summary/deck_statistics_summary.
-// El ganador es el único jugador que llega vivo (is_eliminated = false) al final; si
-// quedan 0 o 2+ jugadores vivos (partida cortada a mano) no se cuenta como victoria
-// de nadie, pero games_played sí se cuenta para todos los participantes.
+// finished game and accumulates the result into user_statistics_summary/deck_statistics_summary.
+// The winner is the only player still alive (is_eliminated = false) at the end; if
+// 0 or 2+ players are left alive (game cut short by hand) it doesn't count as a win
+// for anyone, but games_played is still counted for all participants.
 func (s *service) RecalculateForGame(ctx context.Context, gameID string) error {
 	gid, err := common.ParseUUID(gameID)
 	if err != nil {
@@ -186,7 +186,7 @@ func (s *service) RecalculateForGame(ctx context.Context, gameID string) error {
 	return nil
 }
 
-// soleSurvivor devuelve el ID del único jugador no eliminado, si hay exactamente uno.
+// soleSurvivor returns the ID of the only non-eliminated player, if there's exactly one.
 func soleSurvivor(players []GamePlayer) (pgtype.UUID, bool) {
 	var survivor pgtype.UUID
 	count := 0
@@ -199,9 +199,9 @@ func soleSurvivor(players []GamePlayer) (pgtype.UUID, bool) {
 	return survivor, count == 1
 }
 
-// peakLifeTotals reconstruye, para cada jugador, el mayor life_total alcanzado durante
-// la partida, repitiendo el efecto de cada acción en orden cronológico (el mismo cálculo
-// que aplica game-actions al registrar cada acción, arrancando del baseline de 40).
+// peakLifeTotals reconstructs, for each player, the highest life_total reached during
+// the game, by replaying the effect of each action in chronological order (the same
+// calculation game-actions applies when recording each action, starting from the baseline of 40).
 func peakLifeTotals(players []GamePlayer, actions []GameAction) map[pgtype.UUID]int32 {
 	life := make(map[pgtype.UUID]int32, len(players))
 	peak := make(map[pgtype.UUID]int32, len(players))
@@ -258,10 +258,10 @@ func payloadAmount(raw []byte) (int32, bool) {
 	return int32(amount), true
 }
 
-// playerActionTotals suma el daño y las eliminaciones explícitas atribuibles a un
-// jugador como actor dentro de una partida. Las auto-eliminaciones por vida/veneno
-// (ver game-actions) no quedan atribuidas a un actor específico en el log, así que
-// solo cuentan las acciones Elimination explícitas contra otro jugador.
+// playerActionTotals sums the damage and explicit eliminations attributable to a
+// player as an actor within a game. Auto-eliminations from life/poison
+// (see game-actions) aren't attributed to a specific actor in the log, so
+// only explicit Elimination actions against another player count.
 func playerActionTotals(playerID pgtype.UUID, actions []GameAction) (dealt, commanderDealt, eliminations int32) {
 	for i := range actions {
 		a := &actions[i]

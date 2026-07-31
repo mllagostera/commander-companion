@@ -19,11 +19,11 @@ updates:
         update-types:
           - "version-update:semver-patch"
           - "version-update:semver-minor"
-      # TypeScript 7 reescribió el compilador (port nativo) y ya no expone
-      # 'typescript/lib/tsc' en su package.json "exports". vue-tsc 3.3.8
-      # depende de esa ruta para engancharse al compilador y typecheck
-      # revienta con ERR_PACKAGE_PATH_NOT_EXPORTED. Quitar en cuanto vue-tsc
-      # publique soporte para TS7 (ver PR #22, cerrada por este motivo).
+      # TypeScript 7 rewrote the compiler (native port) and no longer exposes
+      # 'typescript/lib/tsc' in its package.json "exports". vue-tsc 3.3.8
+      # depends on that path to hook into the compiler, and typecheck
+      # breaks with ERR_PACKAGE_PATH_NOT_EXPORTED. Remove as soon as vue-tsc
+      # publishes TS7 support (see PR #22, closed for this reason).
       - dependency-name: "typescript"
         update-types:
           - "version-update:semver-major"

@@ -1,5 +1,5 @@
-// Package moxfield es un cliente para la API pública (no oficial) de
-// Moxfield, usada para importar decks por su URL o ID público.
+// Package moxfield is a client for Moxfield's public (unofficial) API,
+// used to import decks by their URL or public ID.
 package moxfield
 
 import (
@@ -18,66 +18,66 @@ import (
 const (
 	apiBaseURL     = "https://api2.moxfield.com/v3/decks/all"
 	requestTimeout = 10 * time.Second
-	// Moxfield está detrás de Cloudflare y bloquea clientes sin un
-	// User-Agent que parezca un navegador real.
+	// Moxfield is behind Cloudflare and blocks clients without a
+	// User-Agent that looks like a real browser.
 	userAgent = "Mozilla/5.0 (compatible; CommanderCompanion/1.0; +https://github.com/mllagostera/commander-companion)"
-	// imageURLTemplate arma el art crop de la carta "principal" del deck (la misma
-	// que Moxfield usa como su propio og:image), a partir del id corto de esa carta.
+	// imageURLTemplate builds the art crop of the deck's "main" card (the same
+	// one Moxfield uses as its own og:image), from that card's short id.
 	imageURLTemplate = "https://assets.moxfield.net/cards/card-%s-art_crop.jpg"
-	// imageURLFaceTemplate es el equivalente para el id de una CARA individual de una
-	// carta de dos caras (transform/MDFC). Ojo: "card-{faceId}" (sin "face-") también
-	// devuelve 200 pero es la colisión de otra carta cualquiera con ese mismo id corto
-	// — el namespace de ids de cara es distinto del namespace de ids de carta, y
-	// assets.moxfield.net los sirve bajo prefijos separados.
+	// imageURLFaceTemplate is the equivalent for the id of an individual FACE of a
+	// two-faced card (transform/MDFC). Careful: "card-{faceId}" (without "face-") also
+	// returns 200 but it's a collision with some other card that has that same short id
+	// — the face id namespace is distinct from the card id namespace, and
+	// assets.moxfield.net serves them under separate prefixes.
 	imageURLFaceTemplate = "https://assets.moxfield.net/cards/card-face-%s-art_crop.jpg"
 
-	// maxAttempts: 1 intento inicial + 2 reintentos ante errores transitorios
-	// (red/timeout, 5xx, 429). Un 404 nunca se reintenta, no es transitorio.
+	// maxAttempts: 1 initial attempt + 2 retries on transient errors
+	// (network/timeout, 5xx, 429). A 404 is never retried, it isn't transient.
 	maxAttempts       = 3
 	initialRetryDelay = 200 * time.Millisecond
 )
 
 var (
-	// ErrDeckNotFound indica que Moxfield no tiene ningún deck con ese ID público.
+	// ErrDeckNotFound indicates that Moxfield has no deck with that public ID.
 	ErrDeckNotFound = errors.New("moxfield deck not found")
-	// ErrUnexpectedStatus indica que Moxfield respondió con un status inesperado (ni 200 ni 404).
+	// ErrUnexpectedStatus indicates that Moxfield responded with an unexpected status (neither 200 nor 404).
 	ErrUnexpectedStatus = errors.New("moxfield returned an unexpected status")
-	// ErrMissingIdentifier indica que no se pasó ninguna URL/ID de Moxfield.
+	// ErrMissingIdentifier indicates that no Moxfield URL/ID was passed.
 	ErrMissingIdentifier = errors.New("moxfield url or id is required")
-	// ErrIDNotFoundInURL indica que la URL dada no tiene la forma esperada (.../decks/{id}).
+	// ErrIDNotFoundInURL indicates that the given URL doesn't have the expected shape (.../decks/{id}).
 	ErrIDNotFoundInURL = errors.New("could not find a deck id in the moxfield url")
-	// ErrUpstreamUnavailable indica que Moxfield siguió fallando (red/timeout, 5xx,
-	// 429) después de agotar los reintentos de GetDeck.
+	// ErrUpstreamUnavailable indicates that Moxfield kept failing (network/timeout, 5xx,
+	// 429) after GetDeck exhausted its retries.
 	ErrUpstreamUnavailable = errors.New("moxfield unavailable after retries")
-	// ErrListDecksByUsernameNotImplemented indica que ListDecksByUsername es un
-	// stub: no hay evidencia verificada de qué endpoint de Moxfield lista los decks
-	// públicos de un usuario (este sandbox bloquea la red hacia api2.moxfield.com,
-	// así que no se pudo investigar como sí se hizo para GetDeck — ver
-	// docs/roadmap/TASKS.md, Stage 8). Confirmar el endpoint real (path, forma de
-	// paginación, si necesita el mismo User-Agent/Referer que GetDeck) en un
-	// entorno con acceso de red antes de implementarlo de verdad.
+	// ErrListDecksByUsernameNotImplemented indicates that ListDecksByUsername is a
+	// stub: there's no verified evidence of which Moxfield endpoint lists a user's
+	// public decks (this sandbox blocks network access to api2.moxfield.com,
+	// so it couldn't be investigated the way it was for GetDeck — see
+	// docs/roadmap/TASKS.md, Stage 8). Confirm the real endpoint (path, pagination
+	// shape, whether it needs the same User-Agent/Referer as GetDeck) in an
+	// environment with network access before actually implementing it.
 	ErrListDecksByUsernameNotImplemented = errors.New("listing a moxfield user's decks is not implemented yet")
 )
 
-// Deck son los datos de un deck de Moxfield relevantes para la importación.
+// Deck holds the Moxfield deck data relevant to importing.
 type Deck struct {
 	PublicID  string
 	Name      string
 	Commander string
-	// ImageURL es el art crop de la carta principal del deck (normalmente el
-	// comandante), o "" si Moxfield no informó ninguna.
+	// ImageURL is the art crop of the deck's main card (usually the
+	// commander), or "" if Moxfield didn't report one.
 	ImageURL string
 }
 
-// Client es un cliente HTTP para la API pública de Moxfield.
+// Client is an HTTP client for Moxfield's public API.
 type Client struct {
 	httpClient *http.Client
-	// baseURL es apiBaseURL en producción; los tests lo apuntan a un
-	// httptest.Server para simular respuestas de Moxfield sin red real.
+	// baseURL is apiBaseURL in production; tests point it to an
+	// httptest.Server to simulate Moxfield responses without real network access.
 	baseURL string
 }
 
-// NewClient crea un nuevo cliente de Moxfield.
+// NewClient creates a new Moxfield client.
 func NewClient() *Client {
 	return &Client{httpClient: &http.Client{Timeout: requestTimeout}, baseURL: apiBaseURL}
 }
@@ -86,8 +86,8 @@ type deckResponse struct {
 	Name     string     `json:"name"`
 	PublicID string     `json:"publicId"`
 	Boards   deckBoards `json:"boards"`
-	// Main es la carta que Moxfield destaca como portada del deck (normalmente el
-	// comandante); su Id es el que arma la URL del art crop mostrado como og:image.
+	// Main is the card Moxfield highlights as the deck's cover (usually the
+	// commander); its Id is what builds the art crop URL shown as og:image.
 	Main *cardInfo `json:"main"`
 }
 
@@ -106,16 +106,16 @@ type boardCard struct {
 type cardInfo struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	// CardFaces está presente solo en cartas de dos caras (transform/modal DFC).
-	// Moxfield no cachea ningún asset de art crop bajo el id combinado de la
-	// carta (main.id) para estas: solo bajo el id de cada cara individual.
+	// CardFaces is present only on two-faced cards (transform/modal DFC).
+	// Moxfield doesn't cache any art crop asset under the card's combined id
+	// (main.id) for these: only under each individual face's id.
 	CardFaces []cardInfo `json:"card_faces,omitempty"`
 }
 
-// GetDeck consulta un deck público de Moxfield por su ID. Reintenta ante
-// errores transitorios (red/timeout, 5xx, 429) con backoff exponencial; un 404
-// nunca se reintenta. Si se agotan los reintentos, devuelve un error que
-// envuelve ErrUpstreamUnavailable.
+// GetDeck queries a public Moxfield deck by its ID. It retries on
+// transient errors (network/timeout, 5xx, 429) with exponential backoff; a 404
+// is never retried. If retries are exhausted, it returns an error that
+// wraps ErrUpstreamUnavailable.
 func (c *Client) GetDeck(ctx context.Context, publicID string) (*Deck, error) {
 	var lastErr error
 	delay := initialRetryDelay
@@ -149,9 +149,9 @@ func (c *Client) GetDeck(ctx context.Context, publicID string) (*Deck, error) {
 	return nil, fmt.Errorf("%w: %w", ErrUpstreamUnavailable, lastErr)
 }
 
-// getDeckOnce hace un único intento de traer el deck. retryAfter viene
-// distinto de cero solo cuando Moxfield responde 429 con el header
-// Retry-After, para que GetDeck lo respete en vez del backoff fijo.
+// getDeckOnce makes a single attempt to fetch the deck. retryAfter comes
+// out nonzero only when Moxfield responds 429 with the
+// Retry-After header, so that GetDeck respects it instead of the fixed backoff.
 func (c *Client) getDeckOnce(ctx context.Context, publicID string) (*Deck, time.Duration, error) {
 	reqURL := fmt.Sprintf("%s/%s", c.baseURL, url.PathEscape(publicID))
 
@@ -193,8 +193,8 @@ func (c *Client) getDeckOnce(ctx context.Context, publicID string) (*Deck, time.
 	}, 0, nil
 }
 
-// retryAfterDuration parsea el header Retry-After (solo la forma en segundos,
-// la única que Moxfield usa en la práctica) y devuelve 0 si falta o es inválido.
+// retryAfterDuration parses the Retry-After header (only the seconds form,
+// the only one Moxfield uses in practice) and returns 0 if it's missing or invalid.
 func retryAfterDuration(header string) time.Duration {
 	if header == "" {
 		return 0
@@ -210,11 +210,11 @@ func mainImageURL(main *cardInfo) string {
 	if main == nil {
 		return ""
 	}
-	// Carta de dos caras: el art crop vive bajo el id de la cara (normalmente el
-	// front) y con el prefijo "card-face-", nunca bajo el id combinado que Moxfield
-	// reporta como main.id ni bajo el prefijo "card-" plano (ese id corto de cara
-	// colisiona con el namespace de ids de carta completa, sirviendo la imagen de
-	// otra carta cualquiera).
+	// Two-faced card: the art crop lives under the face's id (usually the
+	// front) with the "card-face-" prefix, never under the combined id that Moxfield
+	// reports as main.id nor under the plain "card-" prefix (that short face id
+	// collides with the full-card id namespace, serving the image of
+	// some other card entirely).
 	if len(main.CardFaces) > 0 && main.CardFaces[0].ID != "" {
 		return fmt.Sprintf(imageURLFaceTemplate, main.CardFaces[0].ID)
 	}
@@ -231,13 +231,13 @@ func commanderNames(cards map[string]boardCard) string {
 			names = append(names, entry.Card.Name)
 		}
 	}
-	sort.Strings(names) // orden determinístico: el iterador de un map en Go no lo es
+	sort.Strings(names) // deterministic order: a map's iterator in Go isn't
 	return strings.Join(names, " & ")
 }
 
-// ExtractPublicID obtiene el ID público de un deck a partir de una URL de
-// Moxfield (https://moxfield.com/decks/{id}) o lo devuelve tal cual si ya es
-// un ID (no contiene "://").
+// ExtractPublicID gets a deck's public ID from a Moxfield URL
+// (https://moxfield.com/decks/{id}) or returns it as-is if it's already
+// an ID (doesn't contain "://").
 func ExtractPublicID(input string) (string, error) {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
@@ -261,9 +261,9 @@ func ExtractPublicID(input string) (string, error) {
 	return "", ErrIDNotFoundInURL
 }
 
-// ListDecksByUsername debería devolver los IDs públicos de todos los decks
-// públicos de un usuario de Moxfield (dado su username, no su ID). STUB: ver
-// ErrListDecksByUsernameNotImplemented para el motivo.
+// ListDecksByUsername should return the public IDs of all of a Moxfield
+// user's public decks (given their username, not their ID). STUB: see
+// ErrListDecksByUsernameNotImplemented for the reason.
 func (c *Client) ListDecksByUsername(_ context.Context, _ string) ([]string, error) {
 	return nil, ErrListDecksByUsernameNotImplemented
 }

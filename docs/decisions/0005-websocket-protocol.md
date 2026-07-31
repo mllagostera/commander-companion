@@ -1,69 +1,67 @@
-# ADR-0005: Protocolo de sincronización en vivo por WebSocket
+# ADR-0005: Live synchronization protocol over WebSocket
 
-**Estado:** Aceptada e implementada parcialmente (2026-07-27) — servidor
-implementado (`internal/websocket/`); cliente Android queda pendiente (ver
-Stage 6 en `docs/roadmap/TASKS.md`).
+**Status:** Accepted and partially implemented (2026-07-27) — server
+implemented (`internal/websocket/`); the Android client is still pending
+(see Stage 6 in `docs/roadmap/TASKS.md`).
 
-## Contexto
+## Context
 
-El motor de partida (`internal/games`, `internal/game-actions`) ya es real:
-`POST /games/:id/actions` registra acciones (`LifeChange`, `CombatDamage`,
-`CommanderDamage`, `PoisonCounter`, `TurnStart`, `TurnEnd`, `Elimination`) y
-muta el estado real del jugador afectado (`life_total`, `poison_counters`,
-`is_eliminated`). El problema: si dos jugadores están sentados en la misma
-partida, el cliente del jugador A no tiene forma de enterarse de una acción
-que hizo el jugador B salvo haciendo polling manual de
-`GET /games/:id/timeline` o `GET /games/:id`. Para una app de trackeo de vida
-en vivo durante una partida de Commander, el polling es inaceptable en
-latencia y en costo (N clientes preguntando cada X segundos por cada partida
-activa).
+The game engine (`internal/games`, `internal/game-actions`) is already
+real: `POST /games/:id/actions` records actions (`LifeChange`,
+`CombatDamage`, `CommanderDamage`, `PoisonCounter`, `TurnStart`, `TurnEnd`,
+`Elimination`) and mutates the real state of the affected player
+(`life_total`, `poison_counters`, `is_eliminated`). The problem: if two
+players are sitting in the same game, player A's client has no way to
+learn about an action taken by player B except by manually polling
+`GET /games/:id/timeline` or `GET /games/:id`. For a live life-tracking app
+during a Commander game, polling is unacceptable in terms of latency and
+cost (N clients asking every X seconds for every active game).
 
-Esta ADR define el protocolo mínimo de WebSocket para cerrar esa brecha:
-qué eventos se retransmiten, a quién, con qué formato de mensaje, cómo se
-autentica la conexión (el modelo de auth existente es 100% Bearer JWT sobre
-headers HTTP, que no aplica directamente a un handshake de WebSocket desde
-navegador), y qué pasa con la conexión durante el ciclo de vida de la
-partida.
+This ADR defines the minimal WebSocket protocol to close that gap: which
+events are broadcast, to whom, in what message format, how the connection
+is authenticated (the existing auth model is 100% Bearer JWT over HTTP
+headers, which doesn't directly apply to a WebSocket handshake from a
+browser), and what happens to the connection during the game's lifecycle.
 
-Alcance de esta pasada: **solo el servidor** (`internal/websocket/`, wireado
-a `game-actions`/`games`). El cliente Android que consuma este protocolo
-(conexión, reconexión con backoff, aplicar eventos entrantes al
-`GameState`) es la última tarea de Stage 6 y no se aborda acá.
+Scope of this pass: **server only** (`internal/websocket/`, wired to
+`game-actions`/`games`). The Android client that consumes this protocol
+(connection, reconnection with backoff, applying incoming events to the
+`GameState`) is the last task of Stage 6 and is not addressed here.
 
-## Decisión
+## Decision
 
-### 1. Qué se retransmite, y a quién
+### 1. What is broadcast, and to whom
 
-Se retransmiten **las siete acciones de `game_actions` sin excepción**
+**All seven `game_actions` actions are broadcast without exception**
 (`LifeChange`, `CombatDamage`, `CommanderDamage`, `PoisonCounter`,
-`TurnStart`, `TurnEnd`, `Elimination`), de forma uniforme, más un evento de
-ciclo de vida (`game_finished`) cuando la partida termina.
+`TurnStart`, `TurnEnd`, `Elimination`), uniformly, plus one lifecycle event
+(`game_finished`) when the game ends.
 
-No se filtra ni se elige un subconjunto "más importante" de acciones,
-porque:
+No subset of "more important" actions is filtered out or chosen, because:
 
-- Las siete ya comparten una única forma en la API REST
-  (`GameActionResponse`: `action_type` + `payload` libre); el cliente ya
-  sabe interpretarlas todas para pintar el timeline. Reusar exactamente el
-  mismo DTO en vivo evita mantener dos vocabularios de eventos.
-- Si mañana se agrega un octavo `action_type` al vocabulario de
-  `game-actions` (`isValidActionType`), se retransmite automáticamente sin
-  tocar `internal/websocket`.
+- All seven already share a single shape in the REST API
+  (`GameActionResponse`: `action_type` + free-form `payload`); the client
+  already knows how to interpret all of them to render the timeline.
+  Reusing exactly the same DTO live avoids maintaining two event
+  vocabularies.
+- If an eighth `action_type` is added tomorrow to the `game-actions`
+  vocabulary (`isValidActionType`), it's automatically broadcast without
+  touching `internal/websocket`.
 
-El destinatario de cada evento es **toda conexión suscripta a ese
-`game_id`** — no se filtra por si el usuario conectado es jugador de esa
-partida (ver "Fuera de alcance" más abajo, punto de autorización).
+The recipient of each event is **every connection subscribed to that
+`game_id`** — it is not filtered by whether the connected user is a player
+in that game (see "Out of scope" below, authorization point).
 
-`games.JoinGame` / `LeaveGame` / `StartGame` (transiciones de la partida en
-estado `pending`) **no se retransmiten** en esta pasada: ocurren antes de
-que haya nada que trackear en vivo (la partida ni empezó), y el flujo hoy es
-"todos se sientan, alguien aprieta empezar" en la misma pantalla — no hay
-necesidad demostrada de verlo en vivo todavía. Queda como extensión natural
-si aparece esa necesidad.
+`games.JoinGame` / `LeaveGame` / `StartGame` (game transitions in the
+`pending` state) **are not broadcast** in this pass: they happen before
+there's anything to track live (the game hasn't even started), and the
+current flow is "everyone sits down, someone taps start" on the same
+screen — there's no demonstrated need to see it live yet. It remains a
+natural extension if that need arises.
 
-### 2. Formato del sobre del mensaje (envelope)
+### 2. Message envelope format
 
-Todo mensaje que el servidor envía por el socket usa el mismo sobre JSON:
+Every message the server sends over the socket uses the same JSON envelope:
 
 ```json
 {
@@ -75,254 +73,253 @@ Todo mensaje que el servidor envía por el socket usa el mismo sobre JSON:
 }
 ```
 
-- `type`: uno de `connected`, `game_action`, `game_finished`, `error` (ver
-  abajo).
-- `game_id`: siempre presente, redundante con la sala a la que está
-  suscripta la conexión (simplifica el cliente: no necesita recordar a qué
-  partida pertenece cada socket si ya lo lee del mensaje).
-- `actor_id`: quién originó el evento; vacío/omitido en eventos que no
-  tienen un actor natural (`connected`, `game_finished`, `error`).
-- `payload`: específico de `type`; ver detalle por evento debajo.
-- `timestamp`: hora del servidor en el momento de emitir el mensaje
-  (RFC3339, UTC), **no necesariamente igual** a
-  `GameActionResponse.created_at` (que es la hora de persistencia en
-  Postgres) — son eventos ligeramente distintos (una acción se persiste, y
-  luego, por separado, se retransmite), aunque en la práctica ocurren en el
-  mismo request y difieren en microsegundos.
+- `type`: one of `connected`, `game_action`, `game_finished`, `error` (see
+  below).
+- `game_id`: always present, redundant with the room the connection is
+  subscribed to (simplifies the client: it doesn't need to remember which
+  game each socket belongs to if it can already read it from the message).
+- `actor_id`: who originated the event; empty/omitted on events with no
+  natural actor (`connected`, `game_finished`, `error`).
+- `payload`: specific to `type`; see per-event detail below.
+- `timestamp`: server time at the moment the message is emitted (RFC3339,
+  UTC), **not necessarily equal** to `GameActionResponse.created_at`
+  (which is the persistence time in Postgres) — these are slightly
+  different events (an action is persisted, and then, separately,
+  broadcast), although in practice they happen within the same request and
+  differ by microseconds.
 
-Por tipo:
+By type:
 
-- **`connected`**: el servidor lo envía una única vez, justo después de que
-  la conexión autentica correctamente. `payload` vacío. Sirve de ack: el
-  cliente sabe que ya está suscripto y puede dejar de mostrar un spinner de
-  "conectando".
-- **`game_action`**: `payload` es exactamente un `GameActionResponse` (el
-  mismo DTO que ya devuelve `POST /games/:id/actions` y
+- **`connected`**: sent by the server exactly once, right after the
+  connection authenticates successfully. Empty `payload`. Serves as an
+  ack: the client knows it's already subscribed and can stop showing a
+  "connecting" spinner.
+- **`game_action`**: `payload` is exactly a `GameActionResponse` (the same
+  DTO already returned by `POST /games/:id/actions` and
   `GET /games/:id/timeline` — `id`, `game_id`, `actor_id`, `target_id`,
-  `action_type`, `payload`, `created_at`). `actor_id` del sobre es el mismo
-  que `payload.actor_id`, duplicado a nivel de sobre para que el cliente
-  pueda filtrar/rutear sin deserializar el payload completo.
-- **`game_finished`**: `payload` vacío. Es un aviso, no un snapshot — el
-  cliente debe pedir el estado final real por REST
-  (`GET /games/:id`, `GET /statistics/*`) si lo necesita, en vez de que el
-  servidor duplique esa información por dos canales. Ver "REST sigue siendo
-  la fuente de verdad" más abajo.
-- **`error`**: solo se usa durante el handshake de autenticación (ver
-  sección 3), nunca después de que la conexión quedó autenticada.
+  `action_type`, `payload`, `created_at`). The envelope's `actor_id` is
+  the same as `payload.actor_id`, duplicated at the envelope level so the
+  client can filter/route without deserializing the full payload.
+- **`game_finished`**: empty `payload`. It's a notice, not a snapshot — the
+  client must request the real final state via REST (`GET /games/:id`,
+  `/statistics/*` endpoints) if it needs it, instead of the server
+  duplicating that information over two channels. See "REST remains the
+  source of truth" below.
+- **`error`**: only used during the authentication handshake (see section
+  3), never after the connection has been authenticated.
   `payload: { "message": "..." }`.
 
-**REST sigue siendo la fuente de verdad.** El WebSocket es un canal de
-*notificación* de que algo cambió (y, para `game_action`, qué cambió
-exactamente), no una fuente de verdad alternativa ni un mecanismo con
-garantías de entrega. Frente a cualquier duda de sincronización (reconexión,
-mensaje perdido, condición de carrera al conectar), el cliente reconcilia
-contra `GET /games/:id` / `GET /games/:id/timeline`. Esta decisión es la que
-permite dejar explícitamente fuera de alcance el replay de mensajes (sección
-5): el costo de no tenerlo es "un round-trip extra a REST en el peor caso",
-no pérdida de estado.
+**REST remains the source of truth.** The WebSocket is a *notification*
+channel that something changed (and, for `game_action`, exactly what
+changed), not an alternative source of truth nor a mechanism with delivery
+guarantees. Faced with any synchronization doubt (reconnection, lost
+message, race condition on connect), the client reconciles against
+`GET /games/:id` / `GET /games/:id/timeline`. This decision is what allows
+explicitly leaving message replay out of scope (section 5): the cost of
+not having it is "one extra round trip to REST in the worst case", not
+state loss.
 
-### 3. Autenticación de la conexión
+### 3. Connection authentication
 
-**Decisión: mensaje de auth inicial después de conectar**, no JWT por query
-param ni por subprotocolo.
+**Decision: an initial auth message after connecting**, not a JWT via
+query param or subprotocol.
 
-El cliente abre el WebSocket sin credenciales en el handshake HTTP, y como
-**primer mensaje de texto** (con un timeout de 10s) debe enviar:
+The client opens the WebSocket without credentials in the HTTP handshake,
+and as the **first text message** (with a 10s timeout) must send:
 
 ```json
-{ "type": "auth", "token": "<access token JWT, el mismo de Authorization: Bearer>" }
+{ "type": "auth", "token": "<access token JWT, the same one from Authorization: Bearer>" }
 ```
 
-El servidor valida el JWT con la misma lógica que ya usa
-`auth.RequireAuth` (`auth.VerifyAccessToken`, nueva función exportada que
-envuelve la verificación de firma/expiración ya existente en
-`internal/auth/token.go` — no se duplica la lógica de verificación). Si es
-válido, responde `connected` y la conexión queda suscripta a la sala del
-`game_id` de la URL. Si no llega el mensaje a tiempo, no es JSON válido, no
-es `type: "auth"`, o el token es inválido/expiró, el servidor envía un
-`error` con el motivo y cierra el socket con código `1008` (Policy
-Violation).
+The server validates the JWT with the same logic already used by
+`auth.RequireAuth` (`auth.VerifyAccessToken`, a new exported function that
+wraps the signature/expiration verification already existing in
+`internal/auth/token.go` — the verification logic is not duplicated). If
+valid, it responds `connected` and the connection is subscribed to the room
+for the `game_id` from the URL. If the message doesn't arrive in time, isn't
+valid JSON, isn't `type: "auth"`, or the token is invalid/expired, the
+server sends an `error` with the reason and closes the socket with code
+`1008` (Policy Violation).
 
-Se descartaron las otras dos formas estándar de resolver esto:
+The other two standard ways of solving this were discarded:
 
-- **JWT como query param en la URL del handshake**
-  (`GET /ws/games/:id?token=...`): es la opción más simple de implementar y
-  la más común en tutoriales, pero se descartó por dos razones concretas de
-  *este* backend, no genéricas:
-  1. `main.go` ya tiene `logger.New()` de Fiber como middleware global,
-     que loguea el path completo de cada request — incluida la query string
-     — de **toda** request HTTP, y el handshake de WebSocket es una request
-     HTTP normal antes del upgrade. Un access token en la URL terminaría en
-     los logs del servidor en texto plano en cada conexión, algo que ya se
-     evita deliberadamente para el resto de la API (Bearer token va en un
-     header, no en la URL, precisamente para no aparecer en logs de acceso
-     ni en historiales de proxies intermedios).
-  2. Habría que decidir qué hacer con ese query param en cualquier proxy
-     reverso o CDN delante del backend a futuro (varios cachean o loguean
-     querystrings por defecto) — un problema que el mensaje de auth inicial
-     no tiene, porque el token nunca viaja en la URL.
-- **JWT como `Sec-WebSocket-Protocol` (subprotocolo)**: evita el problema de
-  logging de la URL, pero es un uso semánticamente incorrecto del campo
-  (está pensado para negociar qué protocolo de aplicación se habla sobre el
-  socket, no para transportar credenciales) y tiene restricciones de
-  caracteres/longitud que obligan a codificar el JWT de formas no
-  estándar en algunos clientes. El mensaje de auth inicial logra el mismo
-  resultado (cero tokens en la URL/headers del handshake) sin pelearse con
-  esas restricciones, a costa de un pequeño estado intermedio ("conectado
-  pero no autenticado todavía") que hay que manejar con un timeout — costo
-  que se considera aceptable y ya está resuelto en la implementación.
+- **JWT as a query param in the handshake URL**
+  (`GET /ws/games/:id?token=...`): the simplest option to implement and
+  the most common in tutorials, but discarded for two concrete reasons
+  specific to *this* backend, not generic ones:
+  1. `main.go` already has Fiber's `logger.New()` as global middleware,
+     which logs the full path of every request — including the query
+     string — for **every** HTTP request, and the WebSocket handshake is a
+     normal HTTP request before the upgrade. An access token in the URL
+     would end up in the server's plaintext logs on every connection,
+     something already deliberately avoided for the rest of the API
+     (Bearer token goes in a header, not the URL, precisely so it doesn't
+     appear in access logs or intermediate proxy histories).
+  2. It would be necessary to decide what to do with that query param in
+     any future reverse proxy or CDN in front of the backend (several
+     cache or log querystrings by default) — a problem the initial auth
+     message doesn't have, because the token never travels in the URL.
+- **JWT as `Sec-WebSocket-Protocol` (subprotocol)**: avoids the URL
+  logging problem, but is a semantically incorrect use of the field (it's
+  meant for negotiating which application protocol is spoken over the
+  socket, not for transporting credentials) and has character/length
+  restrictions that force encoding the JWT in non-standard ways on some
+  clients. The initial auth message achieves the same result (zero tokens
+  in the handshake URL/headers) without fighting those restrictions, at
+  the cost of a small intermediate state ("connected but not yet
+  authenticated") that must be handled with a timeout — a cost considered
+  acceptable and already resolved in the implementation.
 
-Esto es coherente con el resto del modelo de auth del proyecto
-([ADR-0001](0001-auth-jwt-refresh-token-strategy.md)): sigue siendo
-Bearer-JWT-only, sin cookies ni sesiones server-side nuevas; el WebSocket
-solo cambia *cómo* viaja el mismo token, no qué token es ni cómo se emite.
+This is consistent with the rest of the project's auth model
+([ADR-0001](0001-auth-jwt-refresh-token-strategy.md)): it remains
+Bearer-JWT-only, with no new cookies or server-side sessions; the WebSocket
+only changes *how* the same token travels, not what token it is or how
+it's issued.
 
-### 4. Ciclo de vida de la conexión
+### 4. Connection lifecycle
 
-- **Conectar**: `GET /api/v1/ws/games/{game_id}` (ruta pública, sin
-  `auth.RequireAuth` — la autenticación ocurre por el mensaje inicial, no
-  por el header de la request de upgrade). Se valida que `{game_id}` tenga
-  formato UUID antes de aceptar el upgrade (400 si no); **no** se valida
-  que la partida exista ni que el usuario autenticado sea un jugador de
-  ella (ver "Fuera de alcance").
-- **Autenticar**: ver sección 3. Éxito → `connected` + queda suscripto.
-  Fallo → `error` + cierre `1008`.
-- **Mientras dura la partida (`active`)**: cada `game_action` registrada
-  exitosamente por `POST /games/:id/actions` se retransmite a la sala.
-  Best-effort: si una conexión tiene su buffer de salida lleno (cliente
-  lento o colgado), ese mensaje puntual se descarta *solo para esa
-  conexión* — nunca bloquea el request HTTP que originó la acción ni afecta
-  a las demás conexiones de la sala.
-- **Un cliente se desconecta** (cierra la app, pierde la red, refresca la
-  página): el servidor lo detecta cuando la próxima lectura/escritura sobre
-  ese socket falla, y lo remueve de la sala. No hay que avisarle a nadie
-  más — no hay eventos de presencia en esta pasada (ver "Fuera de
-  alcance").
-- **La partida termina** (`FinishGame`, vía `games.Broadcaster`): se
-  retransmite `game_finished` a toda la sala y el servidor **cierra
-  activamente todas las conexiones** de esa sala (código `1000`, cierre
-  normal). Justificación: una vez `finished`, `game-actions.RecordAction`
-  rechaza cualquier acción nueva (`game is not active`, 409) — no puede
-  haber más `game_action` para esa sala nunca más, así que mantener el
-  socket abierto solo consumiría un file descriptor sin propósito. El
-  cliente que quiera el resultado final ya sabe pedirlo por REST
-  (`GET /games/:id`, endpoints de `/statistics/*`).
-- **Reconexión**: no hay continuidad de sesión entre conexiones — una
-  reconexión es indistinguible de una conexión nueva (nuevo mensaje `auth`,
-  nueva entrada en la sala). El cliente es responsable de, al (re)conectar,
-  refrescar su estado desde REST antes o en paralelo a suscribirse (evita
-  perder acciones que hayan ocurrido durante el corte) y de deduplicar por
-  `GameActionResponse.id` si un evento que ya aplicó por REST también le
-  llega luego por WebSocket (esto pasa siempre, de hecho, para el propio
-  autor de la acción: recibe su `GameActionResponse` como respuesta del
-  `POST`, y una copia idéntica más tarde por WebSocket — no es un bug, es
-  la consecuencia de retransmitir a "toda la sala" sin excluir al emisor,
-  ver "Fuera de alcance").
+- **Connect**: `GET /api/v1/ws/games/{game_id}` (public route, without
+  `auth.RequireAuth` — authentication happens via the initial message, not
+  via the upgrade request's header). It's validated that `{game_id}` has
+  UUID format before accepting the upgrade (400 if not); it is **not**
+  validated that the game exists or that the authenticated user is a
+  player in it (see "Out of scope").
+- **Authenticate**: see section 3. Success → `connected` + subscribed.
+  Failure → `error` + `1008` close.
+- **While the game lasts (`active`)**: every `game_action` successfully
+  recorded by `POST /games/:id/actions` is broadcast to the room.
+  Best-effort: if a connection has its outgoing buffer full (slow or stuck
+  client), that particular message is dropped *only for that connection*
+  — it never blocks the HTTP request that originated the action nor
+  affects the room's other connections.
+- **A client disconnects** (closes the app, loses network, refreshes the
+  page): the server detects it when the next read/write on that socket
+  fails, and removes it from the room. No one else needs to be notified —
+  there are no presence events in this pass (see "Out of scope").
+- **The game finishes** (`FinishGame`, via `games.Broadcaster`):
+  `game_finished` is broadcast to the whole room and the server **actively
+  closes all connections** in that room (code `1000`, normal closure).
+  Justification: once `finished`, `game-actions.RecordAction` rejects any
+  new action (`game is not active`, 409) — there can never be another
+  `game_action` for that room again, so keeping the socket open would only
+  consume a file descriptor with no purpose. A client that wants the final
+  result already knows to request it via REST (`GET /games/:id`,
+  `/statistics/*` endpoints).
+- **Reconnection**: there's no session continuity between connections — a
+  reconnection is indistinguishable from a new connection (new `auth`
+  message, new entry in the room). The client is responsible for, upon
+  (re)connecting, refreshing its state from REST before or in parallel with
+  subscribing (avoids missing actions that occurred during the outage) and
+  for deduplicating by `GameActionResponse.id` if an event it already
+  applied via REST also arrives later via WebSocket (this actually always
+  happens for the author of the action itself: they receive their
+  `GameActionResponse` as the `POST` response, and an identical copy later
+  via WebSocket — this isn't a bug, it's the consequence of broadcasting to
+  "the whole room" without excluding the sender, see "Out of scope").
 
-### 5. Fuera de alcance de esta pasada
+### 5. Out of scope for this pass
 
-Documentado explícitamente para no confundir "no implementado" con
-"olvidado":
+Explicitly documented so "not implemented" isn't confused with "forgotten":
 
-- **Garantías de entrega / replay al reconectar**: no hay cola de mensajes
-  pendientes ni buffer de "lo que te perdiste". Si una conexión no está
-  suscripta en el momento de un `Broadcast` (todavía no conectó, se cayó,
-  o su buffer estaba lleno), ese mensaje se pierde para ella
-  definitivamente. Mitigado por el punto de la sección 2 (REST es la
-  fuente de verdad; el cliente reconcilia). Justificación de por qué se
-  difiere: implementarlo bien requiere decidir dónde vive ese buffer
-  (¿en memoria del proceso? ¿se pierde igual si el proceso reinicia?
-  ¿por cuánto tiempo? ¿un log persistente tipo Kafka/Redis Streams?) — es
-  una decisión de infraestructura no trivial que no se justifica sin datos
-  reales de cuán seguido pasa un corte de red durante una partida.
-- **Autorización a nivel de jugador**: cualquier usuario autenticado (JWT
-  válido) puede suscribirse a **cualquier** `game_id`, exista o no, sea o
-  no jugador de esa partida — el servidor no valida membership. El único
-  control es "tener un JWT válido" (igual que el resto de la API exige
-  estar logueado, pero no exige ser dueño del recurso en varios paths de
-  lectura). El riesgo real es bajo (los `game_id` son UUIDs v4 no
-  adivinables, y ver la sala de otro no expone más que lo que ya expone
-  `GET /games/:id/timeline`, endpoint que hoy tampoco valida membership),
-  pero es una laguna real que se documenta en vez de asumir que no existe.
-- **Escalado multi-proceso / pub-sub externo**: el `Hub` vive en memoria de
-  un único proceso (`map[game_id][]conn` protegido por un `sync.RWMutex`).
-  Si el backend corre en más de una réplica, dos jugadores de la misma
-  partida conectados a réplicas distintas **no se ven entre sí** — cada
-  proceso solo sabe de sus propias conexiones. Resolver esto requiere un
-  bus de mensajes compartido (Redis Pub/Sub, NATS, `LISTEN`/`NOTIFY` de
-  Postgres) del que hoy no hay necesidad: el backend corre como un único
-  proceso (ver `docker-compose.yml`, sin ningún componente de
-  orquestación/escalado horizontal todavía).
-- **Presencia** ("qué jugadores están conectados ahora mismo") y
-  **indicadores de actividad** (typing/"fulano está pensando su turno"): no
-  hay ningún evento de este tipo. Es una mejora de UX real pero
-  independiente del problema que esta ADR resuelve (sincronizar el estado
-  del juego), y agregarla implica decisiones propias (¿qué es "presente":
-  el socket abierto, o alguna interacción reciente? ¿se retransmite
-  join/leave del socket, aunque no correspondan 1:1 con estar sentado en la
-  partida?).
-- **Canal cliente→servidor sobre el socket**: el WebSocket es unidireccional
-  server→client después del mensaje `auth` inicial — el servidor ignora
-  cualquier mensaje posterior que un cliente le envíe. Registrar acciones
-  sigue siendo exclusivamente vía `POST /games/:id/actions` (REST). No hay
-  ninguna ventaja de latencia relevante en mover ese POST al socket para
-  esta app, y hacerlo obligaría a duplicar toda la validación/autorización
-  de `game-actions.RecordAction` en el handler del socket.
-- **Heartbeat / ping-pong applicativo**: no se implementa un ticker de
-  ping/pong explícito. La detección de conexiones muertas depende de que la
-  próxima lectura o escritura sobre el socket TCP falle (lo cual puede
-  tardar, según el SO, bastante más que un ping/pong explícito ante un
-  corte "silencioso" de red, ej. el cliente pierde conectividad sin cerrar
-  limpio). Se documenta como limitación conocida, no como decisión
-  definitiva — es la primera candidata a agregar si en la práctica se ven
-  salas con conexiones fantasma acumulándose.
+- **Delivery guarantees / replay on reconnect**: there's no queue of
+  pending messages or "what you missed" buffer. If a connection isn't
+  subscribed at the moment of a `Broadcast` (hasn't connected yet, dropped,
+  or its buffer was full), that message is lost for it permanently.
+  Mitigated by the point in section 2 (REST is the source of truth; the
+  client reconciles). Justification for deferring it: implementing it
+  properly requires deciding where that buffer lives (in process memory?
+  is it lost anyway if the process restarts? for how long? a persistent
+  log like Kafka/Redis Streams?) — a non-trivial infrastructure decision
+  that isn't justified without real data on how often a network outage
+  happens during a game.
+- **Player-level authorization**: any authenticated user (valid JWT) can
+  subscribe to **any** `game_id`, whether it exists or not, whether they're
+  a player in that game or not — the server doesn't validate membership.
+  The only control is "having a valid JWT" (same as the rest of the API
+  requiring being logged in, but not requiring ownership of the resource
+  on several read paths). The real risk is low (`game_id`s are
+  non-guessable v4 UUIDs, and seeing another game's room doesn't expose
+  more than what `GET /games/:id/timeline` already exposes, an endpoint
+  that also doesn't validate membership today), but it's a real gap that's
+  documented rather than assumed not to exist.
+- **Multi-process scaling / external pub-sub**: the `Hub` lives in the
+  memory of a single process (`map[game_id][]conn` protected by a
+  `sync.RWMutex`). If the backend runs on more than one replica, two
+  players in the same game connected to different replicas **won't see
+  each other** — each process only knows about its own connections.
+  Solving this requires a shared message bus (Redis Pub/Sub, NATS,
+  Postgres `LISTEN`/`NOTIFY`) that there's no need for today: the backend
+  runs as a single process (see `docker-compose.yml`, with no horizontal
+  scaling/orchestration component yet).
+- **Presence** ("which players are connected right now") and **activity
+  indicators** (typing/"so-and-so is thinking about their turn"): there's
+  no event of this kind. It's a real UX improvement but independent of the
+  problem this ADR solves (synchronizing game state), and adding it
+  entails its own decisions (what counts as "present": the socket being
+  open, or some recent interaction? is the socket's join/leave broadcast,
+  even though it doesn't correspond 1:1 to being seated in the game?).
+- **Client→server channel over the socket**: the WebSocket is unidirectional
+  server→client after the initial `auth` message — the server ignores any
+  subsequent message a client sends it. Recording actions remains
+  exclusively via `POST /games/:id/actions` (REST). There's no relevant
+  latency advantage to moving that POST to the socket for this app, and
+  doing so would force duplicating all of
+  `game-actions.RecordAction`'s validation/authorization in the socket
+  handler.
+- **Heartbeat / application-level ping-pong**: no explicit ping/pong ticker
+  is implemented. Detection of dead connections depends on the next read
+  or write on the TCP socket failing (which, depending on the OS, can take
+  considerably longer than an explicit ping/pong in the face of a
+  "silent" network outage, e.g. the client loses connectivity without a
+  clean close). Documented as a known limitation, not a final decision —
+  it's the first candidate to add if, in practice, rooms are seen
+  accumulating ghost connections.
 
-## Alternativas consideradas (arquitectura general)
+## Alternatives considered (general architecture)
 
-- **Server-Sent Events (SSE) en vez de WebSocket**: sería suficiente para
-  el caso de uso actual (server→client únicamente, ver punto de "canal
-  cliente→servidor" arriba) y más simple de implementar sobre HTTP/1.1
-  puro. Se descartó igual porque (a) el roadmap ya nombra a este stage
-  "Sincronización (Websocket)" explícitamente, y (b) SSE tiene peor soporte
-  nativo en Android/OkHttp que WebSocket, que es un ciudadano de primera
-  clase en el stack Android ya elegido — no vale la pena pelearse con un
-  polyfill de SSE en el cliente principal para ahorrarse la (pequeña)
-  complejidad extra de manejar el handshake de WebSocket en el servidor.
-- **Polling corto (short polling) como solución "suficiente"**: es lo que
-  existe hoy de facto (nada, en realidad — ni siquiera hay polling
-  implementado en el cliente). Se descartó como alternativa *permanente*
-  precisamente porque es el problema que esta ADR resuelve, no una opción
-  competitiva.
+- **Server-Sent Events (SSE) instead of WebSocket**: would be sufficient
+  for the current use case (server→client only, see the "client→server
+  channel" point above) and simpler to implement over plain HTTP/1.1. It
+  was discarded anyway because (a) the roadmap already names this stage
+  "Synchronization (WebSocket)" explicitly, and (b) SSE has worse native
+  support on Android/OkHttp than WebSocket, which is a first-class citizen
+  in the already-chosen Android stack — not worth fighting an SSE polyfill
+  in the main client to save the (small) extra complexity of handling the
+  WebSocket handshake on the server.
+- **Short polling as a "good enough" solution**: it's what exists today de
+  facto (nothing, really — there isn't even polling implemented on the
+  client). Discarded as a *permanent* alternative precisely because it's
+  the problem this ADR solves, not a competing option.
 
-## Consecuencias
+## Consequences
 
-- `internal/auth` gana una función exportada nueva
-  (`auth.VerifyAccessToken`) que expone la verificación de JWT que antes
-  solo usaba el middleware `RequireAuth` internamente. Superficie de
-  ataque adicional: ninguna nueva (misma verificación, un caller más).
-- `games.Service` y `gameactions.Service` ganan una dependencia nueva
-  (`Broadcaster`, un método cada uno) inyectada por constructor, con el
-  mismo patrón que `games.StatisticsRecalculator` — ninguno de los dos
-  importa `internal/websocket` directamente, evitando un acoplamiento
-  fuerte y permitiendo mockear el broadcast en tests.
-- Nueva ruta pública (sin `auth.RequireAuth`) en la superficie HTTP:
-  `GET /api/v1/ws/games/:id`. Documentar en `openapi.yaml` queda pendiente
-  como tarea separada (OpenAPI 3.1 no modela bien WebSockets; probablemente
-  amerite solo una nota en la descripción del path REST equivalente en vez
-  de un intento de spec formal).
-- El `Hub` en memoria es un límite de escalado conocido y documentado
-  (ver "Fuera de alcance"): mudar el backend a múltiples réplicas requiere
-  revisar esta ADR primero.
+- `internal/auth` gains a new exported function (`auth.VerifyAccessToken`)
+  that exposes the JWT verification previously only used internally by the
+  `RequireAuth` middleware. Additional attack surface: none new (same
+  verification, one more caller).
+- `games.Service` and `gameactions.Service` gain a new dependency
+  (`Broadcaster`, one method each) injected via constructor, following the
+  same pattern as `games.StatisticsRecalculator` — neither imports
+  `internal/websocket` directly, avoiding tight coupling and allowing the
+  broadcast to be mocked in tests.
+- New public route (without `auth.RequireAuth`) on the HTTP surface:
+  `GET /api/v1/ws/games/:id`. Documenting it in `openapi.yaml` remains a
+  separate pending task (OpenAPI 3.1 doesn't model WebSockets well;
+  probably warrants just a note in the equivalent REST path's description
+  instead of an attempt at a formal spec).
+- The in-memory `Hub` is a known and documented scaling limit (see "Out of
+  scope"): moving the backend to multiple replicas requires revisiting
+  this ADR first.
 
-## Referencias
+## References
 
-- Implementación: `backend/internal/websocket/` (`hub.go`, `client.go`,
+- Implementation: `backend/internal/websocket/` (`hub.go`, `client.go`,
   `handler.go`, `envelope.go`, `broadcaster.go`)
 - Wiring: `backend/cmd/api/main.go` (`registerModules`)
-- Interfaces de desacoplamiento: `backend/internal/games/service.go`
+- Decoupling interfaces: `backend/internal/games/service.go`
   (`Broadcaster`), `backend/internal/game-actions/service.go`
-  (`Broadcaster`) — mismo patrón que `games.StatisticsRecalculator`
-- Verificación de JWT reutilizada: `backend/internal/auth/token.go`
+  (`Broadcaster`) — same pattern as `games.StatisticsRecalculator`
+- Reused JWT verification: `backend/internal/auth/token.go`
   (`VerifyAccessToken`)
-- Ver también [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (modelo
-  de auth Bearer-JWT que esta ADR reutiliza sin modificar)
+- See also [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (the
+  Bearer-JWT auth model this ADR reuses without modification)

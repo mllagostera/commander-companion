@@ -1,134 +1,135 @@
-# ADR-0011: Estrategia de migraciones (naming) y recompute de estadísticas pre-calculadas
+# ADR-0011: Migration naming strategy and recompute of pre-calculated statistics
 
-**Estado:** Aceptada (2026-07-27) — formaliza una convención que ya se
-seguía de facto desde `migrations/00001_initial_schema.sql`, y propone (sin
-implementar todavía) un mecanismo de backfill que hoy no existe.
+**Status:** Accepted (2026-07-27) — formalizes a convention that had already
+been followed de facto since `migrations/00001_initial_schema.sql`, and proposes
+(without implementing it yet) a backfill mechanism that does not exist today.
 
-## Contexto
+## Context
 
-El proyecto ya tiene 6 migraciones (`00001` a `00006`, ver ADR-0008 para la
-elección de goose+sqlc) y dos tablas de estadísticas pre-calculadas
-(`user_statistics_summary`, `deck_statistics_summary`) que se actualizan de
-forma incremental cada vez que termina una partida
-(`internal/statistics/service.go: RecalculateForGame`, ver Stage 1 y 7 de
-`docs/roadmap/TASKS.md`). Dos huecos quedaban sin documentar:
+The project already has 6 migrations (`00001` to `00006`, see ADR-0008 for the
+choice of goose+sqlc) and two pre-calculated statistics tables
+(`user_statistics_summary`, `deck_statistics_summary`) that get updated
+incrementally every time a game finishes
+(`internal/statistics/service.go: RecalculateForGame`, see Stage 1 and 7 of
+`docs/roadmap/TASKS.md`). Two gaps remained undocumented:
 
-1. **Naming de migraciones**: el patrón usado (`%05d_slug_en_snake_case.sql`)
-   nunca se escribió en ningún lado — cualquiera que agregue una migración
-   nueva tiene que inferirlo leyendo el directorio.
-2. **Recompute de estadísticas**: si la fórmula de agregación de
-   `RecalculateForGame` cambia (por ejemplo, para dejar de comportarse igual
-   `CombatDamage`/`CommanderDamage`, ver la limitación conocida en
-   `TASKS.md:70`), no existe ningún mecanismo para volver a calcular las filas
-   de resumen de partidas ya finalizadas. `docs/database/schema.dbml` (línea
-   ~102) ya deja una nota reconociendo esta necesidad, sin proponer cómo.
+1. **Migration naming**: the pattern used (`%05d_slug_en_snake_case.sql`)
+   was never written down anywhere — anyone adding a new migration
+   has to infer it by reading the directory.
+2. **Statistics recompute**: if the aggregation formula in
+   `RecalculateForGame` changes (for example, to stop treating
+   `CombatDamage`/`CommanderDamage` the same way, see the known limitation
+   in `TASKS.md:70`), there is no mechanism to recalculate the summary
+   rows for games that have already finished.
+   `docs/database/schema.dbml` (line ~102) already leaves a note acknowledging
+   this need, without proposing how.
 
-## Decisión
+## Decision
 
-### 1. Naming de migraciones
+### 1. Migration naming
 
-Se formaliza por escrito la convención ya usada de facto en las 6
-migraciones existentes:
+The convention already used de facto across the 6 existing
+migrations is formalized in writing:
 
-- **Nombre de archivo**: `%05d_slug_en_snake_case.sql` (5 dígitos con ceros a
-  la izquierda, guion bajo, descripción corta en snake_case). Ejemplos reales:
+- **File name**: `%05d_slug_en_snake_case.sql` (5 zero-padded digits,
+  underscore, short description in snake_case). Real examples:
   `00002_auth.sql`, `00004_status_constraints.sql`,
   `00006_deck_image_url.sql`.
-- **Secuencia única y plana**: todas las migraciones comparten una sola
-  numeración correlativa en `backend/migrations/`, sin prefijo ni
-  sub-carpeta por módulo, aunque una migración típicamente afecte a un solo
-  módulo de `internal/`. Facilita saber en qué orden se aplicaron sin tener
-  que mirar varias carpetas.
-- **Estructura obligatoria**: cada migración envuelve su `-- +goose Up` y
-  `-- +goose Down` en su propio bloque `-- +goose StatementBegin` /
-  `-- +goose StatementEnd` (aunque sea una sola sentencia), y `Down` revierte
-  `Up` en el orden exactamente inverso (LIFO para migraciones con más de una
-  sentencia — ver `00001_initial_schema.sql`, que dropea las 9 tablas en
-  orden inverso al de creación por las FKs).
-- **Comentarios que citan el código real**: cuando una migración impone algo
-  que el código Go ya valida en runtime (un `CHECK`, un índice pensado para
-  una query concreta), el comentario en el `.sql` referencia el archivo/
-  función Go correspondiente (ver `00004_status_constraints.sql`, que cita
-  `internal/games/service.go` e `internal/game-actions/service.go`).
-- **Verificación antes de mergear**: se corre `up` → `down` → `up` contra un
-  Postgres real en local antes de abrir el PR (ya era la práctica seguida,
-  documentada suelta en el historial de `TASKS.md`, nunca en un solo lugar).
-  `backend-ci.yml` solo corre `up` contra el servicio de Postgres de CI — el
-  ciclo `down`→`up` sigue siendo una verificación manual, no automatizada.
-- **Cambiar el esquema sigue el orden ya establecido en ADR-0008**:
-  `docs/database/schema.dbml` → migración goose → `query.sql` del módulo
-  afectado si cambian columnas usadas → `sqlc generate`.
+- **Single flat sequence**: all migrations share a single correlative
+  numbering under `backend/migrations/`, with no prefix or
+  per-module sub-folder, even though a given migration typically affects only one
+  `internal/` module. This makes it easy to know the order in which they were
+  applied without having to look across several folders.
+- **Mandatory structure**: each migration wraps its `-- +goose Up` and
+  `-- +goose Down` in its own `-- +goose StatementBegin` /
+  `-- +goose StatementEnd` block (even for a single statement), and `Down` reverses
+  `Up` in exactly the opposite order (LIFO for migrations with more than one
+  statement — see `00001_initial_schema.sql`, which drops the 9 tables in
+  the reverse order of creation due to FKs).
+- **Comments that cite real code**: when a migration enforces something the
+  Go code already validates at runtime (a `CHECK`, an index designed for
+  a specific query), the comment in the `.sql` file references the corresponding
+  Go file/function (see `00004_status_constraints.sql`, which cites
+  `internal/games/service.go` and `internal/game-actions/service.go`).
+- **Verification before merging**: run `up` → `down` → `up` against a real
+  Postgres instance locally before opening the PR (this was already the practice
+  followed, loosely documented across `TASKS.md`'s history, never in one place).
+  `backend-ci.yml` only runs `up` against the CI Postgres service — the
+  `down`→`up` cycle remains a manual check, not automated.
+- **Changing the schema still follows the order already established in ADR-0008**:
+  `docs/database/schema.dbml` → goose migration → the affected module's `query.sql`
+  if used columns change → `sqlc generate`.
 
-### 2. Recompute de estadísticas pre-calculadas
+### 2. Recompute of pre-calculated statistics
 
-Hoy no existe ningún mecanismo de backfill (confirmado: no hay CLI, endpoint
-ni script — la única forma de tocar `user_statistics_summary`/
-`deck_statistics_summary` es `RecalculateForGame`, llamada una única vez por
-partida desde `games.FinishGame`). Se propone, para cuando haga falta
-re-derivar estadísticas históricas:
+Today there is no backfill mechanism at all (confirmed: no CLI, endpoint,
+or script — the only way to touch `user_statistics_summary`/
+`deck_statistics_summary` is `RecalculateForGame`, called exactly once per
+game from `games.FinishGame`). It is proposed, for when historical
+statistics need to be re-derived:
 
-- Un comando one-off nuevo, `backend/cmd/recalculate-stats/main.go`, que:
-  1. `TRUNCATE` las dos tablas de resumen.
-  2. Recorra todas las partidas con `status = 'finished'` **en orden
-     cronológico** (`created_at` o `id`, da igual mientras sea un orden
-     total y determinístico).
-  3. Llame a `statistics.RecalculateForGame(gameID)` una vez por partida.
-- **Invariante que el script debe respetar**: los upserts de
-  `RecalculateForGame` son incrementales (`ON CONFLICT DO UPDATE SET x = x +
-  EXCLUDED.x`), no reemplazos — llamarlo dos veces para la misma partida
-  duplica sus contribuciones. Hoy esto no es un bug activo porque la máquina
-  de estados de `games` no permite finalizar la misma partida dos veces, pero
-  cualquier futuro script de backfill **tiene que garantizar que cada
-  partida se procese exactamente una vez** (de ahí el `TRUNCATE` inicial: es
-  más simple recalcular todo desde cero que intentar un backfill parcial
-  idempotente).
-- No se implementa este comando en esta pasada — es una propuesta para
-  cuando la fórmula de agregación cambie de verdad y haga falta re-derivar
-  historial; hasta entonces, documentarlo alcanza.
+- A new one-off command, `backend/cmd/recalculate-stats/main.go`, that:
+  1. `TRUNCATE`s the two summary tables.
+  2. Iterates over every game with `status = 'finished'` **in chronological
+     order** (`created_at` or `id`, either works as long as it's a total,
+     deterministic order).
+  3. Calls `statistics.RecalculateForGame(gameID)` once per game.
+- **Invariant the script must respect**: `RecalculateForGame`'s upserts are
+  incremental (`ON CONFLICT DO UPDATE SET x = x +
+  EXCLUDED.x`), not replacements — calling it twice for the same game
+  duplicates its contributions. This is not currently an active bug because the
+  `games` state machine doesn't allow finishing the same game twice, but
+  any future backfill script **must guarantee that each
+  game is processed exactly once** (hence the initial `TRUNCATE`: it is
+  simpler to recalculate everything from scratch than to attempt a partial,
+  idempotent backfill).
+- This command is not implemented in this pass — it's a proposal for
+  when the aggregation formula actually changes and history needs to be
+  re-derived; until then, documenting it is enough.
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **Migraciones con timestamp en vez de secuencia** (`20260727120000_x.sql`,
-  patrón común en Rails/Django): evita colisiones de número si dos ramas
-  crean una migración en paralelo, pero el proyecto ya tiene 6 migraciones
-  con el esquema secuencial y es un solo mantenedor (ADR-0010) — el riesgo de
-  colisión que resuelve el timestamp no aplica hoy. Cambiar de esquema a
-  mitad de camino generaría más confusión que el problema que evita.
-- **Snapshot incremental en vez de recompute completo** (guardar un
-  checkpoint de qué partidas ya se procesaron y solo recalcular las nuevas):
-  más eficiente para bases grandes, pero resuelve un problema de escala que
-  el proyecto no tiene todavía (recorrer todas las partidas finalizadas de
-  un desarrollo en curso es barato) y complica la lógica de idempotencia
-  justo en el punto donde hoy es más simple garantizarla (recalcular todo
-  desde cero). Se prefiere la opción simple hasta que el volumen real lo
-  justifique.
-- **Hacer que `RecalculateForGame` sea idempotente por sí mismo** (con una
-  tabla de auditoría `recalculated_games` o similar) en vez de delegar la
-  invariante al script de backfill: se descartó por ahora porque agrega una
-  tabla y un chequeo extra al camino caliente (fin de cada partida) para un
-  caso que solo importa en el camino frío (backfill manual, poco frecuente).
+- **Timestamp-based migrations instead of a sequence** (`20260727120000_x.sql`,
+  a common pattern in Rails/Django): avoids number collisions if two branches
+  create a migration in parallel, but the project already has 6 migrations
+  with the sequential scheme and has a single maintainer (ADR-0010) — the collision
+  risk the timestamp solves doesn't apply today. Switching schemes midway
+  would create more confusion than the problem it solves.
+- **Incremental snapshot instead of full recompute** (storing a
+  checkpoint of which games have already been processed and only recalculating new
+  ones): more efficient for large databases, but solves a scale problem
+  the project doesn't have yet (iterating over all finished games of a
+  project still in active development is cheap) and complicates the idempotency
+  logic right at the point where it's currently simplest to guarantee it
+  (recalculating everything from scratch). The simple option is preferred until
+  real volume justifies otherwise.
+- **Making `RecalculateForGame` idempotent on its own** (with an
+  `recalculated_games` audit table or similar) instead of delegating the
+  invariant to the backfill script: ruled out for now because it adds a
+  table and an extra check to the hot path (end of every game) for a
+  case that only matters on the cold path (manual backfill, infrequent).
 
-## Consecuencias
+## Consequences
 
-- Cualquier migración nueva debe seguir el naming y la estructura de esta
-  ADR; un review que vea un nombre fuera de patrón (fecha, sub-carpeta,
-  `Down` que no revierte `Up` en orden inverso) puede señalarlo citando este
-  documento.
-- El comando `recalculate-stats` queda como una tarea futura concreta (no
-  abierta todavía en `TASKS.md` como ítem de código, solo documentada acá) —
-  se abre cuando de verdad cambie una fórmula de agregación y haga falta
-  re-derivar historial.
-- **Nota de seguimiento, fuera de alcance de esta ADR**: `docs-ci.yml`'s
-  `dbml-validate` solo verifica que `schema.dbml` compile a SQL
-  (`dbml2sql`), no lo compara contra el esquema realmente migrado — DBML y
-  migraciones pueden divergir sin que CI lo detecte. Cerrar ese gap
-  (comparar `dbml2sql` contra un `pg_dump --schema-only` de una base recién
-  migrada) queda como mejora futura, no como parte de este cambio.
+- Any new migration must follow the naming and structure from this
+  ADR; a reviewer who sees a name outside the pattern (date, sub-folder,
+  a `Down` that doesn't reverse `Up` in the opposite order) can flag it citing this
+  document.
+- The `recalculate-stats` command remains a concrete future task (not yet
+  opened in `TASKS.md` as a code item, only documented here) —
+  it gets opened once an aggregation formula actually changes and history needs to
+  be re-derived.
+- **Follow-up note, outside the scope of this ADR**: `docs-ci.yml`'s
+  `dbml-validate` only verifies that `schema.dbml` compiles to SQL
+  (`dbml2sql`), it does not compare it against the actually migrated schema — DBML and
+  migrations can diverge without CI detecting it. Closing that gap
+  (comparing `dbml2sql` against a `pg_dump --schema-only` of a freshly
+  migrated database) remains a future improvement, not part of this change.
 
-## Referencias
+## References
 
-- `backend/migrations/00001_initial_schema.sql` a `00006_deck_image_url.sql`
+- `backend/migrations/00001_initial_schema.sql` through `00006_deck_image_url.sql`
 - `backend/internal/statistics/service.go` (`RecalculateForGame`)
-- `docs/database/schema.dbml` (nota sobre estadísticas pre-calculadas)
-- [ADR-0008](0008-sqlc-goose.md) (sqlc + goose, orden de cambio de esquema)
-- `docs/roadmap/TASKS.md`, Stage 2 y Stage 7
+- `docs/database/schema.dbml` (note about pre-calculated statistics)
+- [ADR-0008](0008-sqlc-goose.md) (sqlc + goose, schema change order)
+- `docs/roadmap/TASKS.md`, Stage 2 and Stage 7

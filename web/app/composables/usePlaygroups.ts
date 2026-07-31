@@ -3,12 +3,12 @@ import type { Playgroup, PlaygroupMember } from '~/types/api'
 export function usePlaygroups() {
   const { apiFetch } = useApi()
 
-  /** Grupos de los que el usuario autenticado es miembro, con `members` poblado. */
+  /** Groups the authenticated user is a member of, with `members` populated. */
   function listPlaygroups() {
     return apiFetch<Playgroup[]>('/playgroups')
   }
 
-  /** El creador queda como primer miembro automáticamente (lo hace el backend). */
+  /** The creator is automatically added as the first member (done by the backend). */
   function createPlaygroup(name: string) {
     return apiFetch<Playgroup>('/playgroups', {
       method: 'POST',
@@ -16,12 +16,12 @@ export function usePlaygroups() {
     })
   }
 
-  /** Único camino con `members` poblado. 404 si no existe o no eres miembro. */
+  /** The only path with `members` populated. 404 if it doesn't exist or you're not a member. */
   function getPlaygroup(id: string) {
     return apiFetch<Playgroup>(`/playgroups/${id}`)
   }
 
-  /** Solo un miembro existente puede renombrar el grupo (mismo criterio que addMember). */
+  /** Only an existing member can rename the group (same approach as addMember). */
   function updatePlaygroup(id: string, name: string) {
     return apiFetch<Playgroup>(`/playgroups/${id}`, {
       method: 'PATCH',
@@ -29,7 +29,7 @@ export function usePlaygroups() {
     })
   }
 
-  /** userId debe ser el UUID de un usuario ya existente; quien invita debe ya ser miembro. */
+  /** userId must be the UUID of an already existing user; the inviter must already be a member. */
   function addMember(playgroupId: string, userId: string) {
     return apiFetch<PlaygroupMember>(`/playgroups/${playgroupId}/members`, {
       method: 'POST',
@@ -51,8 +51,8 @@ export function createPlaygroupError(err: unknown): string {
 }
 
 /**
- * 404 acá cubre tanto "el grupo no existe" como "no eres miembro" (el backend
- * no distingue, ver getMemberPlaygroup en internal/playgroups/service.go).
+ * 404 here covers both "the group doesn't exist" and "you're not a member" (the backend
+ * doesn't distinguish, see getMemberPlaygroup in internal/playgroups/service.go).
  */
 export function getPlaygroupError(err: unknown): string {
   const { t } = useI18n()
@@ -64,7 +64,7 @@ export function getPlaygroupError(err: unknown): string {
   }
 }
 
-/** Mismo mapeo de errores que createPlaygroupError/getPlaygroupError: 400 sin nombre, 404 si no es miembro. */
+/** Same error mapping as createPlaygroupError/getPlaygroupError: 400 for no name, 404 if not a member. */
 export function updatePlaygroupError(err: unknown): string {
   const { t } = useI18n()
   switch (apiErrorStatus(err)) {
@@ -77,7 +77,7 @@ export function updatePlaygroupError(err: unknown): string {
   }
 }
 
-/** Ver ErrInvalidUserID (400), ErrUserNotFound (404) y ErrAlreadyMember (409) en internal/playgroups/service.go. */
+/** See ErrInvalidUserID (400), ErrUserNotFound (404) and ErrAlreadyMember (409) in internal/playgroups/service.go. */
 export function addMemberError(err: unknown): string {
   const { t } = useI18n()
   switch (apiErrorStatus(err)) {

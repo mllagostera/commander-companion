@@ -1,10 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- Resincronización asíncrona de TODOS los decks ya importados de un usuario que
--- tengan moxfield_id (ver internal/deckresync) — distinto de moxfield_import_jobs,
--- que trae decks NUEVOS a partir de un username. Mismo shape (contadores
--- agregados, no un ítem por deck) que esa tabla, ver su comentario.
+-- Asynchronous re-sync of ALL of a user's already-imported decks that
+-- have a moxfield_id (see internal/deckresync) — different from moxfield_import_jobs,
+-- which brings in NEW decks from a username. Same shape (aggregate
+-- counters, not one item per deck) as that table, see its comment.
 CREATE TABLE deck_resync_jobs (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         uuid REFERENCES users(id),
@@ -20,7 +20,7 @@ CREATE TABLE deck_resync_jobs (
     CHECK (status IN ('pending', 'in_progress', 'completed', 'failed'))
 );
 
--- Un solo job activo por usuario a la vez, mismo motivo que moxfield_import_jobs.
+-- Only one active job per user at a time, same reason as moxfield_import_jobs.
 CREATE UNIQUE INDEX deck_resync_jobs_active_user_idx
   ON deck_resync_jobs (user_id) WHERE status IN ('pending', 'in_progress');
 

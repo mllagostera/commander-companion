@@ -44,7 +44,7 @@ import java.util.UUID
 private const val MIN_PLAYERS = 2
 private const val MAX_PLAYERS = 6
 
-/** Casual: cero red, cero estadísticas — el life tracker de siempre. Grupo: ver [PlaygroupDto]. */
+/** Casual: zero network, zero stats — the usual life tracker. Group: see [PlaygroupDto]. */
 private enum class SetupMode { CASUAL, GROUP }
 
 @Composable

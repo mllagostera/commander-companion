@@ -10,7 +10,7 @@ import org.junit.Test
 import java.io.IOException
 import java.net.UnknownHostException
 
-/** Mapeo de excepciones de red a [ApiError] — la base del manejo de errores de los repositorios. */
+/** Mapping of network exceptions to [ApiError] — the basis of the repositories' error handling. */
 class ApiCallTest {
 
     @Test
@@ -44,8 +44,8 @@ class ApiCallTest {
     }
 
     /**
-     * Clave: si el scope se cancela, tragar la excepción rompería la cancelación estructurada
-     * y el llamador seguiría ejecutando lógica de error sobre una pantalla ya destruida.
+     * Key: if the scope gets cancelled, swallowing the exception would break structured
+     * cancellation and the caller would keep running error logic on an already-destroyed screen.
      */
     @Test
     fun `relanza CancellationException en vez de convertirla en failure`() = runTest {
@@ -59,8 +59,8 @@ class ApiCallTest {
 
     @Test
     fun `HttpException no se confunde con un error de red`() = runTest {
-        // HttpException no hereda de IOException, pero el orden de los catch importa:
-        // este test falla si alguien reordena los bloques.
+        // HttpException doesn't inherit from IOException, but the order of the catch blocks matters:
+        // this test fails if someone reorders them.
         val result = apiCall<String> { throw httpException(500) }
 
         assertTrue(result.exceptionOrNull() is ApiError.Http)

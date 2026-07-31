@@ -16,28 +16,28 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingExcept
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Se cancela el picker de cuentas de Google (el usuario cerró el bottom sheet). */
+/** The Google account picker was cancelled (the user closed the bottom sheet). */
 class GoogleSignInCancelledException : Exception("El usuario canceló el picker de cuentas de Google")
 
-/** No hay ninguna cuenta de Google configurada en el dispositivo. */
+/** There is no Google account configured on the device. */
 class NoGoogleAccountException : Exception("No hay ninguna cuenta de Google configurada en este dispositivo")
 
 /**
- * Envoltorio sobre Credential Manager + Google Identity Services para obtener el `id_token`
- * que se manda a `POST /auth/google`.
+ * Wrapper over Credential Manager + Google Identity Services to obtain the `id_token`
+ * that gets sent to `POST /auth/google`.
  *
- * IMPORTANTE: `BuildConfig.GOOGLE_WEB_CLIENT_ID` es un placeholder hasta que se creen las
- * credenciales OAuth reales en Google Cloud Console (ver `docs/roadmap/TASKS.md` Stage 1 y el
- * comentario en `app/build.gradle.kts`). Con el placeholder, `getIdToken` va a fallar de forma
- * predecible (Google rechaza el client id) — el código del flujo es correcto y completo, pero no
- * se puede probar end-to-end contra Google real hasta ese paso manual.
+ * IMPORTANT: `BuildConfig.GOOGLE_WEB_CLIENT_ID` is a placeholder until real OAuth credentials
+ * are created in Google Cloud Console (see `docs/roadmap/TASKS.md` Stage 1 and the comment
+ * in `app/build.gradle.kts`). With the placeholder, `getIdToken` will fail in a predictable
+ * way (Google rejects the client id) — the flow's code is correct and complete, but it can't
+ * be tested end-to-end against real Google until that manual step happens.
  */
 @Singleton
 class GoogleAuthClient @Inject constructor() {
 
     /**
-     * Dispara el picker de cuentas de Google y devuelve el `id_token` obtenido.
-     * Requiere un [context] de Activity (Credential Manager necesita poder mostrar UI).
+     * Triggers the Google account picker and returns the obtained `id_token`.
+     * Requires an Activity [context] (Credential Manager needs to be able to show UI).
      */
     suspend fun getIdToken(context: Context): Result<String> {
         val googleIdOption = GetGoogleIdOption.Builder()
@@ -74,14 +74,14 @@ class GoogleAuthClient @Inject constructor() {
     }
 
     /**
-     * Limpia el estado de credenciales de Google guardado por Credential Manager (auto-select,
-     * etc.) al cerrar sesión. Best-effort: si falla no debe bloquear el logout.
+     * Clears the Google credential state saved by Credential Manager (auto-select,
+     * etc.) on logout. Best-effort: a failure here must not block the logout.
      */
     suspend fun clearCredentialState(context: Context) {
         try {
             CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest())
         } catch (e: ClearCredentialException) {
-            // Best-effort: no hay nada razonable que hacer si esto falla, no debe romper el logout.
+            // Best-effort: there's nothing reasonable to do if this fails, it must not break logout.
         }
     }
 }

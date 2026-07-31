@@ -13,7 +13,7 @@ build: ## Build the API binary
 run: ## Run the API locally
 	go run ./cmd/api
 
-test: ## Run tests (algunos son de integración: requieren Postgres, ver internal/testutil)
+test: ## Run tests (some are integration tests: require Postgres, see internal/testutil)
 	go test -v -race -p 1 ./...
 
 lint: ## Run golangci-lint for quality gates

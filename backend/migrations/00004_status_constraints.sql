@@ -1,15 +1,15 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- games.status: máquina de estados aplicada server-side en internal/games/service.go
--- (statusPending/statusActive/statusFinished). CHECK en vez de enum de Postgres para no
--- romper el tipo Go generado por sqlc para la columna (seguiría siendo string/varchar).
+-- games.status: state machine enforced server-side in internal/games/service.go
+-- (statusPending/statusActive/statusFinished). CHECK instead of a Postgres enum so as not
+-- to break the Go type sqlc generates for the column (it stays string/varchar).
 ALTER TABLE games
   ADD CONSTRAINT games_status_chk
   CHECK (status IN ('pending', 'active', 'finished'));
 
--- game_actions.action_type: vocabulario fijo validado en internal/game-actions/service.go
--- (isValidActionType). Mismo criterio: CHECK sobre el varchar existente, no enum.
+-- game_actions.action_type: fixed vocabulary validated in internal/game-actions/service.go
+-- (isValidActionType). Same approach: CHECK on the existing varchar, no enum.
 ALTER TABLE game_actions
   ADD CONSTRAINT game_actions_action_type_chk
   CHECK (action_type IN (

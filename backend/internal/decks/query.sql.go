@@ -88,9 +88,9 @@ type GetDeckByMoxfieldIDParams struct {
 	MoxfieldID pgtype.Text `json:"moxfield_id"`
 }
 
-// Resuelve el deck ya importado de un usuario a partir de su ID público de
-// Moxfield (ver internal/sync). Un mismo deck de Moxfield puede estar importado
-// por varios usuarios, por eso el filtro por user_id.
+// Resolves a user's already-imported deck from its public Moxfield ID
+// (see internal/sync). The same Moxfield deck can be imported by several
+// users, hence the filter by user_id.
 func (q *Queries) GetDeckByMoxfieldID(ctx context.Context, arg GetDeckByMoxfieldIDParams) (Deck, error) {
 	row := q.db.QueryRow(ctx, getDeckByMoxfieldID, arg.UserID, arg.MoxfieldID)
 	var i Deck
@@ -125,9 +125,9 @@ type ListDecksPageParams struct {
 	PageLimit       int32            `json:"page_limit"`
 }
 
-// Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
-// devuelve la primera página; con cursor, las filas estrictamente posteriores en
-// el orden de la lista. Ver internal/common/pagination.go.
+// Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
+// it returns the first page; with a cursor, the rows strictly after it in
+// list order. See internal/common/pagination.go.
 func (q *Queries) ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([]Deck, error) {
 	rows, err := q.db.Query(ctx, listDecksPage,
 		arg.UserID,
@@ -176,8 +176,8 @@ type UpdateDeckFromMoxfieldParams struct {
 	ImageUrl  pgtype.Text `json:"image_url"`
 }
 
-// Re-sincroniza nombre, comandante e imagen de un deck ya importado con lo que
-// devuelve Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
+// Re-syncs name, commander, and image for an already-imported deck with what
+// Moxfield returns today (see internal/sync). updated_at marks the last successful sync.
 func (q *Queries) UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFromMoxfieldParams) (Deck, error) {
 	row := q.db.QueryRow(ctx, updateDeckFromMoxfield,
 		arg.ID,

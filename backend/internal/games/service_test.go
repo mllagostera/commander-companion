@@ -18,8 +18,8 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
-// noopMoxfieldClient satisface decks.MoxfieldClient sin golpear la API real;
-// estos tests nunca importan decks de Moxfield, solo necesitan crear decks propios.
+// noopMoxfieldClient satisfies decks.MoxfieldClient without hitting the real API;
+// these tests never import decks from Moxfield, they only need to create their own decks.
 type noopMoxfieldClient struct {
 	deck *moxfield.Deck
 	err  error
@@ -29,24 +29,24 @@ func (m noopMoxfieldClient) GetDeck(_ context.Context, _ string) (*moxfield.Deck
 	return m.deck, m.err
 }
 
-// noopBroadcaster satisface games.Broadcaster sin retransmitir nada de verdad: estos
-// tests no ejercitan internal/websocket, solo necesitan que la dependencia esté
-// presente para poder construir el servicio.
+// noopBroadcaster satisfies games.Broadcaster without actually broadcasting anything:
+// these tests don't exercise internal/websocket, they just need the dependency to be
+// present in order to build the service.
 type noopBroadcaster struct{}
 
 func (noopBroadcaster) BroadcastGameFinished(_ string) {}
 
-// newGamesSvc crea un games.Service con el recalculador de estadísticas y el
-// checker de membresía de playgroups reales (sobre el mismo pool), así FinishGame
-// y los proxy-joins ejercitan el flujo completo en los tests.
+// newGamesSvc creates a games.Service with the real statistics recalculator and
+// playgroups membership checker (over the same pool), so FinishGame
+// and proxy-joins exercise the complete flow in the tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
 	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{}, playgroups.NewService(pool))
 }
 
 func truncateGamesTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	// "games" limpia game_players/game_actions por CASCADE; "users" limpia decks
-	// y cualquier resto de game_players/refresh_tokens.
+	// "games" cleans up game_players/game_actions via CASCADE; "users" cleans up decks
+	// and any remainder of game_players/refresh_tokens.
 	testutil.Truncate(t, pool, "games", "users")
 }
 
@@ -75,10 +75,10 @@ func createUserAndDeck(t *testing.T, pool *pgxpool.Pool, email string) (userID, 
 	return user.ID, deck.ID
 }
 
-// asFiberError traduce el error de dominio que devuelve el service a su equivalente
-// HTTP con common.MapError (los services ya no dependen de fiber, ver
-// internal/common/errors.go), para poder seguir verificando el status code que ve
-// el cliente.
+// asFiberError translates the domain error returned by the service to its HTTP
+// equivalent with common.MapError (services no longer depend on fiber, see
+// internal/common/errors.go), so we can keep verifying the status code the
+// client sees.
 func asFiberError(t *testing.T, err error) *fiber.Error {
 	t.Helper()
 	var fiberErr *fiber.Error
@@ -115,9 +115,9 @@ func mustStart(t *testing.T, svc games.Service, gameID string) *games.GameRespon
 	return game
 }
 
-// setupTwoPlayerGame crea 2 usuarios con sus decks, una partida y une a ambos
-// (la partida queda en pending, sin iniciar). Devuelve el ID del primer
-// usuario porque algunos tests lo necesitan para ejercitar leave/join sobre él.
+// setupTwoPlayerGame creates 2 users with their decks, a game, and joins both
+// (the game is left pending, not started). Returns the first user's ID
+// because some tests need it to exercise leave/join on them.
 func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, svc games.Service, namePrefix string) (gameID, user1 string) {
 	t.Helper()
 	user1, deck1 := createUserAndDeck(t, pool, namePrefix+"-1@example.com")
@@ -180,7 +180,7 @@ func TestJoinGame_DeckOwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 	_, otherDeckID := createUserAndDeck(t, pool, "join-intruder@example.com")
 	game := mustCreateGame(t, svc)
 
-	// No se distingue "el deck no existe" de "el deck es de otro usuario".
+	// "the deck doesn't exist" isn't distinguished from "the deck belongs to another user".
 	_, err := svc.JoinGame(context.Background(), game.ID, userID, games.JoinGameRequest{DeckID: otherDeckID})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
 		t.Fatalf("JoinGame() con deck ajeno: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
@@ -217,8 +217,8 @@ func TestJoinGame_UnknownGame_ReturnsNotFound(t *testing.T) {
 	}
 }
 
-// createPlaygroupWithMembers crea un playgroup con creatorID como primer miembro
-// (ver playgroups.CreatePlaygroup) y agrega el resto de memberIDs.
+// createPlaygroupWithMembers creates a playgroup with creatorID as the first member
+// (see playgroups.CreatePlaygroup) and adds the rest of memberIDs.
 func createPlaygroupWithMembers(t *testing.T, pool *pgxpool.Pool, creatorID string, memberIDs ...string) string {
 	t.Helper()
 	ctx := context.Background()
@@ -284,7 +284,7 @@ func TestJoinGame_ProxyJoin_TargetNotInPlaygroup_ReturnsForbidden(t *testing.T) 
 	svc := newGamesSvc(pool)
 	caller, _ := createUserAndDeck(t, pool, "proxy-outsider-caller@example.com")
 	target, targetDeck := createUserAndDeck(t, pool, "proxy-outsider-target@example.com")
-	// El playgroup del caller no incluye a target.
+	// The caller's playgroup doesn't include target.
 	playgroupID := createPlaygroupWithMembers(t, pool, caller)
 	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
 	if err != nil {
@@ -305,7 +305,7 @@ func TestJoinGame_ProxyJoin_CallerNotInPlaygroup_ReturnsForbidden(t *testing.T) 
 	caller, _ := createUserAndDeck(t, pool, "proxy-nonmember-caller@example.com")
 	owner, _ := createUserAndDeck(t, pool, "proxy-nonmember-owner@example.com")
 	target, targetDeck := createUserAndDeck(t, pool, "proxy-nonmember-target@example.com")
-	// El caller no es miembro del playgroup, aunque target sí.
+	// The caller isn't a member of the playgroup, even though target is.
 	playgroupID := createPlaygroupWithMembers(t, pool, owner, target)
 	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
 	if err != nil {
@@ -331,8 +331,8 @@ func TestJoinGame_ProxyJoin_DeckMustBelongToTarget_ReturnsNotFound(t *testing.T)
 		t.Fatalf("CreateGame() error = %v", err)
 	}
 
-	// El deck es del caller, no del target: no debería alcanzar aunque ambos
-	// compartan grupo — el deck del proxy-join tiene que ser del jugador sentado.
+	// The deck belongs to the caller, not the target: it shouldn't be enough even if both
+	// share a group — the proxy-join's deck has to belong to the seated player.
 	_, err = svc.JoinGame(context.Background(), game.ID, caller, games.JoinGameRequest{DeckID: callerDeck, UserID: target})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
 		t.Fatalf("JoinGame() proxy con deck del caller: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
@@ -538,7 +538,7 @@ func TestListGamesForPlaygroup_Success(t *testing.T) {
 	}
 	mustJoin(t, svc, game.ID, userID, deckID)
 
-	// Una partida sin este playgroup no debería aparecer en su historial.
+	// A game without this playgroup shouldn't appear in its history.
 	mustCreateGame(t, svc)
 
 	res, err := svc.ListGamesForPlaygroup(context.Background(), playgroupID, userID)
@@ -553,8 +553,8 @@ func TestListGamesForPlaygroup_Success(t *testing.T) {
 	}
 }
 
-// Mismo criterio de "no revelar" que playgroups.GetPlaygroup: alguien ajeno al
-// grupo no puede ver su historial, sin distinguir "no existe" de "no sos miembro".
+// Same "don't reveal" criteria as playgroups.GetPlaygroup: someone outside the
+// group can't see its history, without distinguishing "doesn't exist" from "you're not a member".
 func TestListGamesForPlaygroup_NotAMember_ReturnsNotFound(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGamesTables(t, pool)

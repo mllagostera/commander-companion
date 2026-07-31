@@ -1,38 +1,38 @@
-// Package websocket implementa la sincronización en vivo de partidas por WebSocket
-// (ver ADR-0005 en docs/decisions/). El Hub mantiene, en memoria de este proceso, las
-// conexiones activas agrupadas por game_id y retransmite mensajes a todas las
-// conexiones de una partida. No hay pub/sub externo: si el backend corre en más de una
-// réplica, dos jugadores conectados a réplicas distintas no se ven entre sí (limitación
-// documentada en la ADR, no un descuido).
+// Package websocket implements live game synchronization over WebSocket
+// (see ADR-0005 in docs/decisions/). The Hub keeps, in this process's memory, the
+// active connections grouped by game_id and rebroadcasts messages to all
+// connections of a game. There's no external pub/sub: if the backend runs on more than
+// one replica, two players connected to different replicas won't see each other (a
+// limitation documented in the ADR, not an oversight).
 package websocket
 
 import "sync"
 
-// Conn es la superficie mínima que el Hub necesita de una conexión cliente: encolar un
-// mensaje para enviárselo de forma asíncrona, y cerrarla. La implementación real
-// (Client, en client.go) envuelve un *websocket.Conn de gofiber/websocket/v2; los tests
-// del Hub usan un fake liviano que no abre ningún socket real.
+// Conn is the minimal surface the Hub needs from a client connection: queue a
+// message to send it asynchronously, and close it. The real implementation
+// (Client, in client.go) wraps a *websocket.Conn from gofiber/websocket/v2; the Hub's
+// tests use a lightweight fake that doesn't open any real socket.
 type Conn interface {
-	// Send encola message para envío asíncrono. Es best-effort: si el buffer interno de
-	// la conexión está lleno, la implementación puede descartar el mensaje en vez de
-	// bloquear (ver ADR-0005).
+	// Send queues message for asynchronous delivery. It's best-effort: if the
+	// connection's internal buffer is full, the implementation may drop the message instead of
+	// blocking (see ADR-0005).
 	Send(message []byte)
-	// Close cierra la conexión. Debe ser seguro llamarlo más de una vez.
+	// Close closes the connection. Must be safe to call more than once.
 	Close()
 }
 
-// Hub agrupa las conexiones activas por game_id y permite retransmitirles mensajes.
+// Hub groups the active connections by game_id and allows broadcasting messages to them.
 type Hub struct {
 	mu    sync.RWMutex
 	rooms map[string]map[Conn]struct{}
 }
 
-// NewHub crea un Hub vacío.
+// NewHub creates an empty Hub.
 func NewHub() *Hub {
 	return &Hub{rooms: make(map[string]map[Conn]struct{})}
 }
 
-// Register añade conn a la sala de gameID.
+// Register adds conn to gameID's room.
 func (h *Hub) Register(gameID string, conn Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -43,8 +43,8 @@ func (h *Hub) Register(gameID string, conn Conn) {
 	h.rooms[gameID][conn] = struct{}{}
 }
 
-// Unregister remueve conn de la sala de gameID. No hace nada si conn no estaba
-// registrada (ej. si la sala entera ya fue cerrada por CloseRoom).
+// Unregister removes conn from gameID's room. Does nothing if conn wasn't
+// registered (e.g. if the whole room was already closed by CloseRoom).
 func (h *Hub) Unregister(gameID string, conn Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -59,9 +59,9 @@ func (h *Hub) Unregister(gameID string, conn Conn) {
 	}
 }
 
-// Broadcast envía message a todas las conexiones registradas en la sala de gameID. No
-// bloquea ni devuelve error: la entrega a cada conexión es responsabilidad de Conn.Send
-// (ver su doc, y ADR-0005 sección "fuera de alcance" sobre garantías de entrega).
+// Broadcast sends message to all connections registered in gameID's room. It doesn't
+// block or return an error: delivery to each connection is Conn.Send's responsibility
+// (see its doc, and ADR-0005's "out of scope" section on delivery guarantees).
 func (h *Hub) Broadcast(gameID string, message []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -71,9 +71,9 @@ func (h *Hub) Broadcast(gameID string, message []byte) {
 	}
 }
 
-// CloseRoom cierra todas las conexiones activas de gameID y elimina la sala. Se usa
-// cuando la partida finaliza: ya no puede haber más game_actions que retransmitir (ver
-// ADR-0005, ciclo de vida de la conexión).
+// CloseRoom closes all active connections for gameID and removes the room. Used
+// when the game finishes: there can no longer be any game_actions to rebroadcast (see
+// ADR-0005, connection lifecycle).
 func (h *Hub) CloseRoom(gameID string) {
 	h.mu.Lock()
 	clients := h.rooms[gameID]
@@ -85,9 +85,9 @@ func (h *Hub) CloseRoom(gameID string) {
 	}
 }
 
-// RoomSize devuelve la cantidad de conexiones activas en la sala de gameID (0 si no hay
-// ninguna, incluida una partida sin sala registrada). Pensado para tests e
-// introspección.
+// RoomSize returns the number of active connections in gameID's room (0 if there
+// are none, including a game with no registered room). Intended for tests and
+// introspection.
 func (h *Hub) RoomSize(gameID string) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

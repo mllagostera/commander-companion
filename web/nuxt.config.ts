@@ -17,32 +17,32 @@ export default defineNuxtConfig({
     ],
     defaultLocale: 'es',
     strategy: 'no_prefix',
-    // Detecta el idioma del navegador solo en la primera visita: una vez que hay
-    // cookie (por detección o por el selector manual del layout), no se vuelve a
-    // re-detectar — así el selector manual no se pisa en la próxima carga.
+    // Detects the browser language only on the first visit: once there's a
+    // cookie (from detection or the layout's manual selector), it doesn't
+    // re-detect — so the manual selector isn't overridden on the next load.
     detectBrowserLanguage: {
       useCookie: true,
       cookieKey: 'cc_locale',
     },
   },
   runtimeConfig: {
-    // URL de la API para llamadas hechas desde el servidor (SSR). En Docker
-    // Compose esto apunta al hostname interno del servicio ("http://api:8080/api/v1"),
-    // que no es alcanzable desde el navegador. Sin NUXT_API_BASE, cae al mismo
-    // valor público (caso de "npm run dev" sin Docker, donde ambos procesos
-    // están en localhost).
+    // API URL for calls made from the server (SSR). In Docker
+    // Compose this points at the service's internal hostname ("http://api:8080/api/v1"),
+    // which isn't reachable from the browser. Without NUXT_API_BASE, it falls back to the
+    // same public value (the "npm run dev" without Docker case, where both processes
+    // are on localhost).
     apiBase: process.env.NUXT_API_BASE || process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8080/api/v1',
     public: {
-      // URL de la API para llamadas hechas desde el navegador (con /api/v1 al
-      // final). Ver backend/.env.example.
+      // API URL for calls made from the browser (with /api/v1 at
+      // the end). See backend/.env.example.
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8080/api/v1',
-      // Web Client ID de Google Cloud Console, mismo valor que GOOGLE_CLIENT_ID
-      // en el backend. Vacío = botón de Google deshabilitado.
+      // Google Cloud Console Web Client ID, same value as GOOGLE_CLIENT_ID
+      // in the backend. Empty = Google button disabled.
       googleClientId: process.env.NUXT_PUBLIC_GOOGLE_CLIENT_ID || '',
-      // Import masivo de decks por username de Moxfield: el endpoint
-      // (POST /moxfield-import) devuelve 501 porque MoxfieldClient.ListDecksByUsername
-      // sigue siendo un stub sin implementar (ver backend/internal/moxfield/client.go).
-      // La UI queda oculta hasta que el endpoint funcione de verdad.
+      // Bulk deck import by Moxfield username: the endpoint
+      // (POST /moxfield-import) returns 501 because MoxfieldClient.ListDecksByUsername
+      // is still an unimplemented stub (see backend/internal/moxfield/client.go).
+      // The UI stays hidden until the endpoint actually works.
       enableBulkMoxfieldImport: process.env.NUXT_PUBLIC_ENABLE_BULK_MOXFIELD_IMPORT === 'true',
     },
   },
