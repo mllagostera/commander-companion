@@ -22,11 +22,11 @@ import javax.inject.Singleton
 private val Context.sessionDataStore by preferencesDataStore(name = "session")
 
 /**
- * Persistencia de sesión (DataStore) + orquestación de refresh/logout.
+ * Session persistence (DataStore) + refresh/logout orchestration.
  *
- * `authApi` acá es siempre la instancia SIN interceptor de auth (ver `NetworkModule`): el refresh
- * y el logout no llevan Bearer (`security: []` en el spec), y usar el cliente autenticado
- * causaría una recursión con [com.commandercompanion.data.remote.interceptor.AuthAuthenticator].
+ * `authApi` here is always the instance WITHOUT the auth interceptor (see `NetworkModule`):
+ * refresh and logout don't carry a Bearer (`security: []` in the spec), and using the
+ * authenticated client would cause a recursion with [com.commandercompanion.data.remote.interceptor.AuthAuthenticator].
  */
 @Singleton
 class SessionManager @Inject constructor(
@@ -42,7 +42,7 @@ class SessionManager @Inject constructor(
         val USERNAME = stringPreferencesKey("username")
     }
 
-    /** Emite cuando el refresh automático falla y se fuerza el logout (ver [AuthAuthenticator]). */
+    /** Emits when the automatic refresh fails and logout is forced (see [AuthAuthenticator]). */
     private val _forcedLogoutEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val forcedLogoutEvents: SharedFlow<Unit> = _forcedLogoutEvents.asSharedFlow()
 
@@ -62,7 +62,7 @@ class SessionManager @Inject constructor(
     suspend fun currentAccessToken(): String? =
         context.sessionDataStore.data.first()[Keys.ACCESS_TOKEN]
 
-    /** Username del usuario autenticado, para prellenar "quién soy yo" en el setup de partida. */
+    /** Username of the authenticated user, to prefill "who am I" in the game setup. */
     suspend fun currentUsername(): String? =
         context.sessionDataStore.data.first()[Keys.USERNAME]
 
@@ -74,8 +74,8 @@ class SessionManager @Inject constructor(
     }
 
     /**
-     * Llamado sincrónicamente (vía `runBlocking`) desde [AuthAuthenticator] en el hilo de OkHttp
-     * cuando una request autenticada devuelve 401. Rota el refresh token; si falla, fuerza logout.
+     * Called synchronously (via `runBlocking`) from [AuthAuthenticator] on OkHttp's thread
+     * when an authenticated request returns 401. Rotates the refresh token; forces logout on failure.
      */
     suspend fun refreshAccessToken(): String? {
         val refreshToken = currentRefreshToken() ?: return null
@@ -89,21 +89,21 @@ class SessionManager @Inject constructor(
         }
     }
 
-    /** Logout iniciado por el usuario desde la UI (botón "Cerrar sesión"). */
+    /** Logout initiated by the user from the UI (the "Sign out" button). */
     suspend fun logout() {
         val refreshToken = currentRefreshToken()
         if (refreshToken != null) {
             try {
                 authApi.logout(LogoutRequest(refreshToken))
             } catch (e: Exception) {
-                // Best-effort: si el backend no está disponible igual limpiamos la sesión local.
+                // Best-effort: if the backend is unavailable we still clear the local session.
             }
         }
         clearSession()
         googleAuthClient.clearCredentialState(context)
     }
 
-    /** Logout forzado por un refresh fallido (token robado/expirado/revocado). No pega al backend. */
+    /** Logout forced by a failed refresh (stolen/expired/revoked token). Doesn't hit the backend. */
     private suspend fun forceLogout() {
         clearSession()
         googleAuthClient.clearCredentialState(context)

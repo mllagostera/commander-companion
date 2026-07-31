@@ -9,12 +9,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Acceso a los decks del usuario autenticado.
+ * Access to the authenticated user's decks.
  *
- * Hoy es 100% remoto: los decks viven solo en el backend y no hay entidad Room para ellos. Se
- * modela igual como repositorio para que los `ViewModel` nunca toquen [CommanderApi] directo y
- * para tener un único lugar donde meter caché offline más adelante (Stage 5 de `TASKS.md`,
- * "Room como caché offline-first ... decks propios").
+ * Today it's 100% remote: decks live only in the backend and there's no Room entity for them.
+ * It's still modeled as a repository so `ViewModel`s never touch [CommanderApi] directly, and
+ * to have a single place to add offline caching later (Stage 5 of `TASKS.md`,
+ * "Room as offline-first cache ... own decks").
  */
 @Singleton
 class DeckRepository @Inject constructor(
@@ -33,7 +33,7 @@ class DeckRepository @Inject constructor(
         api.createDeck(CreateDeckRequest(name = name, commander = commander, moxfieldId = moxfieldId))
     }
 
-    /** [urlOrPublicId] acepta la URL completa de Moxfield o solo el ID público. */
+    /** [urlOrPublicId] accepts either the full Moxfield URL or just the public ID. */
     suspend fun importFromMoxfield(urlOrPublicId: String): Result<DeckDto> = apiCall {
         api.importMoxfieldDeck(ImportMoxfieldRequest(urlOrPublicId))
     }

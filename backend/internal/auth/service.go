@@ -12,7 +12,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
-// Config agrupa los parámetros de configuración del módulo auth.
+// Config groups the configuration parameters of the auth module.
 type Config struct {
 	JWTSecret       []byte
 	AccessTokenTTL  time.Duration
@@ -20,7 +20,7 @@ type Config struct {
 	GoogleClientID  string
 }
 
-// Service define la lógica de negocio de autenticación.
+// Service defines the authentication business logic.
 type Service interface {
 	Login(ctx context.Context, email, password string) (*TokenResponse, error)
 	GoogleLogin(ctx context.Context, idToken string) (*TokenResponse, error)
@@ -36,7 +36,7 @@ type service struct {
 	google *googleVerifier
 }
 
-// NewService crea un nuevo servicio de auth.
+// NewService creates a new auth service.
 func NewService(db *pgxpool.Pool, usersSvc users.Service, cfg Config) Service {
 	return &service{
 		repo:   New(db),
@@ -46,7 +46,7 @@ func NewService(db *pgxpool.Pool, usersSvc users.Service, cfg Config) Service {
 	}
 }
 
-// Login autentica a un usuario por email/password y emite un nuevo par de tokens.
+// Login authenticates a user by email/password and issues a new token pair.
 func (s *service) Login(ctx context.Context, email, password string) (*TokenResponse, error) {
 	user, err := s.users.VerifyCredentials(ctx, email, password)
 	if err != nil {
@@ -55,8 +55,8 @@ func (s *service) Login(ctx context.Context, email, password string) (*TokenResp
 	return s.issueTokens(ctx, user)
 }
 
-// GoogleLogin verifica un id_token de Google, resuelve (o crea) el usuario
-// correspondiente y emite un nuevo par de tokens.
+// GoogleLogin verifies a Google id_token, resolves (or creates) the corresponding
+// user, and issues a new token pair.
 func (s *service) GoogleLogin(ctx context.Context, idToken string) (*TokenResponse, error) {
 	claims, err := s.google.verify(ctx, idToken)
 	if err != nil {
@@ -71,7 +71,7 @@ func (s *service) GoogleLogin(ctx context.Context, idToken string) (*TokenRespon
 	return s.issueTokens(ctx, user)
 }
 
-// Refresh valida un refresh token vigente, lo revoca (rotación) y emite un nuevo par de tokens.
+// Refresh validates a valid refresh token, revokes it (rotation), and issues a new token pair.
 func (s *service) Refresh(ctx context.Context, refreshToken string) (*TokenResponse, error) {
 	record, err := s.repo.GetRefreshTokenByHash(ctx, hashRefreshToken(refreshToken))
 	if err != nil {
@@ -93,7 +93,7 @@ func (s *service) Refresh(ctx context.Context, refreshToken string) (*TokenRespo
 	return s.issueTokens(ctx, user)
 }
 
-// Logout revoca el refresh token indicado, terminando la sesión.
+// Logout revokes the given refresh token, ending the session.
 func (s *service) Logout(ctx context.Context, refreshToken string) error {
 	if err := s.repo.RevokeRefreshTokenByHash(ctx, hashRefreshToken(refreshToken)); err != nil {
 		return fmt.Errorf("revoking refresh token: %w", err)
@@ -101,7 +101,7 @@ func (s *service) Logout(ctx context.Context, refreshToken string) error {
 	return nil
 }
 
-// Me devuelve el perfil del usuario autenticado.
+// Me returns the authenticated user's profile.
 func (s *service) Me(ctx context.Context, userID string) (*users.UserResponse, error) {
 	return s.users.GetUser(ctx, userID)
 }

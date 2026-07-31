@@ -6,17 +6,17 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// Handler contiene las dependencias del transporte HTTP para playgroups.
+// Handler holds the HTTP transport dependencies for playgroups.
 type Handler struct {
 	svc Service
 }
 
-// NewHandler inicializa y retorna un nuevo Handler.
+// NewHandler initializes and returns a new Handler.
 func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo playgroups.
+// RegisterRoutes registers all the endpoints of the playgroups module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/playgroups", h.ListPlaygroups)
 	router.Post("/playgroups", h.CreatePlaygroup)
@@ -26,7 +26,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/playgroups/:id/members/:userId/decks", h.ListMemberDecks)
 }
 
-// CreatePlaygroup maneja la creación de un nuevo grupo de juego.
+// CreatePlaygroup handles the creation of a new playgroup.
 func (h *Handler) CreatePlaygroup(c *fiber.Ctx) error {
 	var req CreatePlaygroupRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -41,7 +41,7 @@ func (h *Handler) CreatePlaygroup(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// ListPlaygroups devuelve los grupos del usuario autenticado.
+// ListPlaygroups returns the authenticated user's groups.
 func (h *Handler) ListPlaygroups(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.ListPlaygroups(c.Context(), userID)
@@ -51,7 +51,7 @@ func (h *Handler) ListPlaygroups(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// GetPlaygroup devuelve el detalle de un grupo, si el usuario autenticado es miembro.
+// GetPlaygroup returns the detail of a group, if the authenticated user is a member.
 func (h *Handler) GetPlaygroup(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetPlaygroup(c.Context(), userID, c.Params("id"))
@@ -61,7 +61,7 @@ func (h *Handler) GetPlaygroup(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// UpdatePlaygroup renombra el grupo de juego indicado.
+// UpdatePlaygroup renames the given playgroup.
 func (h *Handler) UpdatePlaygroup(c *fiber.Ctx) error {
 	var req UpdatePlaygroupRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -76,7 +76,7 @@ func (h *Handler) UpdatePlaygroup(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// AddMember añade un miembro al grupo de juego indicado.
+// AddMember adds a member to the given playgroup.
 func (h *Handler) AddMember(c *fiber.Ctx) error {
 	var req AddMemberRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -91,8 +91,8 @@ func (h *Handler) AddMember(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// ListMemberDecks devuelve los decks de un miembro del grupo, si quien pide
-// también es miembro (ver ADR-0013: es lo que habilita elegir su deck en un
+// ListMemberDecks returns the decks of a group member, if the requester is
+// also a member (see ADR-0013: this is what enables picking their deck in a
 // proxy-join).
 func (h *Handler) ListMemberDecks(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)

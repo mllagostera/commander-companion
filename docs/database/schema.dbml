@@ -1,18 +1,18 @@
 Project CommanderCompanion {
   database_type: 'PostgreSQL'
-  Note: 'Esquema de base de datos para Commander Companion'
+  Note: 'Database schema for Commander Companion'
 }
 
 Table users {
   id uuid [primary key]
   username varchar [unique, not null]
   email varchar [unique, not null]
-  password_hash varchar [note: 'Nullable: cuentas creadas vía Google no tienen password']
-  google_id varchar [unique, note: 'Sub de Google (id_token). Nullable: cuentas email/password no lo tienen']
+  password_hash varchar [note: 'Nullable: accounts created via Google do not have a password']
+  google_id varchar [unique, note: 'Google sub (id_token). Nullable: email/password accounts do not have it']
   created_at timestamp [default: `now()`]
   updated_at timestamp
-  moxfield_username varchar [note: 'Username de Moxfield vinculado (opcional, sin unicidad). Migración 00009_moxfield_username.sql']
-  email_verified boolean [default: true, note: 'Default true: cuentas existentes y altas de Google (ya confirmadas por su id_token) quedan verificadas. Solo el alta email/password fuerza false. Migración 00011_email_verification.sql']
+  moxfield_username varchar [note: 'Linked Moxfield username (optional, no uniqueness). Migration 00009_moxfield_username.sql']
+  email_verified boolean [default: true, note: 'Default true: existing accounts and Google sign-ups (already confirmed by their id_token) are left verified. Only email/password sign-up forces false. Migration 00011_email_verification.sql']
 
   Note: 'CHECK: password_hash IS NOT NULL OR google_id IS NOT NULL'
 }
@@ -20,19 +20,19 @@ Table users {
 Table refresh_tokens {
   id uuid [primary key]
   user_id uuid [ref: > users.id]
-  token_hash varchar [unique, not null, note: 'SHA-256 del refresh token; el token en claro nunca se persiste']
+  token_hash varchar [unique, not null, note: 'SHA-256 of the refresh token; the plaintext token is never persisted']
   expires_at timestamp [not null]
   created_at timestamp [default: `now()`]
-  revoked_at timestamp [note: 'Se setea en logout o al rotar el token']
+  revoked_at timestamp [note: 'Set on logout or when the token is rotated']
 }
 
 Table email_verification_tokens {
   id uuid [primary key]
   user_id uuid [ref: > users.id]
-  token_hash varchar [unique, not null, note: 'SHA-256 del token de verificación; el token en claro nunca se persiste']
+  token_hash varchar [unique, not null, note: 'SHA-256 of the verification token; the plaintext token is never persisted']
   expires_at timestamp [not null]
   created_at timestamp [default: `now()`]
-  used_at timestamp [note: 'Se setea al verificar el email con este token (uso único). Migración 00011_email_verification.sql']
+  used_at timestamp [note: 'Set when the email is verified with this token (single use). Migration 00011_email_verification.sql']
 }
 
 Table decks {
@@ -41,12 +41,12 @@ Table decks {
   name varchar [not null]
   commander varchar [not null]
   moxfield_id varchar
-  image_url varchar [note: 'Art crop del comandante (Moxfield), migración 00006_deck_image_url.sql']
+  image_url varchar [note: 'Commander art crop (Moxfield), migration 00006_deck_image_url.sql']
   created_at timestamp [default: `now()`]
   updated_at timestamp
 
   indexes {
-    moxfield_id [note: 'Lookup/de-dup de imports de Moxfield (migración 00003_indices.sql)']
+    moxfield_id [note: 'Lookup/de-dup of Moxfield imports (migration 00003_indices.sql)']
   }
 }
 
@@ -69,14 +69,14 @@ Table playgroup_members {
 
 Table games {
   id uuid [primary key]
-  playgroup_id uuid [ref: > playgroups.id, null, note: 'Opcional si la partida pertenece a un grupo']
+  playgroup_id uuid [ref: > playgroups.id, null, note: 'Optional if the game belongs to a playgroup']
   status varchar [not null, note: 'pending, active, finished']
   started_at timestamp
   finished_at timestamp
   created_at timestamp [default: `now()`]
-  current_turn_player_id uuid [ref: > game_players.id, null, note: 'De quién es el turno ahora (no modela orden de turno). Migración 00008_current_turn.sql']
+  current_turn_player_id uuid [ref: > game_players.id, null, note: 'Whose turn it is now (does not model turn order). Migration 00008_current_turn.sql']
 
-  Note: 'CHECK: status IN (\'pending\', \'active\', \'finished\') (migración 00004_status_constraints.sql)'
+  Note: 'CHECK: status IN (\'pending\', \'active\', \'finished\') (migration 00004_status_constraints.sql)'
 }
 
 Table game_players {
@@ -89,44 +89,44 @@ Table game_players {
   energy_counters int [default: 0]
   experience_counters int [default: 0]
   is_eliminated boolean [default: false]
-  added_by uuid [ref: > users.id, null, note: 'Quién lo unió si no fue él mismo (proxy-join en modo Grupo, ver ADR-0013). Migración 00012_game_player_proxy_join.sql']
+  added_by uuid [ref: > users.id, null, note: 'Who added them if not themselves (proxy-join in Group mode, see ADR-0013). Migration 00012_game_player_proxy_join.sql']
 
   indexes {
-    game_id [note: 'Hot path de lectura de jugadores de una partida (migración 00003_indices.sql)']
+    game_id [note: 'Hot path for reading the players of a game (migration 00003_indices.sql)']
   }
 }
 
 Table game_actions {
   id uuid [primary key]
   game_id uuid [ref: > games.id]
-  actor_id uuid [ref: > game_players.id, note: 'Quién realiza o es el origen de la acción']
-  target_id uuid [ref: > game_players.id, note: 'Sobre quién se realiza (opcional)']
-  action_type varchar [not null, note: 'Ej: LifeChange, CombatDamage, CommanderDamage, PoisonCounter, TurnStart, TurnEnd, Elimination']
-  payload jsonb [note: 'Ej para CommanderDamage: {"amount": 7, "commander_deck_id": "uuid"}']
+  actor_id uuid [ref: > game_players.id, note: 'Who performs or is the source of the action']
+  target_id uuid [ref: > game_players.id, note: 'Who it is performed on (optional)']
+  action_type varchar [not null, note: 'E.g.: LifeChange, CombatDamage, CommanderDamage, PoisonCounter, TurnStart, TurnEnd, Elimination']
+  payload jsonb [note: 'E.g. for CommanderDamage: {"amount": 7, "commander_deck_id": "uuid"}']
   created_at timestamp [default: `now()`]
 
   indexes {
-    game_id [note: 'Hot path de lectura del timeline de una partida (migración 00003_indices.sql)']
+    game_id [note: 'Hot path for reading the timeline of a game (migration 00003_indices.sql)']
   }
 
-  Note: 'CHECK: action_type IN (\'LifeChange\', \'CombatDamage\', \'CommanderDamage\', \'PoisonCounter\', \'TurnStart\', \'TurnEnd\', \'Elimination\') (migración 00004_status_constraints.sql)'
+  Note: 'CHECK: action_type IN (\'LifeChange\', \'CombatDamage\', \'CommanderDamage\', \'PoisonCounter\', \'TurnStart\', \'TurnEnd\', \'Elimination\') (migration 00004_status_constraints.sql)'
 }
 
 Table commander_damage {
   game_id uuid [ref: > games.id]
-  attacker_id uuid [ref: > game_players.id, note: 'Jugador cuyo comandante infligió el daño']
-  defender_id uuid [ref: > game_players.id, note: 'Jugador que recibió el daño']
-  amount int [not null, default: 0, note: 'Acumulado de daño de este atacante a este defensor en la partida']
+  attacker_id uuid [ref: > game_players.id, note: 'Player whose commander dealt the damage']
+  defender_id uuid [ref: > game_players.id, note: 'Player who received the damage']
+  amount int [not null, default: 0, note: 'Accumulated damage from this attacker to this defender in the game']
 
   indexes {
     (attacker_id, defender_id) [pk]
-    game_id [note: 'Migración 00007_commander_damage.sql']
+    game_id [note: 'Migration 00007_commander_damage.sql']
   }
 
-  Note: 'CHECK: attacker_id <> defender_id, amount >= 0 (migración 00007_commander_damage.sql). 21+ de un mismo attacker_id elimina al defender_id (regla real de Commander), independiente de game_players.life_total'
+  Note: 'CHECK: attacker_id <> defender_id, amount >= 0 (migration 00007_commander_damage.sql). 21+ from the same attacker_id eliminates the defender_id (actual Commander rule), independent of game_players.life_total'
 }
 
-// Estadísticas pre-calculadas (se recalculan si una partida histórica se modifica)
+// Pre-calculated statistics (recalculated if a historical game is modified)
 Table user_statistics_summary {
   user_id uuid [primary key, ref: - users.id]
   games_played int [default: 0]
@@ -146,8 +146,8 @@ Table deck_statistics_summary {
   last_recalculated_at timestamp [default: `now()`]
 }
 
-// Import masivo y asíncrono de todos los decks públicos de un usuario de Moxfield
-// (ver internal/moxfieldimport). Contadores agregados, no un ítem por deck.
+// Bulk, asynchronous import of all public decks of a Moxfield user
+// (see internal/moxfieldimport). Aggregated counters, not one item per deck.
 Table moxfield_import_jobs {
   id uuid [primary key]
   user_id uuid [ref: > users.id]
@@ -162,8 +162,8 @@ Table moxfield_import_jobs {
   finished_at timestamp
 
   indexes {
-    (user_id) [name: 'moxfield_import_jobs_active_user_idx', note: 'UNIQUE parcial WHERE status IN (pending, in_progress) -- un solo job activo por usuario. Migración 00010_moxfield_import_jobs.sql']
+    (user_id) [name: 'moxfield_import_jobs_active_user_idx', note: 'Partial UNIQUE WHERE status IN (pending, in_progress) -- only one active job per user. Migration 00010_moxfield_import_jobs.sql']
   }
 
-  Note: 'CHECK: status IN (\'pending\', \'in_progress\', \'completed\', \'failed\') (migración 00010_moxfield_import_jobs.sql)'
+  Note: 'CHECK: status IN (\'pending\', \'in_progress\', \'completed\', \'failed\') (migration 00010_moxfield_import_jobs.sql)'
 }

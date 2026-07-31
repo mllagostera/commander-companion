@@ -18,7 +18,7 @@ const { data, error, refresh } = await useAsyncData('dashboard', async () => {
   const groupsWithGames = await Promise.all(
     playgroups.map(async (playgroup) => ({
       playgroup,
-      // Best-effort: si el historial falla para un grupo no tumba el resto del dashboard.
+      // Best-effort: if the history call fails for a group it doesn't take down the rest of the dashboard.
       games: await listPlaygroupGames(playgroup.id).catch(() => [] as Game[]),
     })),
   )
@@ -45,7 +45,7 @@ const { data, error, refresh } = await useAsyncData('dashboard', async () => {
       return bt - at
     })
 
-  // Racha actual: resultados consecutivos iguales desde la partida más reciente.
+  // Current streak: consecutive equal results starting from the most recent game.
   let streak = 0
   if (recentGames.length) {
     const latestResult = recentGames[0]!.won
@@ -79,8 +79,8 @@ const { data, error, refresh } = await useAsyncData('dashboard', async () => {
   }
 })
 
-// useAsyncData reusa el payload cacheado al volver a esta página en la misma sesión (p. ej.
-// después de terminar una partida en Android): sin este refresh, el resumen queda desactualizado.
+// useAsyncData reuses the cached payload when returning to this page in the same session (e.g.
+// after finishing a game on Android): without this refresh, the summary would be stale.
 onMounted(() => refresh())
 
 function gameDate(game: Game): string {

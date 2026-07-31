@@ -16,9 +16,9 @@ type Querier interface {
 	GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, error)
 	GetPlaygroupMember(ctx context.Context, arg GetPlaygroupMemberParams) (PlaygroupMember, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
-	// Decks de un usuario, para el picker de "con qué deck juega" un compañero de
-	// grupo en un proxy-join (ver ADR-0013). La autorización (¿comparte el caller un
-	// playgroup con este usuario?) la hace el service, no esta query.
+	// A user's decks, for the "which deck are they playing" picker when proxy-joining
+	// a fellow group member (see ADR-0013). Authorization (does the caller share a
+	// playgroup with this user?) is done by the service, not this query.
 	ListDecksByUserID(ctx context.Context, userID pgtype.UUID) ([]Deck, error)
 	ListPlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) ([]ListPlaygroupMembersRow, error)
 	ListPlaygroups(ctx context.Context) ([]Playgroup, error)

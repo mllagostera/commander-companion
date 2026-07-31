@@ -1,9 +1,9 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- Default true: las cuentas existentes y las altas por Google (ya confirmadas por el
--- propio id_token, ver users.FindOrCreateGoogleUser) quedan verificadas sin tocar esas
--- queries. Solo CreateUser (alta email/password) fuerza false explícitamente.
+-- Default true: existing accounts and Google sign-ups (already confirmed by the
+-- id_token itself, see users.FindOrCreateGoogleUser) end up verified without touching those
+-- queries. Only CreateUser (email/password sign-up) explicitly forces false.
 ALTER TABLE users
   ADD COLUMN email_verified boolean NOT NULL DEFAULT true;
 

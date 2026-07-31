@@ -1,6 +1,6 @@
 /**
- * Cierra la sesión: revoca el refresh token en la API Go (best-effort) y borra
- * las tres cookies de sesión.
+ * Logs out: revokes the refresh token on the Go API (best-effort) and deletes
+ * the three session cookies.
  */
 export default defineEventHandler(async (event) => {
   const refreshToken = getCookie(event, REFRESH_COOKIE)
@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
         body: { refresh_token: refreshToken },
       })
     } catch {
-      // Best-effort: limpiamos la sesión local aunque la API falle.
+      // Best-effort: we clear the local session even if the API fails.
     }
   }
 

@@ -19,16 +19,16 @@ private const val MIN_PASSWORD_LENGTH = 8
 data class RegisterUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
-    /** No-null una vez que el registro terminó bien: dispara la pantalla de "revisá tu email". */
+    /** Non-null once registration succeeds: triggers the "check your email" screen. */
     val registeredEmail: String? = null
 )
 
 /**
- * Registro por email/password contra `POST /auth/register`. A diferencia de [login][
- * com.commandercompanion.presentation.screens.login.LoginViewModel.loginWithPassword], un
- * registro exitoso NO deja sesión iniciada (el backend no devuelve tokens, solo el usuario
- * creado) — mismo contrato que el cliente web (`web/app/composables/useAuth.ts`), así que la
- * pantalla muestra "revisá tu email" en vez de navegar directo al dashboard.
+ * Email/password registration against `POST /auth/register`. Unlike [login][
+ * com.commandercompanion.presentation.screens.login.LoginViewModel.loginWithPassword], a
+ * successful registration does NOT leave a session started (the backend returns no tokens, only
+ * the created user) — same contract as the web client (`web/app/composables/useAuth.ts`), so the
+ * screen shows "check your email" instead of navigating straight to the dashboard.
  */
 @HiltViewModel
 class RegisterViewModel @Inject constructor(

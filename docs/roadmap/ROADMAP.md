@@ -1,55 +1,55 @@
 # Commander Companion
-## Roadmap de desarrollo
+## Development roadmap
 
-**Versión:** 0.1
+**Version:** 0.1
 
-> Seguimiento de tareas: ver [TASKS.md](TASKS.md) para el checklist detallado y actualizado del estado real de cada etapa.
+> Task tracking: see [TASKS.md](TASKS.md) for the detailed, up-to-date checklist of each stage's real status.
 
-**Objetivo**
+**Goal**
 
-Crear la aplicación definitiva para Commander (MTG), enfocada en:
+Build the definitive app for Commander (MTG), focused on:
 
-- Rapidez durante la partida.
-- Excelente UX.
-- Estadísticas avanzadas.
-- Sincronización entre jugadores.
-- Historial de partidas.
-- Integración con Moxfield.
-- Arquitectura escalable.
-
----
-
-# Filosofía del proyecto
-
-La prioridad NO es tener cientos de funcionalidades.
-La prioridad es que cualquier acción pueda hacerse en menos de dos segundos.
-
-Todo el diseño gira alrededor de tres pilares:
-
-- Simplicidad
-- Velocidad
-- Datos
+- Speed during the game.
+- Excellent UX.
+- Advanced statistics.
+- Sync between players.
+- Game history.
+- Moxfield integration.
+- Scalable architecture.
 
 ---
 
-# Arquitectura general
+# Project philosophy
+
+The priority is NOT to have hundreds of features.
+The priority is that any action can be done in under two seconds.
+
+The whole design revolves around three pillars:
+
+- Simplicity
+- Speed
+- Data
+
+---
+
+# General architecture
 
 ```mermaid
 graph TD
-    Android["Android (Kotlin + Compose)"] -->|REST| APIGo["API Go"]
-    Web["Web (Nuxt, ver Stage 4b)"] -->|REST| APIGo
+    Android["Android (Kotlin + Compose)"] -->|REST| APIGo["Go API"]
+    Web["Web (Nuxt, see Stage 4b)"] -->|REST| APIGo
     APIGo -->|SQL| PostgreSQL["PostgreSQL"]
     APIGo --> BackgroundWorkers["Background Workers"]
     BackgroundWorkers --> StatisticsEngine["Statistics Engine"]
 ```
 
-Nota: el cliente Web no estaba en el roadmap original — se agregó después
-(ver Stage 4b). "Background Workers"/"Statistics Engine" son la aspiración
-original; hoy las estadísticas se recalculan en-proceso dentro del mismo
-monolito (`internal/statistics`), no como worker separado — ver
+Note: the Web client wasn't in the original roadmap — it was added later
+(see Stage 4b). "Background Workers"/"Statistics Engine" were the original
+aspiration; today statistics are recalculated in-process within the same
+monolith (`internal/statistics`), not as a separate worker — see
 [ADR-0010](../decisions/0010-monolito-modular-vs-microservicios.md).
 
-En fases posteriores:
+In later phases:
 
 ```mermaid
 graph TD
@@ -60,64 +60,64 @@ graph TD
     StatisticsEngine -->|SQL| PostgreSQL
 ```
 
-Inicialmente será un **Monolito Modular**.
-No habrá microservicios.
+It will initially be a **Modular Monolith**.
+There will be no microservices.
 
 ---
 
-# Etapas
+# Stages
 
-## Stage 0: Definición funcional
-- Definir exactamente qué hará el MVP.
-- Entregables: Casos de uso, Wireframes, Arquitectura, Modelo de datos, API.
+## Stage 0: Functional definition
+- Define exactly what the MVP will do.
+- Deliverables: Use cases, Wireframes, Architecture, Data model, API.
 
 ## Stage 1: Backend
-- Proyecto Go. Disponer de una API completamente funcional.
-- Entregables: `cmd/`, `internal/`, `pkg/`, `configs/`, `migrations/`, `docs/`.
-- Tecnologías: Go, Gin/Fiber, PostgreSQL, sqlc, goose, Docker.
-- Organización: `internal/auth/`, `users/`, `decks/`, `games/`, `statistics/`, `sync/`, `websocket/`, `common/`.
-- Objetivo: Lógica en Service. DB en Repository.
+- Go project. Have a fully functional API.
+- Deliverables: `cmd/`, `internal/`, `pkg/`, `configs/`, `migrations/`, `docs/`.
+- Technologies: Go, Gin/Fiber, PostgreSQL, sqlc, goose, Docker.
+- Organization: `internal/auth/`, `users/`, `decks/`, `games/`, `statistics/`, `sync/`, `websocket/`, `common/`.
+- Goal: Logic in Service. DB in Repository.
 
-## Stage 2: Base de datos
-- Diseñar todo el modelo sin escribir código.
-- Entregables: Diagrama ER, Migraciones, Índices, Relaciones.
+## Stage 2: Database
+- Design the whole model without writing code.
+- Deliverables: ER Diagram, Migrations, Indexes, Relationships.
 
 ## Stage 3: API
-- Definir primero OpenAPI. Después implementar.
+- Define OpenAPI first. Implement afterward.
 
-## Stage 4: Cliente Android
-- Proyecto separado. Tecnologías: Kotlin, Compose, Material 3, Navigation, Hilt, Retrofit, Room, DataStore.
-- Arquitectura: Clean Architecture + MVVM + UDF.
+## Stage 4: Android Client
+- Separate project. Technologies: Kotlin, Compose, Material 3, Navigation, Hilt, Retrofit, Room, DataStore.
+- Architecture: Clean Architecture + MVVM + UDF.
 
-## Stage 4b: Cliente Web (Nuxt)
-- No estaba en el roadmap original (agregado 2026-07-26, ver [ADR-0004](../decisions/0004-web-client-nuxt.md)): segundo cliente, desacoplado, mismo contrato REST que Android. Cubre import de Moxfield y estadísticas — casos de uso más cómodos en desktop que en el life tracker móvil.
-- Tecnologías: Nuxt 4 (SSR), Tailwind CSS, npm.
+## Stage 4b: Web Client (Nuxt)
+- Not in the original roadmap (added 2026-07-26, see [ADR-0004](../decisions/0004-web-client-nuxt.md)): a second, decoupled client using the same REST contract as Android. Covers Moxfield import and statistics — use cases that are more comfortable on desktop than in the mobile life tracker.
+- Technologies: Nuxt 4 (SSR), Tailwind CSS, npm.
 
-## Stage 5: Integración
-- Conectar Android con Backend.
+## Stage 5: Integration
+- Connect Android with Backend.
 
-## Stage 6: Sincronización
+## Stage 6: Synchronization
 - Websocket.
 
-## Stage 7: Estadísticas
-- Motor independiente.
+## Stage 7: Statistics
+- Independent engine.
 
-## Stage 8: Importación Moxfield
-- Sincronización.
+## Stage 8: Moxfield Import
+- Synchronization.
 
-## Stage 9: Social — amigos, grupos y torneos
-- No estaba en el roadmap original (agregado 2026-07-27, a definir en detalle). Sistema de amigos (más allá de los `playgroups` ya implementados en Stage 1), y creación de torneos entre amigos, entre grupos o abiertos a desconocidos que se apunten.
+## Stage 9: Social — friends, groups, and tournaments
+- Not in the original roadmap (added 2026-07-27, to be defined in detail). A friends system (beyond the `playgroups` already implemented in Stage 1), and creating tournaments among friends, among groups, or open to strangers who sign up.
 
 ---
 
-# Definición de la API
+# API definition
 
-- REST, Stateless, JWT, Versionada (/api/v1).
+- REST, Stateless, JWT, Versioned (/api/v1).
 - OpenAPI 3.1
-- DTOs independientes
-- Paginación cursor-based
+- Independent DTOs
+- Cursor-based pagination
 
-Módulos principales:
+Main modules:
 - `/auth`
 - `/users`
 - `/decks`
@@ -129,21 +129,21 @@ Módulos principales:
 
 ---
 
-# Infraestructura de despliegue
+# Deployment infrastructure
 
-No estaba en el roadmap original (agregado 2026-07-27). **Decisión cerrada 2026-07-30**: [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md) — backend en Render, frontend en Vercel, base de datos en Supabase (dentro de la Opción 1 de abajo). El backend ya tiene preparación real para esto (migraciones de goose embebidas al arrancar, pensadas específicamente para el free tier de Render; `backend/README.md` documenta las env vars — ver [TASKS.md](TASKS.md), sección "Infra / configuración" de Stage 1). Sigue sin haber `render.yaml`/IaC ni un workflow de CI que despliegue (ambas plataformas se configuran manualmente por dashboard, ver el ADR).
+Not in the original roadmap (added 2026-07-27). **Decision closed 2026-07-30**: [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md) — backend on Render, frontend on Vercel, database on Supabase (under Option 1 below). The backend already has real preparation for this (goose migrations embedded at startup, specifically designed for Render's free tier; `backend/README.md` documents the env vars — see [TASKS.md](TASKS.md), "Infra / configuration" section of Stage 1). There's still no `render.yaml`/IaC or a CI workflow that deploys (both platforms are configured manually via dashboard, see the ADR).
 
-### Opción 1: PaaS Moderna / Serverless (elegida)
-- **Frontend:** Vercel (decidido) o Cloudflare Pages (despliegue estático, CDN global, GitOps automático).
-- **Backend:** Render (decidido) o Fly.io (despliegue mediante contenedor Docker o binario nativo de Go, capa gratuita inicial).
-- **Base de datos:** Supabase (decidido) o Neon (PostgreSQL serverless administrado).
-- **Ventajas:** Despliegue inmediato, cero mantenimiento de infraestructura, capa gratuita generosa.
+### Option 1: Modern PaaS / Serverless (chosen)
+- **Frontend:** Vercel (decided) or Cloudflare Pages (static deployment, global CDN, automatic GitOps).
+- **Backend:** Render (decided) or Fly.io (deployment via Docker container or native Go binary, initial free tier).
+- **Database:** Supabase (decided) or Neon (managed serverless PostgreSQL).
+- **Advantages:** Immediate deployment, zero infrastructure maintenance, generous free tier.
 
 ---
 
-# Fuentes de verdad
-Se usarán cuatro fuentes de verdad para facilitar el entendimiento y el desarrollo en paralelo (especialmente con IA):
-1. **DBML**: Esquema y relaciones de la BD.
-2. **OpenAPI 3.1**: Contrato único entre backend y cliente Android.
-3. **Mermaid**: Arquitectura, flujos y diagramas de comportamiento.
-4. **ADR (Architecture Decision Records)**: Registro de todas las decisiones técnicas importantes.
+# Sources of truth
+Four sources of truth are used to make understanding and parallel development easier (especially with AI):
+1. **DBML**: DB schema and relationships.
+2. **OpenAPI 3.1**: Single contract between backend and Android client.
+3. **Mermaid**: Architecture, flows, and behavior diagrams.
+4. **ADR (Architecture Decision Records)**: Record of all important technical decisions.

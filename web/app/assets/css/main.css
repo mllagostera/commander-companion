@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 /*
- * Sistema de tema: custom properties conmutadas por [data-theme] en <html>
- * (ver useTheme.ts). Tailwind acá no tiene el plugin de dark-mode configurado
- * a propósito — todo el color de superficie/texto pasa por estas variables
- * vía clases arbitrarias (bg-[var(--card-bg)], etc.), así layout y páginas
- * quedan tema-agnósticas sin duplicar clases dark:/light:.
+ * Theme system: custom properties switched by [data-theme] on <html>
+ * (see useTheme.ts). Tailwind's dark-mode plugin is deliberately not
+ * configured here — all surface/text color goes through these variables
+ * via arbitrary classes (bg-[var(--card-bg)], etc.), so layout and pages
+ * stay theme-agnostic without duplicating dark:/light: classes.
  */
 :root {
   --bg-gradient: radial-gradient(ellipse 120% 80% at 20% -10%, #1e1b4b 0%, #0a0714 45%, #050308 100%);

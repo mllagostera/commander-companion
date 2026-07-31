@@ -1,14 +1,14 @@
 /**
- * Proxy autenticado hacia la API Go.
+ * Authenticated proxy to the Go API.
  *
- * El navegador llama a `/api/backend/decks`, `/api/backend/statistics/user`,
- * etc.; Nitro reenvía la request a la API agregando el `Authorization: Bearer`
- * que sale de la cookie httpOnly, y renueva el access token de forma
- * transparente si venció (ver `backendFetch`).
+ * The browser calls `/api/backend/decks`, `/api/backend/statistics/user`,
+ * etc.; Nitro forwards the request to the API adding the `Authorization: Bearer`
+ * that comes from the httpOnly cookie, and transparently renews the access
+ * token if it expired (see `backendFetch`).
  *
- * Los endpoints `/auth/*` quedan deliberadamente fuera: van por
- * `/api/auth/*`, que son los únicos que tocan cookies de sesión. Así ningún
- * camino desde JS puede hacer que un token vuelva al navegador.
+ * The `/auth/*` endpoints are deliberately excluded: they go through
+ * `/api/auth/*`, which are the only ones that touch session cookies. This way no
+ * path from JS can make a token come back to the browser.
  */
 const BLOCKED_PREFIXES = ['auth/']
 
@@ -16,7 +16,7 @@ const METHODS_WITHOUT_BODY = new Set(['GET', 'HEAD', 'DELETE', 'OPTIONS'])
 
 export default defineEventHandler(async (event) => {
   const raw = getRouterParam(event, 'path') ?? ''
-  // Normaliza `//a/../b` y evita salir del prefijo de la API.
+  // Normalizes `//a/../b` and prevents escaping the API prefix.
   const path = raw.split('/').filter((s) => s && s !== '.' && s !== '..').join('/')
 
   if (!path) {

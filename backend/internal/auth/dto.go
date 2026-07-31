@@ -2,28 +2,28 @@ package auth
 
 import "github.com/usuario/commander-companion-backend/internal/users"
 
-// LoginRequest es el payload de login con email y password.
+// LoginRequest is the login payload with email and password.
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
-// GoogleLoginRequest es el payload para iniciar sesión con Google.
+// GoogleLoginRequest is the payload for signing in with Google.
 type GoogleLoginRequest struct {
 	IDToken string `json:"id_token"`
 }
 
-// RefreshRequest es el payload para renovar un access token vencido.
+// RefreshRequest is the payload for renewing an expired access token.
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// LogoutRequest es el payload para cerrar sesión invalidando el refresh token.
+// LogoutRequest is the payload for logging out by invalidating the refresh token.
 type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// TokenResponse es la respuesta de login/refresh/google con el par de tokens y el usuario.
+// TokenResponse is the login/refresh/google response with the token pair and the user.
 type TokenResponse struct {
 	AccessToken  string              `json:"access_token"`
 	RefreshToken string              `json:"refresh_token"`

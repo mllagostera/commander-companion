@@ -76,9 +76,9 @@ class GameRepositoryTest {
     }
 
     /**
-     * El backend exige `minPlayersToStart = 2`. Con un solo asiento asignado en el bootstrap
-     * (modo Grupo con un solo miembro, o Casual best-effort de antes), este 409 es el caso
-     * NORMAL, no un fallo: la partida queda en `pending` esperando que alguien se una.
+     * The backend requires `minPlayersToStart = 2`. With only one seat assigned in the bootstrap
+     * (Group mode with a single member, or the old best-effort Casual mode), this 409 is the
+     * NORMAL case, not a failure: the game stays `pending` waiting for someone to join.
      */
     @Test
     fun `bootstrap trata el 409 de start como pending, no como error`() = runTest {
@@ -123,7 +123,7 @@ class GameRepositoryTest {
         assertEquals(listOf("createGame", "joinGame"), api.calls)
     }
 
-    // --------------------------------------------------------------- acciones
+    // --------------------------------------------------------------- actions
 
     @Test
     fun `recordLifeChange manda LifeChange con el actor indicado y el amount`() = runTest {
@@ -135,7 +135,7 @@ class GameRepositoryTest {
         assertEquals("game-1", gameId)
         assertEquals("gp-7", request.actorId)
         assertEquals(GameActionType.LIFE_CHANGE, request.actionType)
-        // Sin target: la acción afecta al propio actor.
+        // No target: the action affects the actor itself.
         assertNull(request.targetId)
         assertEquals(-3, request.payload!!["amount"]!!.jsonPrimitive.int)
     }

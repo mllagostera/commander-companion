@@ -26,8 +26,8 @@ func newUsersSvc(t *testing.T) (users.Service, *pgxpool.Pool) {
 	return svc, pool
 }
 
-// fakeMailer registra el último link de verificación mandado a cada email, para poder
-// ejercitar VerifyEmail/ResendVerification sin depender de Resend real.
+// fakeMailer records the last verification link sent to each email, so
+// VerifyEmail/ResendVerification can be exercised without depending on real Resend.
 type fakeMailer struct {
 	verifyURLByEmail map[string]string
 }
@@ -41,7 +41,7 @@ func (m *fakeMailer) SendVerificationEmail(_ context.Context, to, _, verifyURL s
 	return nil
 }
 
-// tokenFor extrae el token del último link mandado a ese email.
+// tokenFor extracts the token from the last link sent to that email.
 func (m *fakeMailer) tokenFor(t *testing.T, email string) string {
 	t.Helper()
 	verifyURL, ok := m.verifyURLByEmail[email]
@@ -58,15 +58,15 @@ func (m *fakeMailer) tokenFor(t *testing.T, email string) string {
 func newUsersSvcWithMailer(t *testing.T) (users.Service, *pgxpool.Pool, *fakeMailer) {
 	t.Helper()
 	pool := testutil.DB(t)
-	// "users" arrastra decks, refresh_tokens, email_verification_tokens y demás por CASCADE.
+	// "users" drags along decks, refresh_tokens, email_verification_tokens, and others via CASCADE.
 	testutil.Truncate(t, pool, "users")
 	mailer := newFakeMailer()
 	return users.NewService(pool, mailer, testWebAppURL, true), pool, mailer
 }
 
-// newUsersSvcVerificationOff instancia el servicio con requireEmailVerification=false
-// (el default de producción en fase alpha, ver ADR-0012): el registro debe dejar la
-// cuenta ya verificada y el mailer no debe recibir ningún envío.
+// newUsersSvcVerificationOff instantiates the service with requireEmailVerification=false
+// (the production default in alpha phase, see ADR-0012): registration should leave the
+// account already verified and the mailer shouldn't receive any send.
 func newUsersSvcVerificationOff(t *testing.T) (users.Service, *fakeMailer) {
 	t.Helper()
 	pool := testutil.DB(t)
@@ -88,10 +88,10 @@ func registerUser(t *testing.T, svc users.Service, email string) *users.UserResp
 	return user
 }
 
-// asFiberError traduce el error de dominio que devuelve el service a su equivalente
-// HTTP con common.MapError (los services ya no dependen de fiber, ver
-// internal/common/errors.go), para poder seguir verificando el status code que ve
-// el cliente.
+// asFiberError translates the domain error returned by the service to its HTTP
+// equivalent with common.MapError (services no longer depend on fiber, see
+// internal/common/errors.go), so we can keep verifying the status code the
+// client sees.
 func asFiberError(t *testing.T, err error) *fiber.Error {
 	t.Helper()
 	var fiberErr *fiber.Error
@@ -120,8 +120,8 @@ func TestRegisterUser_Success(t *testing.T) {
 	}
 }
 
-// El password nunca sale en el DTO, pero sí tiene que quedar hasheado en la BD:
-// guardarlo en claro pasaría desapercibido mirando solo la respuesta.
+// The password never comes out in the DTO, but it does need to end up hashed in the DB:
+// storing it in plaintext would go unnoticed just by looking at the response.
 func TestRegisterUser_StoresHashedPassword(t *testing.T) {
 	svc, pool := newUsersSvc(t)
 
@@ -199,7 +199,7 @@ func TestGetUser_NotFound(t *testing.T) {
 	}
 }
 
-// Un ID malformado no es distinto de uno inexistente para el cliente: ambos son 404.
+// A malformed ID isn't different from a nonexistent one for the client: both are 404.
 func TestGetUser_MalformedID(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -209,9 +209,9 @@ func TestGetUser_MalformedID(t *testing.T) {
 	}
 }
 
-// VerifyCredentials solo tiene éxito con el email ya confirmado (ver
-// TestRegisterUser_LeavesEmailUnconfirmed): acá se verifica primero con el token que
-// capturó el fakeMailer, mismo camino que un usuario real haciendo click en el link.
+// VerifyCredentials only succeeds with the email already confirmed (see
+// TestRegisterUser_LeavesEmailUnconfirmed): here it's verified first with the token
+// captured by fakeMailer, the same path as a real user clicking the link.
 func TestVerifyCredentials_Success(t *testing.T) {
 	svc, _, mailer := newUsersSvcWithMailer(t)
 
@@ -244,8 +244,8 @@ func TestVerifyCredentials_WrongPassword(t *testing.T) {
 	}
 }
 
-// El registro deja el email sin confirmar: no puede loguearse hasta hacer click en el
-// link mandado por mail (ver ADR-0012 — bloquear login hasta verificar).
+// Registration leaves the email unconfirmed: it can't log in until clicking the
+// link sent by mail (see ADR-0012 — block login until verified).
 func TestVerifyCredentials_BlocksUnconfirmedEmail(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -298,8 +298,8 @@ func TestVerifyEmail_InvalidToken(t *testing.T) {
 	}
 }
 
-// Un token ya usado no sirve una segunda vez: si no, alguien que interceptó el link una
-// vez podría reusarlo indefinidamente.
+// An already-used token isn't valid a second time: otherwise someone who intercepted the
+// link once could reuse it indefinitely.
 func TestVerifyEmail_TokenAlreadyUsed(t *testing.T) {
 	svc, _, mailer := newUsersSvcWithMailer(t)
 
@@ -316,8 +316,8 @@ func TestVerifyEmail_TokenAlreadyUsed(t *testing.T) {
 	}
 }
 
-// ResendVerification nunca revela si el email existe: mismo criterio anti-enumeración
-// que VerifyCredentials con ErrInvalidCredentials.
+// ResendVerification never reveals whether the email exists: same anti-enumeration
+// criteria as VerifyCredentials with ErrInvalidCredentials.
 func TestResendVerification_UnknownEmail_DoesNotError(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -345,8 +345,8 @@ func TestResendVerification_SendsNewToken(t *testing.T) {
 	}
 }
 
-// Ya verificado, ResendVerification no hace nada (pero tampoco falla): no tiene sentido
-// mandar otro link.
+// Already verified, ResendVerification does nothing (but doesn't fail either): there's
+// no point sending another link.
 func TestResendVerification_AlreadyVerified_NoOp(t *testing.T) {
 	svc, _, mailer := newUsersSvcWithMailer(t)
 
@@ -361,9 +361,9 @@ func TestResendVerification_AlreadyVerified_NoOp(t *testing.T) {
 	}
 }
 
-// Con requireEmailVerification=false (default de producción en fase alpha, ver
-// ADR-0012) el registro deja la cuenta verificada de entrada y puede loguearse
-// inmediatamente, sin pasar por ningún link.
+// With requireEmailVerification=false (production default in alpha phase, see
+// ADR-0012) registration leaves the account verified upfront and it can log in
+// immediately, without going through any link.
 func TestRegisterUser_VerificationOff_LeavesAccountVerified(t *testing.T) {
 	svc, _ := newUsersSvcVerificationOff(t)
 
@@ -374,8 +374,8 @@ func TestRegisterUser_VerificationOff_LeavesAccountVerified(t *testing.T) {
 	}
 }
 
-// Con requireEmailVerification=false no hay que gastar un envío que nadie va a exigir:
-// RegisterUser ni siquiera debe llamar al mailer.
+// With requireEmailVerification=false there's no need to spend a send that nobody's
+// going to require: RegisterUser shouldn't even call the mailer.
 func TestRegisterUser_VerificationOff_DoesNotSendMail(t *testing.T) {
 	svc, mailer := newUsersSvcVerificationOff(t)
 
@@ -386,8 +386,8 @@ func TestRegisterUser_VerificationOff_DoesNotSendMail(t *testing.T) {
 	}
 }
 
-// Un email inexistente devuelve el MISMO error que una password incorrecta: no se
-// filtra qué emails están registrados.
+// A nonexistent email returns the SAME error as an incorrect password: it doesn't
+// leak which emails are registered.
 func TestVerifyCredentials_UnknownEmail(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -407,14 +407,14 @@ func TestFindOrCreateGoogleUser_CreatesNewUser(t *testing.T) {
 	if user.Email != "nuevo@example.com" {
 		t.Fatalf("FindOrCreateGoogleUser() email = %q, want %q", user.Email, "nuevo@example.com")
 	}
-	// El username se deriva de la parte local del email.
+	// The username is derived from the local part of the email.
 	if user.Username != "nuevo" {
 		t.Fatalf("FindOrCreateGoogleUser() username = %q, want %q", user.Username, "nuevo")
 	}
 }
 
-// La cuenta creada por Google no tiene password: intentar loguearse con
-// email/password tiene que decirlo explícitamente, no dar "credenciales inválidas".
+// The account created by Google has no password: trying to log in with
+// email/password has to say so explicitly, not give "invalid credentials".
 func TestFindOrCreateGoogleUser_CreatedAccountHasNoPassword(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -449,8 +449,8 @@ func TestFindOrCreateGoogleUser_IsIdempotent(t *testing.T) {
 	}
 }
 
-// Si el email ya existe como cuenta email/password, Google se vincula a esa cuenta
-// en vez de crear un duplicado, y la password original sigue funcionando.
+// If the email already exists as an email/password account, Google links to that
+// account instead of creating a duplicate, and the original password keeps working.
 func TestFindOrCreateGoogleUser_LinksExistingEmailAccount(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -469,8 +469,8 @@ func TestFindOrCreateGoogleUser_LinksExistingEmailAccount(t *testing.T) {
 	}
 }
 
-// Sin email verificado por Google no se crea ni se vincula nada: si no, cualquiera
-// con un id_token de un proveedor laxo podría reclamar el email de otro.
+// Without an email verified by Google nothing is created or linked: otherwise anyone
+// with an id_token from a lax provider could claim someone else's email.
 func TestFindOrCreateGoogleUser_RejectsUnverifiedEmail(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -483,8 +483,8 @@ func TestFindOrCreateGoogleUser_RejectsUnverifiedEmail(t *testing.T) {
 	}
 }
 
-// Dos cuentas de Google distintas cuya parte local del email coincide no pueden
-// chocar: el username del segundo se desambigua con un sufijo del google id.
+// Two different Google accounts whose email local part matches can't clash: the
+// second one's username is disambiguated with a suffix from the google id.
 func TestFindOrCreateGoogleUser_ResolvesUsernameCollision(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -518,8 +518,8 @@ func TestUpdateMoxfieldUsername_Success(t *testing.T) {
 		t.Fatalf("UpdateMoxfieldUsername() MoxfieldUsername = %v, want %q", updated.MoxfieldUsername, "MyMoxfieldHandle")
 	}
 
-	// Se refleja en una lectura posterior, no solo en la respuesta de la propia
-	// escritura.
+	// This is reflected in a subsequent read, not just in the write's own
+	// response.
 	fetched, err := svc.GetUser(context.Background(), user.ID)
 	if err != nil {
 		t.Fatalf("GetUser() error = %v", err)
@@ -541,10 +541,10 @@ func TestUpdateMoxfieldUsername_Idempotent(t *testing.T) {
 	}
 }
 
-// El handler HTTP responde 404 si :id no es el del usuario autenticado, sin llamar
-// al service con un id ajeno. El mismo ErrUserNotFound que backea ese 404 también
-// es lo que devuelve el service ante cualquier id inexistente, así que este test
-// ejercita ese camino común.
+// The HTTP handler responds 404 if :id isn't the authenticated user's, without
+// calling the service with someone else's id. The same ErrUserNotFound that backs
+// that 404 is also what the service returns for any nonexistent id, so this test
+// exercises that common path.
 func TestUpdateMoxfieldUsername_UnknownUser_ReturnsNotFound(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -569,7 +569,7 @@ func TestUpdateUsername_Success(t *testing.T) {
 		t.Fatalf("UpdateUsername() Username = %q, want %q", updated.Username, "NuevoUsername")
 	}
 
-	// Se refleja en una lectura posterior, no solo en la respuesta de la propia escritura.
+	// This is reflected in a subsequent read, not just in the write's own response.
 	fetched, err := svc.GetUser(context.Background(), user.ID)
 	if err != nil {
 		t.Fatalf("GetUser() error = %v", err)
@@ -662,7 +662,7 @@ func TestChangePassword_WrongCurrentPassword(t *testing.T) {
 			fiberErr.Code, fiber.StatusUnauthorized)
 	}
 
-	// La password original sigue funcionando: el intento fallido no la tocó.
+	// The original password keeps working: the failed attempt didn't touch it.
 	_, err = svc.VerifyCredentials(context.Background(), "change-password-wrong@example.com", testPassword)
 	if err != nil {
 		t.Fatalf("VerifyCredentials() con el password original tras el intento fallido: error = %v, want nil", err)
@@ -682,8 +682,8 @@ func TestChangePassword_TooShort(t *testing.T) {
 	}
 }
 
-// Una cuenta de Google no tiene password propio: ChangePassword debe rechazarla con el
-// mismo error que VerifyCredentials, no con un 500 por password_hash nulo.
+// A Google account has no password of its own: ChangePassword must reject it with the
+// same error as VerifyCredentials, not with a 500 due to a null password_hash.
 func TestChangePassword_GoogleOnlyAccount(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
@@ -748,10 +748,10 @@ func TestSearchUsers_ByExactEmail(t *testing.T) {
 	}
 }
 
-// El email NO se busca parcial a propósito: permitiría enumerar direcciones ajenas por
-// prefijo/substring (ver comentario en query.sql). El username es deliberadamente
-// distinto del substring buscado, para no confundir "matchea por username" con "matchea
-// por email parcial" (que es justo lo que este test verifica que NO pasa).
+// The email is deliberately NOT searched partially: it would allow enumerating other
+// people's addresses by prefix/substring (see comment in query.sql). The username is
+// deliberately different from the searched substring, so as not to confuse "matches by
+// username" with "matches by partial email" (which is exactly what this test verifies does NOT happen).
 func TestSearchUsers_EmailParcialNoMatchea(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 	ctx := context.Background()
@@ -801,9 +801,9 @@ func TestSearchUsers_QueryTooShort_ReturnsBadRequest(t *testing.T) {
 	}
 }
 
-// Un slice nil serializa a JSON `null` en vez de `[]`, lo que rompe clientes que esperan
-// siempre un array (ej. `results.length`/`.filter()` en JS/TS). SearchUsers debe devolver
-// slice vacío inicializado, no nil, cuando no hay matches.
+// A nil slice serializes to JSON `null` instead of `[]`, which breaks clients that always
+// expect an array (e.g. `results.length`/`.filter()` in JS/TS). SearchUsers must return
+// an initialized empty slice, not nil, when there are no matches.
 func TestSearchUsers_NoResults_ReturnsEmptySliceNotNil(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 

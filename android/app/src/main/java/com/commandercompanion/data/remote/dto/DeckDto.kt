@@ -4,8 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * DTOs de `/decks`, siguiendo los schemas `Deck`/`CreateDeckRequest`/`ImportMoxfieldRequest`
- * de `docs/api/openapi.yaml` (y los structs reales de `backend/internal/decks/dto.go`).
+ * DTOs for `/decks`, following the `Deck`/`CreateDeckRequest`/`ImportMoxfieldRequest` schemas
+ * from `docs/api/openapi.yaml` (and the real structs from `backend/internal/decks/dto.go`).
  */
 
 @Serializable
@@ -24,7 +24,7 @@ data class CreateDeckRequest(
     @SerialName("moxfield_id") val moxfieldId: String? = null
 )
 
-/** [url] acepta tanto la URL completa (`https://moxfield.com/decks/{id}`) como el ID público pelado. */
+/** [url] accepts either the full URL (`https://moxfield.com/decks/{id}`) or the bare public ID. */
 @Serializable
 data class ImportMoxfieldRequest(
     val url: String

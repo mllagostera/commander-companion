@@ -19,7 +19,7 @@ captures/
 .DS_Store
 Thumbs.db
 
-# --- Herramientas de IA (config local, no se comparte vía git) ---
+# --- AI tools (local config, not shared via git) ---
 .claude/
 .codegraph/
 .gemini/

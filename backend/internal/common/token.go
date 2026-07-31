@@ -8,9 +8,9 @@ import (
 	"fmt"
 )
 
-// NewOpaqueToken genera un token aleatorio criptográficamente seguro, codificado en
-// base64 URL-safe. Se usa para refresh tokens y tokens de verificación de email: el
-// valor en claro se entrega una única vez al cliente, nunca se persiste (ver HashToken).
+// NewOpaqueToken generates a cryptographically secure random token, encoded in
+// URL-safe base64. Used for refresh tokens and email verification tokens: the
+// plaintext value is delivered to the client only once, and never persisted (see HashToken).
 func NewOpaqueToken(byteLen int) (string, error) {
 	buf := make([]byte, byteLen)
 	if _, err := rand.Read(buf); err != nil {
@@ -19,8 +19,8 @@ func NewOpaqueToken(byteLen int) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// HashToken calcula el hash SHA-256 (hex) que se persiste en base de datos en vez del
-// token en claro.
+// HashToken computes the SHA-256 (hex) hash that gets persisted in the database instead of the
+// plaintext token.
 func HashToken(plain string) string {
 	sum := sha256.Sum256([]byte(plain))
 	return hex.EncodeToString(sum[:])

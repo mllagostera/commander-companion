@@ -1,66 +1,68 @@
-# ADR-0001: Estrategia de autenticación — JWT de acceso + refresh token opaco rotativo
+# ADR-0001: Authentication strategy — access JWT + rotating opaque refresh token
 
-**Estado:** Aceptada e implementada (2026-07-26)
+**Status:** Accepted and implemented (2026-07-26)
 
-## Contexto
+## Context
 
-El backend necesitaba autenticación real (hasta este punto, `internal/auth/`
-estaba vacío y `internal/users/service.go` usaba un hash de contraseña dummy).
-Había que decidir:
+The backend needed real authentication (up to this point, `internal/auth/`
+was empty and `internal/users/service.go` used a dummy password hash).
+There were decisions to make:
 
-1. Cómo firmar los access tokens: secreto simétrico (HS256) vs. par de claves
-   asimétrico (RS256/ES256).
-2. Cómo manejar la renovación de sesión (`POST /auth/refresh`) y el logout
-   real (`POST /auth/logout` debe poder invalidar una sesión).
-3. Formato del refresh token: JWT también, u opaco.
+1. How to sign the access tokens: symmetric secret (HS256) vs. an
+   asymmetric key pair (RS256/ES256).
+2. How to handle session renewal (`POST /auth/refresh`) and real logout
+   (`POST /auth/logout` must be able to invalidate a session).
+3. Refresh token format: also a JWT, or opaque.
 
-## Decisión
+## Decision
 
-- **Access token: JWT firmado con HS256**, secreto simétrico (`JWT_SECRET`),
-  vida corta (`ACCESS_TOKEN_TTL`, default 15 minutos). Claims mínimos:
-  `sub` (user ID), `iat`, `exp` (`jwt.RegisteredClaims` de
+- **Access token: JWT signed with HS256**, symmetric secret (`JWT_SECRET`),
+  short lifetime (`ACCESS_TOKEN_TTL`, default 15 minutes). Minimal claims:
+  `sub` (user ID), `iat`, `exp` (`jwt.RegisteredClaims` from
   `github.com/golang-jwt/jwt/v5`).
-- **Refresh token: string opaco aleatorio** (32 bytes de `crypto/rand`,
-  base64url), **no un JWT**. Se persiste únicamente su hash SHA-256 en la
-  tabla `refresh_tokens` (`token_hash`, `expires_at`, `revoked_at`); el valor
-  en claro solo existe en la respuesta HTTP, nunca en la base de datos.
-- **Rotación en cada uso**: `POST /auth/refresh` revoca el refresh token
-  usado y emite uno nuevo junto con el access token nuevo. Reutilizar un
-  refresh token ya rotado devuelve `401`.
-- **Logout real**: revoca el refresh token indicado (`revoked_at`), no
-  depende de que el access token expire para terminar la sesión.
-- Vida del refresh token: `REFRESH_TOKEN_TTL`, default 720h (30 días).
+- **Refresh token: random opaque string** (32 bytes from `crypto/rand`,
+  base64url), **not a JWT**. Only its SHA-256 hash is persisted in the
+  `refresh_tokens` table (`token_hash`, `expires_at`, `revoked_at`); the
+  plaintext value only exists in the HTTP response, never in the database.
+- **Rotation on every use**: `POST /auth/refresh` revokes the refresh token
+  used and issues a new one along with the new access token. Reusing a
+  refresh token that has already been rotated returns `401`.
+- **Real logout**: revokes the specified refresh token (`revoked_at`), does
+  not depend on the access token expiring to end the session.
+- Refresh token lifetime: `REFRESH_TOKEN_TTL`, default 720h (30 days).
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **RS256/ES256** (par de claves): permite que servicios externos verifiquen
-  tokens sin conocer un secreto compartido. Se descartó porque el proyecto es
-  un monolito modular sin otros servicios que necesiten verificar tokens de
-  forma independiente — la complejidad de gestionar un par de claves (rotación,
-  distribución de la pública) no se paga con ningún beneficio real hoy.
-- **Refresh token también como JWT**: más simple de generar, pero no se puede
-  revocar sin una lista de revocación de todas formas — si hay que mantener
-  estado en la base para poder revocar, es más directo que el refresh token
-  *sea* directamente el puntero a ese estado (opaco + hash), en vez de un JWT
-  cuyo contenido nunca se usa una vez que hay que ir a la base igual.
-- **Sesiones basadas en cookies**: se descartó porque el cliente principal es
-  una app Android nativa (no un navegador con cookies same-site triviales), y
-  el segundo cliente (ver [ADR-0004](0004-web-client-nuxt.md)) es un SPA/SSR
-  desacoplado que de todas formas usa Bearer tokens.
+- **RS256/ES256** (key pair): lets external services verify tokens without
+  knowing a shared secret. Discarded because the project is a modular
+  monolith with no other services that need to verify tokens
+  independently — the complexity of managing a key pair (rotation,
+  distributing the public key) isn't paid off by any real benefit today.
+- **Refresh token also as a JWT**: simpler to generate, but it can't be
+  revoked without a revocation list anyway — if state has to be kept in
+  the database to allow revocation, it's more direct for the refresh token
+  to *be* the pointer to that state directly (opaque + hash), instead of a
+  JWT whose contents are never used once you have to go to the database
+  anyway.
+- **Cookie-based sessions**: discarded because the main client is a native
+  Android app (not a browser with trivial same-site cookies), and the
+  second client (see [ADR-0004](0004-web-client-nuxt.md)) is a decoupled
+  SPA/SSR client that uses Bearer tokens anyway.
 
-## Consecuencias
+## Consequences
 
-- Revocar *todas* las sesiones de un usuario (ej. "cerrar sesión en todos los
-  dispositivos") requiere revocar cada `refresh_tokens.user_id` — no
-  implementado todavía, pero la tabla ya soporta la query.
-- Comprometer `JWT_SECRET` invalida la confianza en *todos* los access tokens
-  emitidos hasta que se rote el secreto (y con HS256 no hay forma de rotar
-  sin invalidar tokens viejos — no hay `kid`/multi-secreto implementado).
-- El valor por defecto de `JWT_SECRET` en desarrollo
-  (`dev-insecure-jwt-secret-change-me`, ver `backend/cmd/api/main.go`) es
-  intencionalmente inseguro y debe sobreescribirse en cualquier entorno real.
+- Revoking *all* of a user's sessions (e.g. "log out on all devices")
+  requires revoking every `refresh_tokens.user_id` — not implemented yet,
+  but the table already supports the query.
+- Compromising `JWT_SECRET` invalidates trust in *all* access tokens
+  issued until the secret is rotated (and with HS256 there is no way to
+  rotate it without invalidating old tokens — no `kid`/multi-secret
+  support implemented).
+- The default value of `JWT_SECRET` in development
+  (`dev-insecure-jwt-secret-change-me`, see `backend/cmd/api/main.go`) is
+  intentionally insecure and must be overridden in any real environment.
 
-## Referencias
+## References
 
-- Implementación: `backend/internal/auth/token.go`, `service.go`
-- Migración: `backend/migrations/00002_auth.sql`
+- Implementation: `backend/internal/auth/token.go`, `service.go`
+- Migration: `backend/migrations/00002_auth.sql`

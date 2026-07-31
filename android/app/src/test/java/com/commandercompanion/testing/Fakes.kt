@@ -31,11 +31,11 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.HttpException
 import retrofit2.Response
 
-/** Construye una [HttpException] real con el código dado, para testear el mapeo de errores. */
+/** Builds a real [HttpException] with the given code, to test error mapping. */
 fun httpException(code: Int, body: String = """{"message":"boom"}"""): HttpException =
     HttpException(Response.error<Any>(code, body.toResponseBody("application/json".toMediaType())))
 
-// --------------------------------------------------------------------- DTOs de fixture
+// --------------------------------------------------------------------- fixture DTOs
 
 fun deckDto(id: String = "deck-1", name: String = "Atraxa") = DeckDto(
     id = id,
@@ -87,17 +87,17 @@ fun gameActionDto(gameId: String, request: CreateActionRequest) = GameActionDto(
 )
 
 /**
- * Fake de [CommanderApi] con un handler por endpoint.
+ * Fake of [CommanderApi] with one handler per endpoint.
  *
- * Se prefiere sobre una librería de mocking: la interfaz es estable y así los tests declaran
- * explícitamente qué responde cada endpoint, sin `verify` mágicos.
+ * Preferred over a mocking library: the interface is stable, so tests explicitly declare
+ * what each endpoint responds with, without magic `verify` calls.
  */
 class FakeCommanderApi : CommanderApi {
 
-    /** Todas las acciones que recibió `POST /games/{id}/actions`, en orden. */
+    /** All the actions received by `POST /games/{id}/actions`, in order. */
     val recordedActions = mutableListOf<Pair<String, CreateActionRequest>>()
 
-    /** Nombres de endpoint invocados, en orden — para aseverar la secuencia del bootstrap. */
+    /** Names of the endpoints invoked, in order — to assert the bootstrap sequence. */
     val calls = mutableListOf<String>()
 
     var onListDecks: suspend () -> List<DeckDto> = { listOf(deckDto()) }
@@ -214,7 +214,7 @@ class FakeCommanderApi : CommanderApi {
     }
 }
 
-/** Fake en memoria de [GameDao]. */
+/** In-memory fake of [GameDao]. */
 class FakeGameDao : GameDao {
 
     val games = mutableListOf<GameEntity>()

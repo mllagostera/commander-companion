@@ -29,10 +29,10 @@ import (
 )
 
 const (
-	// Rate limit de los endpoints públicos de auth. 20 req/min por IP deja
-	// holgura de sobra para un humano equivocándose de contraseña o para el
-	// refresh automático de varios dispositivos detrás de un mismo NAT, pero
-	// corta en seco el credential stuffing.
+	// Rate limit for the public auth endpoints. 20 req/min per IP leaves
+	// plenty of slack for a human mistyping their password or for the
+	// automatic refresh of several devices behind the same NAT, but cuts
+	// credential stuffing short.
 	authRateLimitMax    = 20
 	authRateLimitWindow = time.Minute
 
@@ -46,15 +46,15 @@ func main() {
 }
 
 func run() error {
-	// 1. Cargar configuración y conectar a BD
+	// 1. Load configuration and connect to DB
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	// Migraciones antes de abrir el pool de la app (ver common.RunMigrations):
-	// deja el schema al día en cualquier entorno, incluidos los que no ofrecen
-	// un hook de "release/pre-deploy command" separado.
+	// Migrations before opening the app's pool (see common.RunMigrations):
+	// brings the schema up to date in any environment, including those that
+	// don't offer a separate "release/pre-deploy command" hook.
 	if migrateErr := common.RunMigrations(cfg.DBURL, migrationsDir); migrateErr != nil {
 		return migrateErr
 	}
@@ -67,7 +67,7 @@ func run() error {
 	defer db.Close()
 	log.Println("Conectado a PostgreSQL exitosamente.")
 
-	// 2. Inicializar Fiber
+	// 2. Initialize Fiber
 	app := fiber.New(fiber.Config{
 		ErrorHandler: common.ErrorHandler,
 		AppName:      "Commander Companion API v0.1",
@@ -85,7 +85,7 @@ func run() error {
 	common.RegisterHealthRoute(app, db)
 	registerModules(app, db, &cfg)
 
-	// 4. Arrancar Servidor
+	// 4. Start Server
 	log.Printf("Iniciando servidor en el puerto %s...", cfg.Port)
 	if err := app.Listen(":" + cfg.Port); err != nil {
 		return fmt.Errorf("error al arrancar el servidor: %w", err)
@@ -93,40 +93,40 @@ func run() error {
 	return nil
 }
 
-// newAuthRateLimiter construye el middleware de rate limiting por IP de los
-// endpoints públicos de auth. El contador vive en memoria del proceso: alcanza
-// para una instancia única (el despliegue actual, ver docker-compose.yml); con
-// varias réplicas habría que moverlo a un Storage compartido (Redis).
+// newAuthRateLimiter builds the per-IP rate limiting middleware for the
+// public auth endpoints. The counter lives in the process's memory: enough
+// for a single instance (the current deployment, see docker-compose.yml);
+// with several replicas it would need to move to a shared Storage (Redis).
 //
-// Nota: la IP sale de fiber.Ctx.IP(), que detrás de un proxy/ingress devuelve la
-// del proxy salvo que se configure ProxyHeader en fiber.Config. Cuando se
-// despliegue detrás de uno, hay que setearlo o el límite sería global.
+// Note: the IP comes from fiber.Ctx.IP(), which behind a proxy/ingress
+// returns the proxy's IP unless ProxyHeader is configured in fiber.Config.
+// When deploying behind one, it must be set or the limit would be global.
 func newAuthRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
 		Max:        authRateLimitMax,
 		Expiration: authRateLimitWindow,
 		LimitReached: func(_ *fiber.Ctx) error {
-			// Devolver el error (en vez de escribir la respuesta acá) lo hace pasar
-			// por common.ErrorHandler, así un 429 tiene el mismo cuerpo que
-			// cualquier otro error de la API.
+			// Returning the error (instead of writing the response here) makes it
+			// go through common.ErrorHandler, so a 429 has the same body as
+			// any other API error.
 			return fiber.NewError(fiber.StatusTooManyRequests, "too many authentication requests, try again later")
 		},
 	})
 }
 
-// registerModules instancia repositorios, servicios y handlers, y registra las
-// rutas de todos los módulos bajo /api/v1 (públicas y protegidas por JWT).
+// registerModules instantiates repositories, services, and handlers, and
+// registers the routes of every module under /api/v1 (public and JWT-protected).
 func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	api := app.Group("/api/v1")
 
-	// El rate limit se pasa a cada endpoint público de auth en vez de montarlo como
-	// middleware del grupo: en Fiber, un Group con middleware aplica a todo lo que
-	// comparta el prefijo (incluido /auth/me y el resto de la API), y acá solo
-	// queremos acotar los endpoints sin JWT.
+	// The rate limit is passed to each public auth endpoint instead of being
+	// mounted as group middleware: in Fiber, a Group with middleware applies
+	// to everything that shares the prefix (including /auth/me and the rest
+	// of the API), and here we only want to bound the endpoints without JWT.
 	authRateLimit := newAuthRateLimiter()
 
-	// emailClient manda el mail de verificación de cuenta. Sin RESEND_API_KEY (dev sin
-	// cuenta de Resend) loguea el link por consola en vez de mandarlo (ver internal/email).
+	// emailClient sends the account verification email. Without RESEND_API_KEY
+	// (dev without a Resend account) it logs the link to the console instead of sending it (see internal/email).
 	emailClient := email.NewResendClient(cfg.Email)
 	usersService := users.NewService(db.Pool, emailClient, cfg.WebAppURL, cfg.RequireEmailVerification)
 	usersHandler := users.NewHandler(usersService)
@@ -150,11 +150,12 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	statisticsService := statistics.NewService(db.Pool)
 	statistics.NewHandler(statisticsService).RegisterRoutes(protected)
 
-	// wsHub retransmite en vivo los game_actions de una partida a todos los clientes
-	// conectados a ella (ver ADR-0005). Se inyecta en games/game-actions como
-	// Broadcaster, sin que esos paquetes dependan de internal/websocket (mismo patrón
-	// que statisticsService como StatisticsRecalculator). La ruta de WebSocket es
-	// pública (sin auth.RequireAuth): autentica por mensaje inicial, no por header.
+	// wsHub relays a game's game_actions live to every client connected to it
+	// (see ADR-0005). It's injected into games/game-actions as a
+	// Broadcaster, without those packages depending on internal/websocket (same
+	// pattern as statisticsService as StatisticsRecalculator). The WebSocket
+	// route is public (no auth.RequireAuth): it authenticates via the initial
+	// message, not via header.
 	wsHub := websocket.NewHub()
 	websocket.RegisterRoutes(api, wsHub, cfg.Auth.JWTSecret)
 
@@ -164,18 +165,18 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	gameActionsService := gameactions.NewService(db.Pool, wsHub)
 	gameactions.NewHandler(gameActionsService).RegisterRoutes(protected)
 
-	// sync no habla con la BD ni con Moxfield por su cuenta: delega en decks, que
-	// es el dueño de la tabla y del cliente (ver internal/sync/service.go).
+	// sync doesn't talk to the DB or to Moxfield on its own: it delegates to
+	// decks, which owns the table and the client (see internal/sync/service.go).
 	syncService := sync.NewService(decksService)
 	sync.NewHandler(syncService).RegisterRoutes(protected)
 
-	// moxfieldimport: import masivo en background, scaffold completo pero con
-	// ListDecksByUsername todavía stubbeado (ver internal/moxfieldimport).
+	// moxfieldimport: bulk background import, scaffold complete but with
+	// ListDecksByUsername still stubbed out (see internal/moxfieldimport).
 	moxfieldImportService := moxfieldimport.NewService(db.Pool, usersService, decksService, moxfieldClient)
 	moxfieldimport.NewHandler(moxfieldImportService).RegisterRoutes(protected)
 
-	// deckresync: resincroniza en background TODOS los decks ya importados con
-	// moxfield_id (distinto de moxfieldimport, que trae decks nuevos por username).
+	// deckresync: resynchronizes in the background ALL decks already imported
+	// with moxfield_id (unlike moxfieldimport, which brings in new decks by username).
 	deckResyncService := deckresync.NewService(db.Pool, decksService)
 	deckresync.NewHandler(deckResyncService).RegisterRoutes(protected)
 }

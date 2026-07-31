@@ -12,19 +12,19 @@ import (
 
 const googleIssuer = "https://accounts.google.com"
 
-// ErrGoogleAuthNotConfigured indica que el servidor no tiene GOOGLE_CLIENT_ID configurado.
+// ErrGoogleAuthNotConfigured indicates that the server doesn't have GOOGLE_CLIENT_ID configured.
 var ErrGoogleAuthNotConfigured = common.NotImplemented("google sign-in is not configured on this server")
 
-// GoogleClaims son los datos relevantes extraídos de un id_token de Google ya verificado.
+// GoogleClaims are the relevant data extracted from an already-verified Google id_token.
 type GoogleClaims struct {
 	Subject       string
 	Email         string
 	EmailVerified bool
 }
 
-// googleVerifier valida id_tokens de Google. El discovery document se resuelve de
-// forma perezosa en la primera verificación, para no acoplar el arranque del
-// servidor a la disponibilidad de Google.
+// googleVerifier validates Google id_tokens. The discovery document is resolved
+// lazily on the first verification, so the server's startup isn't coupled to
+// Google's availability.
 type googleVerifier struct {
 	clientID string
 

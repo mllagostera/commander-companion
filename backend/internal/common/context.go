@@ -1,6 +1,6 @@
 package common
 
-// UserIDKey es la clave usada en fiber.Ctx.Locals para guardar el ID del
-// usuario autenticado, seteada por el middleware de auth y leída por los
-// handlers de los módulos protegidos.
+// UserIDKey is the key used in fiber.Ctx.Locals to store the authenticated
+// user's ID, set by the auth middleware and read by the handlers of the
+// protected modules.
 const UserIDKey = "user_id"

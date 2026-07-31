@@ -14,10 +14,10 @@ defaults:
     working-directory: backend
 
 jobs:
-  # Job sin filtro de path: siempre corre y siempre reporta un check, aunque
-  # sea "skipped". Así los checks de abajo pueden marcarse como required en
-  # branch protection sin dejar bloqueados los PRs que no tocan backend/
-  # (un check requerido que nunca llega a dispararse deja el PR colgado).
+  # Job with no path filter: always runs and always reports a check, even if
+  # it's "skipped". This lets the checks below be marked as required in
+  # branch protection without leaving PRs that don't touch backend/ blocked
+  # (a required check that never fires leaves the PR hanging).
   changes:
     name: Detectar cambios en backend/
     runs-on: ubuntu-latest
@@ -29,12 +29,12 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
-          # 'every': un archivo cambiado cuenta para el filtro 'backend' solo si
-          # matchea 'backend/**' Y NO matchea ninguna de las exclusiones de .md
-          # (así un README-only change no dispara build+test+lint+Postgres).
-          # El propio workflow file va en un filtro aparte ('backend_workflow')
-          # porque bajo 'every' no puede compartir lista con 'backend/**' (son
-          # rutas mutuamente excluyentes; ver docs/roadmap/TASKS.md).
+          # 'every': a changed file counts toward the 'backend' filter only if it
+          # matches 'backend/**' AND does NOT match any of the .md exclusions
+          # (so a README-only change doesn't trigger build+test+lint+Postgres).
+          # The workflow file itself goes in a separate filter ('backend_workflow')
+          # because under 'every' it can't share a list with 'backend/**' (they're
+          # mutually exclusive patterns; see docs/roadmap/TASKS.md).
           predicate-quantifier: 'every'
           filters: |
             backend:
@@ -131,17 +131,17 @@ jobs:
       - name: go build
         run: go build ./...
       - name: Instalar goose
-        # Versión fijada (no @latest): v3.27.0 es la última compatible con el Go
-        # que fija backend/go.mod (1.25.0). v3.27.3 exige go >=1.25.7 y rompe este
-        # step con @latest.
+        # Pinned version (not @latest): v3.27.0 is the latest one compatible with the Go
+        # version pinned by backend/go.mod (1.25.0). v3.27.3 requires go >=1.25.7 and breaks this
+        # step with @latest.
         run: go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
       - name: Aplicar migraciones
         run: goose -dir migrations postgres "$DB_URL" up
       - name: go test
-        # -p 1: los tests de integración (auth, decks) comparten una única base
-        # Postgres y hacen TRUNCATE de tablas comunes entre tests; correr los
-        # test binaries de distintos paquetes en paralelo (default de `go test`)
-        # los haría pisarse entre sí.
+        # -p 1: the integration tests (auth, decks) share a single Postgres
+        # database and TRUNCATE tables common to several tests; running the
+        # test binaries of different packages in parallel (the `go test` default)
+        # would make them step on each other.
         run: go test -race -cover -p 1 ./...
 
   dockerfile-lint:

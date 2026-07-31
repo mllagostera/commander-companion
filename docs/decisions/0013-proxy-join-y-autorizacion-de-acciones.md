@@ -1,136 +1,137 @@
-# ADR-0013: Proxy-join y autorización de acciones por `game_players.added_by`
+# ADR-0013: Proxy-join and action authorization via `game_players.added_by`
 
-**Estado:** Aceptada (2026-07-28)
+**Status:** Accepted (2026-07-28)
 
-## Contexto
+## Context
 
-El modelo de partidas del backend asume que cada `GamePlayer` se crea a
-partir de la sesión JWT de quien se une (`POST /games/{id}/join` toma el
-`user_id` siempre del token, nunca del body). Eso funciona para un cliente
-web multi-dispositivo, pero el cliente Android es pass-and-play en un solo
-dispositivo (ver el comentario de diseño en
-`android/.../data/repository/GameRepository.kt`): un único usuario
-autenticado por partida, y el resto de los asientos locales nunca tuvieron
-`GamePlayer` propio ni estadísticas.
+The backend's game model assumes that each `GamePlayer` is created from
+the JWT session of whoever joins (`POST /games/{id}/join` always takes the
+`user_id` from the token, never from the body). That works for a multi-device
+web client, but the Android client is pass-and-play on a single
+device (see the design comment in
+`android/.../data/repository/GameRepository.kt`): a single
+authenticated user per game, and the rest of the local seats never had their
+own `GamePlayer` or statistics.
 
-Se pidió una forma de que ese único dispositivo pueda anotar una partida
-completa para un grupo de juego real (`playgroups`) — que **todos** los
-asientos asignados a miembros del grupo generen estadísticas de verdad, no
-solo el dueño de la sesión. Eso exige que un usuario autenticado pueda, en
-nombre de otro, (a) unirse a una partida y (b) registrar sus acciones
-(vida, daño de comandante, etc.).
+A way was requested for that single device to be able to log an entire
+game for a real playgroup (`playgroups`) — so that **all**
+the seats assigned to group members generate real statistics, not
+just the session owner. That requires an authenticated user to be able to, on
+behalf of another, (a) join a game and (b) record their
+actions (life, commander damage, etc.).
 
-Investigando el punto (b) se encontró un hueco de autorización preexistente
-e independiente de este pedido: **`POST /games/{id}/actions`
-(`internal/game-actions/handler.go: CreateAction`) nunca lee el `user_id`
-del JWT** — el `actor_id` del body se acepta tal cual, sin verificar que
-pertenezca al caller. Hoy, cualquier usuario autenticado que conozca un
-`game_id` y un `GamePlayer.id` (ambos visibles vía `GET /games/{id}`) puede
-registrar acciones en su nombre. Este cambio cierra ese hueco como parte
-necesaria de la misma función que hay que tocar para agregar el permiso de
-proxy.
+While investigating point (b), a pre-existing authorization gap was found that is
+independent of this request: **`POST /games/{id}/actions`
+(`internal/game-actions/handler.go: CreateAction`) never reads the `user_id`
+from the JWT** — the body's `actor_id` is accepted as-is, without checking that
+it belongs to the caller. Today, any authenticated user who knows a
+`game_id` and a `GamePlayer.id` (both visible via `GET /games/{id}`) can
+record actions on their behalf. This change closes that gap as a
+necessary part of touching the same function needed to add the proxy
+permission.
 
-## Decisión
+## Decision
 
-### Columna nueva: `game_players.added_by`
+### New column: `game_players.added_by`
 
-`uuid null references users(id)` (migración
-`00012_game_player_proxy_join.sql`). `null` si el jugador se unió con su
-propia sesión (comportamiento de siempre). Si no es null, es el `user_id`
-de quien lo unió como proxy — y ese usuario queda autorizado a actuar en su
-nombre.
+`uuid null references users(id)` (migration
+`00012_game_player_proxy_join.sql`). `null` if the player joined with their
+own session (the same behavior as always). If not null, it's the `user_id`
+of whoever joined them as a proxy — and that user is then authorized to act
+on their behalf.
 
-### Proxy-join: `POST /games/{id}/join` con `user_id` opcional
+### Proxy-join: `POST /games/{id}/join` with optional `user_id`
 
-`JoinGameRequest` gana `user_id` opcional. Si viene y coincide con el
-caller, comportamiento idéntico a hoy (`added_by` queda null). Si viene y
-es **distinto** del caller (`internal/games/service.go: JoinGame`), se
-exige:
+`JoinGameRequest` gains an optional `user_id`. If it's present and matches
+the caller, behavior is identical to today (`added_by` stays null). If it's present and
+is **different** from the caller (`internal/games/service.go: JoinGame`), the
+following is required:
 
-1. La partida tiene `playgroup_id` (no es una partida Casual).
-2. El caller es miembro de ese `playgroup_id`.
-3. El `user_id` destino también es miembro de ese mismo `playgroup_id`.
-4. El `deck_id` del body pertenece al **destino**, no al caller
-   (`resolveOwnedDeckID` ya validaba esto contra un `userID` — solo cambia
-   cuál se le pasa).
+1. The game has a `playgroup_id` (it isn't a Casual game).
+2. The caller is a member of that `playgroup_id`.
+3. The target `user_id` is also a member of that same `playgroup_id`.
+4. The `deck_id` in the body belongs to the **target**, not the caller
+   (`resolveOwnedDeckID` already validated this against a `userID` — only which
+   one is passed changes).
 
-Si algo de esto falla, mismo criterio que el resto del módulo
-(`ErrPlaygroupNotFound`/`ErrDeckNotFound` genéricos, sin distinguir "no
-existe" de "no tenés permiso" — evita revelar membresías o decks ajenos).
+If any of this fails, the same criterion as the rest of the module applies
+(generic `ErrPlaygroupNotFound`/`ErrDeckNotFound`, without distinguishing "does not
+exist" from "you don't have permission" — this avoids revealing other users'
+memberships or decks).
 
-Se ancla a `playgroup_id` (no a "cualquier par de usuarios que se conozcan")
-a propósito: usar el mismo campo que ya existe en `games` mantiene la
-superficie de autorización acotada a grupos reales, sin inventar una
-relación de confianza nueva.
+It is anchored to `playgroup_id` (not "any pair of users who know each
+other") on purpose: using the same field that already exists in `games` keeps
+the authorization surface scoped to real groups, without inventing a
+new trust relationship.
 
-### Descubrir los decks del destino: `GET /playgroups/{id}/members/{userId}/decks`
+### Discovering the target's decks: `GET /playgroups/{id}/members/{userId}/decks`
 
-Sin esto no hay de dónde elegir el `deck_id` del proxy-join. Mismo criterio
-de autorización que el proxy-join (caller y destino miembros del mismo
-grupo). Vive bajo `/playgroups` (no bajo `/decks`) porque la autorización
-depende enteramente de la membresía compartida, no de una relación directa
-entre los dos usuarios.
+Without this there is no way to choose the proxy-join's `deck_id`. Same
+authorization criterion as the proxy-join (caller and target both members
+of the same group). It lives under `/playgroups` (not under `/decks`)
+because the authorization depends entirely on shared membership, not on a
+direct relationship between the two users.
 
-### Proxy-record: autorización en `POST /games/{id}/actions`
+### Proxy-record: authorization in `POST /games/{id}/actions`
 
-`game-actions/handler.go: CreateAction` empieza a leer `userID` de
-`c.Locals` y se lo pasa a `RecordAction`. `resolveActionSubject` valida,
-tras resolver el `actor` (`GamePlayer`):
+`game-actions/handler.go: CreateAction` now reads `userID` from
+`c.Locals` and passes it to `RecordAction`. `resolveActionSubject` validates,
+after resolving the `actor` (`GamePlayer`):
 
 ```
-autorizado := actor.UserID == callerID || actor.AddedBy == callerID
+authorized := actor.UserID == callerID || actor.AddedBy == callerID
 ```
 
-Si no, `403` (`ErrNotAuthorizedForActor`, nuevo). Esto es estrictamente más
-estricto que el comportamiento actual (que no valida nada), así que no rompe
-ningún flujo legítimo existente — todo `actor_id` que hoy se manda
-corresponde siempre al propio caller en la práctica (el cliente Android
-nunca mandó uno ajeno).
+If not, `403` (`ErrNotAuthorizedForActor`, new). This is strictly stricter than
+current behavior (which validates nothing), so it doesn't break any
+existing legitimate flow — every `actor_id` sent today always
+corresponds to the caller themselves in practice (the Android client
+never sent someone else's).
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **Delegar todo a nivel de partida** (si el caller tiene *algún*
-  `GamePlayer` en esa partida, puede actuar por cualquier otro asiento de
-  la misma partida): más simple de implementar, pero cualquier jugador de
-  la mesa podría alterar las estadísticas de cualquier otro con solo estar
-  sentado — demasiado permisivo para algo que persiste estadísticas reales.
-  `added_by` acota la autoridad a "quien efectivamente lo unió", que es
-  quien sostiene el dispositivo.
-- **Relación de confianza persistente entre usuarios** ("delegados"), en vez
-  de derivarla de `added_by` por partida: más flexible (sobreviviría a
-  partidas puntuales), pero es una tabla y un flujo de invitación/aceptación
-  nuevos para un caso de uso — anotar la mesa de tu propio grupo — que ya
-  tiene una señal de confianza natural y suficiente (`playgroup_members`).
-  Se descarta hasta que haga falta algo más granular.
-- **No cerrar el hueco de `POST /games/{id}/actions` en esta pasada**
-  (dejarlo para un ticket aparte): se descarta porque la función que hay que
-  tocar para agregar el permiso de proxy es exactamente la misma que hoy no
-  valida nada — arreglarlo ahora es estrictamente más barato que hacerlo en
-  dos pasadas, y dejarlo abierto a sabiendas ya no sería un descuido sino
-  una decisión consciente de shippear con una vulnerabilidad conocida.
+- **Delegating everything at the game level** (if the caller has *any*
+  `GamePlayer` in that game, they can act on behalf of any other seat in
+  the same game): simpler to implement, but any player at the table could
+  alter any other player's statistics simply by being seated — too
+  permissive for something that persists real statistics.
+  `added_by` scopes the authority to "whoever actually joined them," which is
+  whoever is holding the device.
+- **Persistent trust relationship between users** ("delegates"), instead
+  of deriving it from `added_by` per game: more flexible (would survive
+  across individual games), but is a new table and a new invite/accept flow
+  for a use case — logging your own group's table — that already
+  has a natural and sufficient trust signal (`playgroup_members`).
+  Ruled out until something more granular is needed.
+- **Not closing the `POST /games/{id}/actions` gap in this pass**
+  (leaving it for a separate ticket): ruled out because the function that needs
+  to be touched to add the proxy permission is exactly the one that today doesn't
+  validate anything — fixing it now is strictly cheaper than doing it in
+  two passes, and knowingly leaving it open would no longer be an oversight but
+  a conscious decision to ship with a known vulnerability.
 
-## Consecuencias
+## Consequences
 
-- `game_players.added_by` es la única fuente de verdad de "quién puede
-  actuar por quién" — no hay revocación explícita (si la partida termina o
-  el proxy-joiner deja el grupo, la autorización sigue existiendo para esa
-  partida puntual, ya finalizada, donde no importa).
-- El cliente Android (modo Grupo) es el primer y único llamador real de
-  proxy-join hasta que exista un cliente multi-dispositivo (Stage 6); el
-  cliente web no lo usa todavía.
-- Cualquier extensión futura de "quién puede ver/actuar por quién" (p. ej.
-  roles dentro de un grupo) debería revisar si `playgroup_members` sigue
-  alcanzando o hace falta un modelo de permisos más rico — no está resuelto
-  acá, solo lo mínimo para este caso de uso.
+- `game_players.added_by` is the single source of truth for "who can
+  act on whose behalf" — there is no explicit revocation (if the game ends or
+  the proxy-joiner leaves the group, the authorization still applies to that
+  specific, already-finished game, where it no longer matters).
+- The Android client (Group mode) is the first and only real caller of
+  proxy-join until a multi-device client exists (Stage 6); the
+  web client doesn't use it yet.
+- Any future extension of "who can see/act on behalf of whom" (e.g.
+  roles within a group) should revisit whether `playgroup_members`
+  still suffices or a richer permission model is needed — not resolved
+  here, only the minimum for this use case.
 
-## Referencias
+## References
 
 - `backend/migrations/00012_game_player_proxy_join.sql`
 - `backend/internal/games/service.go` (`JoinGame`)
 - `backend/internal/game-actions/service.go` (`RecordAction`,
   `resolveActionSubject`)
-- `backend/internal/playgroups/service.go` (membresía compartida)
+- `backend/internal/playgroups/service.go` (shared membership)
 - `android/app/src/main/java/com/commandercompanion/data/repository/GameRepository.kt`
-  (comentario de diseño sobre el modelo pass-and-play de un dispositivo)
-- [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (JWT, base de
+  (design comment about the single-device pass-and-play model)
+- [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (JWT, basis for
   `common.UserIDKey`)

@@ -1,91 +1,90 @@
-# ADR-0007: PostgreSQL como base de datos principal
+# ADR-0007: PostgreSQL as the primary database
 
-**Estado:** Aceptada e implementada — **decisión heredada, contexto
-reconstruido**. Al igual que ADR-0006, esta decisión precede el historial de
-ADRs del proyecto y se documenta retroactivamente (2026-07-27) a partir del
-estado real del código (`backend/migrations/`, `docs/database/schema.dbml`,
-`backend/go.mod`), no de una discusión presenciada en su momento.
+**Status:** Accepted and implemented — **inherited decision, context
+reconstructed**. Like ADR-0006, this decision predates the project's ADR
+history and is documented retroactively (2026-07-27) based on the actual
+state of the code (`backend/migrations/`, `docs/database/schema.dbml`,
+`backend/go.mod`), not from a discussion witnessed at the time.
 
-## Contexto
+## Context
 
-El modelo de datos (Stage 2 del ROADMAP) necesita relaciones bien definidas
-desde el día uno: usuarios, decks, partidas (`games`), jugadores de partida
-(`game_players`), acciones de partida (`game_actions`), grupos de juego
-(`playgroups`), y tablas de resumen de estadísticas
-(`user_statistics_summary`, `deck_statistics_summary`). El ROADMAP fija
-PostgreSQL explícitamente en el stack de Stage 1 y en las dos versiones del
-diagrama de arquitectura (`ROADMAP.md`, ambos diagramas Mermaid terminan en
-`PostgreSQL`).
+The data model (Stage 2 of the ROADMAP) needs well-defined relationships
+from day one: users, decks, games (`games`), game players (`game_players`),
+game actions (`game_actions`), play groups (`playgroups`), and statistics
+summary tables (`user_statistics_summary`, `deck_statistics_summary`). The
+ROADMAP fixes PostgreSQL explicitly in the Stage 1 stack and in both
+versions of the architecture diagram (`ROADMAP.md`, both Mermaid diagrams
+end in `PostgreSQL`).
 
-## Decisión
+## Decision
 
-**PostgreSQL** como único motor de base de datos, accedido vía
-`github.com/jackc/pgx/v5` (driver + pool `pgxpool.Pool`) desde Go, con
-`sqlc` generando el código de acceso tipado sobre ese driver (ver ADR-0008)
-y `goose` gestionando las migraciones versionadas (`migrations/00001_initial
+**PostgreSQL** as the sole database engine, accessed via
+`github.com/jackc/pgx/v5` (driver + `pgxpool.Pool` pool) from Go, with
+`sqlc` generating typed data-access code over that driver (see ADR-0008)
+and `goose` managing versioned migrations (`migrations/00001_initial
 _schema.sql`, `00002_auth.sql`).
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **MySQL/MariaDB**: igualmente viable para un modelo relacional
-  convencional; se descarta a favor de Postgres probablemente por
-  características que el esquema ya aprovecha o previsiblemente aprovechará:
-  `CHECK` constraints expresivos (`CHECK (password_hash IS NOT NULL OR
-  google_id IS NOT NULL)` en `users`, ver `migrations/00002_auth.sql`), tipos
-  nativos más ricos (UUID, JSON/JSONB — usado en `game_actions.payload`
-  según `game-actions/service.go`, que serializa/deserializa el payload de
-  cada acción como JSON), y el ecosistema de herramientas Go (`pgx` es el
-  driver de facto más maduro y performante del ecosistema Go moderno, más
-  que sus equivalentes MySQL).
-- **Base de datos NoSQL (MongoDB, DynamoDB)**: descartada porque el dominio
-  es intrínsecamente relacional (usuarios ↔ decks ↔ partidas ↔ jugadores de
-  partida ↔ acciones, con integridad referencial real: un `game_player` no
-  puede existir sin su `game` y su `deck`) y porque las estadísticas
-  agregadas (Stage 7) se benefician de `GROUP BY`/agregaciones SQL en vez de
-  map-reduce o agregación de documentos.
-- **SQLite**: descartado por no encajar con "Sincronización entre
-  jugadores" y "Arquitectura escalable" (objetivos explícitos del
-  ROADMAP) — el backend es un servidor centralizado con múltiples clientes
-  concurrentes, no una app de un solo usuario con almacenamiento embebido
-  (ese rol lo cumple Room, pero *en Android*, no en el backend — ver
-  ADR-0009).
+- **MySQL/MariaDB**: equally viable for a conventional relational model;
+  discarded in favor of Postgres, likely due to features the schema
+  already leverages or is expected to leverage: expressive `CHECK`
+  constraints (`CHECK (password_hash IS NOT NULL OR google_id IS NOT
+  NULL)` on `users`, see `migrations/00002_auth.sql`), richer native types
+  (UUID, JSON/JSONB — used in `game_actions.payload` per
+  `game-actions/service.go`, which serializes/deserializes each action's
+  payload as JSON), and the Go ecosystem's tooling (`pgx` is the de facto
+  most mature and performant driver in the modern Go ecosystem, more so
+  than its MySQL equivalents).
+- **NoSQL database (MongoDB, DynamoDB)**: discarded because the domain is
+  intrinsically relational (users ↔ decks ↔ games ↔ game players ↔ game
+  actions, with real referential integrity: a `game_player` can't exist
+  without its `game` and its `deck`) and because aggregated statistics
+  (Stage 7) benefit from SQL `GROUP BY`/aggregations rather than
+  map-reduce or document aggregation.
+- **SQLite**: discarded for not fitting "synchronization between players"
+  and "scalable architecture" (explicit ROADMAP goals) — the backend is a
+  centralized server with multiple concurrent clients, not a single-user
+  app with embedded storage (that role is filled by Room, but *on
+  Android*, not in the backend — see ADR-0009).
 
-## Consecuencias
+## Consequences
 
-- El esquema vive en `docs/database/schema.dbml` como fuente de verdad
-  (una de las "cuatro fuentes de verdad" declaradas en `ROADMAP.md`), y se
-  valida en CI compilando a SQL con `@dbml/cli` (`docs-ci.yml`) — atarse a
-  Postgres específicamente (no "SQL genérico") ya se refleja en el uso de
-  tipos y sintaxis Postgres-específicos en las migraciones.
-  y en las queries. Migrar de motor a esta altura implicaría reescribir
-  DBML, migraciones y queries `sqlc`.
-- Todo el testing de integración del backend (`internal/testutil`,
-  usado por `auth`, `decks`, `games`, `game-actions`, `playgroups`,
-  `statistics`) corre contra **Postgres real**, no un mock ni SQLite en
-  memoria — más fiel a producción, pero requiere una instancia de Postgres
-  disponible (localmente o en CI, ver `backend-ci.yml`) para correr los
-  tests, y obliga a `go test -p 1` porque los tests comparten la misma base
-  y hacen `TRUNCATE` entre sí.
-- El motor de estadísticas (Stage 7) y el futuro Match Engine (ver segundo
-  diagrama de `ROADMAP.md`) asumen que pueden leer/escribir contra la misma
-  instancia de Postgres sin una capa de replicación o sharding — aceptable
-  mientras el proyecto siga siendo un monolito modular de un solo
-  mantenedor (ver ADR-0010).
-- La versión mayor de Postgres queda fijada en dos lugares que deben
-  mantenerse en sync manualmente (no hay una única fuente de verdad para
-  esto): la imagen del servicio `db` en `docker-compose.yml` y la imagen del
-  servicio `postgres` en `backend-ci.yml` (2026-07-27: ambas actualizadas a
-  **18**, `postgres:18-alpine`; antes estaban desalineadas entre sí,
-  `15-alpine` y `16-alpine` respectivamente). Un salto de versión mayor no es
-  compatible con el volumen de datos de una versión anterior (formato en
-  disco distinto) y, desde las imágenes 18+, tampoco con el layout previo de
-  mount (`/var/lib/postgresql/data`): requiere recrear el volumen de dev o
-  migrar con `pg_upgrade`, y ajustar el mount a `/var/lib/postgresql`.
+- The schema lives in `docs/database/schema.dbml` as the source of truth
+  (one of the "four sources of truth" declared in `ROADMAP.md`), and is
+  validated in CI by compiling to SQL with `@dbml/cli` (`docs-ci.yml`) —
+  committing to Postgres specifically (not "generic SQL") is already
+  reflected in the use of Postgres-specific types and syntax in the
+  migrations and in the queries. Migrating engines at this point would mean
+  rewriting the DBML, migrations, and `sqlc` queries.
+- All backend integration testing (`internal/testutil`, used by `auth`,
+  `decks`, `games`, `game-actions`, `playgroups`, `statistics`) runs
+  against **real Postgres**, not a mock or an in-memory SQLite — more
+  faithful to production, but requires a Postgres instance available
+  (locally or in CI, see `backend-ci.yml`) to run the tests, and forces
+  `go test -p 1` because the tests share the same database and `TRUNCATE`
+  each other.
+- The statistics engine (Stage 7) and the future Match Engine (see the
+  second diagram in `ROADMAP.md`) assume they can read/write against the
+  same Postgres instance without a replication or sharding layer —
+  acceptable as long as the project remains a single-maintainer modular
+  monolith (see ADR-0010).
+- The Postgres major version is fixed in two places that must be kept in
+  sync manually (there's no single source of truth for this): the `db`
+  service image in `docker-compose.yml` and the `postgres` service image
+  in `backend-ci.yml` (2026-07-27: both updated to **18**,
+  `postgres:18-alpine`; previously they were misaligned, `15-alpine` and
+  `16-alpine` respectively). A major version jump isn't compatible with
+  the data volume of a previous version (different on-disk format) and,
+  from image 18+ onward, isn't compatible with the previous mount layout
+  either (`/var/lib/postgresql/data`): it requires recreating the dev
+  volume or migrating with `pg_upgrade`, and adjusting the mount to
+  `/var/lib/postgresql`.
 
-## Referencias
+## References
 
 - `docs/database/schema.dbml`
 - `backend/migrations/00001_initial_schema.sql`, `00002_auth.sql`
 - `backend/go.mod` (`github.com/jackc/pgx/v5`)
-- `docs/roadmap/ROADMAP.md`, sección "Fuentes de verdad" y ambos diagramas
-  de arquitectura
+- `docs/roadmap/ROADMAP.md`, "Sources of truth" section and both
+  architecture diagrams

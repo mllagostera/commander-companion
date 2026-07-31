@@ -15,8 +15,8 @@ import (
 
 const testPassword = "correct-horse-battery-staple"
 
-// newAuthSvc crea un auth.Service y un users.Service sobre el mismo pool, con
-// una configuración de test razonable (TTLs cortos, sin Google configurado).
+// newAuthSvc creates an auth.Service and a users.Service over the same pool, with
+// a reasonable test configuration (short TTLs, no Google configured).
 func newAuthSvc(t *testing.T, pool *pgxpool.Pool, cfg auth.Config) (authSvc auth.Service, usersSvc users.Service) {
 	t.Helper()
 	usersSvc = testutil.NewUsersService(pool)
@@ -32,11 +32,11 @@ func defaultTestConfig() auth.Config {
 	}
 }
 
-// registerUser crea un usuario de test vía el servicio real de users (no INSERT
-// crudo), así los tests de auth ejercitan el mismo camino que produce el backend, y lo
-// deja verificado: estos tests ejercitan auth.Login (rotación de tokens, TTLs, etc.),
-// no el flujo de verificación de email en sí (ver internal/users/service_test.go para
-// ese).
+// registerUser creates a test user via the real users service (not a raw
+// INSERT), so the auth tests exercise the same path the backend produces, and it
+// leaves it verified: these tests exercise auth.Login (token rotation, TTLs, etc.),
+// not the email verification flow itself (see internal/users/service_test.go for
+// that).
 func registerUser(t *testing.T, pool *pgxpool.Pool, usersSvc users.Service, email string) *users.UserResponse {
 	t.Helper()
 	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
@@ -131,7 +131,7 @@ func TestRefresh_RotatesTokenAndInvalidatesThePrevious(t *testing.T) {
 		t.Fatalf("Refresh() no rotó el refresh token")
 	}
 
-	// El refresh token original ya fue revocado (rotación); reusarlo debe fallar.
+	// The original refresh token has already been revoked (rotation); reusing it must fail.
 	if _, err := authSvc.Refresh(context.Background(), login.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
 		t.Fatalf("Refresh() con token ya usado: error = %v, want ErrInvalidToken", err)
 	}
@@ -154,7 +154,7 @@ func TestRefresh_ExpiredToken(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	expiredCfg := defaultTestConfig()
-	expiredCfg.RefreshTokenTTL = -1 * time.Minute // ya vencido en el momento de emitirlo
+	expiredCfg.RefreshTokenTTL = -1 * time.Minute // already expired at the moment it's issued
 
 	expiredSvc, usersSvc := newAuthSvc(t, pool, expiredCfg)
 	registerUser(t, pool, usersSvc, "refresh-expired@example.com")
@@ -224,7 +224,7 @@ func TestGoogleLogin_NotConfigured(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	cfg := defaultTestConfig()
-	cfg.GoogleClientID = "" // servidor sin GOOGLE_CLIENT_ID (ver .env.example)
+	cfg.GoogleClientID = "" // server without GOOGLE_CLIENT_ID (see .env.example)
 	authSvc, _ := newAuthSvc(t, pool, cfg)
 
 	_, err := authSvc.GoogleLogin(context.Background(), "cualquier-id-token")

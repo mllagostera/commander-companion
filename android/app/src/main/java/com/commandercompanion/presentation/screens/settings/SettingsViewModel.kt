@@ -37,14 +37,14 @@ data class SettingsUiState(
 )
 
 /**
- * Ajustes de la cuenta propia: editar username, vincular/editar username de Moxfield y cambiar
- * contraseña — mismo alcance que `web/app/pages/settings.vue`, contra los mismos endpoints
- * (`PATCH /users/{id}`, `POST /users/{id}/password`). No incluye el import masivo de Moxfield
- * (sigue detrás de flag/roto en la web, ver `docs/roadmap/TASKS.md`).
+ * Own account settings: edit username, link/edit the Moxfield username, and change
+ * password — same scope as `web/app/pages/settings.vue`, against the same endpoints
+ * (`PATCH /users/{id}`, `POST /users/{id}/password`). Doesn't include the bulk Moxfield import
+ * (still behind a flag/broken on the web, see `docs/roadmap/TASKS.md`).
  *
- * `PATCH /users/{id}` no lleva el `Bearer` como header explícito (a diferencia de [AuthApi.me]):
- * va por el cliente autenticado de [CommanderApi], que ya lo adjunta vía `AuthInterceptor`. Solo
- * necesitamos el `userId` propio, que se resuelve una vez al cargar el perfil con `AuthApi.me`.
+ * `PATCH /users/{id}` doesn't carry the `Bearer` as an explicit header (unlike [AuthApi.me]):
+ * it goes through [CommanderApi]'s authenticated client, which already attaches it via
+ * `AuthInterceptor`. We only need our own `userId`, resolved once when the profile loads via `AuthApi.me`.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(

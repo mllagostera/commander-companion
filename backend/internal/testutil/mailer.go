@@ -9,34 +9,34 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
-// testWebAppURL es la base usada para armar links de verificación en tests; ningún
-// test de los que usan este helper resuelve el link de verdad.
+// testWebAppURL is the base used to build verification links in tests; none of the
+// tests that use this helper actually resolve the link.
 const testWebAppURL = "http://localhost:3000"
 
-// noopMailer no manda nada: alcanza para instanciar users.Service en los módulos que
-// solo lo necesitan como dependencia (no ejercitan el flujo de verificación de email en
-// sí). internal/users/service_test.go usa un fake propio que sí registra el token
-// mandado, para poder probar VerifyEmail.
+// noopMailer doesn't send anything: it's enough to instantiate users.Service in the
+// modules that only need it as a dependency (they don't exercise the email
+// verification flow itself). internal/users/service_test.go uses its own fake that
+// does record the sent token, so it can test VerifyEmail.
 type noopMailer struct{}
 
-// SendVerificationEmail no hace nada (ver noopMailer).
+// SendVerificationEmail does nothing (see noopMailer).
 func (noopMailer) SendVerificationEmail(context.Context, string, string, string) error {
 	return nil
 }
 
-// NewUsersService instancia users.Service con un mailer no-op y verificación de email
-// requerida (a diferencia del default de producción — ver ADR-0012 —, acá se deja
-// requireEmailVerification en true a propósito: así el registro sigue dejando la cuenta
-// sin confirmar y VerifyUserEmail, más abajo, sigue siendo necesario y significativo
-// para los tests que necesitan loguearse).
+// NewUsersService instantiates users.Service with a no-op mailer and email
+// verification required (unlike the production default — see ADR-0012 —, here
+// requireEmailVerification is deliberately left true: this way registration still
+// leaves the account unconfirmed and VerifyUserEmail, below, remains necessary and
+// meaningful for the tests that need to log in).
 func NewUsersService(pool *pgxpool.Pool) users.Service {
 	return users.NewService(pool, noopMailer{}, testWebAppURL, true)
 }
 
-// VerifyUserEmail marca un usuario como con email confirmado sin pasar por el flujo de
-// token/mail, para tests de otros módulos que necesitan una cuenta que pueda loguearse
-// (VerifyCredentials ahora exige email_verified, ver internal/users/service.go) pero no
-// están probando el flujo de verificación en sí.
+// VerifyUserEmail marks a user as having a confirmed email without going through the
+// token/mail flow, for tests of other modules that need an account that can log in
+// (VerifyCredentials now requires email_verified, see internal/users/service.go) but
+// aren't testing the verification flow itself.
 func VerifyUserEmail(t *testing.T, pool *pgxpool.Pool, userID string) {
 	t.Helper()
 	const query = "UPDATE users SET email_verified = true WHERE id = $1"

@@ -4,8 +4,8 @@ export function useGames() {
   const { apiFetch } = useApi()
 
   /**
-   * Historial completo (sin paginar, ver ListGamesForPlaygroup en el backend) de
-   * partidas de un grupo, con jugadores poblados. Requiere ser miembro del grupo.
+   * Full history (unpaginated, see ListGamesForPlaygroup in the backend) of
+   * a group's games, with players populated. Requires being a member of the group.
    */
   function listPlaygroupGames(playgroupId: string) {
     return apiFetch<PaginatedResponse<Game>>('/games', {
@@ -16,7 +16,7 @@ export function useGames() {
   return { listPlaygroupGames }
 }
 
-/** Traduce el status de una partida a una etiqueta legible. */
+/** Translates a game's status into a readable label. */
 export function gameStatusLabel(status: Game['status']): string {
   const { t } = useI18n()
   switch (status) {
@@ -31,7 +31,7 @@ export function gameStatusLabel(status: Game['status']): string {
   }
 }
 
-/** 404 acá cubre tanto "el grupo no existe" como "no eres miembro" (ver games.ErrPlaygroupNotFound). */
+/** 404 here covers both "the group doesn't exist" and "you're not a member" (see games.ErrPlaygroupNotFound). */
 export function listPlaygroupGamesError(err: unknown): string {
   const { t } = useI18n()
   switch (apiErrorStatus(err)) {

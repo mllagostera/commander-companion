@@ -9,14 +9,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Estadísticas agregadas (endpoints bajo `/statistics`).
+ * Aggregated statistics (endpoints under `/statistics`).
  *
- * Siempre remotas: el backend las recalcula al finalizar cada partida y no tiene sentido
- * duplicar esa agregación en el cliente. Devuelve ceros (no error) para un usuario/deck que
- * todavía no terminó ninguna partida.
+ * Always remote: the backend recalculates them when each game finishes, and it doesn't make
+ * sense to duplicate that aggregation on the client. Returns zeros (not an error) for a
+ * user/deck that hasn't finished any game yet.
  *
- * TODO: todavía no hay pantalla que la consuma — la UI de estadísticas es Stage 7 de `TASKS.md`,
- * fuera del alcance de esta pasada (que era destrabarla conectando la API).
+ * TODO: there's no screen consuming this yet — the statistics UI is Stage 7 of `TASKS.md`,
+ * out of scope for this pass (which was about unblocking it by wiring up the API).
  */
 @Singleton
 class StatisticsRepository @Inject constructor(

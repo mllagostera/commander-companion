@@ -22,71 +22,71 @@ const (
 )
 
 var (
-	// ErrGameNotFound indica que la partida no existe.
+	// ErrGameNotFound indicates that the game doesn't exist.
 	ErrGameNotFound = common.NotFound("game not found")
-	// ErrDeckNotFound indica que el deck no existe o no pertenece al jugador que se une.
+	// ErrDeckNotFound indicates that the deck doesn't exist or doesn't belong to the joining player.
 	ErrDeckNotFound = common.NotFound("deck not found")
-	// ErrNotAMember indica que el usuario no tiene asiento en la partida.
+	// ErrNotAMember indicates that the user doesn't have a seat in the game.
 	ErrNotAMember = common.NotFound("not a member of this game")
-	// ErrInvalidPlaygroupID indica que el playgroup_id recibido no es un UUID válido.
+	// ErrInvalidPlaygroupID indicates that the received playgroup_id isn't a valid UUID.
 	ErrInvalidPlaygroupID = common.InvalidInput("invalid playgroup_id")
-	// ErrInvalidDeckID indica que el deck_id recibido no es un UUID válido.
+	// ErrInvalidDeckID indicates that the received deck_id isn't a valid UUID.
 	ErrInvalidDeckID = common.InvalidInput("invalid deck_id")
-	// ErrGameClosedToPlayers indica que la partida ya no admite nuevos jugadores.
+	// ErrGameClosedToPlayers indicates that the game no longer accepts new players.
 	ErrGameClosedToPlayers = common.Conflict("game is not accepting new players")
-	// ErrAlreadyJoined indica que el usuario ya está en la partida.
+	// ErrAlreadyJoined indicates that the user is already in the game.
 	ErrAlreadyJoined = common.Conflict("already joined this game")
-	// ErrGameAlreadyStarted indica que la partida ya arrancó o terminó.
+	// ErrGameAlreadyStarted indicates that the game already started or finished.
 	ErrGameAlreadyStarted = common.Conflict("game already started or finished")
-	// ErrCannotLeaveStartedGame indica que no se puede abandonar una partida ya iniciada.
+	// ErrCannotLeaveStartedGame indicates that an already-started game can't be left.
 	ErrCannotLeaveStartedGame = common.Conflict("cannot leave a game that already started")
-	// ErrNotEnoughPlayers indica que la partida no llega al mínimo de jugadores para arrancar.
+	// ErrNotEnoughPlayers indicates that the game doesn't reach the minimum player count to start.
 	ErrNotEnoughPlayers = common.Conflict("not enough players to start")
-	// ErrGameNotActive indica que solo una partida activa puede finalizarse.
+	// ErrGameNotActive indicates that only an active game can be finished.
 	ErrGameNotActive = common.Conflict("only an active game can be finished")
-	// ErrProxyJoinRequiresPlaygroup indica que se intentó un proxy-join (user_id
-	// distinto del caller) en una partida sin playgroup_id — no hay grupo contra el
-	// que validar la membresía compartida (ver ADR-0013).
+	// ErrProxyJoinRequiresPlaygroup indicates an attempted proxy-join (user_id
+	// different from the caller) on a game without playgroup_id — there's no group to
+	// validate shared membership against (see ADR-0013).
 	ErrProxyJoinRequiresPlaygroup = common.InvalidInput("joining another user requires a game linked to a playgroup")
-	// ErrProxyJoinNotAuthorized indica que el caller o el usuario destino no
-	// comparten el playgroup de la partida. No distingue cuál de los dos falló,
-	// mismo criterio que el resto del módulo con recursos ajenos.
+	// ErrProxyJoinNotAuthorized indicates that the caller or the target user don't
+	// share the game's playgroup. It doesn't distinguish which of the two failed,
+	// same criteria as the rest of the module with resources belonging to others.
 	ErrProxyJoinNotAuthorized = common.Forbidden("cannot join this game on behalf of that user")
-	// ErrPlaygroupNotFound indica que el playgroup_id no existe o el usuario autenticado
-	// no es miembro — no se distingue cuál de los dos casos es (mismo criterio que
-	// playgroups.ErrPlaygroupNotFound).
+	// ErrPlaygroupNotFound indicates that the playgroup_id doesn't exist or the
+	// authenticated user isn't a member — it doesn't distinguish which of the two
+	// cases it is (same criteria as playgroups.ErrPlaygroupNotFound).
 	ErrPlaygroupNotFound = common.NotFound("playgroup not found")
 )
 
-// StatisticsRecalculator es lo que games necesita del módulo de estadísticas para
-// disparar el recálculo al finalizar una partida (permite mockearlo en tests).
+// StatisticsRecalculator is what games needs from the statistics module to
+// trigger the recalculation when a game finishes (allows mocking it in tests).
 type StatisticsRecalculator interface {
 	RecalculateForGame(ctx context.Context, gameID string) error
 }
 
-// Broadcaster es lo que games necesita para avisar en vivo, por WebSocket, que una
-// partida terminó (permite mockearlo en tests y evita que este paquete dependa de
-// internal/websocket, mismo patrón que StatisticsRecalculator). Ver ADR-0005
+// Broadcaster is what games needs to announce live, via WebSocket, that a
+// game finished (allows mocking it in tests and keeps this package from depending on
+// internal/websocket, same pattern as StatisticsRecalculator). See ADR-0005
 // (docs/decisions/0005-websocket-protocol.md).
 type Broadcaster interface {
 	BroadcastGameFinished(gameID string)
 }
 
-// PlaygroupMembership es lo que games necesita de playgroups para autorizar un
-// proxy-join (ver ADR-0013): confirmar que un usuario es miembro de un grupo, sin
-// que este paquete dependa de internal/playgroups directamente (mismo patrón que
+// PlaygroupMembership is what games needs from playgroups to authorize a
+// proxy-join (see ADR-0013): confirming a user is a member of a group, without
+// this package depending on internal/playgroups directly (same pattern as
 // StatisticsRecalculator/Broadcaster).
 type PlaygroupMembership interface {
 	IsMember(ctx context.Context, playgroupID, userID string) (bool, error)
 }
 
-// Service define la lógica de negocio del módulo games.
+// Service defines the business logic of the games module.
 type Service interface {
 	CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error)
 	GetGame(ctx context.Context, id string) (*GameResponse, error)
 	ListGames(ctx context.Context, page common.PageRequest) (*GameListResponse, error)
-	// ListGamesForPlaygroup devuelve el historial completo de partidas de un grupo,
-	// si el usuario indicado es miembro.
+	// ListGamesForPlaygroup returns the complete game history of a group,
+	// if the given user is a member.
 	ListGamesForPlaygroup(ctx context.Context, playgroupID, userID string) (*GameListResponse, error)
 	JoinGame(ctx context.Context, gameID, userID string, req JoinGameRequest) (*GamePlayerResponse, error)
 	LeaveGame(ctx context.Context, gameID, userID string) error
@@ -101,14 +101,14 @@ type service struct {
 	membership  PlaygroupMembership
 }
 
-// NewService crea un nuevo servicio de games.
+// NewService creates a new games service.
 func NewService(
 	db *pgxpool.Pool, stats StatisticsRecalculator, broadcaster Broadcaster, membership PlaygroupMembership,
 ) Service {
 	return &service{repo: New(db), stats: stats, broadcaster: broadcaster, membership: membership}
 }
 
-// CreateGame crea una nueva partida en estado pending.
+// CreateGame creates a new game in pending state.
 func (s *service) CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error) {
 	var playgroupID pgtype.UUID
 	if req.PlaygroupID != "" {
@@ -126,7 +126,7 @@ func (s *service) CreateGame(ctx context.Context, req CreateGameRequest) (*GameR
 	return toGameResponse(&game, nil), nil
 }
 
-// GetGame devuelve una partida por su ID, incluyendo el estado actual de sus jugadores.
+// GetGame returns a game by its ID, including the current state of its players.
 func (s *service) GetGame(ctx context.Context, id string) (*GameResponse, error) {
 	game, err := s.getGame(ctx, id)
 	if err != nil {
@@ -141,11 +141,11 @@ func (s *service) GetGame(ctx context.Context, id string) (*GameResponse, error)
 	return toGameResponse(game, players), nil
 }
 
-// ListGames devuelve una página del historial de partidas, de la más reciente a la
-// más vieja. Ver internal/common/pagination.go para el esquema de cursor.
+// ListGames returns a page of the game history, from most recent to
+// oldest. See internal/common/pagination.go for the cursor scheme.
 func (s *service) ListGames(ctx context.Context, page common.PageRequest) (*GameListResponse, error) {
-	// Se pide una fila de más que el límite: si vuelve, es que hay página
-	// siguiente. Evita un COUNT(*) aparte solo para saber si seguir paginando.
+	// One row more than the limit is requested: if it comes back, there's a
+	// next page. Avoids a separate COUNT(*) just to know whether to keep paginating.
 	params := ListGamesPageParams{PageLimit: page.Limit + 1}
 	if page.Cursor != "" {
 		cursorCreatedAt, cursorID, err := decodeCursor(page.Cursor)
@@ -176,10 +176,10 @@ func (s *service) ListGames(ctx context.Context, page common.PageRequest) (*Game
 	return &GameListResponse{Items: items, NextCursor: nextCursor}, nil
 }
 
-// ListGamesForPlaygroup devuelve el historial completo de partidas de un grupo, de
-// la más reciente a la más vieja, sin paginar (ver el comentario de
-// ListGamesForPlaygroup en query.sql). Requiere que userID sea miembro del grupo,
-// mismo criterio de "no revelar" que playgroups.GetPlaygroup.
+// ListGamesForPlaygroup returns the complete game history of a group, from
+// most recent to oldest, without pagination (see the comment on
+// ListGamesForPlaygroup in query.sql). Requires userID to be a member of the group,
+// same "don't reveal" criteria as playgroups.GetPlaygroup.
 func (s *service) ListGamesForPlaygroup(ctx context.Context, playgroupID, userID string) (*GameListResponse, error) {
 	isMember, err := s.membership.IsMember(ctx, playgroupID, userID)
 	if err != nil {
@@ -210,7 +210,7 @@ func (s *service) ListGamesForPlaygroup(ctx context.Context, playgroupID, userID
 	return &GameListResponse{Items: items, NextCursor: nil}, nil
 }
 
-// decodeCursor traduce el cursor opaco de la request a los parámetros de la query.
+// decodeCursor translates the request's opaque cursor into the query's parameters.
 func decodeCursor(encoded string) (pgtype.Timestamp, pgtype.UUID, error) {
 	cursor, err := common.DecodeCursor(encoded)
 	if err != nil {
@@ -223,12 +223,12 @@ func decodeCursor(encoded string) (pgtype.Timestamp, pgtype.UUID, error) {
 	return pgtype.Timestamp{Time: cursor.CreatedAt, Valid: true}, cursorID, nil
 }
 
-// JoinGame añade un jugador a una partida en estado pending, con uno de sus decks.
-// Sin req.UserID (o si coincide con el caller), el jugador es el propio caller. Con
-// req.UserID distinto, es un proxy-join (ver ADR-0013): el caller une a otro
-// usuario en su nombre, autorizado solo si ambos comparten el playgroup de la
-// partida — y queda registrado en added_by, autorizando al caller a registrar
-// acciones por ese jugador (internal/game-actions/service.go).
+// JoinGame adds a player to a game in pending state, with one of their decks.
+// Without req.UserID (or if it matches the caller), the player is the caller
+// themselves. With a different req.UserID, it's a proxy-join (see ADR-0013): the
+// caller adds another user on their behalf, authorized only if both share the
+// game's playgroup — and it's recorded in added_by, authorizing the caller to
+// record actions for that player (internal/game-actions/service.go).
 func (s *service) JoinGame(
 	ctx context.Context, gameID, userID string, req JoinGameRequest,
 ) (*GamePlayerResponse, error) {
@@ -268,10 +268,10 @@ func (s *service) JoinGame(
 	return toGamePlayerResponse(&player), nil
 }
 
-// resolveJoinTarget decide a quién sienta el join: el propio caller (self-join,
-// sin req.UserID o igual al caller) o, si req.UserID viene y difiere, un
-// proxy-join autorizado por membresía de playgroup compartida (ver ADR-0013) — en
-// ese caso devuelve también el added_by a persistir.
+// resolveJoinTarget decides who the join seats: the caller themselves (self-join,
+// without req.UserID or equal to the caller) or, if req.UserID is given and differs, a
+// proxy-join authorized by shared playgroup membership (see ADR-0013) — in
+// that case it also returns the added_by to persist.
 func (s *service) resolveJoinTarget(
 	ctx context.Context, game *Game, callerID string, req JoinGameRequest,
 ) (targetUserID string, addedBy pgtype.UUID, err error) {
@@ -289,8 +289,8 @@ func (s *service) resolveJoinTarget(
 	return req.UserID, callerUID, nil
 }
 
-// authorizeProxyJoin valida que caller y target compartan el playgroup de la
-// partida — la única relación de confianza que habilita unir a otro usuario.
+// authorizeProxyJoin validates that caller and target share the game's
+// playgroup — the only trust relationship that enables adding another user.
 func (s *service) authorizeProxyJoin(ctx context.Context, game *Game, callerID, targetID string) error {
 	if !game.PlaygroupID.Valid {
 		return ErrProxyJoinRequiresPlaygroup
@@ -315,7 +315,7 @@ func (s *service) authorizeProxyJoin(ctx context.Context, game *Game, callerID, 
 	return nil
 }
 
-// resolveOwnedDeckID valida que deckID pertenezca al usuario indicado y devuelve su UUID parseado.
+// resolveOwnedDeckID validates that deckID belongs to the given user and returns its parsed UUID.
 func (s *service) resolveOwnedDeckID(ctx context.Context, userID, deckID string) (pgtype.UUID, error) {
 	did, err := common.ParseUUID(deckID)
 	if err != nil {
@@ -330,13 +330,13 @@ func (s *service) resolveOwnedDeckID(ctx context.Context, userID, deckID string)
 		return pgtype.UUID{}, fmt.Errorf("looking up deck: %w", err)
 	}
 	if deck.UserID.String() != userID {
-		// No se distingue "no existe" de "no es tuyo": evita revelar que el deck existe.
+		// "doesn't exist" isn't distinguished from "not yours": avoids revealing that the deck exists.
 		return pgtype.UUID{}, ErrDeckNotFound
 	}
 	return did, nil
 }
 
-// ensureNotAlreadyJoined devuelve ErrAlreadyJoined si el usuario ya tiene un asiento en la partida.
+// ensureNotAlreadyJoined returns ErrAlreadyJoined if the user already has a seat in the game.
 func (s *service) ensureNotAlreadyJoined(ctx context.Context, gameID pgtype.UUID, userID string) error {
 	players, err := s.repo.ListGamePlayers(ctx, gameID)
 	if err != nil {
@@ -350,7 +350,7 @@ func (s *service) ensureNotAlreadyJoined(ctx context.Context, gameID pgtype.UUID
 	return nil
 }
 
-// LeaveGame remueve al usuario autenticado de una partida en estado pending.
+// LeaveGame removes the authenticated user from a game in pending state.
 func (s *service) LeaveGame(ctx context.Context, gameID, userID string) error {
 	game, err := s.getGame(ctx, gameID)
 	if err != nil {
@@ -386,7 +386,7 @@ func (s *service) LeaveGame(ctx context.Context, gameID, userID string) error {
 	return nil
 }
 
-// StartGame inicia la partida indicada, si tiene suficientes jugadores.
+// StartGame starts the given game, if it has enough players.
 func (s *service) StartGame(ctx context.Context, gameID string) (*GameResponse, error) {
 	game, err := s.getGame(ctx, gameID)
 	if err != nil {
@@ -411,7 +411,7 @@ func (s *service) StartGame(ctx context.Context, gameID string) (*GameResponse, 
 	return toGameResponse(&started, players), nil
 }
 
-// FinishGame finaliza una partida activa.
+// FinishGame finishes an active game.
 func (s *service) FinishGame(ctx context.Context, gameID string) (*GameResponse, error) {
 	game, err := s.getGame(ctx, gameID)
 	if err != nil {

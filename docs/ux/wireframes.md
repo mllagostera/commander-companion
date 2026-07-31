@@ -1,437 +1,443 @@
-# Wireframes de las pantallas Android
+# Wireframes of the Android screens
 
-Wireframes en texto/ASCII de las seis pantallas reales del cliente Android,
-más la jerarquía de componentes y los elementos interactivos de cada una.
-Basados en el Compose real de cada pantalla (`android/app/src/main/java/com/
-commandercompanion/presentation/screens/`), no en un diseño aspiracional —
-si algo no está en el código, no aparece acá.
+Text/ASCII wireframes of the six real screens of the Android client, plus
+the component hierarchy and the interactive elements of each. Based on the
+actual Compose code of each screen (`android/app/src/main/java/com/
+commandercompanion/presentation/screens/`), not on an aspirational design —
+if something isn't in the code, it doesn't appear here.
 
-No hay mockups visuales (colores exactos, tipografía, spacing en dp más allá
-de lo que dice el código) porque esta sesión es puramente de documentación;
-para eso hay que abrir el proyecto en Android Studio con el Compose
-Preview. Este documento sirve para entender *qué* hay en cada pantalla y
-*cómo* se relacionan sus elementos, no *cómo se ve* pixel a pixel.
+There are no visual mockups (exact colors, typography, spacing in dp beyond
+what the code says) because this session is purely for documentation
+purposes; for that you have to open the project in Android Studio with the
+Compose Preview. This document serves to understand *what* is on each
+screen and *how* its elements relate to each other, not *what it looks
+like* pixel by pixel.
 
 ---
 
 ## 1. `LoginScreen`
 
-**Archivo:** `presentation/screens/login/LoginScreen.kt`
-**Ruta:** `LoginRoute` (destino inicial del `NavHost`)
+**File:** `presentation/screens/login/LoginScreen.kt`
+**Route:** `LoginRoute` (initial destination of the `NavHost`)
 
 ```
 ┌─────────────────────────────────────┐
 │                                       │
 │                                       │
-│         Commander Companion          │  ← headlineMedium, centrado
+│         Commander Companion          │  ← headlineMedium, centered
 │                                       │
 │  ┌─────────────────────────────────┐ │
 │  │ Email                            │ │  ← OutlinedTextField
 │  └─────────────────────────────────┘ │
 │  ┌─────────────────────────────────┐ │
-│  │ Contraseña            ●●●●●●●●   │ │  ← OutlinedTextField, oculta
+│  │ Password               ●●●●●●●●  │ │  ← OutlinedTextField, hidden
 │  └─────────────────────────────────┘ │
-│  (error de login, si lo hay)          │  ← Text, color error, bodySmall
+│  (login error, if any)                │  ← Text, error color, bodySmall
 │  ┌─────────────────────────────────┐ │
-│  │  INICIAR SESIÓN / ⟳ (loading)    │ │  ← Button, fillMaxWidth, 56dp
+│  │  SIGN IN / ⟳ (loading)           │ │  ← Button, fillMaxWidth, 56dp
 │  └─────────────────────────────────┘ │
 │                                       │
-│  ──────────────  o  ──────────────  │  ← HorizontalDivider + texto
+│  ──────────────  or  ──────────────  │  ← HorizontalDivider + text
 │                                       │
 │  ┌─────────────────────────────────┐ │
-│  │     Continuar con Google         │ │  ← OutlinedButton, fillMaxWidth
+│  │     Continue with Google         │ │  ← OutlinedButton, fillMaxWidth
 │  └─────────────────────────────────┘ │
 │                                       │
 └─────────────────────────────────────┘
 ```
 
-**Jerarquía:** `Column` (centrado vertical y horizontal, padding 24dp) →
-título → spacer → `OutlinedTextField` email → `OutlinedTextField` password
-(`PasswordVisualTransformation`) → mensaje de error condicional
-(`uiState.error`) → `Button` sólido (con `CircularProgressIndicator` en vez
-de texto mientras `uiState.isLoading`) → separador (`Row` con 2
-`HorizontalDivider` + texto "o") → `OutlinedButton` outline. Ambos campos y
-ambos botones se deshabilitan (`enabled = !uiState.isLoading`) durante el
-login.
+**Hierarchy:** `Column` (vertically and horizontally centered, 24dp
+padding) → title → spacer → `OutlinedTextField` email → `OutlinedTextField`
+password (`PasswordVisualTransformation`) → conditional error message
+(`uiState.error`) → solid `Button` (with `CircularProgressIndicator` instead
+of text while `uiState.isLoading`) → separator (`Row` with 2
+`HorizontalDivider` + text "or") → outline `OutlinedButton`. Both fields and
+both buttons are disabled (`enabled = !uiState.isLoading`) during login.
 
-**Interactivo:**
-- Campo Email (texto libre, `singleLine`).
-- Campo Contraseña (texto oculto, `singleLine`).
-- Botón **"INICIAR SESIÓN"** → `LoginViewModel.loginWithPassword(email,
-  password)` → `POST /auth/login` real.
-- Botón **"Continuar con Google"** → `LoginViewModel.loginWithGoogle(context)`
-  → Credential Manager → `POST /auth/google` real.
-- `LaunchedEffect(uiState.loginSucceeded)` dispara `onLoginSuccess()` (un solo
-  callback, no uno por método de login) apenas cualquiera de los dos
-  autentica correctamente.
+**Interactive:**
+- Email field (free text, `singleLine`).
+- Password field (hidden text, `singleLine`).
+- **"SIGN IN"** button → `LoginViewModel.loginWithPassword(email,
+  password)` → real `POST /auth/login`.
+- **"Continue with Google"** button →
+  `LoginViewModel.loginWithGoogle(context)` → Credential Manager → real
+  `POST /auth/google`.
+- `LaunchedEffect(uiState.loginSucceeded)` triggers `onLoginSuccess()` (a
+  single callback, not one per login method) as soon as either method
+  authenticates successfully.
 
-**Nota de fidelidad (actualizada 2026-07-27):** este ya NO es un shell de
-navegación — ambos botones autentican de verdad contra el backend real vía
-`LoginViewModel` (antes navegaban directo a `DashboardRoute` sin llamar a
-nada; ver `docs/roadmap/TASKS.md`, Stage 4, para el historial del cambio).
+**Fidelity note (updated 2026-07-27):** this is NO LONGER a navigation
+shell — both buttons authenticate for real against the actual backend via
+`LoginViewModel` (previously they navigated straight to `DashboardRoute`
+without calling anything; see `docs/roadmap/TASKS.md`, Stage 4, for the
+change history).
 
 ---
 
 ## 2. `DashboardScreen`
 
-**Archivo:** `presentation/screens/dashboard/DashboardScreen.kt`
-**Ruta:** `DashboardRoute`
+**File:** `presentation/screens/dashboard/DashboardScreen.kt`
+**Route:** `DashboardRoute`
 
 ```
 ┌─────────────────────────────────────┐
 │                                       │
 │                                       │
-│       Commander Companion            │  ← displayLarge, centrado
+│       Commander Companion            │  ← displayLarge, centered
 │                                       │
 │  ┌─────────────────────────────────┐ │
 │  │           NEW GAME                │ │  ← Button, fillMaxWidth, 64dp
 │  └─────────────────────────────────┘ │
 │  ┌─────────────────────────────────┐ │
-│  │          HISTORIAL                │ │  ← OutlinedButton, fillMaxWidth, 48dp
+│  │          HISTORY                  │ │  ← OutlinedButton, fillMaxWidth, 48dp
 │  └─────────────────────────────────┘ │
 │                                       │
-│           Cerrar sesión               │  ← TextButton
+│           Sign out                    │  ← TextButton
 │                                       │
 └─────────────────────────────────────┘
 ```
 
-**Jerarquía:** `Column` (centrado, padding 16dp) → título → `Button` "NEW
-GAME" → `OutlinedButton` "HISTORIAL" → `TextButton` "Cerrar sesión". Sigue
-siendo la pantalla más simple del proyecto: sin barra superior, sin menú, sin
-estado propio más allá del logout.
+**Hierarchy:** `Column` (centered, 16dp padding) → title → "NEW GAME"
+`Button` → "HISTORY" `OutlinedButton` → "Sign out" `TextButton`. It remains
+the simplest screen in the project: no top bar, no menu, no state of its
+own beyond logout.
 
-**Interactivo:**
-- Botón **"NEW GAME"** → `onNewGame()` → navega a `PlayerSetupRoute`.
-- Botón **"HISTORIAL"** → `onViewHistory()` → navega a `HistoryRoute`.
-- `TextButton` **"Cerrar sesión"** → `DashboardViewModel.logout(onLogout)`:
-  revoca el refresh token contra `POST /auth/logout` (best-effort), limpia
-  `SessionManager`/`clearCredentialState` de Google y vuelve a `LoginRoute`.
+**Interactive:**
+- **"NEW GAME"** button → `onNewGame()` → navigates to `PlayerSetupRoute`.
+- **"HISTORY"** button → `onViewHistory()` → navigates to `HistoryRoute`.
+- **"Sign out"** `TextButton` → `DashboardViewModel.logout(onLogout)`:
+  revokes the refresh token against `POST /auth/logout` (best-effort),
+  clears `SessionManager`/Google's `clearCredentialState` and returns to
+  `LoginRoute`.
 
-**Nota de fidelidad (actualizada 2026-07-27):** sigue sin haber saludo
-personalizado ni avatar — pero ya no es cierto que "no hay ningún dato que
-dependa de sesión": el botón de logout sí, y su existencia es la prueba de
-que ahora hay una sesión real que cerrar (login real, ver `LoginScreen`).
+**Fidelity note (updated 2026-07-27):** there is still no personalized
+greeting or avatar — but it is no longer true that "there is no data that
+depends on the session": the logout button does, and its existence is proof
+that there is now a real session to close (real login, see `LoginScreen`).
 
 ---
 
 ## 3. `PlayerSetupScreen`
 
-**Archivo:** `presentation/screens/setup/PlayerSetupScreen.kt`
-**ViewModel:** `PlayerSetupViewModel` (carga `playgroups` propios y, on-demand,
-los decks de un miembro vía `PlaygroupRepository`, cacheados por `userId`)
-**Ruta:** `PlayerSetupRoute`
+**File:** `presentation/screens/setup/PlayerSetupScreen.kt`
+**ViewModel:** `PlayerSetupViewModel` (loads the user's own `playgroups`
+and, on-demand, a member's decks via `PlaygroupRepository`, cached by
+`userId`)
+**Route:** `PlayerSetupRoute`
 
-**Actualizado 2026-07-28** — la pantalla gana un selector **Casual / Grupo**
-(`SetupMode`, privado) antes del selector de cantidad de jugadores. Cambia
-solo cómo se completa cada asiento, no el resto del flujo (`PreGameScreen`/
-`GameTrackerScreen` no distinguen el modo — solo ven la lista final de
-`PlayerConfig`, ver `PlayerConfigCodec`).
+**Updated 2026-07-28** — the screen gains a **Casual / Group** selector
+(`SetupMode`, private) before the player-count selector. It only changes
+how each seat is filled in, not the rest of the flow (`PreGameScreen`/
+`GameTrackerScreen` do not distinguish the mode — they only see the final
+list of `PlayerConfig`, see `PlayerConfigCodec`).
 
-### Modo Casual (default)
+### Casual mode (default)
 
-Sin red ni cuentas — el life tracker de siempre, campo de nombre libre:
+No network or accounts — the usual life tracker, free-text name field:
 
 ```
 ┌─────────────────────────────────────┐
-│ Nueva partida                        │  ← headlineMedium
+│ New game                             │  ← headlineMedium
 │                                       │
-│ [Casual●] [ Grupo ]                  │  ← FilterChip x2, selector de modo
-│ "Sin cuentas ni estadísticas: solo   │  ← bodySmall, explica el modo activo
-│  trackear la partida en este         │
-│  dispositivo."                       │
+│ [Casual●] [ Group ]                  │  ← FilterChip x2, mode selector
+│ "No accounts or statistics: just     │  ← bodySmall, explains the active mode
+│  tracking the game on this           │
+│  device."                            │
 │                                       │
-│ Jugadores                            │  ← titleSmall
-│ [ 2 ] [ 3 ] [4●] [ 5 ] [ 6 ]         │  ← FilterChip x5 (2..6), uno seleccionado
+│ Players                              │  ← titleSmall
+│ [ 2 ] [ 3 ] [4●] [ 5 ] [ 6 ]         │  ← FilterChip x5 (2..6), one selected
 │                                       │
 │ ┌───────────────────────────────┐ ↕  │
-│ │ Nombre: [Jugador 1        ]    │ │  │  ← OutlinedTextField
-│ │ ●W ●U ●B ●R ●G ●C (colorless)  │ │  │  ← swatches circulares, uno con borde
+│ │ Name: [Player 1           ]    │ │  │  ← OutlinedTextField
+│ │ ●W ●U ●B ●R ●G ●C (colorless)  │ │  │  ← circular swatches, one with a border
 │ ├───────────────────────────────┤ │  │
-│ │ Nombre: [Jugador 2        ]    │ │  │  LazyColumn, weight(1f)
-│ │ ●W ●U ●B ●R ●G ●C              │ │  │  (una fila por jugador, tantas
-│ ├───────────────────────────────┤ │  │   como playerCount)
+│ │ Name: [Player 2           ]    │ │  │  LazyColumn, weight(1f)
+│ │ ●W ●U ●B ●R ●G ●C              │ │  │  (one row per player, as many
+│ ├───────────────────────────────┤ │  │   as playerCount)
 │ │ ...                            │ ↕  │
 │ └───────────────────────────────┘    │
 │  ┌─────────────────────────────────┐ │
-│  │        EMPEZAR PARTIDA           │ │  ← Button, fillMaxWidth, 56dp
+│  │        START GAME                │ │  ← Button, fillMaxWidth, 56dp
 │  └─────────────────────────────────┘ │
 └─────────────────────────────────────┘
 ```
 
-### Modo Grupo
+### Group mode
 
-Reemplaza el campo de nombre libre por asignación a un miembro real del
-playgroup elegido, con su deck. Agrega un `PlaygroupPicker` (`LazyRow` de
-`FilterChip`, uno por playgroup propio) arriba de la lista de asientos:
+Replaces the free-text name field with assignment to a real member of the
+chosen playgroup, with their deck. Adds a `PlaygroupPicker` (`LazyRow` of
+`FilterChip`, one per own playgroup) above the seat list:
 
 ```
 ┌─────────────────────────────────────┐
-│ Nueva partida                        │
-│ [ Casual ] [Grupo●]                  │
-│ "Asigná asientos a miembros de tu    │
-│  grupo: sus estadísticas quedan      │
-│  reales al terminar."                │
+│ New game                             │
+│ [ Casual ] [Group●]                  │
+│ "Assign seats to members of your     │
+│  group: their statistics become      │
+│  real once the game ends."           │
 │                                       │
-│ Grupo                                │  ← titleSmall
-│ [MiMesa●] [ Otro grupo ]             │  ← PlaygroupPicker, LazyRow
+│ Group                                │  ← titleSmall
+│ [MyTable●] [ Other group ]           │  ← PlaygroupPicker, LazyRow
 │                                       │
-│ Jugadores                            │
+│ Players                              │
 │ [ 2 ] [ 3 ] [4●] [ 5 ] [ 6 ]         │
 │                                       │
 │ ┌───────────────────────────────┐ ↕  │
-│ │ Asiento                        │ │  │  ← MemberPicker en vez de nombre libre
-│ │ [Invitado●] [vos] [ana] [bea]  │ │  │     ("Invitado" = casilla local, sin
-│ │ ●W ●U ●B ●R ●G ●C              │ │  │      GamePlayer remoto ni proxy-join)
+│ │ Seat                           │ │  │  ← MemberPicker instead of free-text name
+│ │ [Guest●] [you] [ana] [bea]     │ │  │     ("Guest" = local-only slot, no
+│ │ ●W ●U ●B ●R ●G ●C              │ │  │      remote GamePlayer or proxy-join)
 │ ├───────────────────────────────┤ │  │
-│ │ Asiento                        │ │  │  LazyColumn, weight(1f)
-│ │ [Invitado] [vos●] [ana] [bea]  │ │  │
+│ │ Seat                           │ │  │  LazyColumn, weight(1f)
+│ │ [Guest] [you●] [ana] [bea]     │ │  │
 │ │ ●W ●U ●B ●R ●G ●C              │ │  │
-│ │ ¿Con qué deck juega?           │ │  │  ← solo si hay miembro asignado
-│ │ [Atraxa●] [Muldrotha]          │ │  │     ("todavía no tiene decks" si
-│ ├───────────────────────────────┤ │  │      la lista viene vacía)
+│ │ Which deck are they playing?   │ │  │  ← only if a member is assigned
+│ │ [Atraxa●] [Muldrotha]          │ │  │     ("no decks yet" if
+│ ├───────────────────────────────┤ │  │      the list comes back empty)
 │ │ ...                            │ ↕  │
 │ └───────────────────────────────┘    │
 │  ┌─────────────────────────────────┐ │
-│  │        EMPEZAR PARTIDA           │ │
+│  │        START GAME                │ │
 │  └─────────────────────────────────┘ │
 └─────────────────────────────────────┘
 ```
 
-**Jerarquía:** `Column` (padding 16dp) → título → selector Casual/Grupo
-(`Row` de 2 `FilterChip`) → texto explicativo → (solo Grupo) `PlaygroupPicker`
-→ subtítulo "Jugadores" → `Row` de `FilterChip` (2..6, `MIN_PLAYERS`/
-`MAX_PLAYERS`) → `LazyColumn` (weight 1f) con `PlayerConfigRow` por cada
-jugador activo → `Button` final.
+**Hierarchy:** `Column` (16dp padding) → title → Casual/Group selector
+(`Row` of 2 `FilterChip`) → explanatory text → (Group only)
+`PlaygroupPicker` → "Players" subtitle → `Row` of `FilterChip` (2..6,
+`MIN_PLAYERS`/`MAX_PLAYERS`) → `LazyColumn` (weight 1f) with a
+`PlayerConfigRow` per active player → final `Button`.
 
-Cada `PlayerConfigRow` (privado) es un `Column` con, según el modo:
-- **Casual:** `OutlinedTextField` de nombre (default `"Jugador N"`).
-- **Grupo:** `MemberPicker` (`LazyRow` de `FilterChip`: "Invitado" + un chip
-  por miembro disponible del grupo — un miembro ya asignado a otro asiento
-  desaparece de la lista; el propio usuario se marca "(vos)"). Si hay un
-  miembro asignado y tiene decks, agrega un segundo `LazyRow` de `FilterChip`
-  para elegir con cuál juega.
-- En ambos modos: `Row` de `ColorSwatch` (`Box` circular clicable, uno por
-  color de `PlayerColorPalette` — paleta WUBRG + incoloro), con borde de 3dp
-  en el color seleccionado.
+Each `PlayerConfigRow` (private) is a `Column` with, depending on the mode:
+- **Casual:** name `OutlinedTextField` (default `"Player N"`).
+- **Group:** `MemberPicker` (`LazyRow` of `FilterChip`: "Guest" + one chip
+  per available group member — a member already assigned to another seat
+  disappears from the list; the user themselves is marked "(you)"). If a
+  member is assigned and has decks, it adds a second `LazyRow` of
+  `FilterChip` to choose which one they're playing.
+- In both modes: `Row` of `ColorSwatch` (clickable circular `Box`, one per
+  color of `PlayerColorPalette` — WUBRG + colorless palette), with a 3dp
+  border on the selected color.
 
-**Interactivo:**
-- 2 `FilterChip` (Casual/Grupo) — cambia el modo; no resetea `playerCount`
-  ni colores, sí limpia las asignaciones de miembro/deck al cambiar de grupo.
-- 5 `FilterChip` (2 a 6 jugadores) — cambia `playerCount`, lo que
-  agranda/achica la `LazyColumn` de abajo.
-- Por cada jugador visible: nombre libre (Casual) o `MemberPicker` +
-  `FilterChip` de deck (Grupo) + 6 swatches de color clicables (selección
-  única).
-- Botón **"EMPEZAR PARTIDA"** → arma la lista de `PlayerConfig`
-  (`name`/`colorKey`, más `assignedUserId`/`assignedUsername`/`deckId` si el
-  asiento tiene un miembro de grupo asignado), genera un `gameId` local
-  (`UUID.randomUUID()`) y navega pasando también el `playgroupId` elegido
-  (`null` en modo Casual) — es lo que `GameRepository.bootstrapRemoteGame`
-  usa para decidir self-join vs. proxy-join por asiento (ver
+**Interactive:**
+- 2 `FilterChip` (Casual/Group) — changes the mode; does not reset
+  `playerCount` or colors, but does clear member/deck assignments when
+  changing group.
+- 5 `FilterChip` (2 to 6 players) — changes `playerCount`, which
+  grows/shrinks the `LazyColumn` below.
+- For each visible player: free-text name (Casual) or `MemberPicker` +
+  deck `FilterChip` (Group) + 6 clickable color swatches (single
+  selection).
+- **"START GAME"** button → builds the list of `PlayerConfig`
+  (`name`/`colorKey`, plus `assignedUserId`/`assignedUsername`/`deckId` if
+  the seat has a group member assigned), generates a local `gameId`
+  (`UUID.randomUUID()`) and navigates while also passing the chosen
+  `playgroupId` (`null` in Casual mode) — this is what
+  `GameRepository.bootstrapRemoteGame` uses to decide self-join vs.
+  proxy-join per seat (see
   [ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)).
 
 ---
 
 ## 4. `PreGameScreen`
 
-**Archivo:** `presentation/screens/pregame/PreGameScreen.kt`
-**Ruta:** `PreGameRoute(gameId, playersEncoded)`
+**File:** `presentation/screens/pregame/PreGameScreen.kt`
+**Route:** `PreGameRoute(gameId, playersEncoded)`
 
 ```
 ┌─────────────────────────────────────┐
-│ Antes de empezar                     │  ← headlineMedium
+│ Before starting                      │  ← headlineMedium
 │                                       │
-│ ¿Quién empieza?                      │  ← titleSmall
+│ Who starts?                          │  ← titleSmall
 │ ┌───────────────────────────────────┐│
-│ │                                   ││  ← Card, 80dp de alto
-│ │      Empieza Jugador 3            ││     color = color del ganador del
-│ │   (o "Sin sortear todavía")       ││     sorteo, o surfaceVariant si
-│ │                                   ││     todavía no se sorteó
+│ │                                   ││  ← Card, 80dp tall
+│ │      Player 3 starts              ││     color = color of the draw
+│ │   (or "Not drawn yet")            ││     winner, or surfaceVariant if
+│ │                                   ││     not drawn yet
 │ └───────────────────────────────────┘│
 │  ┌─────────────────────────────────┐ │
-│  │            SORTEAR                │ │  ← OutlinedButton
+│  │            DRAW                   │ │  ← OutlinedButton
 │  └─────────────────────────────────┘ │
 │                                       │
 │ Mulligans                             │  ← titleSmall
 │ ┌───────────────────────────────────┐│
-│ │ ●  Jugador 1        [-]  0  [+]   ││  ← LazyColumn, una fila por jugador
-│ │ ●  Jugador 2        [-]  1  [+]   ││     (dot de color + nombre + stepper)
-│ │ ●  Jugador 3        [-]  0  [+]   ││
-│ │ ●  Jugador 4        [-]  2  [+]   ││
+│ │ ●  Player 1         [-]  0  [+]   ││  ← LazyColumn, one row per player
+│ │ ●  Player 2         [-]  1  [+]   ││     (color dot + name + stepper)
+│ │ ●  Player 3         [-]  0  [+]   ││
+│ │ ●  Player 4         [-]  2  [+]   ││
 │ └───────────────────────────────────┘│
 │                                       │
 │  ┌─────────────────────────────────┐ │
-│  │        EMPEZAR PARTIDA            │ │  ← Button, fillMaxWidth, 56dp
+│  │        START GAME                 │ │  ← Button, fillMaxWidth, 56dp
 │  └─────────────────────────────────┘ │
 └─────────────────────────────────────┘
 ```
 
-**Jerarquía:** `Column` (padding 16dp) → título → sección "¿Quién empieza?"
-(`Card` de resultado + `OutlinedButton` "SORTEAR") → sección "Mulligans"
-(`LazyColumn` de `MulliganRow`) → `Button` final.
+**Hierarchy:** `Column` (16dp padding) → title → "Who starts?" section
+(result `Card` + "DRAW" `OutlinedButton`) → "Mulligans" section
+(`LazyColumn` of `MulliganRow`) → final `Button`.
 
-`MulliganRow` (privado): `Row` con dot circular de color, nombre
-(`weight(1f)`), y un mini-stepper (`StepperButton "-"`, contador, `
-StepperButton "+"`).
+`MulliganRow` (private): `Row` with a circular color dot, name
+(`weight(1f)`), and a mini-stepper (`StepperButton "-"`, counter,
+`StepperButton "+"`).
 
-**Interactivo:**
-- Botón **"SORTEAR"** → elige un índice al azar (`Random.nextInt`) entre los
-  jugadores configurados; se puede volver a tocar para re-sortear.
-- Por cada jugador: botones `-`/`+` de mulligans (mínimo 0, sin tope).
-- Botón **"EMPEZAR PARTIDA"** → adjunta los mulligans finales a cada
-  `PlayerConfig` y navega a `GameTrackerRoute` con el asiento ganador del
-  sorteo (`startingPlayerSeat`).
+**Interactive:**
+- **"DRAW"** button → picks a random index (`Random.nextInt`) among the
+  configured players; can be tapped again to redraw.
+- For each player: mulligan `-`/`+` buttons (minimum 0, no cap).
+- **"START GAME"** button → attaches the final mulligans to each
+  `PlayerConfig` and navigates to `GameTrackerRoute` with the draw's
+  winning seat (`startingPlayerSeat`).
 
-**Nota de fidelidad:** no hay validación que obligue a sortear antes de
-continuar — se puede tocar "EMPEZAR PARTIDA" con `startingSeat = -1` (nadie
-"empieza" marcado) sin ningún bloqueo ni advertencia.
+**Fidelity note:** there is no validation forcing a draw before continuing
+— you can tap "START GAME" with `startingSeat = -1` (no one marked as
+"starting") with no block or warning.
 
 ---
 
 ## 5. `GameTrackerScreen`
 
-**Archivo:** `presentation/screens/game/GameTrackerScreen.kt` (+
+**File:** `presentation/screens/game/GameTrackerScreen.kt` (+
 `presentation/components/PlayerCard.kt`)
-**Ruta:** `GameTrackerRoute`
+**Route:** `GameTrackerRoute`
 
-### Estado normal (4 jugadores, grid 2×2)
+### Normal state (4 players, 2×2 grid)
 
 ```
 ┌─────────────────────────────────────┐
-│ [<]      Turn: 3       [>] [Finalizar]│  ← header: Row SpaceBetween
-│ Creando la partida en el servidor…    │  ← RemoteSyncBanner (condicional,
-├───────────────────┬───────────────────┤     ver nota debajo del diagrama)
+│ [<]      Turn: 3       [>] [Finish]  │  ← header: Row SpaceBetween
+│ Creating the game on the server…      │  ← RemoteSyncBanner (conditional,
+├───────────────────┬───────────────────┤     see note below the diagram)
 │                   │                   │
-│ Jugador 1 · empieza│    Jugador 2      │  ← PlayerCard (color de fondo
-│                   │                   │     = color del jugador)
+│ Player 1 · starts  │    Player 2      │  ← PlayerCard (background color
+│                   │                   │     = player's color)
 │   [-]   38   [+]   │   [-]   40   [+]  │
 │                   │                   │
-│  Commander Damage │  Commander Damage │  ← hint (tocar para ver panel)
+│  Commander Damage │  Commander Damage │  ← hint (tap to see panel)
 ├───────────────────┼───────────────────┤
 │                   │                   │
-│    Jugador 3      │    Jugador 4      │
-│  Mulligans: 1     │                   │  ← badge solo si mulligans > 0
+│    Player 3       │    Player 4       │
+│  Mulligans: 1     │                   │  ← badge only if mulligans > 0
 │   [-]   35   [+]   │   [-]   22   [+]  │
 │                   │                   │
 │  Commander Damage │  Commander Damage │
 └───────────────────┴───────────────────┘
 ```
-`state.players.chunked(2)` arma filas de a 2: 2 jugadores → 1 fila, 4 → 2
-filas, 5-6 → 3 filas (la última con 1 o 2 cartas). Cada `PlayerCard` tiene
-`weight(1f)` tanto horizontal como verticalmente, así que el grid se reparte
-la pantalla completa sin importar la cantidad de jugadores.
+`state.players.chunked(2)` builds rows of 2: 2 players → 1 row, 4 → 2
+rows, 5-6 → 3 rows (the last one with 1 or 2 cards). Each `PlayerCard` has
+`weight(1f)` both horizontally and vertically, so the grid fills the whole
+screen regardless of the number of players.
 
-### Panel de daño de comandante (al tocar una `PlayerCard`)
+### Commander damage panel (on tapping a `PlayerCard`)
 
 ```
 ┌───────────────────┐
-│ ████████████████  │  ← overlay negro 80% opacidad sobre toda la card
+│ ████████████████  │  ← black overlay 80% opacity over the whole card
 │  Commander Damage  │
 │                    │
-│  ●3     ●5    ●0   │  ← CommanderDamageItem x (N-1 oponentes), grid 3 col
-│ [-][+] [-][+] [-][+]│     dot = color del atacante, número = daño acumulado
+│  ●3     ●5    ●0   │  ← CommanderDamageItem x (N-1 opponents), 3-col grid
+│ [-][+] [-][+] [-][+]│     dot = attacker's color, number = accumulated damage
 │                    │
 └───────────────────┘
 ```
 
-**Jerarquía completa:**
-`Column` raíz →
-1. Header `Row` (SpaceBetween): `Button "<"` (turno -1) — `Text "Turn: N"` —
-   `Row` (`Button ">"` turno +1, `OutlinedButton "Finalizar"`).
-2. **`RemoteSyncBanner` (nuevo, 2026-07-27)**: franja de texto de ancho
-   completo, condicional — no ocupa espacio si `remoteSync.status ==
-   Synced` (caso silencioso, todo salió bien) o no hay mensaje. Con
-   `Connecting`/`Disabled`/`WaitingForPlayers` muestra el mensaje en
-   `surfaceVariant`; con `Failed`, en `errorContainer` (rojo). Ver caso de
-   uso 1 en `docs/ux/casos-de-uso.md` para qué dispara cada estado.
-3. `Column` (weight 1f) con filas (`Row`, weight 1f) de `PlayerCard`
-   (weight 1f cada una).
-4. Cada `PlayerCard` (`Surface` clicable, color = color del jugador) →
-   `Column` centrado: nombre (+ "· empieza" si aplica) → badge de mulligans
-   condicional → `Row` de vida (`IconButton "-"`, número grande, `IconButton
-   "+"`) → hint "Commander Damage" (solo si el panel no está abierto).
-   Si `showCommanderDamage` es true, se reemplaza por un `Surface` overlay
-   con grid de `CommanderDamageItem` (dot de color del atacante, número,
-   `IconButton -`/`+`) por cada oponente.
-5. Condicional: `AlertDialog` de confirmación de "Finalizar" (si
+**Full hierarchy:**
+root `Column` →
+1. Header `Row` (SpaceBetween): `Button "<"` (turn -1) — `Text "Turn: N"` —
+   `Row` (`Button ">"` turn +1, `OutlinedButton "Finish"`).
+2. **`RemoteSyncBanner` (new, 2026-07-27)**: full-width text strip,
+   conditional — it takes up no space if `remoteSync.status == Synced`
+   (silent case, everything went fine) or there is no message. With
+   `Connecting`/`Disabled`/`WaitingForPlayers` it shows the message in
+   `surfaceVariant`; with `Failed`, in `errorContainer` (red). See use case
+   1 in `docs/ux/casos-de-uso.md` for what triggers each state.
+3. `Column` (weight 1f) with rows (`Row`, weight 1f) of `PlayerCard`
+   (weight 1f each).
+4. Each `PlayerCard` (clickable `Surface`, color = player's color) →
+   centered `Column`: name (+ "· starts" if applicable) → conditional
+   mulligan badge → life `Row` (`IconButton "-"`, large number, `IconButton
+   "+"`) → "Commander Damage" hint (only if the panel isn't open). If
+   `showCommanderDamage` is true, it is replaced by an overlay `Surface`
+   with a grid of `CommanderDamageItem` (attacker's color dot, number,
+   `IconButton -`/`+`) per opponent.
+5. Conditional: "Finish" confirmation `AlertDialog` (if
    `showFinishConfirm`).
-6. Condicional: `AlertDialog` final de resultado (si `state.isFinished`) —
-   título con el ganador o "Partida finalizada", lista de vida final de cada
-   jugador, botón "Volver al inicio".
+6. Conditional: final result `AlertDialog` (if `state.isFinished`) — title
+   with the winner or "Game finished", list of each player's final life,
+   "Back to home" button.
 
-**Interactivo:**
-- `<` / `>` del header: turno -1 / +1 (mínimo 1).
-- **"Finalizar"** (header): abre diálogo de confirmación.
-- Por `PlayerCard`: tocar la tarjeta entera alterna el panel de daño de
-  comandante; `-`/`+` de vida; si el panel está abierto, `-`/`+` de daño por
-  cada oponente.
-- Diálogo de confirmación: "Finalizar" (confirma) / "Cancelar".
-- Diálogo final: "Volver al inicio" → vuelve a `DashboardRoute`.
+**Interactive:**
+- Header `<` / `>`: turn -1 / +1 (minimum 1).
+- **"Finish"** (header): opens the confirmation dialog.
+- Per `PlayerCard`: tapping the whole card toggles the commander damage
+  panel; life `-`/`+`; if the panel is open, damage `-`/`+` for each
+  opponent.
+- Confirmation dialog: "Finish" (confirms) / "Cancel".
+- Final dialog: "Back to home" → returns to `DashboardRoute`.
 
 ---
 
 ## 6. `HistoryScreen`
 
-**Archivo:** `presentation/screens/history/HistoryScreen.kt`
-**Ruta:** `HistoryRoute`
+**File:** `presentation/screens/history/HistoryScreen.kt`
+**Route:** `HistoryRoute`
 
 ```
 ┌─────────────────────────────────────┐
-│ [<]   Historial de partidas          │  ← TopAppBar
+│ [<]   Game history                   │  ← TopAppBar
 ├─────────────────────────────────────┤
 │ ┌─────────────────────────────────┐ │
-│ │ 26/07/2026 18:40      Finalizada │ │  ← Row SpaceBetween (fecha / estado)
-│ │ Ganó: Jugador 1                   │ │  ← titleMedium
-│ │ ● Jugador 1: 12   ● Jugador 2: 0  │ │  ← dots de color + nombre + vida
-│ │ ● Jugador 3: 0 (1m) ● Jugador 4: 0│ │     final (+ sufijo mulligans)
+│ │ 07/26/2026 18:40      Finished   │ │  ← Row SpaceBetween (date / status)
+│ │ Won: Player 1                     │ │  ← titleMedium
+│ │ ● Player 1: 12   ● Player 2: 0    │ │  ← color dots + name + final
+│ │ ● Player 3: 0 (1m) ● Player 4: 0  │ │     life (+ mulligan suffix)
 │ └─────────────────────────────────┘ │
 │ ┌─────────────────────────────────┐ │
-│ │ 25/07/2026 21:05      En curso   │ │
-│ │ 4 jugadores                       │ │  ← si no hay ganador (won=false
-│ │ ● J1: 40  ● J2: 40  ● J3: 40 ...  │ │     para todos), muestra cantidad
-│ └─────────────────────────────────┘ │     de jugadores en vez de "Ganó: X"
+│ │ 07/25/2026 21:05      In progress│ │
+│ │ 4 players                         │ │  ← if there is no winner (won=false
+│ │ ● P1: 40  ● P2: 40  ● P3: 40 ...  │ │     for everyone), shows player count
+│ └─────────────────────────────────┘ │     instead of "Won: X"
 │              ⋮                       │
 └─────────────────────────────────────┘
 
-(si no hay partidas)
+(if there are no games)
 ┌─────────────────────────────────────┐
-│ [<]   Historial de partidas          │
+│ [<]   Game history                   │
 ├─────────────────────────────────────┤
 │                                       │
-│   Todavía no hay partidas registradas│  ← centrado, bodyLarge
+│   No games recorded yet              │  ← centered, bodyLarge
 │                                       │
 └─────────────────────────────────────┘
 ```
 
-**Jerarquía:** `Column` → `TopAppBar` (título + `TextButton "<"` como
-navigationIcon) → si `games.isEmpty()`: `Box` centrado con mensaje; si no,
-`LazyColumn` de `GameHistoryCard` (`key = game.id`).
+**Hierarchy:** `Column` → `TopAppBar` (title + `TextButton "<"` as
+navigationIcon) → if `games.isEmpty()`: centered `Box` with message;
+otherwise, `LazyColumn` of `GameHistoryCard` (`key = game.id`).
 
-Cada `GameHistoryCard` (`Card`) → `Column`: `Row` SpaceBetween (fecha
-formateada `dd/MM/yyyy HH:mm` — `Text` de estado "Finalizada"/"En curso") →
-`Text` de resultado ("Ganó: {nombre}" si hay `won == true`, o "{N}
-jugadores" si no) → `Row` de jugadores ordenados por `seatIndex` (dot de
-color + "{nombre}: {vida final}" + sufijo `(Nm)` si tuvo mulligans).
+Each `GameHistoryCard` (`Card`) → `Column`: SpaceBetween `Row` (formatted
+date `dd/MM/yyyy HH:mm` — status `Text` "Finished"/"In progress") → result
+`Text` ("Won: {name}" if `won == true`, or "{N} players" if not) → `Row` of
+players ordered by `seatIndex` (color dot + "{name}: {final life}" + `(Nm)`
+suffix if they had mulligans).
 
-**Interactivo:**
-- `TextButton "<"` en la `TopAppBar` → `onBack()` → `popBackStack()`.
-- La lista es de solo lectura: no hay swipe-to-delete, no hay tap-to-expand,
-  no hay filtros ni búsqueda.
+**Interactive:**
+- `TextButton "<"` in the `TopAppBar` → `onBack()` → `popBackStack()`.
+- The list is read-only: no swipe-to-delete, no tap-to-expand, no filters
+  or search.
 
-**Nota de fidelidad:** los datos vienen 100% de Room
-(`gameDao.getGamesWithPlayers()`), local al dispositivo — no hay ningún
-indicador de sincronización porque no hay sincronización.
+**Fidelity note:** the data comes 100% from Room
+(`gameDao.getGamesWithPlayers()`), local to the device — there is no
+synchronization indicator because there is no synchronization.
 
 ---
 
-## Resumen de navegación entre wireframes
+## Navigation summary between wireframes
 
-Ver también `docs/diagrams/android-navigation-flow.md` para el grafo
-completo con las rutas y sus argumentos.
+See also `docs/diagrams/android-navigation-flow.md` for the complete graph
+with the routes and their arguments.
 
 ```
 LoginScreen → DashboardScreen ─┬─→ PlayerSetupScreen → PreGameScreen → GameTrackerScreen ─┐
                                 │                                                          │
-                                └─→ HistoryScreen                    (vuelve a) ───────────┘
+                                └─→ HistoryScreen                    (returns to) ─────────┘
                                               ↑______________________________________________|
 ```

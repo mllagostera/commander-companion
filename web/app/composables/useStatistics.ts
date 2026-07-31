@@ -3,7 +3,7 @@ import type { DeckStats, PlaygroupStats, UserStats } from '~/types/api'
 export function useStatistics() {
   const { apiFetch } = useApi()
 
-  /** Siempre disponible para el usuario autenticado (ceros si nunca jugó). */
+  /** Always available for the authenticated user (zeros if they never played). */
   function userStats() {
     return apiFetch<UserStats>('/statistics/user')
   }
@@ -12,7 +12,7 @@ export function useStatistics() {
     return apiFetch<DeckStats>(`/statistics/deck/${deckId}`)
   }
 
-  /** Consumido desde pages/playgroups/[id].vue. Best-effort: 404 si el grupo nunca jugó. */
+  /** Consumed from pages/playgroups/[id].vue. Best-effort: 404 if the group never played. */
   function playgroupStats(playgroupId: string) {
     return apiFetch<PlaygroupStats>(`/statistics/playgroup/${playgroupId}`)
   }
@@ -20,7 +20,7 @@ export function useStatistics() {
   return { userStats, deckStats, playgroupStats }
 }
 
-/** Porcentaje de victorias formateado, tolerante a 0 partidas. */
+/** Formatted win percentage, tolerant of 0 games. */
 export function winRate(gamesPlayed: number, gamesWon: number): string {
   if (!gamesPlayed) return '—'
   return `${Math.round((gamesWon / gamesPlayed) * 100)}%`

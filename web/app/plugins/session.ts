@@ -1,15 +1,15 @@
 /**
- * Hidrata el usuario de la sesión antes de que corra el middleware de rutas.
+ * Hydrates the session user before the route middleware runs.
  *
- * En SSR llena `useState('auth-user')`, que viaja en el payload, así que el
- * cliente no repite la llamada. En una navegación puramente cliente (sin SSR
- * previo) el mismo plugin la hace en el navegador.
+ * In SSR it fills `useState('auth-user')`, which travels in the payload, so the
+ * client doesn't repeat the call. On a purely client-side navigation (with no prior
+ * SSR) the same plugin does it in the browser.
  */
 export default defineNuxtPlugin(async () => {
   const { user, isAuthenticated, fetchSession } = useAuth()
 
-  // Sin marcador de sesión no hay nada que hidratar; con el usuario ya en el
-  // payload, tampoco.
+  // With no session marker there's nothing to hydrate; with the user already in the
+  // payload, there's nothing to do either.
   if (!isAuthenticated.value || user.value) return
 
   await fetchSession()

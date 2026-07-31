@@ -2,7 +2,7 @@ package decks
 
 import "time"
 
-// CreateDeckRequest es el payload para crear un deck manualmente.
+// CreateDeckRequest is the payload for creating a deck manually.
 type CreateDeckRequest struct {
 	Name       string `json:"name"`
 	Commander  string `json:"commander"`
@@ -10,14 +10,14 @@ type CreateDeckRequest struct {
 	ImageURL   string `json:"image_url,omitempty"`
 }
 
-// ImportMoxfieldRequest es el payload para importar un deck desde Moxfield.
+// ImportMoxfieldRequest is the payload for importing a deck from Moxfield.
 type ImportMoxfieldRequest struct {
-	// URL acepta tanto la URL completa (https://moxfield.com/decks/{id})
-	// como solo el ID público del deck.
+	// URL accepts both the full URL (https://moxfield.com/decks/{id})
+	// and just the deck's public ID.
 	URL string `json:"url"`
 }
 
-// DeckResponse es el DTO de un deck enviado al cliente.
+// DeckResponse is the DTO for a deck sent to the client.
 type DeckResponse struct {
 	ID         string `json:"id"`
 	UserID     string `json:"user_id"`
@@ -27,18 +27,18 @@ type DeckResponse struct {
 	ImageURL   string `json:"image_url,omitempty"`
 }
 
-// DeckListResponse es una página de decks. NextCursor es el cursor a pasar como
-// query param `cursor` para pedir la página siguiente, o null si esta era la
-// última. El cursor es opaco: el cliente lo devuelve tal cual.
+// DeckListResponse is a page of decks. NextCursor is the cursor to pass as the
+// `cursor` query param to request the next page, or null if this was the
+// last one. The cursor is opaque: the client returns it as-is.
 type DeckListResponse struct {
 	Items      []DeckResponse `json:"items"`
 	NextCursor *string        `json:"next_cursor"`
 }
 
-// MoxfieldSyncState describe el estado de sincronización de un deck importado de
-// Moxfield: cómo está guardado ahora, cuándo fue su último sync (nil si se importó
-// y nunca se re-sincronizó) y si el último sync trajo cambios —Changed siempre es
-// false cuando solo se consultó el estado sin llamar a Moxfield—.
+// MoxfieldSyncState describes the sync state of a deck imported from
+// Moxfield: how it's currently stored, when its last sync happened (nil if it was
+// imported and never re-synced), and whether the last sync brought changes —Changed is
+// always false when only the state was queried without calling Moxfield—.
 type MoxfieldSyncState struct {
 	Deck         *DeckResponse
 	LastSyncedAt *time.Time

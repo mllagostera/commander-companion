@@ -2,7 +2,7 @@ package com.commandercompanion.presentation.screens.game
 
 import androidx.compose.ui.graphics.Color
 
-/** Reglas de eliminación de Commander, compartidas por [GameViewModel] y la UI del tracker. */
+/** Commander elimination rules, shared by [GameViewModel] and the tracker UI. */
 const val COMMANDER_DAMAGE_LETHAL = 21
 const val POISON_LETHAL = 10
 
@@ -16,25 +16,25 @@ data class PlayerState(
     val commanderDamage: Map<Int, Int> = emptyMap() // Key: Opponent ID, Value: Damage received
 )
 
-/** Vivo = vida positiva, sin 21+ de daño de un mismo comandante y menos de 10 contadores de veneno. */
+/** Alive = positive life, no 21+ damage from a single commander, and fewer than 10 poison counters. */
 fun PlayerState.isEliminated(): Boolean =
     life <= 0 || poison >= POISON_LETHAL || commanderDamage.values.any { it >= COMMANDER_DAMAGE_LETHAL }
 
-/** Estado del espejo de la partida contra el backend (ver `GameRepository`). */
+/** Status of the game's mirror against the backend (see `GameRepository`). */
 enum class RemoteSyncStatus {
-    /** Todavía creando la partida remota / uniéndose a ella. */
+    /** Still creating the remote game / joining it. */
     Connecting,
 
-    /** No se intenta sincronizar (p. ej. el usuario no tiene decks). Partida 100% local. */
+    /** Sync isn't attempted (e.g. the user has no decks). 100% local game. */
     Disabled,
 
-    /** Partida creada y unida, pero en `pending`: falta que se una un segundo jugador. */
+    /** Game created and joined, but `pending`: waiting for a second player to join. */
     WaitingForPlayers,
 
-    /** Partida `active` en el backend: los cambios del asiento local se registran allá. */
+    /** Game `active` on the backend: local seat changes are recorded there. */
     Synced,
 
-    /** Falló la sincronización. La partida sigue funcionando en local. */
+    /** Sync failed. The game keeps working locally. */
     Failed
 }
 

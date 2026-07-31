@@ -28,12 +28,12 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
-          # 'every': un archivo cambiado cuenta para el filtro 'android' solo si
-          # matchea 'android/**' Y NO matchea ninguna de las exclusiones de .md
-          # (así un README-only change no dispara lint/tests/assembleDebug).
-          # El propio workflow file va en un filtro aparte ('android_workflow')
-          # porque bajo 'every' no puede compartir lista con 'android/**' (son
-          # rutas mutuamente excluyentes; ver docs/roadmap/TASKS.md).
+          # 'every': a changed file counts toward the 'android' filter only if it
+          # matches 'android/**' AND does NOT match any of the .md exclusions
+          # (so a README-only change doesn't trigger lint/tests/assembleDebug).
+          # The workflow file itself goes in a separate filter ('android_workflow')
+          # because under 'every' it can't share a list with 'android/**' (they're
+          # mutually exclusive patterns; see docs/roadmap/TASKS.md).
           predicate-quantifier: 'every'
           filters: |
             android:

@@ -113,7 +113,7 @@ fun GameTrackerScreen(
     }
 }
 
-/** Grilla de asientos: primera mitad "arriba de la mesa" (rotada 180°), resto abajo. Sirve para 2-6. */
+/** Seat grid: first half "at the top of the table" (rotated 180°), the rest below. Works for 2-6. */
 @Composable
 private fun QuadrantGrid(
     players: List<PlayerState>,
@@ -502,10 +502,10 @@ private fun SummaryRow(player: PlayerState, dealt: Int, taken: Int, isWinner: Bo
 }
 
 /**
- * Franja informativa del estado de sincronización con el backend.
+ * Informational banner for the backend sync status.
  *
- * Deliberadamente no bloquea nada: la partida se juega igual en local, así que solo se muestra
- * cuando hay algo que contar (no en [RemoteSyncStatus.Synced], que es el caso silencioso).
+ * Deliberately non-blocking: the game plays the same locally either way, so it's only shown
+ * when there's something to report (not on [RemoteSyncStatus.Synced], the silent case).
  */
 @Composable
 private fun RemoteSyncBanner(remoteSync: RemoteSyncState, modifier: Modifier = Modifier) {

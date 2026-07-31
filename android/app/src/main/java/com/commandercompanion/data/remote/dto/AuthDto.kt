@@ -4,9 +4,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * DTOs de `/auth`, en su propio archivo junto a [com.commandercompanion.data.remote.api.AuthApi]
- * y separados de cualquier DTO que otro agente agregue para `CommanderApi` (decks/games/etc.),
- * siguiendo los mismos schemas de `docs/api/openapi.yaml`.
+ * DTOs for `/auth`, in their own file alongside [com.commandercompanion.data.remote.api.AuthApi]
+ * and separate from any DTO another agent might add for `CommanderApi` (decks/games/etc.),
+ * following the same schemas from `docs/api/openapi.yaml`.
  */
 
 @Serializable
@@ -53,13 +53,13 @@ data class UserDto(
     val email: String,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("moxfield_username") val moxfieldUsername: String? = null,
-    /** false = cuenta creada vía Google Sign-In, sin password propio. */
+    /** false = account created via Google Sign-In, without its own password. */
     @SerialName("has_password") val hasPassword: Boolean = true
 )
 
 /**
- * Payload de `PATCH /users/{id}` (ver `SettingsViewModel`). Ambos campos son opcionales y
- * omitidos si no se mandan: el backend no toca lo que no venga en el body (ver
+ * Payload for `PATCH /users/{id}` (see `SettingsViewModel`). Both fields are optional and
+ * omitted if not sent: the backend doesn't touch what isn't in the body (see
  * `backend/internal/users/dto.go: UpdateProfileRequest`).
  */
 @Serializable
@@ -68,7 +68,7 @@ data class UpdateProfileRequest(
     @SerialName("moxfield_username") val moxfieldUsername: String? = null
 )
 
-/** Payload de `POST /users/{id}/password`. */
+/** Payload for `POST /users/{id}/password`. */
 @Serializable
 data class ChangePasswordRequest(
     @SerialName("current_password") val currentPassword: String,

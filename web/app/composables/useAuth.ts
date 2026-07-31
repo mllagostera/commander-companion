@@ -4,7 +4,7 @@ export interface AuthUser {
   email: string
   created_at: string
   moxfield_username?: string | null
-  /** false = cuenta creada vía Google Sign-In, sin password propio. */
+  /** false = account created via Google Sign-In, with no password of its own. */
   has_password: boolean
 }
 
@@ -13,13 +13,13 @@ interface SessionResponse {
 }
 
 /**
- * Sesión del cliente web.
+ * Web client session.
  *
- * Los tokens **no** viven acá: son cookies httpOnly que solo maneja Nitro
- * (`web/server/api/auth/*`, ver `web/server/utils/backend.ts`). Desde el
- * navegador solo se ve `cc_session`, un marcador sin valor sensible que sirve
- * para saber si hay sesión sin pegarle a la API — lo usa el middleware de
- * rutas, que corre tanto en SSR como en el cliente.
+ * The tokens do **not** live here: they're httpOnly cookies that only Nitro
+ * handles (`web/server/api/auth/*`, see `web/server/utils/backend.ts`). From the
+ * browser only `cc_session` is visible, a marker with no sensitive value used
+ * to know whether there's a session without hitting the API — it's used by the
+ * route middleware, which runs in both SSR and the client.
  */
 export function useAuth() {
   const user = useState<AuthUser | null>('auth-user', () => null)
@@ -29,9 +29,9 @@ export function useAuth() {
   })
   const nitroFetch = useNitroFetch()
 
-  // El estado vive en `useState`, no en el ref de la cookie: en SSR cada
-  // llamada a `useCookie` crea un ref nuevo leído de la request original, así
-  // que invalidar la sesión en un plugin no se vería después en el middleware.
+  // The state lives in `useState`, not in the cookie's ref: in SSR every
+  // call to `useCookie` creates a new ref read from the original request, so
+  // invalidating the session in a plugin wouldn't be reflected later in the middleware.
   const hasSession = useState<boolean>(
     'auth-has-session',
     () => !!sessionMarker.value,
@@ -62,9 +62,9 @@ export function useAuth() {
   }
 
   /**
-   * Registra la cuenta. No deja sesión iniciada: hasta no verificar el email,
-   * `login()` responde 403 (ver server/api/auth/login.post.ts), así que la pantalla de
-   * registro muestra un "revisa tu email" en vez de navegar al dashboard.
+   * Registers the account. Doesn't leave a session started: until the email is verified,
+   * `login()` responds 403 (see server/api/auth/login.post.ts), so the registration
+   * screen shows a "check your email" instead of navigating to the dashboard.
    */
   async function register(username: string, email: string, password: string) {
     await nitroFetch('/api/auth/register', {
@@ -100,14 +100,14 @@ export function useAuth() {
     try {
       await nitroFetch('/api/auth/logout', { method: 'POST' })
     } catch {
-      // Best-effort: igual limpiamos la sesión local aunque el backend falle.
+      // Best-effort: we still clear the local session even if the backend fails.
     }
     resetSession()
   }
 
   /**
-   * Rehidrata el usuario a partir de las cookies httpOnly. Nunca tira 401: si
-   * no hay sesión válida devuelve null (Nitro ya limpió las cookies).
+   * Rehydrates the user from the httpOnly cookies. Never throws 401: if
+   * there's no valid session it returns null (Nitro has already cleared the cookies).
    */
   async function fetchSession() {
     try {

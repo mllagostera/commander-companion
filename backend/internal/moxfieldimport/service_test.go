@@ -30,8 +30,8 @@ const (
 
 var errSimulatedImportFailure = errors.New("simulated import failure")
 
-// fakeMoxfieldClient controla lo que ListDecksByUsername devuelve, sin golpear la
-// API real ni depender del stub de internal/moxfield.
+// fakeMoxfieldClient controls what ListDecksByUsername returns, without hitting the
+// real API or depending on internal/moxfield's stub.
 type fakeMoxfieldClient struct {
 	publicIDs []string
 	err       error
@@ -41,9 +41,9 @@ func (f fakeMoxfieldClient) ListDecksByUsername(_ context.Context, _ string) ([]
 	return f.publicIDs, f.err
 }
 
-// fakeDeckImporter simula decks.Service.ImportFromMoxfield: falla para los
-// publicID listados en failFor, y opcionalmente demora cada llamada (para el test
-// de import duplicado, que necesita que el job siga in_progress un rato).
+// fakeDeckImporter simulates decks.Service.ImportFromMoxfield: it fails for the
+// publicIDs listed in failFor, and optionally delays each call (for the duplicate
+// import test, which needs the job to stay in_progress for a while).
 type fakeDeckImporter struct {
 	failFor map[string]bool
 	delay   time.Duration
@@ -105,9 +105,9 @@ func asFiberError(t *testing.T, err error) *fiber.Error {
 	return fiberErr
 }
 
-// waitForTerminalStatus hace polling de GetJobStatus hasta que el job llegue a
-// completed/failed: el import corre en su propia goroutine, no hay otra forma de
-// sincronizar con su finalización desde el test.
+// waitForTerminalStatus polls GetJobStatus until the job reaches
+// completed/failed: the import runs in its own goroutine, there's no other way to
+// synchronize with its completion from the test.
 func waitForTerminalStatus(t *testing.T, svc moxfieldimport.Service, userID, jobID string) *moxfieldimport.JobResponse {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -130,8 +130,8 @@ func TestStartImport_ListDecksNotImplemented_ReturnsNotImplemented(t *testing.T)
 	truncateImportTables(t, pool)
 	user := registerUserWithMoxfieldUsername(t, pool, "stub-501@example.com", "someone")
 
-	// Cliente real, sin mockear: ListDecksByUsername es un stub que siempre falla
-	// (ver internal/moxfield/client.go), es justamente lo que este test verifica.
+	// Real client, unmocked: ListDecksByUsername is a stub that always fails
+	// (see internal/moxfield/client.go), which is exactly what this test verifies.
 	svc := newTestSvc(pool, moxfield.NewClient(), &fakeDeckImporter{})
 
 	_, err := svc.StartImport(context.Background(), user.ID)
@@ -140,7 +140,7 @@ func TestStartImport_ListDecksNotImplemented_ReturnsNotImplemented(t *testing.T)
 			fiberErr.Code, fiber.StatusNotImplemented)
 	}
 
-	// No debería haber creado ningún job: la lista se resuelve ANTES de crear el job.
+	// It shouldn't have created any job: the list is resolved BEFORE creating the job.
 	var count int
 	if err := pool.QueryRow(context.Background(),
 		"SELECT count(*) FROM moxfield_import_jobs WHERE user_id = $1", user.ID,
@@ -248,8 +248,8 @@ func TestStartImport_AlreadyInProgress_ReturnsConflict(t *testing.T) {
 	truncateImportTables(t, pool)
 	user := registerUserWithMoxfieldUsername(t, pool, "duplicate@example.com", "handle4")
 
-	// delay generoso para que el primer job siga in_progress cuando llega el
-	// segundo StartImport, sin depender de timing ajustado.
+	// generous delay so the first job stays in_progress when the second
+	// StartImport arrives, without depending on tight timing.
 	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA, testDeckB}}
 	imp := &fakeDeckImporter{delay: 500 * time.Millisecond}
 	svc := newTestSvc(pool, mox, imp)
@@ -264,8 +264,8 @@ func TestStartImport_AlreadyInProgress_ReturnsConflict(t *testing.T) {
 		t.Fatalf("StartImport() con import ya en curso: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
 	}
 
-	// Limpieza: esperar a que el primer job termine para no dejar una goroutine
-	// escribiendo contra una base que el próximo test va a truncar.
+	// Cleanup: wait for the first job to finish so as not to leave a goroutine
+	// writing against a database that the next test is going to truncate.
 	waitForTerminalStatus(t, svc, user.ID, first.ID)
 }
 

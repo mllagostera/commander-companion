@@ -16,14 +16,14 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo statistics.
+// RegisterRoutes registers all endpoints of the statistics module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/statistics/user", h.GetUserStats)
 	router.Get("/statistics/deck/:id", h.GetDeckStats)
 	router.Get("/statistics/playgroup/:id", h.GetPlaygroupStats)
 }
 
-// GetUserStats devuelve las estadísticas del usuario autenticado.
+// GetUserStats returns the authenticated user's statistics.
 func (h *Handler) GetUserStats(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetUserStats(c.Context(), userID)
@@ -33,7 +33,7 @@ func (h *Handler) GetUserStats(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// GetDeckStats devuelve las estadísticas de un deck del usuario autenticado.
+// GetDeckStats returns the statistics for a deck belonging to the authenticated user.
 func (h *Handler) GetDeckStats(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetDeckStats(c.Context(), userID, c.Params("id"))
@@ -43,7 +43,7 @@ func (h *Handler) GetDeckStats(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// GetPlaygroupStats devuelve las estadísticas agregadas de un grupo de juego.
+// GetPlaygroupStats returns the aggregated statistics for a playgroup.
 func (h *Handler) GetPlaygroupStats(c *fiber.Ctx) error {
 	res, err := h.svc.GetPlaygroupStats(c.Context(), c.Params("id"))
 	if err != nil {

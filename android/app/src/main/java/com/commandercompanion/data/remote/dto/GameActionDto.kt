@@ -9,15 +9,15 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 
 /**
- * DTOs de `/games/{id}/actions` y `/games/{id}/timeline`.
+ * DTOs for `/games/{id}/actions` and `/games/{id}/timeline`.
  *
- * `payload` va como [JsonObject] crudo porque el backend lo modela como `map[string]interface{}`
- * y su forma depende del `action_type` (hoy solo `{ "amount": <int> }` para los tipos numéricos).
+ * `payload` is a raw [JsonObject] because the backend models it as `map[string]interface{}`
+ * and its shape depends on `action_type` (today only `{ "amount": <int> }` for numeric types).
  */
 
 /**
- * Vocabulario fijo de `action_type` que valida el backend
- * (`backend/internal/game-actions/service.go` + `CHECK` constraint en la migración `00004`).
+ * Fixed `action_type` vocabulary validated by the backend
+ * (`backend/internal/game-actions/service.go` + `CHECK` constraint in migration `00004`).
  */
 object GameActionType {
     const val LIFE_CHANGE = "LifeChange"
@@ -30,8 +30,8 @@ object GameActionType {
 }
 
 /**
- * [actorId] y [targetId] son IDs de `GamePlayer` (no de usuario). Si [targetId] es null la acción
- * afecta al propio actor.
+ * [actorId] and [targetId] are `GamePlayer` IDs (not user IDs). If [targetId] is null the action
+ * affects the actor itself.
  */
 @Serializable
 data class CreateActionRequest(
@@ -52,9 +52,9 @@ data class GameActionDto(
     @SerialName("created_at") val createdAt: String
 )
 
-/** Payload estándar de las acciones numéricas: `{ "amount": <int> }`. */
+/** Standard payload for numeric actions: `{ "amount": <int> }`. */
 fun amountPayload(amount: Int): JsonObject = buildJsonObject { put("amount", amount) }
 
-/** Lee `payload.amount` de una acción del timeline; null si no aplica a ese `action_type`. */
+/** Reads `payload.amount` from a timeline action; null if it doesn't apply to that `action_type`. */
 val GameActionDto.amount: Int?
     get() = (payload?.get("amount") as? JsonPrimitive)?.intOrNull

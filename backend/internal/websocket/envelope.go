@@ -5,24 +5,24 @@ import (
 	"time"
 )
 
-// Tipos de evento del sobre (envelope) que el servidor envía por WebSocket. Ver
-// ADR-0005 para el detalle de payload de cada uno.
+// Event types for the envelope that the server sends over WebSocket. See
+// ADR-0005 for the payload details of each one.
 const (
-	// EventConnected se envía una única vez, justo después de que la conexión
-	// autentica correctamente.
+	// EventConnected is sent exactly once, right after the connection
+	// authenticates successfully.
 	EventConnected = "connected"
-	// EventGameAction retransmite una acción de game_actions recién registrada
-	// (payload = GameActionResponse, sin excepción de action_type).
+	// EventGameAction rebroadcasts a game_actions action that was just recorded
+	// (payload = GameActionResponse, with no exception for action_type).
 	EventGameAction = "game_action"
-	// EventGameFinished avisa que la partida terminó; no lleva estado, es un aviso
-	// para que el cliente reconcilie por REST (ver ADR-0005, "REST sigue siendo la
-	// fuente de verdad").
+	// EventGameFinished notifies that the game has ended; it carries no state, it's a
+	// heads-up for the client to reconcile via REST (see ADR-0005, "REST remains the
+	// source of truth").
 	EventGameFinished = "game_finished"
-	// EventError se usa únicamente durante el handshake de autenticación.
+	// EventError is used only during the authentication handshake.
 	EventError = "error"
 )
 
-// Envelope es el sobre común de todo mensaje que el servidor envía por WebSocket.
+// Envelope is the common envelope for every message the server sends over WebSocket.
 type Envelope struct {
 	Type      string          `json:"type"`
 	GameID    string          `json:"game_id"`
@@ -31,13 +31,13 @@ type Envelope struct {
 	Timestamp string          `json:"timestamp"`
 }
 
-// errorPayload es el payload de un Envelope de tipo EventError.
+// errorPayload is the payload of an EventError-type Envelope.
 type errorPayload struct {
 	Message string `json:"message"`
 }
 
-// encodeEnvelope arma y serializa un Envelope. payload puede ser nil (se omite del
-// JSON resultante).
+// encodeEnvelope builds and serializes an Envelope. payload can be nil (it's omitted
+// from the resulting JSON).
 func encodeEnvelope(eventType, gameID, actorID string, payload interface{}) ([]byte, error) {
 	env := Envelope{
 		Type:      eventType,
@@ -57,10 +57,10 @@ func encodeEnvelope(eventType, gameID, actorID string, payload interface{}) ([]b
 	return json.Marshal(env)
 }
 
-// connectedEnvelope arma el mensaje de ack enviado tras autenticar con éxito. El
-// payload es nil, así que encodeEnvelope no puede fallar en la práctica (solo falla al
-// serializar el payload) — el chequeo de error es por prolijidad, no porque se espere
-// que dispare.
+// connectedEnvelope builds the ack message sent after authenticating successfully. The
+// payload is nil, so encodeEnvelope can't fail in practice (it only fails while
+// serializing the payload) — the error check is for tidiness, not because it's expected
+// to trigger.
 func connectedEnvelope(gameID string) []byte {
 	msg, err := encodeEnvelope(EventConnected, gameID, "", nil)
 	if err != nil {
@@ -69,9 +69,9 @@ func connectedEnvelope(gameID string) []byte {
 	return msg
 }
 
-// errEnvelope arma un mensaje de error (solo se usa durante el handshake de auth). El
-// payload es un struct trivial de un solo string, por lo que tampoco puede fallar en
-// la práctica.
+// errEnvelope builds an error message (only used during the auth handshake). The
+// payload is a trivial single-string struct, so it can't fail in practice
+// either.
 func errEnvelope(gameID, message string) []byte {
 	msg, err := encodeEnvelope(EventError, gameID, "", errorPayload{Message: message})
 	if err != nil {

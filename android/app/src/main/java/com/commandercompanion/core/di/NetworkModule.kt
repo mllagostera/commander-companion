@@ -19,25 +19,26 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
 
-/** Cliente/Retrofit SIN interceptor de sesión — usado por [AuthApi] (login/google/refresh/logout). */
+/** Client/Retrofit WITHOUT the session interceptor — used by [AuthApi] (login/google/refresh/logout). */
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class UnauthenticatedClient
 
-/** Cliente/Retrofit CON interceptor de Bearer + authenticator de refresh — usado por [CommanderApi]. */
+/** Client/Retrofit WITH the Bearer interceptor + refresh authenticator — used by [CommanderApi]. */
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class AuthenticatedClient
 
 /**
- * Módulo de red: Retrofit + OkHttp para hablar con el backend Go.
+ * Network module: Retrofit + OkHttp to talk to the Go backend.
  *
- * Base URL configurable vía `API_BASE_URL` (ver `app/build.gradle.kts`), default
- * `http://10.0.2.2:8080/` (alias del emulador Android hacia el localhost del host).
+ * Base URL configurable via `API_BASE_URL` (see `app/build.gradle.kts`), default
+ * `http://10.0.2.2:8080/` (the Android emulator's alias for the host's localhost).
  *
- * Hay DOS clientes HTTP a propósito: [AuthApi] nunca debe pasar por el interceptor/authenticator
- * de sesión (sus endpoints son públicos, y usar el cliente autenticado para el propio refresh
- * causaría una recursión). [CommanderApi] sí necesita el Bearer automático + refresh-on-401.
+ * There are deliberately TWO HTTP clients: [AuthApi] must never go through the session
+ * interceptor/authenticator (its endpoints are public, and using the authenticated client for
+ * the refresh itself would cause a recursion). [CommanderApi] does need the automatic Bearer +
+ * refresh-on-401.
  */
 @Module
 @InstallIn(SingletonComponent::class)

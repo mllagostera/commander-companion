@@ -156,9 +156,9 @@ SELECT
 FROM game_players gp
 JOIN games g ON g.id = gp.game_id
 LEFT JOIN (
-  -- El ganador de una partida es el único jugador que llega vivo al final; el
-  -- filtro por alive_count = 1 selecciona esa fila sin necesitar MIN()/MAX()
-  -- sobre uuid (Postgres no tiene un operador de orden para ese tipo).
+  -- The winner of a game is the only player still alive at the end; the
+  -- alive_count = 1 filter selects that row without needing MIN()/MAX()
+  -- over uuid (Postgres has no ordering operator for that type).
   SELECT id, game_id
   FROM (
     SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count

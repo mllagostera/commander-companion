@@ -12,25 +12,25 @@ import (
 
 type Querier interface {
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
-	// email_verified es explícito (no el default de la columna): RegisterUser decide su
-	// valor según config.RequireEmailVerification (ver ADR-0012). CreateUserWithGoogle no
-	// lo toca a propósito, así que usa el default de la columna (true) — Google ya confirma
-	// el email en su id_token.
+	// email_verified is explicit (not the column default): RegisterUser decides its
+	// value based on config.RequireEmailVerification (see ADR-0012). CreateUserWithGoogle
+	// deliberately doesn't touch it, so it uses the column default (true) — Google already
+	// confirms the email in its id_token.
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserWithGoogle(ctx context.Context, arg CreateUserWithGoogleParams) (User, error)
 	GetEmailVerificationTokenByHash(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
-	// email_verified se fuerza a true al vincular: FindOrCreateGoogleUser ya comprobó que
-	// Google confirma este email antes de llamar a esta query, así que una cuenta
-	// email/password todavía no verificada queda verificada por esta vía también.
+	// email_verified is forced to true when linking: FindOrCreateGoogleUser already checked
+	// that Google confirms this email before calling this query, so an email/password
+	// account that isn't verified yet also gets verified through this path.
 	LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (User, error)
 	MarkEmailVerificationTokenUsed(ctx context.Context, id pgtype.UUID) error
-	// Búsqueda parcial case-insensitive de username, para invitar gente a un playgroup sin
-	// conocer su UUID (ver internal/playgroups). A propósito NO busca por email de esta
-	// forma (parcial): permitiría enumerar direcciones de correo ajenas por prefijo/substring.
-	// La búsqueda por email exacta se resuelve aparte, con GetUserByEmail.
+	// Partial, case-insensitive username search, to invite people to a playgroup without
+	// knowing their UUID (see internal/playgroups). Deliberately does NOT search by email
+	// this way (partial): it would allow enumerating other people's email addresses by
+	// prefix/substring. Exact email search is handled separately, via GetUserByEmail.
 	SearchUsersByUsername(ctx context.Context, arg SearchUsersByUsernameParams) ([]User, error)
 	SetUserEmailVerified(ctx context.Context, id pgtype.UUID) (User, error)
 	UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfieldUsernameParams) (User, error)

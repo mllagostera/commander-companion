@@ -1,97 +1,97 @@
-# ADR-0009: Cliente Android nativo (Kotlin + Compose) en vez de cross-platform
+# ADR-0009: Native Android client (Kotlin + Compose) instead of cross-platform
 
-**Estado:** Aceptada e implementada — **decisión heredada, contexto
-reconstruido** (ver nota de método en ADR-0006; redactado retroactivamente
-el 2026-07-27 a partir de `android/app/build.gradle.kts` y la estructura
-real de `android/app/src/main/java/com/commandercompanion/`).
+**Status:** Accepted and implemented — **inherited decision, context
+reconstructed** (see the method note in ADR-0006; written retroactively
+on 2026-07-27 based on `android/app/build.gradle.kts` and the actual
+structure of `android/app/src/main/java/com/commandercompanion/`).
 
-## Contexto
+## Context
 
-El ROADMAP fija "Simplicidad, Velocidad, Datos" como los tres pilares del
-proyecto, con la aclaración explícita de que "la prioridad es que cualquier
-acción pueda hacerse en menos de dos segundos" — el life tracker
-(`GameTrackerScreen`) es la pantalla que se usa constantemente *durante* una
-partida real de Commander, con la app en la mesa entre turnos, así que la
-latencia de interacción (tocar `+`/`-` de vida, abrir el panel de daño de
-comandante) es un requisito de producto, no solo técnico. Había que decidir
-la plataforma del primer cliente móvil: nativo por SO, o un framework
-cross-platform que comparta código con un eventual cliente iOS.
+The ROADMAP sets "Simplicity, Speed, Data" as the project's three pillars,
+with the explicit clarification that "the priority is that any
+action can be done in under two seconds" — the life tracker
+(`GameTrackerScreen`) is the screen that gets used constantly *during* an
+actual Commander game, with the app on the table between turns, so
+interaction latency (tapping `+`/`-` for life, opening the commander damage
+panel) is a product requirement, not just a technical one. The platform for
+the first mobile client had to be decided: native per OS, or a
+cross-platform framework that shares code with an eventual iOS client.
 
-## Decisión
+## Decision
 
-**Android nativo con Kotlin + Jetpack Compose**, Material 3, Navigation
-Compose (con `kotlinx.serialization` para rutas tipadas, ver
-`Routes.kt`/`AppNavigation.kt`), Hilt para inyección de dependencias, Room
-para persistencia local, y Retrofit para el consumo de la API REST
-(`android/app/build.gradle.kts`). Arquitectura declarada: Clean Architecture
+**Native Android with Kotlin + Jetpack Compose**, Material 3, Navigation
+Compose (with `kotlinx.serialization` for typed routes, see
+`Routes.kt`/`AppNavigation.kt`), Hilt for dependency injection, Room
+for local persistence, and Retrofit for consuming the REST API
+(`android/app/build.gradle.kts`). Declared architecture: Clean Architecture
 + MVVM + UDF (unidirectional data flow).
 
-**Actualizado 2026-07-27**: `CommanderApi.kt` ya tiene los endpoints reales de
-`decks`/`games`/`game-actions`/`statistics` (15 métodos, ver
-`data/remote/api/CommanderApi.kt`), y ya existe una capa de repositorio
-(`data/repository/GameRepository.kt`, `DeckRepository.kt`) entre los
-`ViewModel` y `CommanderApi`/`GameDao` — ver Consecuencias, actualizada
-también.
+**Updated 2026-07-27**: `CommanderApi.kt` already has the real endpoints for
+`decks`/`games`/`game-actions`/`statistics` (15 methods, see
+`data/remote/api/CommanderApi.kt`), and there is now a repository layer
+(`data/repository/GameRepository.kt`, `DeckRepository.kt`) between the
+`ViewModel`s and `CommanderApi`/`GameDao` — see Consequences, also
+updated.
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **Flutter**: cross-platform con un único codebase Dart para Android e iOS,
-  buen rendimiento de UI (motor de renderizado propio, no depende del
-  puente nativo). Se descartó — presumiblemente porque no había (ni hay
-  todavía) un roadmap de iOS explícito en `ROADMAP.md`, y porque Compose ya
-  da control fino sobre el rendimiento de UI en Android sin la capa
-  adicional de un motor de renderizado cross-platform ni el riesgo de
-  plugins nativos faltantes para integraciones específicas de Android
-  (Credential Manager / Google Identity Services, mencionados como
-  pendientes en `TASKS.md`, ya asumen APIs nativas de Android).
-- **React Native**: permitiría compartir más superficialmente con un
-  eventual frontend web en React, pero el proyecto ya decidió un stack web
-  desacoplado y distinto (Nuxt/Vue, ver ADR-0004) — no hay sinergia de
-  compartir componentes entre RN y Nuxt. El puente JS-nativo también
-  introduce una fuente de latencia variable, indeseable para una pantalla
-  que se usa constantemente durante la partida.
-- **Kotlin Multiplatform (KMP) compartiendo solo lógica, UI nativa por
-  plataforma**: la opción "intermedia" más cercana a lo elegido — hubiera
-  permitido compartir `GameState`/`GameViewModel`/lógica de reglas con un
-  futuro cliente iOS en Swift/SwiftUI mientras se mantiene Compose para
-  Android. No se adoptó, probablemente porque no hay cliente iOS planeado
-  todavía y la complejidad de estructurar módulos `commonMain`/
-  `androidMain` no se justifica sin un segundo consumidor real de esa
-  lógica compartida. Queda como opción de migración futura menos costosa
-  que reescribir desde un framework cross-platform completo, si iOS entra
-  al roadmap.
-- **UI tradicional con XML Views (sin Compose)**: descartado por ser el
-  enfoque más antiguo y verboso de Android; Compose ya era la recomendación
-  oficial de Google para proyectos nuevos al momento de iniciar este
-  proyecto, y encaja mejor con una UI muy dinámica (grid de 2 a 6 jugadores
-  que se re-arma según cantidad, overlay de daño de comandante) que XML +
-  `RecyclerView` manual.
+- **Flutter**: cross-platform with a single Dart codebase for Android and iOS,
+  good UI performance (its own rendering engine, not dependent on a
+  native bridge). Ruled out — presumably because there was (and still is)
+  no explicit iOS roadmap in `ROADMAP.md`, and because Compose already
+  gives fine-grained control over UI performance on Android without the
+  extra layer of a cross-platform rendering engine nor the risk of
+  missing native plugins for Android-specific integrations
+  (Credential Manager / Google Identity Services, mentioned as
+  pending in `TASKS.md`, already assume native Android APIs).
+- **React Native**: would allow more superficial sharing with an
+  eventual React web frontend, but the project had already decided on a
+  decoupled, different web stack (Nuxt/Vue, see ADR-0004) — there is no
+  synergy in sharing components between RN and Nuxt. The JS-native
+  bridge also introduces a source of variable latency, undesirable for a
+  screen that is used constantly during the game.
+- **Kotlin Multiplatform (KMP) sharing only logic, native UI per
+  platform**: the "middle ground" option closest to what was chosen — it
+  would have allowed sharing `GameState`/`GameViewModel`/rules logic with a
+  future iOS client in Swift/SwiftUI while keeping Compose for
+  Android. Not adopted, probably because there is no iOS client planned
+  yet and the complexity of structuring `commonMain`/
+  `androidMain` modules is not justified without a second real consumer of
+  that shared logic. It remains as a less costly future migration option
+  than rewriting from a full cross-platform framework, should iOS enter
+  the roadmap.
+- **Traditional UI with XML Views (no Compose)**: ruled out as the
+  older and more verbose Android approach; Compose was already Google's
+  official recommendation for new projects at the time this project started,
+  and fits better with a highly dynamic UI (2-to-6-player grid
+  that is rebuilt based on count, commander damage overlay) than XML +
+  manual `RecyclerView`.
 
-## Consecuencias
+## Consequences
 
-- El código de UI/lógica de la app **no se comparte con ningún otro
-  cliente** — el cliente web (ADR-0004, Nuxt) es un proyecto completamente
-  aparte que solo comparte el contrato HTTP (`docs/api/openapi.yaml`), no
-  componentes ni lógica de dominio. Cualquier regla de negocio del life
-  tracker (p. ej. cómo se calcula el ganador, ver `GameViewModel
-  .finishGame`) debe re-implementarse si algún día existe un cliente iOS.
-- El stack nativo (Compose + Hilt + Room + Retrofit) es el recomendado por
-  Google y tiene soporte de tooling de primera clase (Android Studio,
-  Compose Preview, `androidx.lifecycle`), lo cual explica por qué la
-  velocidad de desarrollo del life tracker local fue alta (life tracker
-  completo con persistencia en una sola sesión, según `TASKS.md`).
-- **Resuelto parcialmente (2026-07-27)**: `GameRepository` ya es el punto
-  único que decide qué va a Room (historial local, siempre) y qué va al
-  backend (espejo best-effort del asiento del usuario autenticado —
+- The app's UI/logic code **is not shared with any other
+  client** — the web client (ADR-0004, Nuxt) is a completely
+  separate project that only shares the HTTP contract (`docs/api/openapi.yaml`), not
+  components or domain logic. Any business rule of the life
+  tracker (e.g. how the winner is calculated, see `GameViewModel
+  .finishGame`) has to be re-implemented if an iOS client ever exists.
+- The native stack (Compose + Hilt + Room + Retrofit) is the one recommended by
+  Google and has first-class tooling support (Android Studio,
+  Compose Preview, `androidx.lifecycle`), which explains why the
+  development speed of the local life tracker was high (full life tracker
+  with persistence in a single session, per `TASKS.md`).
+- **Partially resolved (2026-07-27)**: `GameRepository` is now the single
+  point that decides what goes to Room (local history, always) and what goes to
+  the backend (best-effort mirror of the authenticated user's seat —
   `bootstrapRemoteGame`/`recordLifeChange`/`finishGame`); `DeckRepository`
-  es 100% remoto. Sigue sin existir una capa de `domain/` con casos de uso
-  propios (`GameViewModel`/`LoginViewModel` siguen llamando el repositorio
-  directo) — aceptable mientras el alcance sea el actual, revisar si se
-  justifica un `domain/` separado más adelante (ver `TASKS.md` Stage 4).
+  is 100% remote. There is still no `domain/` layer with its own
+  use cases (`GameViewModel`/`LoginViewModel` still call the repository
+  directly) — acceptable while the scope stays as it is, revisit whether
+  a separate `domain/` layer is warranted later (see `TASKS.md` Stage 4).
 
-## Referencias
+## References
 
 - `android/app/build.gradle.kts`
-- `docs/roadmap/ROADMAP.md`, sección "Stage 4: Cliente Android" y
-  "Filosofía del proyecto"
+- `docs/roadmap/ROADMAP.md`, "Stage 4: Android Client" section and
+  "Project philosophy"
 - `docs/roadmap/TASKS.md`, Stage 4

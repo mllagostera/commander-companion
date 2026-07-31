@@ -39,13 +39,13 @@ import com.commandercompanion.presentation.theme.AppFaint
 import com.commandercompanion.presentation.theme.AppOnBackground
 
 /**
- * Registro por email/password contra `POST /auth/register` (ver [RegisterViewModel]), más
- * "Continuar con Google" — que reutiliza [LoginViewModel.loginWithGoogle] tal cual, porque para
- * el backend autenticar y registrar por Google es la misma operación (`GoogleLogin` en
- * `backend/internal/auth/service.go` crea la cuenta si no existe).
+ * Email/password registration against `POST /auth/register` (see [RegisterViewModel]), plus
+ * "Continue with Google" — which reuses [LoginViewModel.loginWithGoogle] as-is, because for
+ * the backend, authenticating and registering via Google is the same operation (`GoogleLogin`
+ * in `backend/internal/auth/service.go` creates the account if it doesn't exist).
  *
- * Un registro por password exitoso NO deja sesión iniciada (mismo contrato que el cliente web):
- * en vez de navegar al dashboard, la propia pantalla pasa a mostrar "revisá tu email".
+ * A successful password registration does NOT leave a session started (same contract as the web
+ * client): instead of navigating to the dashboard, the screen itself switches to show "check your email".
  */
 @Composable
 fun RegisterScreen(

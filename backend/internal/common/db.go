@@ -16,19 +16,19 @@ const (
 	connectTimeout  = 5 * time.Second
 )
 
-// DB representa la conexión a la base de datos.
+// DB represents the connection to the database.
 type DB struct {
 	Pool *pgxpool.Pool
 }
 
-// NewDB inicializa y devuelve una conexión a la base de datos usando pgxpool.
+// NewDB initializes and returns a database connection using pgxpool.
 func NewDB(databaseURL string) (*DB, error) {
 	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing db config: %w", err)
 	}
 
-	// Configuraciones para producción
+	// Production settings
 	config.MaxConns = maxPoolConns
 	config.MinConns = minPoolConns
 	config.MaxConnLifetime = maxConnLifetime
@@ -49,7 +49,7 @@ func NewDB(databaseURL string) (*DB, error) {
 	return &DB{Pool: pool}, nil
 }
 
-// Close cierra el pool de conexiones.
+// Close closes the connection pool.
 func (db *DB) Close() {
 	db.Pool.Close()
 }

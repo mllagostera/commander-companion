@@ -1,10 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- Username de Moxfield vinculado al perfil, para futuro import masivo de decks
--- (ver internal/moxfieldimport, todavía no implementado). Sin constraint de
--- unicidad: no hace falta buscar "quién tiene tal username", solo guardarlo en
--- el perfil propio.
+-- Moxfield username linked to the profile, for future bulk deck import
+-- (see internal/moxfieldimport, not implemented yet). No uniqueness
+-- constraint: there's no need to look up "who has this username", just to
+-- store it on one's own profile.
 ALTER TABLE users ADD COLUMN moxfield_username varchar;
 
 -- +goose StatementEnd

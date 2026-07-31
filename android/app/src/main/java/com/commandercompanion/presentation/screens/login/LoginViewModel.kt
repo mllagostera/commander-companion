@@ -55,7 +55,7 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    /** [context] debe ser un contexto de Activity: Credential Manager necesita poder mostrar UI. */
+    /** [context] must be an Activity context: Credential Manager needs to be able to show UI. */
     fun loginWithGoogle(context: Context) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -98,7 +98,7 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun mapGoogleSignInError(throwable: Throwable): String? = when (throwable) {
-        // El usuario cerró el selector de cuentas: no es un error, no mostramos banner.
+        // The user closed the account picker: not an error, we don't show a banner.
         is GoogleSignInCancelledException -> null
         is NoGoogleAccountException -> throwable.message
         else -> "No se pudo iniciar sesión con Google"

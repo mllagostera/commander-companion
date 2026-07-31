@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Solo variante debug: el backend de desarrollo corre HTTP plano (10.0.2.2,
-  localhost o una IP LAN vía -PAPI_BASE_URL), y la Network Security Config
-  por defecto de Android bloquea cleartext desde API 28+. Release no hereda
-  esto (sigue exigiendo HTTPS).
+  Debug variant only: the development backend runs plain HTTP (10.0.2.2,
+  localhost, or a LAN IP via -PAPI_BASE_URL), and Android's default
+  Network Security Config blocks cleartext from API 28+. Release doesn't
+  inherit this (it still requires HTTPS).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:usesCleartextTraffic="true" />

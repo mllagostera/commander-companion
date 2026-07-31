@@ -1,82 +1,82 @@
-# ADR-0008: sqlc para acceso a datos tipado + goose para migraciones
+# ADR-0008: sqlc for typed data access + goose for migrations
 
-**Estado:** Aceptada e implementada — **decisión heredada, contexto
-reconstruido** (ver nota de método en ADR-0006 y ADR-0007; redactado
-retroactivamente el 2026-07-27 a partir de `backend/sqlc.yaml`,
-`backend/migrations/`, y los ocho módulos de `internal/` que usan código
-generado por sqlc).
+**Status:** Accepted and implemented — **inherited decision, context
+reconstructed** (see the methodology note in ADR-0006 and ADR-0007; written
+retroactively on 2026-07-27 based on `backend/sqlc.yaml`,
+`backend/migrations/`, and the eight `internal/` modules that use
+sqlc-generated code).
 
-## Contexto
+## Context
 
-Con Go + PostgreSQL ya elegidos (ADR-0006, ADR-0007), quedaban dos
-decisiones de tooling con impacto directo en cómo se escribe cada módulo de
-`internal/`: cómo llegar de SQL a código Go tipado (ORM completo vs. query
-builder vs. generación de código a partir de SQL crudo), y cómo versionar y
-aplicar cambios de esquema de forma reproducible en local/CI/producción.
+With Go + PostgreSQL already chosen (ADR-0006, ADR-0007), two tooling
+decisions remained with direct impact on how each `internal/` module is
+written: how to go from SQL to typed Go code (full ORM vs. query builder
+vs. code generation from raw SQL), and how to version and apply schema
+changes reproducibly across local/CI/production.
 
-## Decisión
+## Decision
 
-- **sqlc** (`sqlc.yaml`, `sql_package: "pgx/v5"`) genera el código de
-  acceso a datos de los seis módulos con queries propias (`users`, `auth`,
-  `decks`, `playgroups`, `games`, `game-actions`, `statistics`) a partir de
-  SQL escrito a mano en cada `internal/<módulo>/query.sql`, produciendo
-  structs y una interfaz `Querier` (`emit_interface: true`) por módulo,
-  directamente compatibles con `pgxpool.Pool` (`emit_json_tags: true` para
-  serializar directo a DTOs de respuesta).
-- **goose** gestiona las migraciones versionadas
-  (`migrations/00001_initial_schema.sql`, `00002_auth.sql`), aplicadas en CI
-  contra un Postgres real (`backend-ci.yml`) como parte del gate de build.
+- **sqlc** (`sqlc.yaml`, `sql_package: "pgx/v5"`) generates the data-access
+  code for the six modules with their own queries (`users`, `auth`,
+  `decks`, `playgroups`, `games`, `game-actions`, `statistics`) from SQL
+  handwritten in each `internal/<module>/query.sql`, producing structs and
+  a `Querier` interface (`emit_interface: true`) per module, directly
+  compatible with `pgxpool.Pool` (`emit_json_tags: true` to serialize
+  straight to response DTOs).
+- **goose** manages versioned migrations
+  (`migrations/00001_initial_schema.sql`, `00002_auth.sql`), applied in CI
+  against a real Postgres (`backend-ci.yml`) as part of the build gate.
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **ORM completo (GORM, ent)**: ofrece más "magia" (relaciones navegables,
-  migraciones autogeneradas desde structs), pero a costa de SQL implícito
-  difícil de predecir/optimizar y de una capa de abstracción adicional sobre
-  el driver. Se descartó a favor de escribir el SQL a mano y generar solo el
-  *binding* tipado — coherente con la filosofía del ROADMAP de "DBML como
-  fuente de verdad del esquema" en vez de que el esquema se derive del
-  código Go.
-- **Query builder dinámico (squirrel, goqu)**: intermedio entre ORM y SQL
-  crudo, pero no da tipado estático de las columnas de retorno sin escribir
-  igual el `Scan` a mano — sqlc da esa seguridad de tipos generando el
-  binding directamente desde el SQL real y el esquema real, detectando en
-  tiempo de generación (`sqlc generate`) columnas que no existen o tipos que
-  no calzan, antes de llegar a runtime.
-- **Migraciones manuales sin herramienta (scripts sueltos)**: se descartó
-  por falta de trazabilidad de qué migró y cuándo en cada entorno; goose
-  resuelve esto con su tabla de versión y comandos `up`/`down` simétricos
-  (usados explícitamente en CI: "migraciones goose contra Postgres real").
-- **Otra herramienta de migraciones (golang-migrate, Atlas)**: golang-migrate
-  es la alternativa más cercana en popularidad; se optó por goose
-  probablemente por su sintaxis de migración como SQL plano con anotaciones
-  `-- +goose Up`/`-- +goose Down` en el mismo archivo (más legible en review
-  que archivos `.up.sql`/`.down.sql` separados de golang-migrate).
+- **Full ORM (GORM, ent)**: offers more "magic" (navigable relations,
+  migrations auto-generated from structs), but at the cost of implicit SQL
+  that's hard to predict/optimize and an additional abstraction layer over
+  the driver. Discarded in favor of writing SQL by hand and generating only
+  the typed *binding* — consistent with the ROADMAP's philosophy of "DBML
+  as the source of truth for the schema" rather than deriving the schema
+  from Go code.
+- **Dynamic query builder (squirrel, goqu)**: intermediate between an ORM
+  and raw SQL, but doesn't give static typing of returned columns without
+  still writing the `Scan` by hand — sqlc gives that type safety by
+  generating the binding directly from the real SQL and the real schema,
+  catching at generation time (`sqlc generate`) columns that don't exist or
+  types that don't match, before hitting runtime.
+- **Manual migrations with no tool (loose scripts)**: discarded due to lack
+  of traceability of what was migrated and when in each environment; goose
+  solves this with its version table and symmetric `up`/`down` commands
+  (used explicitly in CI: "goose migrations against real Postgres").
+- **Another migration tool (golang-migrate, Atlas)**: golang-migrate is the
+  closest alternative in popularity; goose was probably chosen for its
+  migration syntax as plain SQL with `-- +goose Up`/`-- +goose Down`
+  annotations in the same file (more readable in review than
+  golang-migrate's separate `.up.sql`/`.down.sql` files).
 
-## Consecuencias
+## Consequences
 
-- Cambiar el esquema de una tabla requiere tocar en orden: `docs/database/
-  schema.dbml` (fuente de verdad documental) → una migración goose nueva →
-  el `query.sql` del módulo afectado si cambian columnas usadas → `sqlc
-  generate` para regenerar el binding. Saltarse `sqlc generate` deja código
-  Go desincronizado del esquema real; por eso `backend-ci.yml` corre `sqlc
-  generate` y falla el build si detecta diffs pendientes.
-- La versión de la imagen/binario de `sqlc` importa: el propio historial de
-  `TASKS.md` registra que hubo que fijar `sql_package: "pgx/v5"` en
-  `sqlc.yaml` porque el generador por defecto producía un `DBTX`
-  incompatible con `pgxpool.Pool` — un recordatorio de que sqlc y el driver
-  elegido (ADR-0007) deben mantenerse alineados en cada actualización.
-- Cada módulo nuevo con acceso a datos propio repite el mismo patrón:
-  entrada en `sqlc.yaml` + `query.sql` + `sqlc generate` — es mecánico, pero
-  es trabajo manual por módulo (no hay generación automática de CRUD
-  completo como en un ORM con scaffolding).
-- Índices adicionales más allá de las PK (mencionados como pendientes en
-  `TASKS.md`, Stage 2) y constraints como `games.status`/`action_type` como
-  enum en vez de `varchar` libre quedan fuera de lo que sqlc/goose resuelven
-  automáticamente — siguen siendo trabajo de diseño de esquema manual.
+- Changing a table's schema requires touching, in order: `docs/database/
+  schema.dbml` (documentary source of truth) → a new goose migration → the
+  affected module's `query.sql` if used columns change → `sqlc generate` to
+  regenerate the binding. Skipping `sqlc generate` leaves the Go code out
+  of sync with the real schema; that's why `backend-ci.yml` runs `sqlc
+  generate` and fails the build if it detects pending diffs.
+- The version of the `sqlc` image/binary matters: `TASKS.md`'s own history
+  records that `sql_package: "pgx/v5"` had to be pinned in `sqlc.yaml`
+  because the default generator produced a `DBTX` incompatible with
+  `pgxpool.Pool` — a reminder that sqlc and the chosen driver (ADR-0007)
+  must be kept aligned on every update.
+- Every new module with its own data access repeats the same pattern: an
+  entry in `sqlc.yaml` + `query.sql` + `sqlc generate` — it's mechanical,
+  but it's manual work per module (there's no automatic generation of full
+  CRUD like in a scaffolding ORM).
+- Additional indexes beyond the PKs (mentioned as pending in `TASKS.md`,
+  Stage 2) and constraints such as `games.status`/`action_type` as an enum
+  instead of free `varchar` remain outside what sqlc/goose resolve
+  automatically — still manual schema-design work.
 
-## Referencias
+## References
 
 - `backend/sqlc.yaml`
 - `backend/migrations/00001_initial_schema.sql`, `00002_auth.sql`
-- `docs/roadmap/TASKS.md`, Stage 1 ("se corrigió `sqlc.yaml`...") y
-  Transversal (CI de `backend-ci.yml`)
+- `docs/roadmap/TASKS.md`, Stage 1 ("`sqlc.yaml` was fixed...") and
+  Cross-cutting (`backend-ci.yml` CI)

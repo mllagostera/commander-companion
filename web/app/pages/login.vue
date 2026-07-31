@@ -11,15 +11,15 @@ const password = ref('')
 const errorMessage = ref('')
 const isSubmitting = ref(false)
 const googleButtonRef = ref<HTMLElement | null>(null)
-// 403 de /auth/login: la cuenta existe y la contraseña es correcta, pero el email
-// todavía no se confirmó (ver server/api/auth/login.post.ts).
+// 403 from /auth/login: the account exists and the password is correct, but the email
+// hasn't been confirmed yet (see server/api/auth/login.post.ts).
 const needsVerification = ref(false)
 const isResending = ref(false)
 const resendSent = ref(false)
 
-// El backend puede estar dormido (cold start) y tardar ~50s en responder la
-// primera petición. Sin este cartel el usuario no tiene forma de saberlo y
-// suele reintentar el login creyendo que no hizo nada.
+// The backend may be asleep (cold start) and take ~50s to respond to the
+// first request. Without this notice the user has no way to know and
+// tends to retry the login thinking nothing happened.
 const isLoggingIn = ref(false)
 const showSlowHint = ref(false)
 let slowHintTimer: ReturnType<typeof setTimeout> | null = null

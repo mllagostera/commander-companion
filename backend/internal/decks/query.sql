@@ -7,18 +7,18 @@ RETURNING *;
 SELECT * FROM decks WHERE id = $1 LIMIT 1;
 
 -- name: GetDeckByMoxfieldID :one
--- Resuelve el deck ya importado de un usuario a partir de su ID público de
--- Moxfield (ver internal/sync). Un mismo deck de Moxfield puede estar importado
--- por varios usuarios, por eso el filtro por user_id.
+-- Resolves a user's already-imported deck from its public Moxfield ID
+-- (see internal/sync). The same Moxfield deck can be imported by several
+-- users, hence the filter by user_id.
 SELECT * FROM decks
 WHERE user_id = $1 AND moxfield_id = $2
 ORDER BY created_at ASC
 LIMIT 1;
 
 -- name: ListDecksPage :many
--- Paginación keyset sobre (created_at, id) DESC. Con cursor_created_at NULL
--- devuelve la primera página; con cursor, las filas estrictamente posteriores en
--- el orden de la lista. Ver internal/common/pagination.go.
+-- Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
+-- it returns the first page; with a cursor, the rows strictly after it in
+-- list order. See internal/common/pagination.go.
 SELECT * FROM decks
 WHERE user_id = sqlc.arg('user_id')
   AND (
@@ -29,8 +29,8 @@ ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg('page_limit');
 
 -- name: UpdateDeckFromMoxfield :one
--- Re-sincroniza nombre, comandante e imagen de un deck ya importado con lo que
--- devuelve Moxfield hoy (ver internal/sync). updated_at marca el último sync exitoso.
+-- Re-syncs name, commander, and image for an already-imported deck with what
+-- Moxfield returns today (see internal/sync). updated_at marks the last successful sync.
 UPDATE decks
 SET name = $2, commander = $3, image_url = $4, updated_at = now()
 WHERE id = $1

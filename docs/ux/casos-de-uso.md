@@ -1,384 +1,398 @@
-# Casos de uso detallados
+# Detailed use cases
 
-Flujos de usuario paso a paso para las cinco operaciones centrales del
-producto: crear partida, unirse a una partida, trackear vida durante la
-partida, finalizar partida y ver estadísticas.
+Step-by-step user flows for the five core operations of the product: create
+a game, join a game, track life during the game, finish a game, and view
+statistics.
 
-**Cómo leer este documento:** para cada caso de uso se describen dos
-columnas — **"Hoy"** (lo que el código hace ahora mismo, verificado leyendo
+**How to read this document:** for each use case, two columns are
+described — **"Today"** (what the code does right now, verified by reading
 `backend/internal/games/service.go`, `backend/internal/game-actions/service.go`
-y las pantallas Android en `presentation/screens/`) y **"Objetivo"** (el flujo
-end-to-end completo, multi-dispositivo, que el ROADMAP prevé). **Actualizado
-2026-07-27**: Android ya no es 100% local — autentica de verdad
-(`LoginViewModel` contra `POST /auth/login`/`/auth/google`) y, desde
-`GameRepository.bootstrapRemoteGame()`, espeja **best-effort** el asiento
-local (asiento 1, el único con identidad server-side) contra el backend real:
-`POST /games` + `POST /games/{id}/join` + intento de `POST /games/{id}/start`
-al crear la partida, `POST /games/{id}/actions` en cada cambio de vida de ese
-asiento (`mirrorLifeChange`), y `POST /games/{id}/finish` al finalizar. Es
-"best-effort y aditivo" (comentario de `GameRepository.kt`): si falla (sin
-red, sin sesión, sin decks) o si la partida no llega a tener 2 jugadores
-unidos desde el backend, el tracker local sigue jugándose igual — el motivo
-se refleja en el banner de `GameTrackerScreen` (`RemoteSyncBanner`,
-`GameState.remoteSync`: `Disabled`/`WaitingForPlayers`/`Synced`/`Failed`), no
-bloquea nada. El daño de comandante (otros asientos) y todo lo demás sigue
-siendo puramente local — ver el detalle de qué se espeja y qué no en cada
-caso de uso abajo. Ver `docs/roadmap/TASKS.md`, Stage 4 y 5.
+and the Android screens in `presentation/screens/`) and **"Target"** (the
+full end-to-end, multi-device flow that the ROADMAP envisions). **Updated
+2026-07-27**: Android is no longer 100% local — it authenticates for real
+(`LoginViewModel` against `POST /auth/login`/`/auth/google`) and, from
+`GameRepository.bootstrapRemoteGame()`, mirrors **best-effort** the local
+seat (seat 1, the only one with server-side identity) against the real
+backend: `POST /games` + `POST /games/{id}/join` + an attempt at
+`POST /games/{id}/start` when creating the game, `POST /games/{id}/actions`
+on every life change for that seat (`mirrorLifeChange`), and
+`POST /games/{id}/finish` when finishing. It is "best-effort and additive"
+(comment from `GameRepository.kt`): if it fails (no network, no session, no
+decks) or if the game never reaches 2 players joined from the backend, the
+local tracker keeps being played all the same — the reason is reflected in
+the `GameTrackerScreen` banner (`RemoteSyncBanner`, `GameState.remoteSync`:
+`Disabled`/`WaitingForPlayers`/`Synced`/`Failed`), it doesn't block anything.
+Commander damage (other seats) and everything else remains purely local —
+see the detail of what is mirrored and what isn't in each use case below.
+See `docs/roadmap/TASKS.md`, Stage 4 and 5.
 
 ---
 
-## 1. Crear partida
+## 1. Create a game
 
-**Actor:** cualquier usuario (hoy: cualquiera con el dispositivo Android en
-la mano; objetivo: usuario autenticado).
+**Actor:** any user (today: anyone with the Android device in hand; target:
+authenticated user).
 
-### Hoy (Android, pass-and-play local + espejo best-effort del asiento 1)
+### Today (Android, local pass-and-play + best-effort mirror of seat 1)
 
-1. Usuario abre la app → `LoginRoute` → autentica de verdad: "INICIAR
-   SESIÓN" llama `LoginViewModel` → `POST /auth/login` (email/password), o
-   "Continuar con Google" → Credential Manager obtiene un `id_token` real →
-   `POST /auth/google`. Tokens guardados en `SessionManager` (DataStore). Solo
-   entonces navega a `DashboardRoute` (con `popUpTo(LoginRoute) { inclusive =
-   true }`). `DashboardScreen` también tiene un botón "Cerrar sesión"
-   (`DashboardViewModel.logout()`, revoca el refresh token best-effort).
-2. En `DashboardScreen`, toca **"NEW GAME"** → navega a `PlayerSetupRoute`.
-3. En `PlayerSetupScreen` (`PlayerSetupScreen.kt`):
-   - Elige la cantidad de jugadores con `FilterChip` (2 a 6, constantes
+1. User opens the app → `LoginRoute` → authenticates for real: "SIGN IN"
+   calls `LoginViewModel` → `POST /auth/login` (email/password), or
+   "Continue with Google" → Credential Manager obtains a real `id_token` →
+   `POST /auth/google`. Tokens are saved in `SessionManager` (DataStore).
+   Only then does it navigate to `DashboardRoute` (with
+   `popUpTo(LoginRoute) { inclusive = true }`). `DashboardScreen` also has a
+   "Sign out" button (`DashboardViewModel.logout()`, revokes the refresh
+   token best-effort).
+2. In `DashboardScreen`, taps **"NEW GAME"** → navigates to
+   `PlayerSetupRoute`.
+3. In `PlayerSetupScreen` (`PlayerSetupScreen.kt`):
+   - Chooses the number of players with `FilterChip` (2 to 6, constants
      `MIN_PLAYERS`/`MAX_PLAYERS`).
-   - Para cada jugador: nombre libre (`OutlinedTextField`, default
-     `"Jugador N"`) y color de entre la paleta WUBRG + incoloro
-     (`PlayerColorPalette`, swatches circulares).
-   - Toca **"EMPEZAR PARTIDA"**: se genera un `gameId` local con
-     `UUID.randomUUID()` (no es un ID del backend, no existe ninguna fila de
-     `games` en Postgres) y se codifican los `PlayerConfig` (nombre + color)
-     en un string (`encodePlayerConfigs`) que viaja como argumento de ruta.
-4. Navega a `PreGameRoute(gameId, playersEncoded)`.
-5. En `PreGameScreen` (`PreGameScreen.kt`):
-   - **Sorteo de turno**: botón "SORTEAR" elige un jugador al azar
-     (`Random.nextInt(configs.size)`) y lo resalta con su color; el resultado
-     (`startingSeat`) se propaga a la partida como badge "· empieza".
-   - **Mulligans**: contador ± por jugador (mínimo 0, sin tope superior) que
-     se guarda en cada `PlayerConfig.mulligans` antes de arrancar.
-   - Toca **"EMPEZAR PARTIDA"** de nuevo → navega a `GameTrackerRoute`,
-     haciendo `popUpTo(DashboardRoute)` (setup y pre-partida salen del
-     back stack).
-6. Al entrar a `GameTrackerScreen`, `GameViewModel.init` dispara dos cosas en
-   paralelo: `persistNewGame()` inserta en Room (Hilt `DatabaseModule`,
-   `GameDao`) un `GameEntity` con `status = "IN_PROGRESS"` y un
-   `PlayerResultEntity` por jugador (vida inicial 40, color, mulligans) —
-   esto es siempre local e incondicional; y `bootstrapRemoteGame()` (best-effort,
-   ver nota al principio del documento) llama `POST /games` y sienta al
-   asiento 1 (el usuario autenticado) con su primer deck vía
-   `POST /games/{id}/join`, intentando además `POST /games/{id}/start` (que
-   queda en `pending` con `409` si nadie más se unió desde el backend — no es
-   un error, ver `GameRepository.bootstrapRemoteGame`). Si el usuario no tiene
-   decks o falla la llamada, la partida se sigue jugando 100% local sin más
-   consecuencia que el banner de estado.
+   - For each player: free-text name (`OutlinedTextField`, default
+     `"Player N"`) and a color from the WUBRG + colorless palette
+     (`PlayerColorPalette`, circular swatches).
+   - Taps **"START GAME"**: a local `gameId` is generated with
+     `UUID.randomUUID()` (it is not a backend ID, no `games` row exists in
+     Postgres) and the `PlayerConfig` values (name + color) are encoded into
+     a string (`encodePlayerConfigs`) that travels as a route argument.
+4. Navigates to `PreGameRoute(gameId, playersEncoded)`.
+5. In `PreGameScreen` (`PreGameScreen.kt`):
+   - **Turn draw**: the "DRAW" button picks a random player
+     (`Random.nextInt(configs.size)`) and highlights them with their color;
+     the result (`startingSeat`) is propagated to the game as a "· starts"
+     badge.
+   - **Mulligans**: a ± counter per player (minimum 0, no upper cap) that is
+     saved in each `PlayerConfig.mulligans` before starting.
+   - Taps **"START GAME"** again → navigates to `GameTrackerRoute`, doing
+     `popUpTo(DashboardRoute)` (setup and pre-game leave the back stack).
+6. On entering `GameTrackerScreen`, `GameViewModel.init` triggers two things
+   in parallel: `persistNewGame()` inserts into Room (Hilt
+   `DatabaseModule`, `GameDao`) a `GameEntity` with `status = "IN_PROGRESS"`
+   and a `PlayerResultEntity` per player (starting life 40, color,
+   mulligans) — this is always local and unconditional; and
+   `bootstrapRemoteGame()` (best-effort, see note at the top of this
+   document) calls `POST /games` and seats seat 1 (the authenticated user)
+   with their first deck via `POST /games/{id}/join`, also attempting
+   `POST /games/{id}/start` (which stays `pending` with `409` if no one else
+   joined from the backend — this is not an error, see
+   `GameRepository.bootstrapRemoteGame`). If the user has no decks or the
+   call fails, the game keeps being played 100% local with no other
+   consequence than the status banner.
 
-### Objetivo (backend real, Stage 5)
+### Target (real backend, Stage 5)
 
-1. Un usuario autenticado (JWT Bearer) llama `POST /games` con
-   `playgroup_id` opcional (`games/service.go: CreateGame`). Se crea una fila
-   en `games` con `status = "pending"`, sin jugadores todavía.
-2. Cada jugador (incluido el creador) se une explícitamente vía
-   `POST /games/{id}/join` (ver caso de uso 2) — crear la partida y "sentarse"
-   en ella son dos pasos separados en el backend, a diferencia de hoy en
-   Android donde configurar jugadores y crear la partida es un solo paso.
-3. Cuando hay ≥ 2 jugadores unidos, alguien llama `POST /games/{id}/start`,
-   que transiciona `pending → active` (ver
+1. An authenticated user (JWT Bearer) calls `POST /games` with an optional
+   `playgroup_id` (`games/service.go: CreateGame`). A row is created in
+   `games` with `status = "pending"`, with no players yet.
+2. Each player (including the creator) joins explicitly via
+   `POST /games/{id}/join` (see use case 2) — creating the game and
+   "sitting down" in it are two separate steps in the backend, unlike today
+   in Android where configuring players and creating the game is a single
+   step.
+3. When there are ≥ 2 players joined, someone calls `POST /games/{id}/start`,
+   which transitions `pending → active` (see
    `docs/diagrams/game-state-machine.md`).
-4. En Android, esto reemplazaría el paso 3-4 de "Hoy": en vez de generar un
-   `gameId` local y codificar jugadores en la ruta, `PlayerSetupScreen`
-   llamaría a `POST /games` + N × `POST /games/{id}/join` (con el `deck_id`
-   de cada jugador autenticado) antes de navegar a `PreGameScreen`.
+4. In Android, this would replace step 3-4 of "Today": instead of
+   generating a local `gameId` and encoding players into the route,
+   `PlayerSetupScreen` would call `POST /games` + N × `POST /games/{id}/join`
+   (with the `deck_id` of each authenticated player) before navigating to
+   `PreGameScreen`.
 
-**Divergencia clave:** el backend modela "crear" y "unirse" como pasos
-distintos de una partida multi-usuario con autenticación y decks reales; hoy
-Android los colapsa en un único flujo de configuración local sin usuarios ni
-decks, porque todos los jugadores comparten el mismo dispositivo físico.
+**Key divergence:** the backend models "create" and "join" as separate steps
+of a multi-user game with authentication and real decks; today Android
+collapses them into a single local configuration flow with no users or
+decks, because all players share the same physical device.
 
 ---
 
-## 2. Unirse a una partida
+## 2. Join a game
 
-**Actor:** usuario autenticado con al menos un deck propio.
+**Actor:** authenticated user with at least one deck of their own.
 
-### Hoy (Android)
+### Today (Android)
 
-No existe como caso de uso independiente. "Unirse" en la práctica es
-agregar una fila más en la lista de jugadores de `PlayerSetupScreen` (subir
-el `FilterChip` de cantidad de 2 a 6) — no hay concepto de invitar, aceptar
-ni identidad de usuario por jugador. Todos los "jugadores" son simplemente
-nombres + colores tecleados por la persona que tiene el teléfono.
+It does not exist as an independent use case. "Joining" in practice is
+adding one more row to the player list in `PlayerSetupScreen` (raising the
+count `FilterChip` from 2 to 6) — there is no concept of inviting,
+accepting, or per-player user identity. All "players" are simply names +
+colors typed in by whoever is holding the phone.
 
-### Objetivo (backend real, `games/service.go: JoinGame`)
+### Target (real backend, `games/service.go: JoinGame`)
 
-1. Usuario autenticado llama `POST /games/{id}/join` con body `{ deck_id }`
-   (el `user_id` **no** va en el body — se toma siempre del JWT, para que
-   nadie pueda anotar jugadores a nombre de otro usuario).
-2. Validaciones server-side, en orden:
-   - La partida debe existir y estar en `status = "pending"` — si no, `409
+1. An authenticated user calls `POST /games/{id}/join` with body
+   `{ deck_id }` (the `user_id` does **not** go in the body — it is always
+   taken from the JWT, so that no one can enter players under another
+   user's name).
+2. Server-side validations, in order:
+   - The game must exist and be in `status = "pending"` — if not, `409
      "game is not accepting new players"`.
-   - El `deck_id` debe existir y pertenecer al usuario autenticado — si no
-     existe **o** es de otro usuario, `404 "deck not found"` en ambos casos
-     (no se distingue cuál, para no revelar decks ajenos por ID).
-   - El usuario no debe estar ya sentado en esa partida — si ya está, `409
-     "already joined this game"`.
-3. Si todo es válido, se crea una fila en `game_players` con vida inicial
-   (`life_total` default de esquema), y se puede seguir jugando/uniendo
-   mientras la partida siga en `pending`.
-4. Un jugador puede arrepentirse y llamar `POST /games/{id}/leave` mientras
-   la partida siga en `pending` (`LeaveGame`); una vez `active`, `409
-   "cannot leave a game that already started"`.
+   - The `deck_id` must exist and belong to the authenticated user — if it
+     doesn't exist **or** belongs to another user, `404 "deck not found"`
+     in both cases (no distinction is made, so as not to reveal other
+     users' decks by ID).
+   - The user must not already be seated in that game — if they already
+     are, `409 "already joined this game"`.
+3. If everything is valid, a row is created in `game_players` with starting
+   life (`life_total` default from the schema), and joining/playing can
+   continue while the game stays `pending`.
+4. A player can change their mind and call `POST /games/{id}/leave` while
+   the game stays `pending` (`LeaveGame`); once `active`, `409 "cannot leave
+   a game that already started"`.
 
-**Divergencia clave:** en el backend "unirse" implica autenticación +
-ownership de un deck concreto; en Android hoy no hay ni sesión ni deck
-asociado a cada jugador de la partida local.
+**Key divergence:** in the backend, "joining" implies authentication +
+ownership of a specific deck; in Android today there is neither a session
+nor a deck associated with each player in the local game.
 
 ---
 
-## 3. Trackear vida durante la partida
+## 3. Track life during the game
 
-**Actor:** cualquier jugador (hoy: quien toca la pantalla del dispositivo
-compartido; objetivo: cada jugador desde su propio dispositivo, sincronizado
-vía backend/Websocket).
+**Actor:** any player (today: whoever is touching the shared device's
+screen; target: each player from their own device, synchronized via
+backend/Websocket).
 
-### Hoy (Android, `GameTrackerScreen` + `GameViewModel` + `PlayerCard`)
+### Today (Android, `GameTrackerScreen` + `GameViewModel` + `PlayerCard`)
 
-1. `GameTrackerScreen` arma un grid dinámico: los jugadores se agrupan de a
-   2 por fila (`state.players.chunked(2)`), funciona igual para 2 que para 6
-   jugadores (ya no hay layout fijo a 4).
-2. **Contador de turno** en el header: botones `<`/`>` incrementan o
-   decrementan `state.currentTurn` (`GameViewModel.nextTurn/previousTurn`).
-   Es puramente local a la sesión, no se persiste como evento y no indica de
-   quién es el turno (solo un número global).
-3. **Vida** (`PlayerCard`): cada tarjeta muestra el nombre del jugador (con
-   sufijo "· empieza" si es `isStartingPlayer`), el badge de mulligans si
-   `mulligans > 0`, y el número de vida grande en el centro con botones
-   `-`/`+` que llaman `onLifeChange(-1)`/`onLifeChange(1)` →
-   `GameViewModel.adjustLife(playerId, amount)`. Cada ajuste dispara
+1. `GameTrackerScreen` builds a dynamic grid: players are grouped 2 per row
+   (`state.players.chunked(2)`), it works the same for 2 as for 6 players
+   (there is no longer a layout fixed to 4).
+2. **Turn counter** in the header: `<`/`>` buttons increment or decrement
+   `state.currentTurn` (`GameViewModel.nextTurn/previousTurn`). It is purely
+   local to the session, is not persisted as an event, and does not
+   indicate whose turn it is (just a single global number).
+3. **Life** (`PlayerCard`): each card shows the player's name (with a "·
+   starts" suffix if `isStartingPlayer`), the mulligan badge if
+   `mulligans > 0`, and the large life number in the center with `-`/`+`
+   buttons that call `onLifeChange(-1)`/`onLifeChange(1)` →
+   `GameViewModel.adjustLife(playerId, amount)`. Each adjustment triggers
    `checkForGameOver()`.
-4. **Daño de comandante**: tocar la tarjeta entera (`clickable` en el
-   `Surface`) alterna un overlay (`showCommanderDamage`) que muestra, en una
-   grilla de hasta 3 columnas, un ítem por cada **otro** jugador
-   (`otherPlayers`) con su color, el daño de comandante acumulado recibido de
-   ese atacante, y botones `-`/`+`. Subir el daño de un atacante también
-   resta esa misma cantidad de la vida total del jugador (`life = life -
-   amount` en `adjustCommanderDamage`) — es decir, "daño de comandante" no es
-   un contador aparte de la vida, sino una forma con memoria por-oponente de
-   restar vida.
-   - **Límite conocido**: el modelo (`PlayerState.commanderDamage: Map<Int,
-     Int>`) trackea daño acumulado por oponente pero no implementa la regla
-     de "21 de daño de comandante de una **misma fuente** elimina" —
-     simplemente resta vida; el jugador se elimina solo cuando su vida total
-     llega a 0 (igual límite que en el backend, ver abajo).
-5. Cada cambio de vida o de daño de comandante llama `checkForGameOver()`:
-   si queda exactamente 1 jugador con `life > 0` (y hay más de 1 jugador en
-   la partida), se finaliza automáticamente esa partida con ese jugador como
-   ganador (ver caso de uso 4).
-6. Todo vive en `_state: MutableState<GameState>` en memoria hasta que se
-   finaliza la partida (ver caso de uso 4); si el proceso muere antes de
-   finalizar, se pierde el estado de vida en curso (documentado como fuera de
-   alcance en `TASKS.md`). **Excepción real**: cada cambio de vida del
-   **asiento 1** (el usuario autenticado) sí genera una request —
-   `adjustLife` llama `mirrorLifeChange(amount)` →
-   `POST /games/{id}/actions` (`action_type: LifeChange`, sin `target_id`,
-   ver `GameRepository.recordLifeChange`) si la sesión remota está `active`;
-   si falla o no hay sesión activa, es no-op silencioso salvo actualizar el
-   banner de estado. Los demás asientos (2-6) y el daño de comandante de
-   **cualquier** asiento nunca se espejan (ver el comentario de
-   `adjustCommanderDamage` en `GameViewModel.kt`: atribuir ese daño al asiento
-   local como `actor_id` acreditaría `total_commander_damage_dealt` ajeno).
+4. **Commander damage**: tapping the whole card (`clickable` on the
+   `Surface`) toggles an overlay (`showCommanderDamage`) that shows, in a
+   grid of up to 3 columns, one item per **other** player (`otherPlayers`)
+   with their color, the accumulated commander damage received from that
+   attacker, and `-`/`+` buttons. Raising an attacker's damage also
+   subtracts that same amount from the player's total life (`life = life -
+   amount` in `adjustCommanderDamage`) — that is, "commander damage" is not
+   a counter separate from life, but a per-opponent-memory way of
+   subtracting life.
+   - **Known limitation**: the model (`PlayerState.commanderDamage: Map<Int,
+     Int>`) tracks accumulated damage per opponent but does not implement
+     the rule that "21 commander damage from a **single source** eliminates"
+     — it simply subtracts life; the player is only eliminated when their
+     total life reaches 0 (same limit as in the backend, see below).
+5. Every life change or commander damage change calls `checkForGameOver()`:
+   if exactly 1 player is left with `life > 0` (and there is more than 1
+   player in the game), that game is automatically finished with that
+   player as the winner (see use case 4).
+6. Everything lives in `_state: MutableState<GameState>` in memory until the
+   game is finished (see use case 4); if the process dies before finishing,
+   the in-progress life state is lost (documented as out of scope in
+   `TASKS.md`). **Real exception**: every life change for **seat 1** (the
+   authenticated user) does trigger a request — `adjustLife` calls
+   `mirrorLifeChange(amount)` → `POST /games/{id}/actions`
+   (`action_type: LifeChange`, no `target_id`, see
+   `GameRepository.recordLifeChange`) if the remote session is `active`; if
+   it fails or there is no active session, it is a silent no-op except for
+   updating the status banner. The other seats (2-6) and commander damage
+   from **any** seat are never mirrored (see the comment on
+   `adjustCommanderDamage` in `GameViewModel.kt`: attributing that damage to
+   the local seat as `actor_id` would credit someone else's
+   `total_commander_damage_dealt`).
 
-### Objetivo (backend real, `game-actions/service.go`)
+### Target (real backend, `game-actions/service.go`)
 
-1. Cada cambio de vida/daño se registraría como
-   `POST /games/{id}/actions` con `{ actor_id, target_id?, action_type,
-   payload: { amount } }`, donde `actor_id`/`target_id` son IDs de
-   `game_players` de **esa** partida (no `user_id`), y `action_type` es uno
-   de: `LifeChange`, `CombatDamage`, `CommanderDamage`, `PoisonCounter`,
-   `TurnStart`, `TurnEnd`, `Elimination`.
-2. El backend valida que la partida esté `active` (`409` si no) y que
-   actor/target pertenezcan a esa partida (`404` si no), y **muta el estado
-   real** del jugador afectado, no solo registra el evento en un log:
-   - `LifeChange` ajusta `life_total` en cualquier signo.
-   - `CombatDamage`/`CommanderDamage` restan de `life_total` (mismo efecto
-     hoy — el esquema no distingue el origen del daño de comandante por
-     jugador, así que **tampoco el backend implementa todavía** la regla de
-     21 de una sola fuente; ver `applyAction` en `game-actions/service.go`,
-     comentado explícitamente como límite conocido).
-   - `PoisonCounter` ajusta `poison_counters`.
-   - `TurnStart`/`TurnEnd` quedan como marcadores de solo-log (el esquema de
-     `games` no tiene columna de "de quién es el turno actual" todavía).
-   - **Auto-eliminación server-side**: si tras un ajuste `life_total <= 0` o
-     `poison_counters >= 10`, el jugador se marca `is_eliminated = true`
-     automáticamente (reglas estándar de Commander) — equivalente a lo que
-     hoy Android decide localmente al chequear `life > 0`.
-3. `GET /games/{id}/actions` expone el timeline completo, ordenado
-   cronológicamente, para reconstruir la partida (usado también por
-   `statistics.RecalculateForGame`, ver caso de uso 5).
-4. Retransmitir estos eventos en tiempo real a todos los dispositivos
-   sentados en la partida es Stage 6 (Websocket): el servidor
-   (`internal/websocket/`) ya retransmite las 7 acciones vía
-   `GET /api/v1/ws/games/{id}` (ver [ADR-0005](../decisions/0005-websocket-protocol.md));
-   lo que falta es el cliente Android que se conecte a ese socket — hoy el
-   espejo del asiento local (arriba) es solo REST unidireccional, sin
-   suscripción a los cambios de otros jugadores.
+1. Every life/damage change would be recorded as `POST /games/{id}/actions`
+   with `{ actor_id, target_id?, action_type, payload: { amount } }`, where
+   `actor_id`/`target_id` are `game_players` IDs from **that** game (not
+   `user_id`), and `action_type` is one of: `LifeChange`, `CombatDamage`,
+   `CommanderDamage`, `PoisonCounter`, `TurnStart`, `TurnEnd`,
+   `Elimination`.
+2. The backend validates that the game is `active` (`409` if not) and that
+   actor/target belong to that game (`404` if not), and **mutates the real
+   state** of the affected player, not just logs the event:
+   - `LifeChange` adjusts `life_total` in either sign.
+   - `CombatDamage`/`CommanderDamage` subtract from `life_total` (same
+     effect as today — the schema does not distinguish the origin of
+     commander damage per player, so **the backend does not yet implement
+     either** the rule of 21 from a single source; see `applyAction` in
+     `game-actions/service.go`, explicitly commented as a known
+     limitation).
+   - `PoisonCounter` adjusts `poison_counters`.
+   - `TurnStart`/`TurnEnd` remain log-only markers (the `games` schema has
+     no column yet for "whose turn it currently is").
+   - **Server-side auto-elimination**: if after an adjustment
+     `life_total <= 0` or `poison_counters >= 10`, the player is
+     automatically marked `is_eliminated = true` (standard Commander rules)
+     — equivalent to what Android decides locally today by checking
+     `life > 0`.
+3. `GET /games/{id}/actions` exposes the full timeline, ordered
+   chronologically, to reconstruct the game (also used by
+   `statistics.RecalculateForGame`, see use case 5).
+4. Rebroadcasting these events in real time to every device seated in the
+   game is Stage 6 (Websocket): the server (`internal/websocket/`) already
+   rebroadcasts the 7 actions via `GET /api/v1/ws/games/{id}` (see
+   [ADR-0005](../decisions/0005-websocket-protocol.md)); what's missing is
+   the Android client that connects to that socket — today the local seat's
+   mirror (above) is REST-only, one-way, with no subscription to other
+   players' changes.
 
-**Divergencia clave:** hoy la vida vive solo en memoria del dispositivo que
-la está tocando, sin registro de acciones individuales ni de quién causó
-cada cambio; el backend ya tiene un motor completo de acciones auditable
-por jugador, pero ninguna pantalla de Android lo llama todavía.
-
----
-
-## 4. Finalizar partida
-
-**Actor:** cualquier jugador presente (hoy); el backend no distingue quién
-puede finalizar (cualquier request autenticada a ese endpoint puede hacerlo,
-no hay un rol de "host").
-
-### Hoy (Android, `GameViewModel.finishGame`)
-
-1. Dos disparadores posibles:
-   - **Automático**: `checkForGameOver()` detecta que queda 1 solo jugador
-     con `life > 0` tras cualquier cambio de vida/daño, y llama
-     `finishGame(winnerId = alive.first().id)` directamente.
-   - **Manual**: el jugador toca **"Finalizar"** en el header →
-     `showFinishConfirm = true` → `AlertDialog` de confirmación ("Se
-     registrará la vida actual de cada jugador en el historial") → confirmar
-     llama `finishGame()` sin `winnerId` explícito.
-2. Si se finaliza manualmente sin ganador claro, `finishGame` resuelve el
-   ganador como el jugador con más vida entre los que tienen `life > 0`,
-   **solo si es único** (`count { it.life == player.life } == 1`); si hay
-   empate en el máximo (2+ jugadores con la misma vida más alta) o todos
-   están a 0 o menos, `winnerId = null` → la partida queda "sin ganador".
-3. Se marca `isFinished = true` y se dispara `persistGameResult`: en Room,
-   `gameDao.finishGame(gameId, status = "FINISHED", endTime = now)` y, por
-   cada jugador, `updatePlayerResult(gameId, seatIndex, finalLife, won =
-   (id == winnerId))`.
-4. Se muestra un `AlertDialog` final: título "¡{ganador} gana!" o "Partida
-   finalizada" si no hay ganador, y el detalle de vida final de cada
-   jugador. "Volver al inicio" hace `onFinish()` →
-   `navController.popBackStack(DashboardRoute, inclusive = false)`.
-   En paralelo, `finishRemoteGame()` llama `POST /games/{id}/finish` sobre la
-   sesión remota si estaba `active` (best-effort, mismo criterio que el resto
-   del espejo) — esto es lo que dispara el recálculo real de estadísticas del
-   lado del backend para el asiento 1, aunque la UI de Android no muestre
-   ese resultado todavía (ver caso de uso 5).
-5. Una vez `isFinished = true`, tanto `adjustLife` como
-   `adjustCommanderDamage` y `finishGame` vuelven a ejecutarse como no-op (se
-   chequea `if (_state.value.isFinished) return` al principio) — la partida
-   queda congelada.
-
-### Objetivo (backend real, `games/service.go: FinishGame`)
-
-1. `POST /games/{id}/finish` solo es válido si la partida está `active` —
-   `409 "only an active game can be finished"` en cualquier otro estado
-   (incluido intentar finalizar una ya finalizada).
-2. A diferencia de Android, el endpoint **no recibe un ganador explícito**:
-   la partida pasa a `status = "finished"` con `finished_at` seteado, y
-   quién ganó se **deriva después**, en `statistics.RecalculateForGame`
-   (disparado automáticamente dentro de la misma transacción lógica de
-   `FinishGame`, vía la interfaz `StatisticsRecalculator`), usando el mismo
-   criterio de "único sobreviviente no eliminado" (`is_eliminated = false`)
-   — si hay 2+ sobrevivientes porque la partida se cortó a mano antes de
-   llegar a 1, no se acredita victoria a nadie, aunque sí se cuenta
-   `games_played` para todos los participantes.
-3. Este recálculo también actualiza `user_statistics_summary` y
-   `deck_statistics_summary` (daño infligido, vida máxima alcanzada, etc.),
-   que es la base del caso de uso 5.
-
-**Divergencia clave:** Android decide el ganador **en el cliente**, en el
-momento de finalizar, con una regla algo distinta (máxima vida con empate
-como "sin ganador", en vez de único sobreviviente no eliminado); el backend
-lo decide **en el servidor**, después de finalizar, con la regla de "único
-sobreviviente". Ambas reglas coinciden en el caso común (queda 1 jugador con
-vida > 0) pero pueden divergir en partidas cortadas a mano con más de un
-jugador vivo.
+**Key divergence:** today life lives only in the memory of the device that
+is touching it, with no record of individual actions or of who caused each
+change; the backend already has a full auditable action engine per player,
+but no Android screen calls it yet.
 
 ---
 
-## 5. Ver estadísticas
+## 4. Finish a game
 
-**Actor:** cualquier usuario (objetivo); en Android hoy no hay concepto de
-usuario, solo de dispositivo.
+**Actor:** any player present (today); the backend does not distinguish who
+can finish (any authenticated request to that endpoint can do it, there is
+no "host" role).
 
-### Hoy (Android, `HistoryScreen` + `HistoryViewModel`)
+### Today (Android, `GameViewModel.finishGame`)
 
-1. Desde `DashboardScreen`, botón **"HISTORIAL"** → `HistoryRoute`.
-2. `HistoryViewModel` expone `gameDao.getGamesWithPlayers()` como
-   `StateFlow<List<GameWithPlayers>>` — **es historial de partidas locales
-   de este dispositivo, no estadísticas agregadas** (no hay winrate, no hay
-   totales de daño, no hay gráficos).
-3. Por cada partida (`GameHistoryCard`): fecha/hora de inicio formateada,
-   estado ("Finalizada" / "En curso"), nombre del ganador si lo hay (o la
-   cantidad de jugadores si no), y una fila con el color + nombre + vida
-   final de cada jugador ordenados por asiento, con sufijo `(Nm)` si tuvo
+1. Two possible triggers:
+   - **Automatic**: `checkForGameOver()` detects that only 1 player is left
+     with `life > 0` after any life/damage change, and calls
+     `finishGame(winnerId = alive.first().id)` directly.
+   - **Manual**: the player taps **"Finish"** in the header →
+     `showFinishConfirm = true` → confirmation `AlertDialog` ("Each
+     player's current life will be recorded in the history") → confirming
+     calls `finishGame()` with no explicit `winnerId`.
+2. If finished manually without a clear winner, `finishGame` resolves the
+   winner as the player with the most life among those with `life > 0`,
+   **only if unique** (`count { it.life == player.life } == 1`); if there
+   is a tie at the maximum (2+ players with the same highest life) or
+   everyone is at 0 or below, `winnerId = null` → the game is left "without
+   a winner".
+3. `isFinished = true` is set and `persistGameResult` is triggered: in
+   Room, `gameDao.finishGame(gameId, status = "FINISHED", endTime = now)`
+   and, for each player, `updatePlayerResult(gameId, seatIndex, finalLife,
+   won = (id == winnerId))`.
+4. A final `AlertDialog` is shown: title "{winner} wins!" or "Game finished"
+   if there is no winner, and the final life detail for each player. "Back
+   to home" does `onFinish()` →
+   `navController.popBackStack(DashboardRoute, inclusive = false)`. In
+   parallel, `finishRemoteGame()` calls `POST /games/{id}/finish` on the
+   remote session if it was `active` (best-effort, same criterion as the
+   rest of the mirror) — this is what triggers the actual statistics
+   recalculation on the backend side for seat 1, even though the Android UI
+   doesn't show that result yet (see use case 5).
+5. Once `isFinished = true`, both `adjustLife` and `adjustCommanderDamage`
+   and `finishGame` go back to being no-ops (`if
+   (_state.value.isFinished) return` is checked at the start) — the game
+   stays frozen.
+
+### Target (real backend, `games/service.go: FinishGame`)
+
+1. `POST /games/{id}/finish` is only valid if the game is `active` — `409
+   "only an active game can be finished"` in any other state (including
+   trying to finish one that's already finished).
+2. Unlike Android, the endpoint **does not receive an explicit winner**: the
+   game transitions to `status = "finished"` with `finished_at` set, and
+   who won is **derived afterward**, in `statistics.RecalculateForGame`
+   (triggered automatically within the same logical transaction as
+   `FinishGame`, via the `StatisticsRecalculator` interface), using the
+   same "single non-eliminated survivor" criterion (`is_eliminated =
+   false`) — if there are 2+ survivors because the game was cut short
+   manually before reaching 1, no one is credited with a win, although
+   `games_played` is still counted for all participants.
+3. This recalculation also updates `user_statistics_summary` and
+   `deck_statistics_summary` (damage dealt, highest life reached, etc.),
+   which is the basis for use case 5.
+
+**Key divergence:** Android decides the winner **on the client**, at the
+moment of finishing, with a somewhat different rule (highest life, with a
+tie counted as "no winner"), instead of "single non-eliminated survivor";
+the backend decides it **on the server**, after finishing, with the
+"single survivor" rule. Both rules agree in the common case (1 player left
+with life > 0) but can diverge in games cut short manually with more than
+one player still alive.
+
+---
+
+## 5. View statistics
+
+**Actor:** any user (target); in Android today there is no concept of user,
+only of device.
+
+### Today (Android, `HistoryScreen` + `HistoryViewModel`)
+
+1. From `DashboardScreen`, the **"HISTORY"** button → `HistoryRoute`.
+2. `HistoryViewModel` exposes `gameDao.getGamesWithPlayers()` as
+   `StateFlow<List<GameWithPlayers>>` — **it is local game history for this
+   device, not aggregated statistics** (no win rate, no damage totals, no
+   charts).
+3. For each game (`GameHistoryCard`): formatted start date/time, status
+   ("Finished" / "In progress"), winner's name if there is one (or the
+   number of players if not), and a row with the color + name + final life
+   of each player ordered by seat, with a `(Nm)` suffix if they had
    mulligans.
-4. Si no hay partidas guardadas, se muestra el mensaje "Todavía no hay
-   partidas registradas".
-5. **No existe ninguna pantalla de estadísticas agregadas en Android hoy**
-   (por usuario, por deck o por grupo) — es historial crudo partida por
-   partida, y además está atado a Room local: si se desinstala la app o se
-   cambia de dispositivo, se pierde.
+4. If there are no saved games, the message "No games recorded yet" is
+   shown.
+5. **There is no aggregated statistics screen in Android today** (per user,
+   per deck, or per group) — it is raw game-by-game history, and it is also
+   tied to local Room: if the app is uninstalled or the device is changed,
+   it is lost.
 
-### Objetivo (backend real, `internal/statistics`)
+### Target (real backend, `internal/statistics`)
 
-Tres endpoints ya implementados y con tests de integración, pero **sin
-ninguna pantalla de Android que los consuma todavía** — a diferencia de los
-casos de uso 1-4, esto no está bloqueado por falta de conexión al backend
-(Android ya habla con `games`/`game-actions`, ver arriba): es simplemente que
-todavía no existe una pantalla que llame `CommanderApi.getUserStats`/
-`getDeckStats`/`getPlaygroupStats` (los tres métodos ya están en la interfaz,
-ver Stage 4 de `TASKS.md`), ni un `StatisticsRepository`. El cliente web
-(Nuxt) sí los consume ya: `app/pages/statistics.vue` (usuario/deck) y
-`app/pages/playgroups/{index,[id]}.vue` (por grupo):
+Three endpoints already implemented and with integration tests, but **with
+no Android screen consuming them yet** — unlike use cases 1-4, this is not
+blocked by a lack of backend connection (Android already talks to
+`games`/`game-actions`, see above): it is simply that there is not yet a
+screen that calls `CommanderApi.getUserStats`/`getDeckStats`/
+`getPlaygroupStats` (all three methods are already in the interface, see
+Stage 4 of `TASKS.md`), nor a `StatisticsRepository`. The web client (Nuxt)
+already consumes them: `app/pages/statistics.vue` (user/deck) and
+`app/pages/playgroups/{index,[id]}.vue` (per group):
 
 - `GET /statistics/user/{id}`: `games_played`, `games_won`,
-  `total_damage_dealt`, `total_commander_damage_dealt`, `total_eliminations`
-  acumulados de todas las partidas finalizadas del usuario. Si el usuario
-  nunca terminó una partida, devuelve ceros (no `404`).
-- `GET /statistics/deck/{id}`: lo mismo por deck, más
-  `highest_life_total_achieved` (recalculado repitiendo el log de acciones
-  desde el baseline de 40, no solo el `life_total` final). Requiere
-  ownership del deck (404 si no es del usuario autenticado).
-- `GET /statistics/playgroup/{id}`: agregación **en vivo** (no hay tabla de
-  resumen por grupo) sobre las partidas finalizadas de ese playgroup:
-  partidas jugadas/ganadas por miembro, mismo criterio de "único
-  sobreviviente" para el ganador.
-- **Límite conocido documentado en el backend**: `total_eliminations` solo
-  cuenta acciones `Elimination` explícitas con un target distinto del
-  actor — las auto-eliminaciones por vida/veneno (la forma más común de
-  terminar en Commander) no quedan atribuidas a un actor específico en el
-  log, así que no suman a las estadísticas de eliminaciones de nadie.
+  `total_damage_dealt`, `total_commander_damage_dealt`,
+  `total_eliminations` accumulated from all of the user's finished games.
+  If the user never finished a game, it returns zeros (not `404`).
+- `GET /statistics/deck/{id}`: the same per deck, plus
+  `highest_life_total_achieved` (recalculated by replaying the action log
+  from the baseline of 40, not just the final `life_total`). Requires
+  ownership of the deck (404 if it does not belong to the authenticated
+  user).
+- `GET /statistics/playgroup/{id}`: **live** aggregation (there is no
+  summary table per group) over that playgroup's finished games: games
+  played/won per member, using the same "single survivor" criterion for
+  the winner.
+- **Known limitation documented in the backend**: `total_eliminations` only
+  counts explicit `Elimination` actions with a target different from the
+  actor — auto-eliminations from life/poison (the most common way to end a
+  Commander game) are not attributed to a specific actor in the log, so
+  they don't add to anyone's elimination statistics.
 
-**Divergencia clave:** "ver estadísticas" hoy en Android es en realidad "ver
-historial local de partidas" (sin agregación, sin usuario, sin red); el
-backend ya tiene motor de estadísticas agregadas reales por usuario/deck/
-grupo, y Android ya lo llama para otros fines (games/game-actions), pero
-todavía no existe la pantalla ni el repositorio que consuman
-`/statistics/*` — pendiente en Stage 7, ya no bloqueado por Stage 5 (que en
-la práctica ya se resolvió parcialmente vía el espejo best-effort).
+**Key divergence:** "viewing statistics" today in Android is actually
+"viewing local game history" (no aggregation, no user, no network); the
+backend already has a real aggregated statistics engine per user/deck/
+group, and Android already calls it for other purposes (games/game-actions),
+but there is still no screen or repository that consumes `/statistics/*` —
+pending in Stage 7, no longer blocked by Stage 5 (which in practice has
+already been partially resolved via the best-effort mirror).
 
 ---
 
-## Resumen de la brecha Android ↔ Backend
+## Summary of the Android ↔ Backend gap
 
-| Caso de uso | Backend (`internal/games`, `internal/game-actions`, `internal/statistics`) | Android (hoy) |
+| Use case | Backend (`internal/games`, `internal/game-actions`, `internal/statistics`) | Android (today) |
 |---|---|---|
-| Crear partida | `POST /games` → `pending`, multi-usuario, requiere auth | Local (`gameId` = UUID aleatorio) **+** espejo best-effort: `POST /games`+`join`+`start` para el asiento marcado "Soy yo" |
-| Unirse | `POST /games/{id}/join`, ownership de deck, scoping por `pending` | No existe UI de invitar/unirse: "unirse" en la UI = agregar un jugador más en el setup local; el único `join` real es el automático del asiento local (elegido en `PlayerSetupScreen`, con su deck) en el bootstrap |
-| Trackear vida | `POST /games/{id}/actions`, timeline auditable, auto-eliminación server-side | En memoria (`GameViewModel`) para todos los asientos; **solo el asiento local** también espeja `LifeChange` vía `POST /games/{id}/actions` |
-| Finalizar | `POST /games/{id}/finish`, solo desde `active`, ganador derivado post-hoc | Ganador decidido en el cliente **+** `POST /games/{id}/finish` best-effort para la sesión remota del asiento local |
-| Ver estadísticas | `GET /statistics/{user,deck,playgroup}/{id}`, agregados reales | `HistoryScreen`: historial crudo de Room, sin agregación; sin pantalla ni repositorio para `/statistics/*` todavía (el cliente web sí los consume) |
+| Create game | `POST /games` → `pending`, multi-user, requires auth | Local (`gameId` = random UUID) **+** best-effort mirror: `POST /games`+`join`+`start` for the seat marked "This is me" |
+| Join | `POST /games/{id}/join`, deck ownership, scoped to `pending` | No invite/join UI exists: "joining" in the UI = adding one more player in the local setup; the only real `join` is the automatic one for the local seat (chosen in `PlayerSetupScreen`, with its deck) during bootstrap |
+| Track life | `POST /games/{id}/actions`, auditable timeline, server-side auto-elimination | In memory (`GameViewModel`) for all seats; **only the local seat** also mirrors `LifeChange` via `POST /games/{id}/actions` |
+| Finish | `POST /games/{id}/finish`, only from `active`, winner derived post-hoc | Winner decided on the client **+** best-effort `POST /games/{id}/finish` for the local seat's remote session |
+| View statistics | `GET /statistics/{user,deck,playgroup}/{id}`, real aggregates | `HistoryScreen`: raw Room history, no aggregation; no screen or repository for `/statistics/*` yet (the web client does consume them) |
 
-La brecha que queda no es "Android no habla con el backend" (ya lo hace,
-best-effort, para el asiento local) sino: (1) sincronización en vivo de lo que
-hacen **otros** dispositivos/jugadores en la misma partida — requiere el
-cliente WebSocket de Stage 6, que consume un protocolo ya implementado del
-lado servidor ([ADR-0005](../decisions/0005-websocket-protocol.md)); y (2) una
-pantalla de estadísticas en Android. La selección de deck y de "qué asiento
-soy yo" (antes hardcodeada al asiento 1 + primer deck del usuario) ya es
-explícita en `PlayerSetupScreen` (2026-07-28). Ver `docs/roadmap/TASKS.md`,
-Stage 4/5/6, para el detalle pieza por pieza.
+The gap that remains is not "Android doesn't talk to the backend" (it
+already does, best-effort, for the local seat) but rather: (1) live
+synchronization of what **other** devices/players in the same game are
+doing — this requires the Stage 6 WebSocket client, which consumes a
+protocol already implemented on the server side
+([ADR-0005](../decisions/0005-websocket-protocol.md)); and (2) a
+statistics screen in Android. Deck selection and "which seat am I" (formerly
+hardcoded to seat 1 + the user's first deck) is now explicit in
+`PlayerSetupScreen` (2026-07-28). See `docs/roadmap/TASKS.md`, Stage 4/5/6,
+for the piece-by-piece detail.

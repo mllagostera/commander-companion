@@ -1,14 +1,14 @@
 import type { AuthUser } from '../../utils/backend'
 
 /**
- * Alta de usuario nuevo.
+ * New user sign-up.
  *
- * `POST /auth/register` de la API Go crea la cuenta sin verificar el email y manda un
- * mail de confirmación (ver internal/users/service.go: RegisterUser). Ya no encadenamos
- * un login automático: hasta no verificar, `POST /auth/login` responde 403 (ver
- * login.post.ts), así que dejar la sesión iniciada acá solo produciría una sesión que
- * el resto de la API rechazaría igual. El cliente muestra un "revisá tu email" en vez
- * de navegar al dashboard.
+ * The Go API's `POST /auth/register` creates the account without verifying the email and
+ * sends a confirmation email (see internal/users/service.go: RegisterUser). We no longer
+ * chain an automatic login: until verified, `POST /auth/login` responds 403 (see
+ * login.post.ts), so leaving a session started here would just produce a session that
+ * the rest of the API would reject anyway. The client shows a "check your email" instead
+ * of navigating to the dashboard.
  */
 export default defineEventHandler(async (event) => {
   const body = await readBody<{

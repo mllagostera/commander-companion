@@ -1,12 +1,12 @@
 import type { AuthUser } from '../../utils/backend'
 
 /**
- * Devuelve el usuario de la sesión actual, o `{ user: null }` si no hay
- * ninguna. Nunca falla con 401: es el endpoint que consulta el plugin de
- * hidratación en cada carga, y un 401 ahí solo generaría ruido.
+ * Returns the current session's user, or `{ user: null }` if there isn't
+ * one. Never fails with 401: it's the endpoint the hydration plugin queries
+ * on every load, and a 401 there would just generate noise.
  *
- * Si el access token expiró, `backendFetch` lo renueva de forma transparente
- * con el refresh token y actualiza las cookies.
+ * If the access token expired, `backendFetch` transparently renews it
+ * with the refresh token and updates the cookies.
  */
 export default defineEventHandler(async (event) => {
   const hasTokens =

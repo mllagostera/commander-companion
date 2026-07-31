@@ -8,9 +8,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Acceso a los grupos de juego (`playgroups`) del usuario autenticado. Usado por el modo
- * Grupo de `PlayerSetupScreen`: elegir un grupo, asignar sus miembros a los asientos, y ver
- * los decks de un compañero para un proxy-join (ver ADR-0013 del backend).
+ * Access to the authenticated user's play groups (`playgroups`). Used by `PlayerSetupScreen`'s
+ * Group mode: choosing a group, assigning its members to seats, and viewing a
+ * teammate's decks for a proxy-join (see the backend's ADR-0013).
  */
 @Singleton
 class PlaygroupRepository @Inject constructor(

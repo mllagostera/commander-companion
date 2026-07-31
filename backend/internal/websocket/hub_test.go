@@ -7,9 +7,9 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/websocket"
 )
 
-// fakeConn implementa websocket.Conn sin abrir ningún socket real, para poder probar
-// el Hub de forma puramente en memoria (no necesita Postgres ni una conexión de red,
-// a diferencia de los tests de integración de otros módulos en internal/testutil).
+// fakeConn implements websocket.Conn without opening any real socket, so the Hub
+// can be tested purely in memory (it doesn't need Postgres or a network connection,
+// unlike the integration tests of other modules in internal/testutil).
 type fakeConn struct {
 	mu       sync.Mutex
 	received [][]byte
@@ -69,7 +69,7 @@ func TestHub_RegisterAndBroadcast_DeliversToSameRoomOnly(t *testing.T) {
 func TestHub_Broadcast_UnknownGameID_IsNoop(t *testing.T) {
 	hub := websocket.NewHub()
 
-	// No debe entrar en pánico ni error al broadcastear a una sala que nunca existió.
+	// Must not panic or error when broadcasting to a room that never existed.
 	hub.Broadcast("no-such-game", []byte("hello"))
 
 	if size := hub.RoomSize("no-such-game"); size != 0 {
@@ -104,8 +104,8 @@ func TestHub_Unregister_UnknownConn_IsNoop(t *testing.T) {
 
 	hub.Register("game-a", registered)
 
-	// Desregistrar una conexión que nunca estuvo en la sala no debe afectar a las que
-	// sí lo están.
+	// Unregistering a connection that was never in the room must not affect the ones
+	// that are.
 	hub.Unregister("game-a", other)
 
 	if size := hub.RoomSize("game-a"); size != 1 {
@@ -148,7 +148,7 @@ func TestHub_CloseRoom_ClosesAllConnectionsAndRemovesRoom(t *testing.T) {
 		t.Fatalf("RoomSize(\"game-a\") tras CloseRoom = %d, want 0", size)
 	}
 
-	// Broadcastear a una sala ya cerrada no debe hacer nada (ni entrar en pánico).
+	// Broadcasting to an already closed room must do nothing (and not panic).
 	hub.Broadcast("game-a", []byte("too-late"))
 	if got := conn1.messages(); len(got) != 0 {
 		t.Fatalf("messages() tras CloseRoom = %q, want none", got)

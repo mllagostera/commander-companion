@@ -1,6 +1,6 @@
 package gameactions
 
-// CreateActionRequest es el payload para registrar una acción de partida.
+// CreateActionRequest is the payload for recording a game action.
 type CreateActionRequest struct {
 	ActorID    string                 `json:"actor_id"`
 	TargetID   string                 `json:"target_id,omitempty"`
@@ -8,7 +8,7 @@ type CreateActionRequest struct {
 	Payload    map[string]interface{} `json:"payload,omitempty"`
 }
 
-// GameActionResponse es el DTO de una acción de partida enviado al cliente.
+// GameActionResponse is the DTO of a game action sent to the client.
 type GameActionResponse struct {
 	ID         string                 `json:"id"`
 	GameID     string                 `json:"game_id"`

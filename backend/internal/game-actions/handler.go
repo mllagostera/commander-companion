@@ -6,23 +6,23 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// Handler contiene las dependencias del transporte HTTP para game-actions.
+// Handler holds the HTTP transport dependencies for game-actions.
 type Handler struct {
 	svc Service
 }
 
-// NewHandler inicializa y retorna un nuevo Handler.
+// NewHandler initializes and returns a new Handler.
 func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo game-actions.
+// RegisterRoutes registers all the endpoints of the game-actions module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/games/:id/actions", h.CreateAction)
 	router.Get("/games/:id/timeline", h.GetTimeline)
 }
 
-// CreateAction registra una nueva acción dentro de una partida.
+// CreateAction records a new action within a game.
 func (h *Handler) CreateAction(c *fiber.Ctx) error {
 	var req CreateActionRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -37,7 +37,7 @@ func (h *Handler) CreateAction(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// GetTimeline devuelve el historial de acciones de una partida.
+// GetTimeline returns the action history of a game.
 func (h *Handler) GetTimeline(c *fiber.Ctx) error {
 	res, err := h.svc.GetTimeline(c.Context(), c.Params("id"))
 	if err != nil {

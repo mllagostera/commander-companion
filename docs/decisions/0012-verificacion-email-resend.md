@@ -1,145 +1,145 @@
-# ADR-0012: Verificación de email en el registro con Resend
+# ADR-0012: Email verification at registration with Resend
 
-**Estado:** Aceptada e implementada (2026-07-28)
+**Status:** Accepted and implemented (2026-07-28)
 
-## Contexto
+## Context
 
-`POST /auth/register` creaba la cuenta con cualquier email, sin comprobar que
-quien se registra sea dueño de esa casilla, y el BFF de Nuxt encadenaba un
-login automático que dejaba la sesión iniciada de una. No había ninguna
-librería de envío de mail en el backend.
+`POST /auth/register` created the account with any email, without checking that
+the person registering actually owns that mailbox, and the Nuxt BFF chained an
+automatic login that left the session already started. There was no mail
+sending library in the backend at all.
 
-Hacía falta: (1) confirmar el email antes de dejar operar la cuenta por
-password, igual que cualquier registro estándar, y (2) un proveedor de mail
-transaccional cuyos mails no terminen en spam.
+What was needed: (1) confirm the email before letting the account operate via
+password, just like any standard registration, and (2) a transactional mail
+provider whose emails don't end up in spam.
 
-## Decisión
+## Decision
 
-### Modelo de datos
+### Data model
 
-- `users.email_verified boolean NOT NULL DEFAULT true` (migración
-  `00011_email_verification.sql`). Default `true` para no tener que migrar
-  usuarios existentes ni tocar `CreateUserWithGoogle`: Google ya confirma el
-  email en su propio `id_token` (ver [ADR-0002](0002-google-sign-in.md)), así
-  que solo el alta por email/password (`CreateUser`) fuerza `false`
-  explícitamente.
-- `email_verification_tokens`, mismo patrón que `refresh_tokens`
-  ([ADR-0001](0001-auth-jwt-refresh-token-strategy.md)): solo se persiste el
-  hash SHA-256 del token, nunca el valor en claro; TTL de 24h; uso único
+- `users.email_verified boolean NOT NULL DEFAULT true` (migration
+  `00011_email_verification.sql`). Defaults to `true` so as not to have to migrate
+  existing users nor touch `CreateUserWithGoogle`: Google already confirms the
+  email in its own `id_token` (see [ADR-0002](0002-google-sign-in.md)), so
+  only sign-up via email/password (`CreateUser`) forces `false`
+  explicitly.
+- `email_verification_tokens`, same pattern as `refresh_tokens`
+  ([ADR-0001](0001-auth-jwt-refresh-token-strategy.md)): only the SHA-256 hash of
+  the token is persisted, never the plaintext value; 24h TTL; single use
   (`used_at`).
-- `LinkGoogleID` (vincular una cuenta de Google a una cuenta email/password
-  existente) también marca `email_verified = true`: en ese punto
-  `FindOrCreateGoogleUser` ya comprobó que Google confirma ese email, así que
-  una cuenta todavía no confirmada queda verificada por esa vía también.
+- `LinkGoogleID` (linking a Google account to an existing email/password
+  account) also marks `email_verified = true`: at that point
+  `FindOrCreateGoogleUser` has already confirmed that Google verifies that email, so
+  an account not yet confirmed becomes verified through that path too.
 
-### Política de login: bloqueado hasta verificar
+### Login policy: blocked until verified
 
-`users.VerifyCredentials` (de la que depende `auth.Login`) devuelve
-`ErrEmailNotConfirmed` (`403`) si el password es correcto pero
-`email_verified` es `false`. Es un código distinto de `ErrInvalidCredentials`
-(`401`) porque acá ya se probó que la contraseña es correcta — el cliente usa
-el `403` para ofrecer "reenviar verificación" en vez de un genérico "revisá
-tus credenciales".
+`users.VerifyCredentials` (which `auth.Login` depends on) returns
+`ErrEmailNotConfirmed` (`403`) if the password is correct but
+`email_verified` is `false`. This is a different code from `ErrInvalidCredentials`
+(`401`) because at this point the password has already been proven correct — the client uses
+the `403` to offer "resend verification" instead of a generic "check
+your credentials."
 
-Se consideró la alternativa de dejar entrar con un banner "verificá tu
-email" y restringir alguna acción puntual, pero no hay ninguna acción hoy
-que tenga sentido restringir a medias, y bloquear el login es el patrón más
-simple de razonar sobre el modelo de JWT actual.
+The alternative of letting the user in with a "verify your
+email" banner and restricting some specific action was considered, but there is no
+action today that makes sense to restrict halfway, and blocking login is the
+simplest pattern to reason about with the current JWT model.
 
-`web/server/api/auth/register.post.ts` deja de encadenar un login automático
-tras registrar (el login fallaría con `403` igual): la pantalla de registro
-muestra un "revisá tu email" en vez de navegar al dashboard.
+`web/server/api/auth/register.post.ts` no longer chains an automatic login
+after registering (the login would fail with `403` anyway): the registration
+screen shows a "check your email" message instead of navigating to the dashboard.
 
-### Flag `REQUIRE_EMAIL_VERIFICATION` (default `false` en fase alpha)
+### `REQUIRE_EMAIL_VERIFICATION` flag (default `false` in alpha phase)
 
-El proyecto está en fase alpha: no tiene sentido ni gastar el envío de mail
-ni bloquear el login por esto todavía. `config.Config.RequireEmailVerification`
-(env var `REQUIRE_EMAIL_VERIFICATION`, default `false`) controla todo el
-comportamiento de arriba desde `users.NewService`:
+The project is in alpha phase: it doesn't make sense to spend on sending mail
+or to block login for this yet. `config.Config.RequireEmailVerification`
+(env var `REQUIRE_EMAIL_VERIFICATION`, default `false`) controls all of the
+above behavior from `users.NewService`:
 
-- En `false` (default), `RegisterUser` crea la cuenta con `email_verified =
-  true` de entrada y **ni genera el token ni llama al `Mailer`** — no
-  paga el costo de un envío que nadie va a exigir. `VerifyCredentials` no
-  necesita ningún caso especial: la cuenta ya está verificada, así que el
-  login anda de una.
-- En `true`, es el flujo completo descripto arriba (token, mail, `403` hasta
-  confirmar).
+- When `false` (default), `RegisterUser` creates the account with `email_verified =
+  true` from the start and **neither generates the token nor calls the `Mailer`** — it does not
+  pay the cost of a send that nobody will require. `VerifyCredentials` needs no
+  special case: the account is already verified, so
+  login works right away.
+- When `true`, it's the full flow described above (token, mail, `403` until
+  confirmed).
 
-Cuando el proyecto salga de alpha, se prende con `REQUIRE_EMAIL_VERIFICATION=true`
-sin tocar código.
+When the project comes out of alpha, it gets turned on with `REQUIRE_EMAIL_VERIFICATION=true`
+without touching any code.
 
-### Proveedor: Resend, con templates de dashboard (no HTML en el backend)
+### Provider: Resend, with dashboard templates (no HTML in the backend)
 
-Se eligió **Resend** por su API HTTP simple y buen deliverability por
-defecto para un proyecto de este tamaño.
+**Resend** was chosen for its simple HTTP API and good default deliverability
+for a project of this size.
 
-El contenido del mail (asunto, copy, layout) vive en un **Template** del
-dashboard de Resend, no en el backend: `internal/email` solo llama a
-`POST https://api.resend.com/emails` con `template: { id, variables }`
-(`USERNAME`, `VERIFY_URL`), sin una línea de HTML/texto en Go.
+The email content (subject, copy, layout) lives in a **Template** in the
+Resend dashboard, not in the backend: `internal/email` just calls
+`POST https://api.resend.com/emails` with `template: { id, variables }`
+(`USERNAME`, `VERIFY_URL`), without a single line of HTML/text in Go.
 
-**Salvedad, verificada contra un issue abierto de Resend**
+**Caveat, verified against an open Resend issue**
 ([resend/react-email#3247](https://github.com/resend/react-email/issues/3247),
-sin fix a la fecha de esta decisión): mandar por la REST API un template
-cuya variable esté dentro de un `href` (botón/link) rompe la URL en el envío
-real — el botón "Send test" del dashboard no reproduce el bug, así que
-engaña. Por eso el template debe mostrar `VERIFY_URL` como **texto plano
-visible**, no como botón: la mayoría de los clientes de mail auto-linkean
-URLs sueltas igual, así que el link sigue siendo cliqueable. Si Resend
-arregla el bug más adelante, se puede volver a un botón sin tocar el
-backend — es un cambio solo del template.
+unfixed as of this decision): sending a template via the REST API where a
+variable is inside an `href` (button/link) breaks the URL in the actual
+send — the "Send test" button in the dashboard doesn't reproduce the bug, so
+it's misleading. That's why the template must display `VERIFY_URL` as
+**visible plain text**, not as a button: most mail
+clients auto-link bare URLs anyway, so the link is still clickable. If Resend
+fixes the bug later, it's possible to switch back to a button without touching the
+backend — it's a template-only change.
 
-### Modo consola sin cuenta de Resend
+### Console mode without a Resend account
 
-`email.NewResendClient` devuelve un mailer que solo hace `log.Printf` del
-link de verificación cuando `RESEND_API_KEY` está vacío. Así
-`docker-compose up` (y los tests) siguen funcionando sin que nadie necesite
-una cuenta de Resend para desarrollar en local.
+`email.NewResendClient` returns a mailer that just does a `log.Printf` of
+the verification link when `RESEND_API_KEY` is empty. This way
+`docker-compose up` (and the tests) keep working without anyone needing
+a Resend account to develop locally.
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **SendGrid / Amazon SES**: descartados por preferencia del usuario del
-  proyecto (cuenta de Resend ya existente) y porque SES requiere más
-  configuración manual de dominio/reputación para salir de modo sandbox.
-- **HTML armado en el backend** (`html`/`text` directos en el POST a
-  Resend, sin `template`): evita por completo el bug de `href` mencionado
-  arriba, pero implica versionar el copy del mail en el repo en vez del
-  dashboard de Resend, que es donde el usuario del proyecto prefiere
-  mantenerlo. Se descartó a favor de templates de dashboard + link como
-  texto plano.
-- **Límite de reenvío por email** (además del rate limit por IP existente):
-  se descartó por alcance — el rate limit por IP de 20 req/min que ya
-  protege todos los endpoints públicos de auth
-  (`cmd/api/main.go: newAuthRateLimiter`) alcanza para este cambio; no hay
-  hoy un caso de abuso documentado que lo justifique.
+- **SendGrid / Amazon SES**: ruled out due to the project owner's preference
+  (an existing Resend account) and because SES requires more
+  manual domain/reputation configuration to get out of sandbox mode.
+- **HTML built in the backend** (`html`/`text` directly in the POST to
+  Resend, without `template`): completely avoids the `href` bug
+  mentioned above, but means versioning the email copy in the repo instead of the
+  Resend dashboard, which is where the project owner prefers
+  to keep it. Ruled out in favor of dashboard templates + link as
+  plain text.
+- **Per-email resend limit** (in addition to the existing per-IP rate limit):
+  ruled out as out of scope — the 20 req/min per-IP rate limit that already
+  protects all public auth endpoints
+  (`cmd/api/main.go: newAuthRateLimiter`) is enough for this change; there is no
+  documented abuse case today that would justify it.
 
-## Consecuencias
+## Consequences
 
-- **Paso manual pendiente, fuera del código**: para que los mails no caigan
-  en spam hace falta verificar un dominio propio en el dashboard de Resend
-  (genera los registros SPF/DKIM/DMARC a agregar en el DNS del dominio), y
-  crear ahí el Template de verificación (variables `USERNAME` y
-  `VERIFY_URL`, publicado, `VERIFY_URL` como texto plano) — ver
-  `docs/roadmap/TASKS.md`, sección Auth — verificación de email.
-- Sin `RESEND_API_KEY`/`EMAIL_FROM`/`RESEND_VERIFY_EMAIL_TEMPLATE_ID`
-  configurados, el registro sigue funcionando end-to-end en local (modo
-  consola), pero no manda mails reales.
-- Con `REQUIRE_EMAIL_VERIFICATION=false` (default), toda esta feature queda
-  construida pero inactiva: la columna, la tabla de tokens y los endpoints
-  `/auth/verify-email`/`/auth/resend-verification` siguen ahí, pero ninguna
-  cuenta nueva los necesita. Hay que acordarse de prender el flag (y de tener
-  el dominio/template de Resend listos) antes de salir de alpha — queda
-  anotado en `docs/roadmap/TASKS.md`.
+- **Pending manual step, outside the code**: for emails not to land
+  in spam, a proper domain needs to be verified in the Resend dashboard
+  (it generates the SPF/DKIM/DMARC records to add to the domain's DNS), and
+  the verification Template needs to be created there (variables `USERNAME` and
+  `VERIFY_URL`, published, `VERIFY_URL` as plain text) — see
+  `docs/roadmap/TASKS.md`, Auth — email verification section.
+- Without `RESEND_API_KEY`/`EMAIL_FROM`/`RESEND_VERIFY_EMAIL_TEMPLATE_ID`
+  configured, registration keeps working end-to-end locally (console
+  mode), but doesn't send real emails.
+- With `REQUIRE_EMAIL_VERIFICATION=false` (default), this entire feature stays
+  built but inactive: the column, the tokens table, and the
+  `/auth/verify-email`/`/auth/resend-verification` endpoints are still there, but no
+  new account needs them. Remember to turn on the flag (and to have
+  the Resend domain/template ready) before leaving alpha — noted
+  in `docs/roadmap/TASKS.md`.
 
-## Referencias
+## References
 
-- Fuente de referencia del Template de Resend (se pega tal cual en el dashboard,
+- Reference source for the Resend Template (pasted as-is into the dashboard,
   Templates → Create template → From code): `0012-verify-email-template.html`
-- Implementación: `backend/internal/email/resend.go`,
+- Implementation: `backend/internal/email/resend.go`,
   `backend/internal/users/service.go` (`RegisterUser`, `VerifyEmail`,
   `ResendVerification`)
-- Migración: `backend/migrations/00011_email_verification.sql`
-- Ver también [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (mismo
-  patrón de token opaco + hash SHA-256) y
-  [ADR-0002](0002-google-sign-in.md) (por qué las cuentas de Google ya
-  quedan verificadas de alta)
+- Migration: `backend/migrations/00011_email_verification.sql`
+- See also [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (same
+  opaque token + SHA-256 hash pattern) and
+  [ADR-0002](0002-google-sign-in.md) (why Google accounts already
+  end up verified through that path)

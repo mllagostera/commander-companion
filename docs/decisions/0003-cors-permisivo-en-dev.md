@@ -1,51 +1,51 @@
-# ADR-0003: CORS abierto por defecto, restringible por variable de entorno
+# ADR-0003: CORS open by default, restrictable via environment variable
 
-**Estado:** Aceptada e implementada (2026-07-26)
+**Status:** Accepted and implemented (2026-07-26)
 
-## Contexto
+## Context
 
-El backend no tenía middleware de CORS. Mientras el único cliente fue Android
-(que no está sujeto a same-origin policy) esto no era un problema, pero dejó
-de serlo en cuanto apareció el primer cliente basado en navegador:
-`tools/auth-test/` (herramienta de test manual del flujo de auth) y, a
-futuro, el cliente Nuxt (ver [ADR-0004](0004-web-client-nuxt.md)).
+The backend had no CORS middleware. While the only client was Android
+(which is not subject to same-origin policy), this wasn't a problem, but it
+stopped being one as soon as the first browser-based client appeared:
+`tools/auth-test/` (a manual test tool for the auth flow) and, in the
+future, the Nuxt client (see [ADR-0004](0004-web-client-nuxt.md)).
 
-## Decisión
+## Decision
 
-Se agrega `github.com/gofiber/fiber/v2/middleware/cors`, con los orígenes
-permitidos leídos de `CORS_ALLOWED_ORIGINS` (lista separada por comas). Si la
-variable está vacía, **por defecto se permite cualquier origen (`*`)**.
+`github.com/gofiber/fiber/v2/middleware/cors` is added, with allowed
+origins read from `CORS_ALLOWED_ORIGINS` (a comma-separated list). If the
+variable is empty, **any origin is allowed by default (`*`)**.
 
-Esto es seguro porque la API **nunca usa cookies** para autenticación — todo
-es Bearer token en el header `Authorization`, que un origen malicioso no
-puede leer ni adjuntar automáticamente a requests cross-site como sí pasaría
-con cookies. Un `Access-Control-Allow-Origin: *` no expone nada que un
-atacante no pudiera obtener igual haciendo el request server-to-server
-(la API ya está pensada para ser pública/consumida por múltiples clientes).
+This is safe because the API **never uses cookies** for authentication —
+everything is a Bearer token in the `Authorization` header, which a
+malicious origin can't read or automatically attach to cross-site requests
+the way it could with cookies. An `Access-Control-Allow-Origin: *` doesn't
+expose anything an attacker couldn't obtain the same way by making a
+server-to-server request (the API is already designed to be public/consumed
+by multiple clients).
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **Lista blanca obligatoria desde el día 1**: más "seguro" en apariencia,
-  pero en la práctica solo agrega fricción de configuración en dev/testing
-  (cada nuevo puerto de servidor estático local requeriría tocar la env var)
-  sin mitigar un riesgo real, dado que no hay cookies de por medio.
-- **Reflejar el `Origin` recibido dinámicamamente sin lista**: equivalente en
-  la práctica a `*` para este caso (sin credentials), pero más código para el
-  mismo resultado.
+- **Mandatory whitelist from day one**: apparently "safer", but in practice
+  only adds configuration friction in dev/testing (every new local static
+  server port would require touching the env var) without mitigating a
+  real risk, given that no cookies are involved.
+- **Dynamically reflecting the received `Origin` without a list**:
+  equivalent in practice to `*` for this case (without credentials), but
+  more code for the same result.
 
-## Consecuencias
+## Consequences
 
-- En cualquier entorno que no sea desarrollo local, hay que setear
-  `CORS_ALLOWED_ORIGINS` explícitamente a los orígenes reales (el dominio del
-  cliente Nuxt en producción, etc.) — el default abierto es intencionalmente
-  solo para dev.
-- Si en el futuro se agrega autenticación basada en cookies (por ejemplo, un
-  refresh token en una cookie `HttpOnly` para el cliente web), esta decisión
-  hay que revisarla: `AllowOrigins: "*"` es incompatible con
-  `AllowCredentials: true` por especificación CORS, y en ese escenario sí
-  haría falta una lista blanca real.
+- In any environment other than local development, `CORS_ALLOWED_ORIGINS`
+  must be set explicitly to the real origins (the Nuxt client's domain in
+  production, etc.) — the open default is intentionally only for dev.
+- If cookie-based authentication is added in the future (for example, a
+  refresh token in an `HttpOnly` cookie for the web client), this decision
+  will need to be revisited: `AllowOrigins: "*"` is incompatible with
+  `AllowCredentials: true` per the CORS specification, and in that scenario
+  a real whitelist would indeed be needed.
 
-## Referencias
+## References
 
-- Implementación: `backend/cmd/api/main.go` (`corsAllowedOrigins`)
+- Implementation: `backend/cmd/api/main.go` (`corsAllowedOrigins`)
 - `backend/.env.example`

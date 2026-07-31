@@ -11,24 +11,24 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// authMessageTimeout es cuánto espera el servidor, tras aceptar el upgrade, a que
-// llegue el primer mensaje ({"type":"auth","token":"..."}) antes de cerrar la conexión.
+// authMessageTimeout is how long the server waits, after accepting the upgrade, for
+// the first message ({"type":"auth","token":"..."}) to arrive before closing the connection.
 const authMessageTimeout = 10 * time.Second
 
 const authMessageType = "auth"
 
-// authMessage es el único mensaje que el servidor espera recibir de un cliente: el
-// primero, y siempre con este formato (ver ADR-0005, sección de autenticación).
+// authMessage is the only message the server expects to receive from a client: the
+// first one, and always in this format (see ADR-0005, authentication section).
 type authMessage struct {
 	Type  string `json:"type"`
 	Token string `json:"token"`
 }
 
-// RegisterRoutes registra la ruta de WebSocket para sincronización en vivo de
-// partidas. A diferencia del resto de la API, esta ruta es pública (no lleva
-// auth.RequireAuth): el handshake HTTP de upgrade lo hace el propio navegador, que no
-// puede adjuntar el header Authorization, así que la autenticación ocurre en un mensaje
-// posterior a la conexión (ver ADR-0005).
+// RegisterRoutes registers the WebSocket route for live game
+// synchronization. Unlike the rest of the API, this route is public (it doesn't carry
+// auth.RequireAuth): the HTTP upgrade handshake is done by the browser itself, which
+// can't attach the Authorization header, so authentication happens in a message
+// sent after the connection is established (see ADR-0005).
 func RegisterRoutes(router fiber.Router, hub *Hub, jwtSecret []byte) {
 	router.Use("/ws/games/:id", func(c *fiber.Ctx) error {
 		if !fiberws.IsWebSocketUpgrade(c) {
@@ -45,8 +45,8 @@ func RegisterRoutes(router fiber.Router, hub *Hub, jwtSecret []byte) {
 	}))
 }
 
-// handleConnection maneja el ciclo de vida completo de una conexión WebSocket:
-// autenticación, registro en el Hub, y lectura/escritura hasta que se desconecta.
+// handleConnection handles the full lifecycle of a WebSocket connection:
+// authentication, registration in the Hub, and reading/writing until it disconnects.
 func handleConnection(hub *Hub, jwtSecret []byte, gameID string, conn *fiberws.Conn) {
 	userID, ok := authenticate(conn, jwtSecret, gameID)
 	if !ok {
@@ -67,9 +67,9 @@ func handleConnection(hub *Hub, jwtSecret []byte, gameID string, conn *fiberws.C
 	client.readLoop()
 }
 
-// authenticate espera el mensaje inicial de auth y valida el JWT que trae. Devuelve el
-// user ID y true si es válido; si no, ya dejó escrito en el socket un Envelope de tipo
-// error y un close frame de política violada (código 1008), y devuelve false.
+// authenticate waits for the initial auth message and validates the JWT it carries. Returns
+// the user ID and true if it's valid; otherwise it has already written an error-type
+// Envelope and a policy-violation close frame (code 1008) to the socket, and returns false.
 func authenticate(conn *fiberws.Conn, jwtSecret []byte, gameID string) (userID string, ok bool) {
 	if err := conn.SetReadDeadline(time.Now().Add(authMessageTimeout)); err != nil {
 		return "", false
@@ -99,9 +99,9 @@ func authenticate(conn *fiberws.Conn, jwtSecret []byte, gameID string) (userID s
 	return userID, true
 }
 
-// rejectAuth envía un Envelope de error seguido de un close frame de política violada
-// (RFC 6455 1008). Los errores de escritura se ignoran deliberadamente: si el socket ya
-// está roto, el llamador va a cerrarlo igual.
+// rejectAuth sends an error Envelope followed by a policy-violation close frame
+// (RFC 6455 1008). Write errors are deliberately ignored: if the socket is already
+// broken, the caller is going to close it anyway.
 func rejectAuth(conn *fiberws.Conn, gameID, reason string) {
 	_ = conn.WriteMessage(fiberws.TextMessage, errEnvelope(gameID, reason))
 	deadline := time.Now().Add(authMessageTimeout)

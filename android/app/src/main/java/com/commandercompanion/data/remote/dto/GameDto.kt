@@ -4,11 +4,11 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * DTOs de `/games`, siguiendo los schemas `Game`/`GamePlayer`/`CreateGameRequest`/`JoinGameRequest`
- * de `docs/api/openapi.yaml`.
+ * DTOs for `/games`, following the `Game`/`GamePlayer`/`CreateGameRequest`/`JoinGameRequest`
+ * schemas from `docs/api/openapi.yaml`.
  */
 
-/** Estados de la máquina `pending → active → finished` que aplica el backend server-side. */
+/** States of the `pending → active → finished` state machine applied by the backend server-side. */
 object GameStatus {
     const val PENDING = "pending"
     const val ACTIVE = "active"
@@ -44,10 +44,10 @@ data class CreateGameRequest(
 )
 
 /**
- * Sin [userId] (o si coincide con el usuario autenticado): join normal, el jugador es el
- * propio caller. Con [userId] distinto: proxy-join (ver ADR-0013 del backend) — el caller
- * une a otro usuario en su nombre; solo autorizado si ambos comparten el playgroup de la
- * partida, y [deckId] debe pertenecer a [userId], no al caller.
+ * Without [userId] (or if it matches the authenticated user): normal join, the player is the
+ * caller itself. With a different [userId]: proxy-join (see the backend's ADR-0013) — the
+ * caller joins another user on their behalf; only authorized if both share the game's
+ * playgroup, and [deckId] must belong to [userId], not the caller.
  */
 @Serializable
 data class JoinGameRequest(

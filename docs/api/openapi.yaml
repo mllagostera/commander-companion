@@ -2,10 +2,10 @@ openapi: 3.1.0
 info:
   title: Commander Companion API
   version: 0.1.0
-  description: API para la aplicación Commander Companion.
+  description: API for the Commander Companion application.
 servers:
   - url: http://localhost:8080/api/v1
-    description: Servidor de desarrollo
+    description: Development server
 components:
   securitySchemes:
     bearerAuth:
@@ -18,8 +18,8 @@ components:
       name: cursor
       required: false
       description: >-
-        Cursor opaco devuelto como `next_cursor` por la página anterior. Se
-        devuelve tal cual, sin interpretarlo. Omitirlo pide la primera página.
+        Opaque cursor returned as `next_cursor` by the previous page. It is
+        returned as-is, without interpreting it. Omitting it requests the first page.
       schema:
         type: string
     LimitParam:
@@ -27,8 +27,8 @@ components:
       name: limit
       required: false
       description: >-
-        Cantidad máxima de elementos por página. Por encima del máximo se recorta
-        en silencio.
+        Maximum number of items per page. Above the maximum it is silently
+        clamped.
       schema:
         type: integer
         minimum: 1
@@ -55,9 +55,9 @@ components:
         has_password:
           type: boolean
           description: >-
-            false = cuenta creada vía Google Sign-In, sin password propio. Los
-            clientes lo usan para decidir si mostrar el flujo de cambiar
-            contraseña (POST /users/{id}/password lo rechaza en estas cuentas).
+            false = account created via Google Sign-In, with no password of its
+            own. Clients use this to decide whether to show the change password
+            flow (POST /users/{id}/password rejects it for these accounts).
     UserSearchResult:
       type: object
       properties:
@@ -67,8 +67,8 @@ components:
         username:
           type: string
       description: >-
-        A diferencia de User, deliberadamente sin email: esto se muestra sobre
-        resultados de OTROS usuarios (ver GET /users/search).
+        Unlike User, deliberately without email: this is shown for results
+        about OTHER users (see GET /users/search).
     RegisterRequest:
       type: object
       required: [username, email, password]
@@ -87,11 +87,11 @@ components:
         username:
           type: string
           description: >-
-            Nuevo username de login/perfil (distinto del de Moxfield). Si se
-            omite, no se toca. 409 si ya está en uso por otra cuenta.
+            New login/profile username (different from the Moxfield one). If
+            omitted, it is left unchanged. 409 if already in use by another account.
         moxfield_username:
           type: string
-          description: Username de Moxfield a vincular al perfil (sin validar contra Moxfield).
+          description: Moxfield username to link to the profile (not validated against Moxfield).
     ChangePasswordRequest:
       type: object
       required: [current_password, new_password]
@@ -119,7 +119,7 @@ components:
       properties:
         token:
           type: string
-          description: Token de verificación recibido por mail (query param `token` del link).
+          description: Verification token received by email (query param `token` from the link).
     ResendVerificationRequest:
       type: object
       required: [email]
@@ -133,7 +133,7 @@ components:
       properties:
         id_token:
           type: string
-          description: id_token emitido por Google Identity Services en el cliente.
+          description: id_token issued by Google Identity Services on the client.
     RefreshRequest:
       type: object
       required: [refresh_token]
@@ -158,7 +158,7 @@ components:
           example: Bearer
         expires_in:
           type: integer
-          description: Segundos hasta que expira el access_token.
+          description: Seconds until the access_token expires.
         user:
           $ref: '#/components/schemas/User'
     Deck:
@@ -181,8 +181,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Art crop de la carta principal del deck (normalmente el
-            comandante), tomado de Moxfield en el import/resync.
+            Art crop of the deck's main card (usually the commander), taken
+            from Moxfield during import/resync.
     DeckListResponse:
       type: object
       required: [items, next_cursor]
@@ -195,8 +195,8 @@ components:
           type: string
           nullable: true
           description: >-
-            Cursor a pasar como query param `cursor` para pedir la página
-            siguiente. Es null en la última página.
+            Cursor to pass as the `cursor` query param to request the next
+            page. It is null on the last page.
     CreateDeckRequest:
       type: object
       required: [name, commander]
@@ -215,7 +215,7 @@ components:
       properties:
         moxfield_id:
           type: string
-          description: ID público del deck en Moxfield, o su URL completa.
+          description: Public deck ID on Moxfield, or its full URL.
     SyncResponse:
       type: object
       required: [status, deck, last_synced_at]
@@ -224,10 +224,10 @@ components:
           type: string
           enum: [updated, unchanged, synced, never_synced]
           description: >-
-            En POST /sync/moxfield: `updated` si Moxfield traía cambios,
-            `unchanged` si no. En GET /sync/status: `synced` si el deck tiene un
-            sync previo registrado, `never_synced` si se importó y nunca se
-            re-sincronizó.
+            In POST /sync/moxfield: `updated` if Moxfield had changes,
+            `unchanged` if not. In GET /sync/status: `synced` if the deck has a
+            previously recorded sync, `never_synced` if it was imported and
+            never re-synced.
         deck:
           $ref: '#/components/schemas/Deck'
         last_synced_at:
@@ -235,8 +235,8 @@ components:
           format: date-time
           nullable: true
           description: >-
-            Momento del último sync exitoso. Es null solo cuando el deck se
-            importó y nunca se re-sincronizó.
+            Time of the last successful sync. It is null only when the deck
+            was imported and never re-synced.
     MoxfieldImportJob:
       type: object
       required: [id, moxfield_username, status, imported_count, failed_count]
@@ -252,7 +252,7 @@ components:
         total_decks:
           type: integer
           nullable: true
-          description: Cantidad de decks públicos encontrados para este username. Null hasta resolverse.
+          description: Number of public decks found for this username. Null until resolved.
         imported_count:
           type: integer
         failed_count:
@@ -273,13 +273,13 @@ components:
         total_decks:
           type: integer
           description: >-
-            Cantidad de decks del usuario con moxfield_id que se van a
-            resincronizar. Conocido desde la creación del job (a diferencia de
-            MoxfieldImportJob.total_decks, acá no hace falta consultar Moxfield
-            para saberlo).
+            Number of the user's decks with moxfield_id that are going to be
+            resynced. Known from job creation (unlike
+            MoxfieldImportJob.total_decks, here there is no need to query
+            Moxfield to know it).
         updated_count:
           type: integer
-          description: Decks procesados sin error (con o sin cambios reales en Moxfield).
+          description: Decks processed without error (with or without real changes on Moxfield).
         failed_count:
           type: integer
         error_message:
@@ -291,7 +291,7 @@ components:
       properties:
         url:
           type: string
-          description: URL completa del deck en Moxfield (https://moxfield.com/decks/{id}) o solo el ID público.
+          description: Full deck URL on Moxfield (https://moxfield.com/decks/{id}) or just the public ID.
     Game:
       type: object
       properties:
@@ -317,7 +317,7 @@ components:
           type: string
           format: uuid
           nullable: true
-          description: De quién es el turno ahora (game_players.id). Null hasta el primer TurnStart.
+          description: Whose turn it is now (game_players.id). Null until the first TurnStart.
         players:
           type: array
           items:
@@ -334,15 +334,15 @@ components:
           type: string
           nullable: true
           description: >-
-            Cursor a pasar como query param `cursor` para pedir la página
-            siguiente. Es null en la última página.
+            Cursor to pass as the `cursor` query param to request the next
+            page. It is null on the last page.
     CreateGameRequest:
       type: object
       properties:
         playgroup_id:
           type: string
           format: uuid
-          description: Opcional; asocia la partida a un grupo de juego existente.
+          description: Optional; associates the game with an existing playgroup.
     JoinGameRequest:
       type: object
       required: [deck_id]
@@ -351,18 +351,18 @@ components:
           type: string
           format: uuid
           description: >-
-            Debe pertenecer al usuario que se sienta (el autenticado, o
-            user_id si se indica).
+            Must belong to the user who is sitting down (the authenticated
+            one, or user_id if specified).
         user_id:
           type: string
           format: uuid
           description: >-
-            Opcional. Proxy-join (ver ADR-0013): el usuario autenticado une a
-            OTRO usuario en su nombre. Solo permitido si la partida tiene
-            playgroup_id y ambos son miembros de ese mismo grupo; en ese caso
-            deck_id debe pertenecer a user_id, no al caller. Omitido (o igual
-            al usuario autenticado), es un join normal — sin cambios de
-            comportamiento.
+            Optional. Proxy-join (see ADR-0013): the authenticated user joins
+            ANOTHER user on their behalf. Only allowed if the game has a
+            playgroup_id and both are members of that same playgroup; in that
+            case deck_id must belong to user_id, not the caller. If omitted
+            (or equal to the authenticated user), it is a normal join — no
+            change in behavior.
     GamePlayer:
       type: object
       properties:
@@ -453,7 +453,7 @@ components:
         user_id:
           type: string
           format: uuid
-          description: Debe ser un usuario existente; quien invita debe ya ser miembro del grupo.
+          description: Must be an existing user; the one inviting must already be a member of the group.
     UserStatsResponse:
       type: object
       properties:
@@ -492,7 +492,7 @@ components:
           format: uuid
         games_played:
           type: integer
-          description: Partidas finalizadas asociadas a este grupo.
+          description: Finished games associated with this playgroup.
         members:
           type: array
           items:
@@ -521,7 +521,7 @@ security:
 paths:
   /auth/register:
     post:
-      summary: Registrar usuario
+      summary: Register user
       security: []
       requestBody:
         required: true
@@ -531,32 +531,32 @@ paths:
               $ref: '#/components/schemas/RegisterRequest'
       responses:
         '201':
-          description: Usuario registrado
+          description: User registered
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
         '400':
-          description: Datos inválidos
+          description: Invalid data
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Username o email ya registrados
+          description: Username or email already registered
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
-          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          description: Too many authentication requests from this IP (rate limit per IP)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /auth/verify-email:
     post:
-      summary: Confirmar la cuenta a partir del token de verificación mandado por mail
+      summary: Confirm the account using the verification token sent by email
       security: []
       requestBody:
         required: true
@@ -566,25 +566,26 @@ paths:
               $ref: '#/components/schemas/VerifyEmailRequest'
       responses:
         '204':
-          description: Email verificado
+          description: Email verified
         '400':
-          description: Token inválido, ya usado o vencido
+          description: Invalid, already used, or expired token
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
-          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          description: Too many authentication requests from this IP (rate limit per IP)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /auth/resend-verification:
     post:
-      summary: Reenviar el mail de verificación de cuenta
+      summary: Resend the account verification email
       description: >-
-        Siempre responde 204, exista o no el email, y esté o no ya verificado (no revela
-        nada, mismo criterio anti-enumeración que /auth/login).
+        Always responds 204, whether or not the email exists, and whether or
+        not it is already verified (reveals nothing, same anti-enumeration
+        criteria as /auth/login).
       security: []
       requestBody:
         required: true
@@ -594,16 +595,16 @@ paths:
               $ref: '#/components/schemas/ResendVerificationRequest'
       responses:
         '204':
-          description: Solicitud aceptada (no implica que se haya mandado un mail nuevo)
+          description: Request accepted (does not imply a new email was sent)
         '429':
-          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          description: Too many authentication requests from this IP (rate limit per IP)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /auth/login:
     post:
-      summary: Iniciar sesión con email y password
+      summary: Log in with email and password
       security: []
       requestBody:
         required: true
@@ -613,32 +614,32 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Login exitoso
+          description: Successful login
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenResponse'
         '401':
-          description: Credenciales inválidas, o la cuenta usa Google sign-in
+          description: Invalid credentials, or the account uses Google sign-in
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Credenciales correctas pero el email todavía no fue confirmado
+          description: Correct credentials but the email has not yet been confirmed
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
-          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          description: Too many authentication requests from this IP (rate limit per IP)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /auth/google:
     post:
-      summary: Iniciar sesión (o registrarse) con Google
+      summary: Log in (or register) with Google
       security: []
       requestBody:
         required: true
@@ -648,32 +649,32 @@ paths:
               $ref: '#/components/schemas/GoogleLoginRequest'
       responses:
         '200':
-          description: Login exitoso; se crea la cuenta o se vincula a una existente si hace falta
+          description: Successful login; the account is created or linked to an existing one if needed
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenResponse'
         '400':
-          description: id_token faltante, inválido o con email no verificado
+          description: Missing or invalid id_token, or with an unverified email
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '501':
-          description: Google sign-in no está configurado en el servidor (falta GOOGLE_CLIENT_ID)
+          description: Google sign-in is not configured on the server (missing GOOGLE_CLIENT_ID)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
-          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          description: Too many authentication requests from this IP (rate limit per IP)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /auth/refresh:
     post:
-      summary: Refrescar token
+      summary: Refresh token
       security: []
       requestBody:
         required: true
@@ -683,26 +684,26 @@ paths:
               $ref: '#/components/schemas/RefreshRequest'
       responses:
         '200':
-          description: Token renovado (el refresh token anterior queda revocado)
+          description: Token renewed (the previous refresh token is revoked)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenResponse'
         '401':
-          description: Refresh token inválido, expirado o ya revocado
+          description: Invalid, expired, or already revoked refresh token
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
-          description: Demasiadas peticiones de autenticación desde esta IP (rate limit por IP)
+          description: Too many authentication requests from this IP (rate limit per IP)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /auth/logout:
     post:
-      summary: Cerrar sesión
+      summary: Log out
       security: []
       requestBody:
         required: true
@@ -712,13 +713,13 @@ paths:
               $ref: '#/components/schemas/LogoutRequest'
       responses:
         '204':
-          description: Sesión terminada (revoca el refresh token indicado)
+          description: Session ended (revokes the specified refresh token)
   /auth/me:
     get:
-      summary: Obtener perfil actual
+      summary: Get current profile
       responses:
         '200':
-          description: Datos del usuario autenticado
+          description: Authenticated user's data
           content:
             application/json:
               schema:
@@ -726,25 +727,25 @@ paths:
 
   /users/search:
     get:
-      summary: Buscar usuarios por username (parcial) o email (exacto)
+      summary: Search users by username (partial) or email (exact)
       description: >-
-        Para invitar gente a un playgroup sin conocer su UUID (ver
-        POST /playgroups/{id}/members). username matchea por substring,
-        case-insensitive; email exige coincidencia exacta a propósito — una
-        búsqueda parcial de email permitiría enumerar direcciones ajenas por
-        prefijo. Los resultados nunca incluyen el propio usuario autenticado
-        ni el email de nadie (ver UserSearchResult), y se acotan a 10.
+        For inviting people to a playgroup without knowing their UUID (see
+        POST /playgroups/{id}/members). username matches by substring,
+        case-insensitive; email requires an exact match on purpose — a
+        partial email search would allow enumerating other people's addresses
+        by prefix. Results never include the authenticated user themselves
+        nor anyone's email (see UserSearchResult), and are capped at 10.
       parameters:
         - in: query
           name: q
           required: true
-          description: Al menos 2 caracteres.
+          description: At least 2 characters.
           schema:
             type: string
             minLength: 2
       responses:
         '200':
-          description: Usuarios que matchean (hasta 10), sin el propio usuario autenticado
+          description: Matching users (up to 10), excluding the authenticated user themselves
           content:
             application/json:
               schema:
@@ -752,7 +753,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/UserSearchResult'
         '400':
-          description: q ausente o menor a 2 caracteres
+          description: q missing or shorter than 2 characters
           content:
             application/json:
               schema:
@@ -760,10 +761,10 @@ paths:
 
   /users/{id}:
     patch:
-      summary: Actualizar el perfil propio (username y/o moxfield_username)
+      summary: Update your own profile (username and/or moxfield_username)
       description: >-
-        id debe ser el propio usuario autenticado (vía JWT) — 404 en cualquier otro
-        caso, sin distinguir "no existe" de "no es tuyo".
+        id must be the authenticated user themselves (via JWT) — 404 in any
+        other case, without distinguishing "does not exist" from "is not yours".
       parameters:
         - in: path
           name: id
@@ -779,17 +780,17 @@ paths:
               $ref: '#/components/schemas/UpdateProfileRequest'
       responses:
         '200':
-          description: Usuario actualizado
+          description: User updated
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
         '400':
-          description: Body inválido, o username vacío/solo espacios
+          description: Invalid body, or empty/whitespace-only username
         '404':
-          description: id no es el del usuario autenticado
+          description: id does not match the authenticated user
         '409':
-          description: username ya en uso por otra cuenta
+          description: username already in use by another account
           content:
             application/json:
               schema:
@@ -797,11 +798,11 @@ paths:
 
   /users/{id}/password:
     post:
-      summary: Cambiar el password propio, tras validar el actual
+      summary: Change your own password, after validating the current one
       description: >-
-        id debe ser el propio usuario autenticado (vía JWT) — 404 en cualquier otro
-        caso, mismo criterio que PATCH /users/{id}. Las cuentas de Google (sin
-        password) no pueden usar este endpoint.
+        id must be the authenticated user themselves (via JWT) — 404 in any
+        other case, same criteria as PATCH /users/{id}. Google accounts
+        (without a password) cannot use this endpoint.
       parameters:
         - in: path
           name: id
@@ -817,20 +818,20 @@ paths:
               $ref: '#/components/schemas/ChangePasswordRequest'
       responses:
         '204':
-          description: Password actualizado
+          description: Password updated
         '400':
-          description: Body inválido o new_password menor a 8 caracteres
+          description: Invalid body or new_password shorter than 8 characters
         '401':
-          description: current_password incorrecto, o la cuenta no tiene password (es de Google)
+          description: current_password incorrect, or the account has no password (it's a Google account)
         '404':
-          description: id no es el del usuario autenticado
+          description: id does not match the authenticated user
 
   /playgroups:
     get:
-      summary: Listar los grupos de juego del usuario autenticado
+      summary: List the authenticated user's playgroups
       responses:
         '200':
-          description: Grupos de los que el usuario autenticado es miembro
+          description: Playgroups the authenticated user is a member of
           content:
             application/json:
               schema:
@@ -838,7 +839,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Playgroup'
     post:
-      summary: Crear grupo (el creador queda como primer miembro)
+      summary: Create playgroup (the creator becomes its first member)
       requestBody:
         required: true
         content:
@@ -847,20 +848,20 @@ paths:
               $ref: '#/components/schemas/CreatePlaygroupRequest'
       responses:
         '201':
-          description: Grupo creado
+          description: Playgroup created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Playgroup'
         '400':
-          description: Falta el nombre del grupo
+          description: Missing playgroup name
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /playgroups/{id}:
     get:
-      summary: Obtener grupo
+      summary: Get playgroup
       parameters:
         - in: path
           name: id
@@ -870,19 +871,19 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Detalle del grupo, si el usuario autenticado es miembro
+          description: Playgroup detail, if the authenticated user is a member
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Playgroup'
         '404':
-          description: No existe, o el usuario autenticado no es miembro
+          description: Does not exist, or the authenticated user is not a member
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
-      summary: Renombrar el grupo (solo un miembro existente puede editarlo)
+      summary: Rename the playgroup (only an existing member can edit it)
       parameters:
         - in: path
           name: id
@@ -898,26 +899,26 @@ paths:
               $ref: '#/components/schemas/UpdatePlaygroupRequest'
       responses:
         '200':
-          description: Grupo renombrado
+          description: Playgroup renamed
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Playgroup'
         '400':
-          description: Falta el nombre nuevo
+          description: Missing new name
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: No existe, o el usuario autenticado no es miembro
+          description: Does not exist, or the authenticated user is not a member
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /playgroups/{id}/members:
     post:
-      summary: Añadir un miembro al grupo (solo un miembro existente puede invitar)
+      summary: Add a member to the playgroup (only an existing member can invite)
       parameters:
         - in: path
           name: id
@@ -933,31 +934,31 @@ paths:
               $ref: '#/components/schemas/AddMemberRequest'
       responses:
         '201':
-          description: Miembro añadido
+          description: Member added
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlaygroupMember'
         '404':
-          description: Grupo o usuario a añadir no encontrados (o quien invita no es miembro del grupo)
+          description: Playgroup or user to add not found (or the inviter is not a member of the playgroup)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: El usuario ya es miembro del grupo
+          description: The user is already a member of the playgroup
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /playgroups/{id}/members/{userId}/decks:
     get:
-      summary: Listar los decks de un miembro del grupo
+      summary: List a playgroup member's decks
       description: >-
-        Permite ver los decks de OTRO miembro del mismo grupo (ver ADR-0013) —
-        es lo que habilita elegir su deck en un proxy-join
-        (`JoinGameRequest.user_id`). Autorización: el usuario autenticado y
-        userId deben ser ambos miembros de este playgroup.
+        Allows viewing the decks of ANOTHER member of the same playgroup (see
+        ADR-0013) — this is what enables choosing their deck in a proxy-join
+        (`JoinGameRequest.user_id`). Authorization: both the authenticated
+        user and userId must be members of this playgroup.
       parameters:
         - in: path
           name: id
@@ -973,7 +974,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Decks del miembro indicado
+          description: Decks of the specified member
           content:
             application/json:
               schema:
@@ -982,8 +983,9 @@ paths:
                   $ref: '#/components/schemas/Deck'
         '404':
           description: >-
-            Grupo inexistente, o el usuario autenticado no es miembro, o
-            userId no es miembro de este grupo (no se distingue cuál)
+            Playgroup does not exist, or the authenticated user is not a
+            member, or userId is not a member of this playgroup (which one is
+            not distinguished)
           content:
             application/json:
               schema:
@@ -991,29 +993,29 @@ paths:
 
   /decks:
     get:
-      summary: Listar decks
+      summary: List decks
       description: >-
-        Devuelve una página de los decks del usuario autenticado, del más reciente
-        al más viejo. La paginación es cursor-based (keyset sobre created_at + id):
-        se sigue `next_cursor` hasta que venga null.
+        Returns a page of the authenticated user's decks, from most recent to
+        oldest. Pagination is cursor-based (keyset over created_at + id):
+        follow `next_cursor` until it comes back null.
       parameters:
         - $ref: '#/components/parameters/CursorParam'
         - $ref: '#/components/parameters/LimitParam'
       responses:
         '200':
-          description: Página de decks del usuario autenticado
+          description: Page of the authenticated user's decks
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeckListResponse'
         '400':
-          description: cursor o limit inválidos
+          description: Invalid cursor or limit
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
-      summary: Crear deck manualmente
+      summary: Create deck manually
       requestBody:
         required: true
         content:
@@ -1022,14 +1024,14 @@ paths:
               $ref: '#/components/schemas/CreateDeckRequest'
       responses:
         '201':
-          description: Deck creado
+          description: Deck created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Deck'
   /decks/import/moxfield:
     post:
-      summary: Importar desde Moxfield
+      summary: Import from Moxfield
       requestBody:
         required: true
         content:
@@ -1038,26 +1040,26 @@ paths:
               $ref: '#/components/schemas/ImportMoxfieldRequest'
       responses:
         '201':
-          description: Deck importado (nombre y comandante tomados de Moxfield)
+          description: Deck imported (name and commander taken from Moxfield)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Deck'
         '400':
-          description: URL/ID inválido, o el deck de Moxfield no tiene comandante
+          description: Invalid URL/ID, or the Moxfield deck has no commander
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: No existe ningún deck público de Moxfield con ese ID
+          description: No public Moxfield deck exists with that ID
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /decks/{id}:
     get:
-      summary: Obtener deck
+      summary: Get deck
       parameters:
         - in: path
           name: id
@@ -1067,19 +1069,19 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Detalle del deck
+          description: Deck detail
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Deck'
         '404':
-          description: No existe, o no pertenece al usuario autenticado
+          description: Does not exist, or does not belong to the authenticated user
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
     delete:
-      summary: Eliminar deck
+      summary: Delete deck
       parameters:
         - in: path
           name: id
@@ -1089,9 +1091,9 @@ paths:
             format: uuid
       responses:
         '204':
-          description: Deck eliminado
+          description: Deck deleted
         '404':
-          description: No existe, o no pertenece al usuario autenticado
+          description: Does not exist, or does not belong to the authenticated user
           content:
             application/json:
               schema:
@@ -1099,13 +1101,13 @@ paths:
 
   /games:
     get:
-      summary: Listar partidas
+      summary: List games
       description: >-
-        Devuelve una página del historial de partidas, de la más reciente a la más
-        vieja. La paginación es cursor-based (keyset sobre created_at + id): se
-        sigue `next_cursor` hasta que venga null. Con `playgroup_id`, en cambio,
-        devuelve el historial completo (sin paginar, `next_cursor` siempre null)
-        de ese grupo — requiere que el usuario autenticado sea miembro.
+        Returns a page of the game history, from most recent to oldest.
+        Pagination is cursor-based (keyset over created_at + id): follow
+        `next_cursor` until it comes back null. With `playgroup_id`, however,
+        it returns the full history (unpaginated, `next_cursor` always null)
+        of that playgroup — requires the authenticated user to be a member.
       parameters:
         - $ref: '#/components/parameters/CursorParam'
         - $ref: '#/components/parameters/LimitParam'
@@ -1116,23 +1118,24 @@ paths:
             type: string
             format: uuid
           description: >-
-            Si se indica, ignora cursor/limit y devuelve el historial completo del
-            grupo. 404 si no existe o el usuario autenticado no es miembro.
+            If specified, ignores cursor/limit and returns the full history
+            of the playgroup. 404 if it does not exist or the authenticated
+            user is not a member.
       responses:
         '200':
-          description: Página del historial de partidas
+          description: Page of the game history
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/GameListResponse'
         '400':
-          description: cursor o limit inválidos
+          description: Invalid cursor or limit
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
-      summary: Crear partida
+      summary: Create game
       requestBody:
         content:
           application/json:
@@ -1140,21 +1143,21 @@ paths:
               $ref: '#/components/schemas/CreateGameRequest'
       responses:
         '201':
-          description: Partida creada (estado pending)
+          description: Game created (pending state)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Game'
         '400':
-          description: playgroup_id inválido
+          description: Invalid playgroup_id
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /games/{id}:
     get:
-      summary: Obtener partida
-      description: Incluye el estado actual de sus jugadores (players).
+      summary: Get game
+      description: Includes the current state of its players.
       parameters:
         - in: path
           name: id
@@ -1164,13 +1167,13 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Detalle de la partida
+          description: Game detail
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Game'
         '404':
-          description: No existe
+          description: Does not exist
           content:
             application/json:
               schema:
@@ -1178,13 +1181,13 @@ paths:
 
   /games/{id}/join:
     post:
-      summary: Unirse a la partida con un deck propio, o unir a otro (proxy-join)
+      summary: Join the game with your own deck, or add another player (proxy-join)
       description: >-
-        Sin user_id (o igual al autenticado): join normal, sin cambios. Con
-        user_id distinto: proxy-join (ver ADR-0013) — el caller une a otro
-        usuario en su nombre, solo si ambos comparten el playgroup de la
-        partida; el jugador queda con added_by = caller, autorizándolo a
-        registrar acciones por ese asiento.
+        Without user_id (or equal to the authenticated user): normal join, no
+        changes. With a different user_id: proxy-join (see ADR-0013) — the
+        caller adds another user on their behalf, only if both share the
+        game's playgroup; the player ends up with added_by = caller,
+        authorizing them to register actions for that seat.
       parameters:
         - in: path
           name: id
@@ -1200,42 +1203,42 @@ paths:
               $ref: '#/components/schemas/JoinGameRequest'
       responses:
         '200':
-          description: Jugador añadido
+          description: Player added
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/GamePlayer'
         '400':
           description: >-
-            deck_id/user_id inválidos, o se intentó un proxy-join en una
-            partida sin playgroup_id
+            Invalid deck_id/user_id, or a proxy-join was attempted on a game
+            without playgroup_id
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: >-
-            Proxy-join sin membresía compartida: el caller o user_id no
-            pertenecen al playgroup de la partida
+            Proxy-join without shared membership: the caller or user_id do
+            not belong to the game's playgroup
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Partida o deck no encontrados (o el deck no pertenece a quien se sienta)
+          description: Game or deck not found (or the deck does not belong to the person joining)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: La partida ya no acepta jugadores, o ese usuario ya está en la partida
+          description: The game no longer accepts players, or that user is already in the game
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/leave:
     post:
-      summary: Salir de la partida (solo en pending)
+      summary: Leave the game (only while pending)
       parameters:
         - in: path
           name: id
@@ -1245,22 +1248,22 @@ paths:
             format: uuid
       responses:
         '204':
-          description: Jugador removido
+          description: Player removed
         '404':
-          description: El usuario autenticado no es miembro de esta partida
+          description: The authenticated user is not a member of this game
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: La partida ya no está en pending
+          description: The game is no longer pending
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/start:
     post:
-      summary: Iniciar partida
+      summary: Start game
       parameters:
         - in: path
           name: id
@@ -1270,20 +1273,20 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Partida activa
+          description: Active game
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Game'
         '409':
-          description: La partida no está en pending, o no tiene suficientes jugadores
+          description: The game is not pending, or does not have enough players
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/finish:
     post:
-      summary: Finalizar partida
+      summary: Finish game
       parameters:
         - in: path
           name: id
@@ -1293,20 +1296,20 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Partida finalizada (lanza recálculo de estadísticas)
+          description: Game finished (triggers statistics recalculation)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Game'
         '409':
-          description: Solo una partida activa puede finalizarse
+          description: Only an active game can be finished
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/actions:
     post:
-      summary: Registrar acción en la partida
+      summary: Register an action in the game
       parameters:
         - in: path
           name: id
@@ -1325,53 +1328,53 @@ paths:
                 actor_id:
                   type: string
                   format: uuid
-                  description: ID del GamePlayer (no del usuario) que origina la acción.
+                  description: ID of the GamePlayer (not the user) that originates the action.
                 target_id:
                   type: string
                   format: uuid
-                  description: ID del GamePlayer afectado; si se omite, afecta al propio actor.
+                  description: ID of the affected GamePlayer; if omitted, it affects the actor themselves.
                 action_type:
                   type: string
                   enum: [LifeChange, CombatDamage, CommanderDamage, PoisonCounter, TurnStart, TurnEnd, Elimination]
                 payload:
                   type: object
-                  description: 'Para LifeChange/CombatDamage/CommanderDamage/PoisonCounter: { "amount": <integer> }.'
+                  description: 'For LifeChange/CombatDamage/CommanderDamage/PoisonCounter: { "amount": <integer> }.'
       responses:
         '400':
-          description: action_type inválido, o payload.amount faltante/no numérico
+          description: Invalid action_type, or missing/non-numeric payload.amount
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: >-
-            El usuario autenticado no es dueño del GamePlayer actor_id ni
-            quien lo unió como proxy (ver ADR-0013)
+            The authenticated user is neither the owner of the GamePlayer
+            actor_id nor the one who added them as a proxy (see ADR-0013)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Partida, actor o target no encontrados
+          description: Game, actor, or target not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: La partida no está activa
+          description: The game is not active
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '201':
-          description: Acción registrada
+          description: Action registered
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/GameAction'
   /games/{id}/timeline:
     get:
-      summary: Obtener historial completo de acciones
+      summary: Get full action history
       parameters:
         - in: path
           name: id
@@ -1381,21 +1384,21 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Línea de tiempo de la partida
+          description: Game timeline
 
   /statistics/user:
     get:
-      summary: Obtener estadísticas globales del usuario autenticado
+      summary: Get the authenticated user's overall statistics
       responses:
         '200':
-          description: Estadísticas del usuario, recalculadas al finalizar cada partida (ceros si nunca jugó)
+          description: User statistics, recalculated when each game finishes (zeros if they never played)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserStatsResponse'
   /statistics/deck/{id}:
     get:
-      summary: Obtener estadísticas de un deck del usuario autenticado
+      summary: Get statistics for a deck of the authenticated user
       parameters:
         - in: path
           name: id
@@ -1405,21 +1408,21 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Estadísticas del deck (ceros si nunca jugó una partida finalizada)
+          description: Deck statistics (zeros if it never played a finished game)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeckStatsResponse'
         '404':
-          description: No existe, o no pertenece al usuario autenticado
+          description: Does not exist, or does not belong to the authenticated user
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /statistics/playgroup/{id}:
     get:
-      summary: Obtener estadísticas de un grupo
-      description: Calculadas en vivo sobre las partidas finalizadas del grupo (no hay tabla de resumen precalculada).
+      summary: Get statistics for a playgroup
+      description: Calculated live over the playgroup's finished games (there is no precalculated summary table).
       parameters:
         - in: path
           name: id
@@ -1429,7 +1432,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Estadísticas agregadas por miembro
+          description: Statistics aggregated by member
           content:
             application/json:
               schema:
@@ -1437,16 +1440,16 @@ paths:
 
   /sync/moxfield:
     post:
-      summary: Re-sincronizar un deck ya importado con Moxfield
+      summary: Re-sync an already imported deck with Moxfield
       description: >-
-        Vuelve a consultar Moxfield para un deck que el usuario YA importó y
-        actualiza su nombre y comandante si cambiaron. Es la contraparte de
-        `/decks/import/moxfield`, que crea un deck nuevo.
+        Queries Moxfield again for a deck the user has ALREADY imported and
+        updates its name and commander if they changed. It is the counterpart
+        to `/decks/import/moxfield`, which creates a new deck.
 
 
-        La operación es síncrona: responde 200 con el resultado ya aplicado, no
-        202 con un job. No existe un modelo de jobs en background (ver
-        `internal/sync/service.go`), por eso tampoco hay `job_id`.
+        The operation is synchronous: it responds 200 with the result already
+        applied, not 202 with a job. There is no background job model (see
+        `internal/sync/service.go`), which is also why there is no `job_id`.
       requestBody:
         required: true
         content:
@@ -1455,53 +1458,53 @@ paths:
               $ref: '#/components/schemas/SyncRequest'
       responses:
         '200':
-          description: Sincronización aplicada
+          description: Sync applied
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SyncResponse'
         '400':
-          description: moxfield_id faltante o mal formado, o el deck de Moxfield ya no tiene comandante
+          description: Missing or malformed moxfield_id, or the Moxfield deck no longer has a commander
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: >-
-            El usuario autenticado no tiene importado ningún deck con ese
-            moxfield_id, o el deck ya no existe en Moxfield
+            The authenticated user has no imported deck with that
+            moxfield_id, or the deck no longer exists on Moxfield
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /sync/status:
     get:
-      summary: Obtener el estado de sincronización de un deck
+      summary: Get a deck's sync status
       description: >-
-        Devuelve el estado guardado del deck importado, sin llamar a Moxfield:
-        cómo está guardado ahora y cuándo fue su último sync.
+        Returns the saved state of the imported deck, without calling
+        Moxfield: how it is currently stored and when its last sync was.
       parameters:
         - in: query
           name: moxfield_id
           required: true
-          description: ID público del deck en Moxfield (o su URL completa).
+          description: Public deck ID on Moxfield (or its full URL).
           schema:
             type: string
       responses:
         '200':
-          description: Estado de sincronización del deck
+          description: Deck sync status
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SyncResponse'
         '400':
-          description: moxfield_id faltante o mal formado
+          description: Missing or malformed moxfield_id
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: El usuario autenticado no tiene importado ningún deck con ese moxfield_id
+          description: The authenticated user has no imported deck with that moxfield_id
           content:
             application/json:
               schema:
@@ -1509,34 +1512,34 @@ paths:
 
   /moxfield-import:
     post:
-      summary: Importar en background todos los decks públicos del username de Moxfield vinculado al perfil
+      summary: Import in the background all public decks of the Moxfield username linked to the profile
       description: >-
-        Contraparte masiva y asíncrona de `/decks/import/moxfield` (un deck
-        puntual, síncrono). La lista de decks se resuelve de forma síncrona
-        antes de crear el job: si Moxfield todavía no puede listarlos (ver
-        `internal/moxfieldimport`), responde 501 en el momento, sin crear
-        ningún job.
+        Bulk, asynchronous counterpart to `/decks/import/moxfield` (a single
+        deck, synchronous). The list of decks is resolved synchronously
+        before creating the job: if Moxfield still cannot list them (see
+        `internal/moxfieldimport`), it responds 501 immediately, without
+        creating any job.
       responses:
         '202':
-          description: Job creado, import en curso
+          description: Job created, import in progress
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MoxfieldImportJob'
         '400':
-          description: El usuario no tiene un username de Moxfield vinculado al perfil
+          description: The user has no Moxfield username linked to the profile
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Ya hay un import pending/in_progress para este usuario
+          description: There is already a pending/in_progress import for this user
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '501':
-          description: Listar los decks de un username de Moxfield todavía no está implementado
+          description: Listing decks for a Moxfield username is not yet implemented
           content:
             application/json:
               schema:
@@ -1544,8 +1547,8 @@ paths:
 
   /moxfield-import/{jobId}:
     get:
-      summary: Consultar el progreso de un job de import masivo
-      description: Acotado al usuario autenticado -- 404 si el job no es suyo, sin distinguir de "no existe".
+      summary: Check the progress of a bulk import job
+      description: Scoped to the authenticated user -- 404 if the job is not theirs, without distinguishing from "does not exist".
       parameters:
         - in: path
           name: jobId
@@ -1555,13 +1558,13 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Estado del job
+          description: Job status
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MoxfieldImportJob'
         '404':
-          description: El job no existe o no es del usuario autenticado
+          description: The job does not exist or does not belong to the authenticated user
           content:
             application/json:
               schema:
@@ -1569,29 +1572,29 @@ paths:
 
   /decks/resync-all:
     post:
-      summary: Resincronizar en background todos los decks del usuario con moxfield_id
+      summary: Resync in the background all of the user's decks with moxfield_id
       description: >-
-        Distinto de `/moxfield-import`: ese trae decks NUEVOS a partir de un
-        username de Moxfield; este actualiza los decks que el usuario YA TIENE
-        importados (nombre/comandante/imagen), llamando internamente la misma
-        lógica que `/sync/moxfield` para cada uno, espaciado para no golpear
-        la API de Moxfield en paralelo. La lista se resuelve de forma síncrona
-        antes de crear el job: sin decks elegibles, responde 400 en el momento.
+        Different from `/moxfield-import`: that one brings in NEW decks from
+        a Moxfield username; this one updates the decks the user ALREADY HAS
+        imported (name/commander/image), internally calling the same logic as
+        `/sync/moxfield` for each one, spaced out so as not to hit the
+        Moxfield API in parallel. The list is resolved synchronously before
+        creating the job: with no eligible decks, it responds 400 immediately.
       responses:
         '202':
-          description: Job creado, resync en curso
+          description: Job created, resync in progress
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeckResyncJob'
         '400':
-          description: El usuario no tiene ningún deck con moxfield_id para resincronizar
+          description: The user has no deck with moxfield_id to resync
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Ya hay un resync pending/in_progress para este usuario
+          description: There is already a pending/in_progress resync for this user
           content:
             application/json:
               schema:
@@ -1599,8 +1602,8 @@ paths:
 
   /decks/resync-all/{jobId}:
     get:
-      summary: Consultar el progreso de un job de resync masivo de decks
-      description: Acotado al usuario autenticado -- 404 si el job no es suyo, sin distinguir de "no existe".
+      summary: Check the progress of a bulk deck resync job
+      description: Scoped to the authenticated user -- 404 if the job is not theirs, without distinguishing from "does not exist".
       parameters:
         - in: path
           name: jobId
@@ -1610,13 +1613,13 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Estado del job
+          description: Job status
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeckResyncJob'
         '404':
-          description: El job no existe o no es del usuario autenticado
+          description: The job does not exist or does not belong to the authenticated user
           content:
             application/json:
               schema:

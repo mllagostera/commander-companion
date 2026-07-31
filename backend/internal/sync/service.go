@@ -1,22 +1,22 @@
-// Package sync re-sincroniza un deck YA importado con su versión actual en
-// Moxfield. Es la contraparte de POST /decks/import/moxfield, que es un import
-// puntual: acá el deck ya existe y solo se refresca su contenido.
+// Package sync re-syncs a deck that's ALREADY imported with its current version on
+// Moxfield. It's the counterpart of POST /decks/import/moxfield, which is a
+// one-off import: here the deck already exists and only its content gets refreshed.
 //
-// Decisión de alcance: la sincronización es SÍNCRONA. El stub original prometía un
-// modelo de jobs en background ("queued"/"in_progress" + job_id), pero una cola de
-// verdad implicaría meter una dependencia dura nueva (broker + worker + tabla de
-// jobs) que el resto del proyecto no tiene, y el trabajo real es una sola llamada
-// HTTP a Moxfield más un UPDATE: en el orden de cientos de milisegundos, tolerable
-// dentro del request. Como consecuencia:
+// Scope decision: the sync is SYNCHRONOUS. The original stub promised a
+// background job model ("queued"/"in_progress" + job_id), but a real queue
+// would mean pulling in a new hard dependency (broker + worker + jobs table)
+// that the rest of the project doesn't have, and the actual work is a single
+// HTTP call to Moxfield plus an UPDATE: on the order of hundreds of milliseconds,
+// tolerable within the request. As a consequence:
 //
-//   - POST /sync/moxfield responde 200 con el resultado ya aplicado (antes: 202 con
-//     un job_id inventado).
-//   - No hay job_id: GET /sync/status se identifica por moxfield_id y reporta el
-//     estado guardado del deck (cuándo fue su último sync), no el avance de un job.
+//   - POST /sync/moxfield responds 200 with the result already applied (previously: 202
+//     with a made-up job_id).
+//   - There's no job_id: GET /sync/status is identified by moxfield_id and reports the
+//     deck's stored state (when its last sync happened), not a job's progress.
 //
-// Si en algún momento el sync pasa a ser caro (varios decks a la vez, rate limits
-// de Moxfield), este es el punto donde meter la cola, sin tocar a los clientes más
-// allá del status code.
+// If at some point sync becomes expensive (several decks at once, Moxfield rate
+// limits), this is the point where the queue should be introduced, without touching
+// clients beyond the status code.
 package sync
 
 import (
@@ -26,26 +26,26 @@ import (
 )
 
 const (
-	// statusUpdated indica que Moxfield tenía cambios y el deck se actualizó.
+	// statusUpdated indicates that Moxfield had changes and the deck was updated.
 	statusUpdated = "updated"
-	// statusUnchanged indica que el deck ya coincidía con lo que hay en Moxfield.
+	// statusUnchanged indicates that the deck already matched what's on Moxfield.
 	statusUnchanged = "unchanged"
-	// statusSynced indica que el deck tiene al menos un sync exitoso registrado.
+	// statusSynced indicates that the deck has at least one successful sync recorded.
 	statusSynced = "synced"
-	// statusNeverSynced indica que el deck se importó y nunca se re-sincronizó.
+	// statusNeverSynced indicates that the deck was imported and never re-synced.
 	statusNeverSynced = "never_synced"
 )
 
-// DeckResyncer es lo que sync necesita del módulo decks: el estado y la escritura
-// del deck viven allá (es el dueño de la tabla y del cliente de Moxfield), sync es
-// solo el transporte de la operación. Como interfaz, permite mockearlo en tests
-// (mismo patrón que games.StatisticsRecalculator).
+// DeckResyncer is what sync needs from the decks module: the deck's state and
+// writes live there (it owns the table and the Moxfield client), sync is just
+// the transport for the operation. As an interface, it allows mocking it in tests
+// (same pattern as games.StatisticsRecalculator).
 type DeckResyncer interface {
 	ResyncFromMoxfield(ctx context.Context, userID, moxfieldID string) (*decks.MoxfieldSyncState, error)
 	GetMoxfieldSyncState(ctx context.Context, userID, moxfieldID string) (*decks.MoxfieldSyncState, error)
 }
 
-// Service define la lógica de negocio del módulo sync.
+// Service defines the business logic of the sync module.
 type Service interface {
 	TriggerSync(ctx context.Context, userID, moxfieldID string) (*Response, error)
 	GetSyncStatus(ctx context.Context, userID, moxfieldID string) (*Response, error)
@@ -55,14 +55,14 @@ type service struct {
 	decks DeckResyncer
 }
 
-// NewService crea un nuevo servicio de sync.
+// NewService creates a new sync service.
 func NewService(deckResyncer DeckResyncer) Service {
 	return &service{decks: deckResyncer}
 }
 
-// TriggerSync re-consulta Moxfield para el deck del usuario asociado a moxfieldID y
-// aplica los cambios. Devuelve decks.ErrDeckNotFound (→ 404) si el usuario no tiene
-// importado ningún deck con ese ID.
+// TriggerSync queries Moxfield again for the user's deck associated with moxfieldID
+// and applies the changes. Returns decks.ErrDeckNotFound (→ 404) if the user hasn't
+// imported any deck with that ID.
 func (s *service) TriggerSync(ctx context.Context, userID, moxfieldID string) (*Response, error) {
 	state, err := s.decks.ResyncFromMoxfield(ctx, userID, moxfieldID)
 	if err != nil {
@@ -76,8 +76,8 @@ func (s *service) TriggerSync(ctx context.Context, userID, moxfieldID string) (*
 	return toResponse(status, state), nil
 }
 
-// GetSyncStatus devuelve el estado de sincronización guardado del deck, sin llamar
-// a Moxfield.
+// GetSyncStatus returns the deck's stored sync state, without calling
+// Moxfield.
 func (s *service) GetSyncStatus(ctx context.Context, userID, moxfieldID string) (*Response, error) {
 	state, err := s.decks.GetMoxfieldSyncState(ctx, userID, moxfieldID)
 	if err != nil {

@@ -1,116 +1,116 @@
-# Diagrama: máquina de estados de una partida (backend)
+# Diagram: state machine of a game (backend)
 
-Fuente de verdad del comportamiento: `backend/internal/games/service.go`
-(transiciones) y `backend/internal/game-actions/service.go` (qué se puede
-hacer dentro de cada estado, y las auto-transiciones de jugador individual
-por eliminación). Todas las transiciones inválidas devuelven `409 Conflict`;
-un `id` de partida inexistente o no-parseable devuelve `404`.
+Source of truth for behavior: `backend/internal/games/service.go`
+(transitions) and `backend/internal/game-actions/service.go` (what can be
+done within each state, and the individual player's auto-transitions on
+elimination). All invalid transitions return `409 Conflict`; a
+non-existent or non-parseable game `id` returns `404`.
 
-## Estados y transiciones de la partida
+## Game states and transitions
 
 ```mermaid
 stateDiagram-v2
     [*] --> pending: POST /games\n(CreateGame)
 
-    pending --> pending: POST /games/{id}/join\n(JoinGame — requiere deck propio,\nno puede repetirse el usuario)
-    pending --> pending: POST /games/{id}/leave\n(LeaveGame — solo si es miembro)
-    pending --> active: POST /games/{id}/start\n(StartGame — guard:\n>= 2 jugadores unidos)
+    pending --> pending: POST /games/{id}/join\n(JoinGame — requires own deck,\nuser can't join twice)
+    pending --> pending: POST /games/{id}/leave\n(LeaveGame — only if a member)
+    pending --> active: POST /games/{id}/start\n(StartGame — guard:\n>= 2 players joined)
     active --> finished: POST /games/{id}/finish\n(FinishGame)
 
     finished --> [*]
 
     note right of pending
-        join / leave solo permitidos
-        en este estado. Cualquier
-        intento en active o finished
-        devuelve 409.
+        join / leave only allowed
+        in this state. Any
+        attempt in active or finished
+        returns 409.
     end note
 
     note right of active
-        start ya no es válido (409
+        start is no longer valid (409
         "game already started or
-        finished"). Acá se registran
-        las game-actions (ver abajo).
+        finished"). Game-actions are
+        recorded here (see below).
     end note
 
     note right of finished
-        finish ya no es válido (409
+        finish is no longer valid (409
         "only an active game can be
-        finished"). Dispara
+        finished"). Triggers
         statistics.RecalculateForGame
-        de forma síncrona dentro del
-        mismo FinishGame.
+        synchronously within the
+        same FinishGame call.
     end note
 ```
 
-### Guards exactos (`games/service.go`)
+### Exact guards (`games/service.go`)
 
-| Transición | Guard | Error si falla |
+| Transition | Guard | Error if it fails |
 |---|---|---|
-| `pending → pending` (join) | partida en `pending`; `deck_id` existe y pertenece al usuario autenticado (JWT); usuario no está ya sentado en esta partida | `409` si no está `pending`; `404 "deck not found"` si el deck no existe o no es tuyo (mismo mensaje para ambos casos, para no revelar cuál); `409 "already joined this game"` |
-| `pending → pending` (leave) | partida en `pending`; usuario es miembro actual | `409 "cannot leave a game that already started"` si no está `pending`; `404 "not a member of this game"` si no es miembro |
-| `pending → active` (start) | partida en `pending`; `len(players) >= minPlayersToStart` (constante = 2) | `409 "game already started or finished"` si no está `pending`; `409 "not enough players to start"` si hay < 2 jugadores |
-| `active → finished` (finish) | partida en `active` | `409 "only an active game can be finished"` en cualquier otro estado |
+| `pending → pending` (join) | game is `pending`; `deck_id` exists and belongs to the authenticated user (JWT); user is not already seated in this game | `409` if not `pending`; `404 "deck not found"` if the deck doesn't exist or isn't yours (same message for both cases, so as not to reveal which); `409 "already joined this game"` |
+| `pending → pending` (leave) | game is `pending`; user is a current member | `409 "cannot leave a game that already started"` if not `pending`; `404 "not a member of this game"` if not a member |
+| `pending → active` (start) | game is `pending`; `len(players) >= minPlayersToStart` (constant = 2) | `409 "game already started or finished"` if not `pending`; `409 "not enough players to start"` if there are < 2 players |
+| `active → finished` (finish) | game is `active` | `409 "only an active game can be finished"` in any other state |
 
-`minPlayersToStart = 2` es una constante en el código
-(`games/service.go:18`), no configurable por variable de entorno hoy.
+`minPlayersToStart = 2` is a constant in the code
+(`games/service.go:18`), not configurable via environment variable today.
 
-## Sub-estado: acciones y eliminación de jugadores dentro de `active`
+## Sub-state: actions and player elimination within `active`
 
-Mientras la partida está `active`, cada jugador (`game_players`) tiene su
-propio ciclo de vida independiente del estado global de la partida,
-gobernado por `game-actions/service.go`:
+While the game is `active`, each player (`game_players`) has their own
+lifecycle independent of the game's overall state, governed by
+`game-actions/service.go`:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> vivo: AddGamePlayer\n(al hacer join, life_total inicial)
+    [*] --> alive: AddGamePlayer\n(on join, starting life_total)
 
-    vivo --> vivo: LifeChange / CombatDamage /\nCommanderDamage / PoisonCounter\n(POST /games/{id}/actions)
-    vivo --> eliminado: life_total <= 0\n(auto, tras cualquier ajuste de vida)
-    vivo --> eliminado: poison_counters >= 10\n(auto, tras cualquier ajuste de veneno)
-    vivo --> eliminado: action_type = Elimination\n(explícita, target != actor)
+    alive --> alive: LifeChange / CombatDamage /\nCommanderDamage / PoisonCounter\n(POST /games/{id}/actions)
+    alive --> eliminated: life_total <= 0\n(auto, after any life adjustment)
+    alive --> eliminated: poison_counters >= 10\n(auto, after any poison adjustment)
+    alive --> eliminated: action_type = Elimination\n(explicit, target != actor)
 
-    eliminado --> [*]
+    eliminated --> [*]
 
-    note right of eliminado
+    note right of eliminated
         is_eliminated = true.
-        No hay transición de vuelta
-        a "vivo" — no existe un
-        action_type de "revivir".
+        There is no transition back
+        to "alive" — there is no
+        "revive" action_type.
     end note
 ```
 
-**Importante:** `RecordAction` solo se acepta si la partida-padre está
-`active` (`409 "game is not active"` en cualquier otro estado) —
-independientemente de si el jugador afectado ya está eliminado o no; el
-esquema no bloquea registrar acciones sobre un jugador ya eliminado.
+**Important:** `RecordAction` is only accepted if the parent game is
+`active` (`409 "game is not active"` in any other state) — regardless of
+whether the affected player is already eliminated or not; the schema does
+not block recording actions on a player who is already eliminated.
 
-`action_type` válidos (vocabulario cerrado, `isValidActionType`):
+Valid `action_type` values (closed vocabulary, `isValidActionType`):
 `LifeChange`, `CombatDamage`, `CommanderDamage`, `PoisonCounter`,
-`TurnStart`, `TurnEnd`, `Elimination`. Cualquier otro valor → `400 "invalid
+`TurnStart`, `TurnEnd`, `Elimination`. Any other value → `400 "invalid
 action_type"`.
 
-## Cómo se determina el ganador al finalizar
+## How the winner is determined at finish time
 
-`FinishGame` no recibe un ganador explícito. La transición
-`active → finished` es incondicional (una vez pasado el guard de estado);
-el ganador se calcula **después**, en `statistics.RecalculateForGame`
-(disparado dentro del mismo `FinishGame`, vía la interfaz
-`StatisticsRecalculator`):
+`FinishGame` does not receive an explicit winner. The `active → finished`
+transition is unconditional (once the state guard has passed); the winner
+is calculated **afterward**, in `statistics.RecalculateForGame` (triggered
+within the same `FinishGame` call, via the `StatisticsRecalculator`
+interface):
 
-- **Único sobreviviente** (`is_eliminated = false`) entre los
-  `game_players` de la partida → se acredita `games_won +1` a ese jugador.
-- **2 o más sobrevivientes** (partida cortada a mano antes de llegar a 1
-  jugador vivo) → nadie se acredita la victoria, pero a todos los
-  participantes se les cuenta `games_played +1` igual.
+- **Single survivor** (`is_eliminated = false`) among the game's
+  `game_players` → that player is credited `games_won +1`.
+- **2 or more survivors** (game cut short manually before reaching 1 player
+  alive) → no one is credited with the win, but all participants still get
+  `games_played +1` counted.
 
-## Límites conocidos (documentados en el propio código)
+## Known limitations (documented in the code itself)
 
-- `CommanderDamage` hoy se comporta igual que `CombatDamage`: resta de
-  `life_total` agregado, sin distinguir la fuente del daño por oponente
-  (regla real de Commander: 21 de daño de comandante de una misma fuente
-  elimina). El esquema (`game_players`) no tiene una tabla de daño por par
-  jugador-comandante — requeriría una migración nueva.
-- `TurnStart`/`TurnEnd` son marcadores de solo-log: `games` no tiene columna
-  de "de quién es el turno actual", así que estas acciones no mutan ningún
-  estado, solo quedan en el timeline (`GET /games/{id}/actions`).
+- `CommanderDamage` today behaves the same as `CombatDamage`: it subtracts
+  from aggregate `life_total`, without distinguishing the damage source per
+  opponent (real Commander rule: 21 commander damage from a single source
+  eliminates). The schema (`game_players`) has no table for damage per
+  player-commander pair — it would require a new migration.
+- `TurnStart`/`TurnEnd` are log-only markers: `games` has no column for
+  "whose turn it currently is", so these actions do not mutate any state,
+  they just stay in the timeline (`GET /games/{id}/actions`).

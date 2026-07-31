@@ -1,97 +1,97 @@
-# ADR-0010: Monolito modular en vez de microservicios
+# ADR-0010: Modular monolith instead of microservices
 
-**Estado:** Aceptada e implementada — **decisión heredada, contexto
-reconstruido** (ver nota de método en ADR-0006; redactado retroactivamente
-el 2026-07-27 a partir de `backend/cmd/api/main.go` y la estructura de
+**Status:** Accepted and implemented — **inherited decision, context
+reconstructed** (see the method note in ADR-0006; written retroactively
+on 2026-07-27 based on `backend/cmd/api/main.go` and the structure of
 `backend/internal/`).
 
-## Contexto
+## Context
 
-`docs/roadmap/ROADMAP.md` es explícito y temprano sobre esto: "Inicialmente
-será un **Monolito Modular**. No habrá microservicios." — es una de las
-pocas decisiones arquitectónicas declaradas en el propio ROADMAP en vez de
-quedar implícita en el código. El proyecto necesitaba organizar
-funcionalidad claramente separable por dominio (auth, usuarios, decks,
-partidas, acciones de partida, grupos de juego, estadísticas, sincronización,
-websocket) sin necesariamente pagar desde el día uno el costo operativo de
-desplegar y coordinar servicios independientes.
+`docs/roadmap/ROADMAP.md` is explicit and early about this: "Initially it
+will be a **Modular Monolith**. There will be no microservices." — it's one
+of the few architectural decisions declared in the ROADMAP itself instead
+of remaining implicit in the code. The project needed to organize
+functionality clearly separable by domain (auth, users, decks,
+games, game actions, playgroups, statistics, sync,
+websocket) without necessarily paying, from day one, the operational cost
+of deploying and coordinating independent services.
 
-## Decisión
+## Decision
 
-**Un único binario Go** (`cmd/api/main.go`) que registra todos los módulos
-de dominio como paquetes independientes bajo `internal/` (`auth`, `users`,
+**A single Go binary** (`cmd/api/main.go`) that registers all the domain
+modules as independent packages under `internal/` (`auth`, `users`,
 `decks`, `games`, `game-actions`, `playgroups`, `statistics`, `sync`,
-`websocket`, `common`), cada uno con su propio `service.go` (lógica de
-negocio), `handler.go` (rutas Fiber), y `query.sql`/código generado por sqlc
-(acceso a datos) donde aplica — pero todos compartiendo el mismo proceso,
-el mismo `pgxpool.Pool` de conexión a Postgres, y el mismo despliegue.
-`ROADMAP.md` documenta explícitamente la evolución prevista: un segundo
-diagrama de arquitectura "en fases posteriores" separa un `API Gateway`, un
-`Match Engine` y un `Statistics Engine`, pero como aspiración a futuro, no
-como diseño inicial.
+`websocket`, `common`), each with its own `service.go` (business
+logic), `handler.go` (Fiber routes), and `query.sql`/sqlc-generated code
+(data access) where applicable — but all sharing the same process,
+the same Postgres connection `pgxpool.Pool`, and the same deployment.
+`ROADMAP.md` explicitly documents the expected evolution: a second
+architecture diagram "in later phases" splits out an `API Gateway`, a
+`Match Engine`, and a `Statistics Engine`, but as a future aspiration, not
+as the initial design.
 
-## Alternativas consideradas
+## Alternatives considered
 
-- **Microservicios desde el inicio** (un servicio por dominio: auth-service,
-  games-service, statistics-service, etc.): se descartó explícitamente por
-  el ROADMAP. El costo de coordinación (service discovery, comunicación
-  inter-servicio, despliegues independientes, consistencia transaccional
-  entre servicios — p. ej. `FinishGame` necesita disparar
-  `RecalculateForGame` de forma fiable, algo trivial como una llamada de
-  interfaz en-proceso hoy y mucho más costoso como llamada de red con sus
-  propios fallos parciales) no se justifica para un equipo de un solo
-  mantenedor y un producto en la fase de definir su MVP.
-- **Monolito no-modular** (todo en un solo paquete `main`, sin separación
-  por dominio): hubiera sido más rápido de arrancar, pero mucho más difícil
-  de mantener a medida que crecen los módulos — la separación en `internal/
-  <dominio>/` con interfaces explícitas entre módulos (p. ej.
-  `games.StatisticsRecalculator`, la interfaz que `games` usa para
-  desacoplarse de la implementación concreta de `statistics` y poder
-  mockearla en tests) ya funciona como frontera modular clara incluso
-  dentro de un único proceso, y es lo que permitiría extraer un módulo a su
-  propio servicio más adelante sin rediseñar su lógica interna.
-- **Extraer el Websocket/Match Engine como servicio aparte desde ya**: se
-  decidió no adelantarlo — el ROADMAP lo deja para "fases posteriores"
-  explícitamente. **Nota (2026-07-27)**: `internal/websocket/` ya no está
-  vacío — el servidor de Stage 6 está implementado
-  ([ADR-0005](0005-websocket-protocol.md)) como un módulo más dentro del
-  mismo monolito (`Hub` en memoria de un único proceso), no como servicio
-  aparte; la decisión de esta ADR sigue siendo la misma, solo cambió el
-  estado de "sin código" a "implementado, pero todavía dentro del monolito".
+- **Microservices from the start** (one service per domain: auth-service,
+  games-service, statistics-service, etc.): explicitly ruled out by
+  the ROADMAP. The coordination cost (service discovery, inter-service
+  communication, independent deployments, transactional consistency
+  between services — e.g. `FinishGame` needs to reliably trigger
+  `RecalculateForGame`, something trivial as an in-process interface call
+  today and much more costly as a network call with its own
+  partial failure modes) is not justified for a single-maintainer
+  team and a product still in the phase of defining its MVP.
+- **Non-modular monolith** (everything in a single `main` package, without
+  separation by domain): would have been faster to bootstrap, but much harder
+  to maintain as modules grow — the separation into `internal/
+  <domain>/` with explicit interfaces between modules (e.g.
+  `games.StatisticsRecalculator`, the interface `games` uses to
+  decouple itself from the concrete `statistics` implementation and be
+  able to mock it in tests) already works as a clear modular boundary even
+  within a single process, and is what would allow extracting a module into its
+  own service later without redesigning its internal logic.
+- **Extracting the Websocket/Match Engine as a separate service already**: it
+  was decided not to bring this forward — the ROADMAP explicitly leaves it for
+  "later phases." **Note (2026-07-27)**: `internal/websocket/` is no longer
+  empty — the Stage 6 server is implemented
+  ([ADR-0005](0005-websocket-protocol.md)) as one more module within
+  the same monolith (an in-memory `Hub` in a single process), not as a separate
+  service; this ADR's decision remains the same, only the state changed from
+  "no code" to "implemented, but still inside the monolith."
 
-## Consecuencias
+## Consequences
 
-- Todos los módulos comparten el mismo `pgxpool.Pool` y el mismo ciclo de
-  vida de proceso — un fallo o un despliegue del backend afecta a *todos*
-  los dominios (auth, games, decks, etc.) a la vez; no hay aislamiento de
-  fallos entre módulos como sí lo daría un microservicio caído de forma
-  independiente.
-- Escalar horizontalmente hoy significa escalar el binario completo (más
-  réplicas del mismo proceso detrás de un balanceador), no escalar
-  selectivamente el módulo con más carga (p. ej. `game-actions` durante
-  partidas activas, que previsiblemente recibe más tráfico que `playgroups`).
-  Aceptable mientras el volumen de uso real no lo exija.
-- Los límites de módulo (`internal/<dominio>/`) son convención de código, no
-  un límite de despliegue reforzado por infraestructura — nada impide hoy
-  que un módulo importe directamente el paquete interno de otro en vez de
-  pasar por una interfaz explícita, salvo disciplina de code review (un solo
-  mantenedor, sin proceso de aprobación de PR obligatorio, ver `TASKS.md`
-  branch protection: "No se exige aprobación de PR").
-- Si el proyecto necesita microservicios reales en el futuro (el segundo
-  diagrama de `ROADMAP.md` ya lo prevé), la migración más natural es
-  extraer primero `websocket`/Match Engine (Stage 6, servidor ya
-  implementado — ver [ADR-0005](0005-websocket-protocol.md), desacoplado de
-  `games`/`game-actions` vía la interfaz `Broadcaster`, mismo patrón que
-  `StatisticsRecalculator`) y `statistics` (Stage 7, ya tiene esa interfaz
-  de desacople lista para convertirse en un cliente HTTP/gRPC en vez de una
-  llamada en-proceso) — son los dos módulos que el propio ROADMAP ya dibuja
-  como servicios separados a futuro.
+- All modules share the same `pgxpool.Pool` and the same process
+  lifecycle — a failure or a backend deployment affects *all*
+  domains (auth, games, decks, etc.) at once; there is no fault
+  isolation between modules the way an independently crashing
+  microservice would provide.
+- Scaling horizontally today means scaling the entire binary (more
+  replicas of the same process behind a load balancer), not selectively
+  scaling the module under the most load (e.g. `game-actions` during
+  active games, which predictably receives more traffic than `playgroups`).
+  Acceptable while real usage volume doesn't demand otherwise.
+- Module boundaries (`internal/<domain>/`) are a code convention, not
+  a deployment boundary enforced by infrastructure — nothing today prevents
+  a module from importing another module's internal package directly instead
+  of going through an explicit interface, other than code review discipline (a single
+  maintainer, no mandatory PR approval process, see `TASKS.md`
+  branch protection: "PR approval is not required").
+- If the project needs real microservices in the future (the second
+  diagram in `ROADMAP.md` already anticipates it), the most natural migration
+  path is to extract `websocket`/Match Engine first (Stage 6, server already
+  implemented — see [ADR-0005](0005-websocket-protocol.md), decoupled from
+  `games`/`game-actions` via the `Broadcaster` interface, the same pattern as
+  `StatisticsRecalculator`) and `statistics` (Stage 7, already has that
+  decoupling interface ready to become an HTTP/gRPC client instead of an
+  in-process call) — these are the two modules the ROADMAP itself already
+  draws as separate future services.
 
-## Referencias
+## References
 
-- `docs/roadmap/ROADMAP.md`, sección "Arquitectura general" (ambos
-  diagramas Mermaid) y "Inicialmente será un Monolito Modular"
+- `docs/roadmap/ROADMAP.md`, "General architecture" section (both
+  Mermaid diagrams) and "Initially it will be a Modular Monolith"
 - `backend/cmd/api/main.go`
-- `backend/internal/` (estructura de módulos)
-- `backend/internal/games/service.go` (interfaz `StatisticsRecalculator`
-  como ejemplo de frontera modular explícita)
+- `backend/internal/` (module structure)
+- `backend/internal/games/service.go` (`StatisticsRecalculator` interface
+  as an example of an explicit modular boundary)

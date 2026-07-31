@@ -24,7 +24,7 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     sessionViewModel: SessionViewModel = hiltViewModel()
 ) {
-    // Refresh de token fallido (token robado/expirado/revocado) en cualquier pantalla -> Login.
+    // Failed token refresh (stolen/expired/revoked token) on any screen -> Login.
     LaunchedEffect(Unit) {
         sessionViewModel.forcedLogoutEvents.collect {
             navController.navigate(LoginRoute) { popUpTo(0) { inclusive = true } }

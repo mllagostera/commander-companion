@@ -11,10 +11,10 @@ import (
 
 const refreshTokenBytes = 32
 
-// ErrInvalidToken indica que un access o refresh token es inválido, expiró o fue revocado.
+// ErrInvalidToken indicates that an access or refresh token is invalid, expired, or was revoked.
 var ErrInvalidToken = common.Unauthorized("invalid or expired token")
 
-// generateAccessToken firma un JWT de vida corta con el ID de usuario como subject.
+// generateAccessToken signs a short-lived JWT with the user ID as the subject.
 func generateAccessToken(secret []byte, userID string, ttl time.Duration) (string, time.Time, error) {
 	now := time.Now()
 	expiresAt := now.Add(ttl)
@@ -34,7 +34,7 @@ func generateAccessToken(secret []byte, userID string, ttl time.Duration) (strin
 	return signed, expiresAt, nil
 }
 
-// parseAccessToken valida la firma y expiración de un JWT y devuelve el user ID (subject).
+// parseAccessToken validates the signature and expiration of a JWT and returns the user ID (subject).
 func parseAccessToken(secret []byte, tokenString string) (string, error) {
 	claims := &jwt.RegisteredClaims{}
 
@@ -55,23 +55,23 @@ func parseAccessToken(secret []byte, tokenString string) (string, error) {
 	return claims.Subject, nil
 }
 
-// VerifyAccessToken valida la firma y expiración de un access token JWT y devuelve el
-// user ID (subject). Expuesto (a diferencia de parseAccessToken) para que módulos que no
-// pueden autenticar vía el header Authorization de una request HTTP normal —como
-// internal/websocket, donde el handshake lo hace el propio navegador y no puede
-// adjuntar headers custom— puedan validar el mismo access token sin reimplementar la
-// verificación de firma/expiración. Ver ADR-0005.
+// VerifyAccessToken validates the signature and expiration of an access token JWT and
+// returns the user ID (subject). Exported (unlike parseAccessToken) so that modules that
+// can't authenticate via the Authorization header of a normal HTTP request —like
+// internal/websocket, where the handshake is done by the browser itself and can't
+// attach custom headers— can validate the same access token without reimplementing
+// signature/expiration verification. See ADR-0005.
 func VerifyAccessToken(secret []byte, tokenString string) (string, error) {
 	return parseAccessToken(secret, tokenString)
 }
 
-// newRefreshTokenPlain genera un refresh token opaco (no JWT) criptográficamente aleatorio.
+// newRefreshTokenPlain generates a cryptographically random opaque (non-JWT) refresh token.
 func newRefreshTokenPlain() (string, error) {
 	return common.NewOpaqueToken(refreshTokenBytes)
 }
 
-// hashRefreshToken calcula el hash que se persiste en base de datos; el token en
-// claro nunca se guarda, solo se entrega una vez al cliente.
+// hashRefreshToken computes the hash that gets persisted in the database; the plain
+// token is never stored, it's only handed to the client once.
 func hashRefreshToken(plain string) string {
 	return common.HashToken(plain)
 }

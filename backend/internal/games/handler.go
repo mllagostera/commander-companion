@@ -6,17 +6,17 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
-// Handler contiene las dependencias del transporte HTTP para games.
+// Handler holds the HTTP transport dependencies for games.
 type Handler struct {
 	svc Service
 }
 
-// NewHandler inicializa y retorna un nuevo Handler.
+// NewHandler initializes and returns a new Handler.
 func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registra todos los endpoints del módulo games.
+// RegisterRoutes registers all the endpoints of the games module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/games", h.ListGames)
 	router.Post("/games", h.CreateGame)
@@ -27,7 +27,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/games/:id/finish", h.FinishGame)
 }
 
-// CreateGame maneja la creación de una nueva partida en estado pending.
+// CreateGame handles the creation of a new game in pending state.
 func (h *Handler) CreateGame(c *fiber.Ctx) error {
 	var req CreateGameRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -41,10 +41,10 @@ func (h *Handler) CreateGame(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// ListGames devuelve una página del historial de partidas. Acepta los query params
-// `cursor` y `limit` (ver internal/common/pagination.go). Con `playgroup_id`, en
-// cambio, devuelve el historial completo (sin paginar) de ese grupo — requiere que
-// el usuario autenticado sea miembro (ver Service.ListGamesForPlaygroup).
+// ListGames returns a page of the game history. Accepts the `cursor` and
+// `limit` query params (see internal/common/pagination.go). With `playgroup_id`,
+// however, it returns the complete history (unpaginated) of that group — it requires
+// the authenticated user to be a member (see Service.ListGamesForPlaygroup).
 func (h *Handler) ListGames(c *fiber.Ctx) error {
 	if playgroupID := c.Query("playgroup_id"); playgroupID != "" {
 		userID, _ := c.Locals(common.UserIDKey).(string)
@@ -67,7 +67,7 @@ func (h *Handler) ListGames(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// GetGame devuelve el detalle de una partida.
+// GetGame returns the detail of a game.
 func (h *Handler) GetGame(c *fiber.Ctx) error {
 	res, err := h.svc.GetGame(c.Context(), c.Params("id"))
 	if err != nil {
@@ -76,7 +76,7 @@ func (h *Handler) GetGame(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// JoinGame añade al usuario autenticado a una partida en estado pending.
+// JoinGame adds the authenticated user to a game in pending state.
 func (h *Handler) JoinGame(c *fiber.Ctx) error {
 	var req JoinGameRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -91,7 +91,7 @@ func (h *Handler) JoinGame(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// LeaveGame remueve al usuario autenticado de una partida en estado pending.
+// LeaveGame removes the authenticated user from a game in pending state.
 func (h *Handler) LeaveGame(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	if err := h.svc.LeaveGame(c.Context(), c.Params("id"), userID); err != nil {
@@ -100,7 +100,7 @@ func (h *Handler) LeaveGame(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// StartGame inicia una partida, pasándola a estado active.
+// StartGame starts a game, moving it to active state.
 func (h *Handler) StartGame(c *fiber.Ctx) error {
 	res, err := h.svc.StartGame(c.Context(), c.Params("id"))
 	if err != nil {
@@ -109,7 +109,7 @@ func (h *Handler) StartGame(c *fiber.Ctx) error {
 	return c.JSON(res)
 }
 
-// FinishGame finaliza una partida, pasándola a estado finished.
+// FinishGame finishes a game, moving it to finished state.
 func (h *Handler) FinishGame(c *fiber.Ctx) error {
 	res, err := h.svc.FinishGame(c.Context(), c.Params("id"))
 	if err != nil {

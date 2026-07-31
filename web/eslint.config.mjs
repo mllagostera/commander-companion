@@ -1,5 +1,5 @@
-// Config generada/extendida por el módulo @nuxt/eslint (ver nuxt.config.ts).
-// El preset de Nuxt ya conoce los auto-imports, el srcDir `app/` y el server/.
+// Config generated/extended by the @nuxt/eslint module (see nuxt.config.ts).
+// Nuxt's preset already knows about auto-imports, the `app/` srcDir, and server/.
 import withNuxt from './.nuxt/eslint.config.mjs'
 
 export default withNuxt()
