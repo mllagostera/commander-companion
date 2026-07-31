@@ -23,6 +23,10 @@
     "submit": "Log in",
     "submitting": "Logging in…",
     "divider": "or",
+    "loading": {
+      "title": "Logging in…",
+      "slowHint": "The server was asleep and is waking up, this can take a few seconds."
+    },
     "verification": {
       "checkInbox": "Done, check your inbox.",
       "resend": "Resend verification email",

@@ -82,6 +82,7 @@ func run() error {
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 	}))
 
+	common.RegisterHealthRoute(app, db)
 	registerModules(app, db, &cfg)
 
 	// 4. Arrancar Servidor
