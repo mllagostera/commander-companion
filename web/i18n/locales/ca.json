@@ -281,17 +281,17 @@
       "playerCountLabel": "Jugadors",
       "playerPlaceholder": "Jugador {n}",
       "start": "Comença la partida",
-      "localNote": "Aquesta partida només viu en aquesta pestanya. Si la recarregues, es perd."
+      "localNote": "Aquesta partida només viu en aquesta pestanya. Si la recarregues, es perd.",
+      "cancel": "Cancel·la"
     },
     "tracker": {
       "turn": "Torn {n}",
       "finish": "Finalitza",
       "poison": "Verí",
-      "dead": "MORT",
+      "dead": "ELIMINAT",
       "commanderDamage": "Dany de comandant",
-      "passTurn": "Passa el torn",
       "startRandom": "Tria qui comença",
-      "starterBanner": "Comença {name}!",
+      "starterBanner": "Comença {name}",
       "rotatePrompt": "Gira el teu dispositiu\nper jugar"
     },
     "summary": {

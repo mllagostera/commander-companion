@@ -281,17 +281,17 @@
       "playerCountLabel": "Jugadores",
       "playerPlaceholder": "Jugador {n}",
       "start": "Empezar partida",
-      "localNote": "Esta partida vive solo en esta pestaña. Si la recargas, se pierde."
+      "localNote": "Esta partida vive solo en esta pestaña. Si la recargas, se pierde.",
+      "cancel": "Cancelar"
     },
     "tracker": {
       "turn": "Turno {n}",
       "finish": "Finalizar",
       "poison": "Veneno",
-      "dead": "MUERTO",
+      "dead": "ELIMINADO",
       "commanderDamage": "Daño comandante",
-      "passTurn": "Pasar turno",
       "startRandom": "Sortear quién empieza",
-      "starterBanner": "¡Empieza {name}!",
+      "starterBanner": "{name} empieza",
       "rotatePrompt": "Gira tu dispositivo\npara jugar"
     },
     "summary": {

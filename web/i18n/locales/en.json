@@ -281,17 +281,17 @@
       "playerCountLabel": "Players",
       "playerPlaceholder": "Player {n}",
       "start": "Start game",
-      "localNote": "This game only lives in this tab. Reloading it will lose your progress."
+      "localNote": "This game only lives in this tab. Reloading it will lose your progress.",
+      "cancel": "Cancel"
     },
     "tracker": {
       "turn": "Turn {n}",
       "finish": "Finish",
       "poison": "Poison",
-      "dead": "DEAD",
+      "dead": "ELIMINATED",
       "commanderDamage": "Commander damage",
-      "passTurn": "Pass turn",
       "startRandom": "Pick who starts",
-      "starterBanner": "{name} starts!",
+      "starterBanner": "{name} starts",
       "rotatePrompt": "Rotate your device\nto play"
     },
     "summary": {
