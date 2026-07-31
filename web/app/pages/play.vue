@@ -261,7 +261,10 @@ onUnmounted(() => {
               style="background: linear-gradient(135deg, #8b5cf6, #a855f7);"
               @click="startRandomPlayer"
             >
-              <span class="ml-1 text-[26px]" style="color: #0a0714;">▶</span>
+              <span
+                class="ml-1.5 inline-block h-0 w-0"
+                style="border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-left: 17px solid #0a0714;"
+              />
             </button>
 
             <div v-if="showStarterBanner" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3.5" style="background: rgba(5,3,8,0.94);">
