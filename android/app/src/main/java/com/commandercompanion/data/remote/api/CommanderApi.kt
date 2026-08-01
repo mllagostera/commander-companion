@@ -9,6 +9,7 @@ import com.commandercompanion.data.remote.dto.DeckStatsDto
 import com.commandercompanion.data.remote.dto.GameActionDto
 import com.commandercompanion.data.remote.dto.GameDto
 import com.commandercompanion.data.remote.dto.GamePlayerDto
+import com.commandercompanion.data.remote.dto.HealthDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
 import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.PagedResponse
@@ -38,8 +39,9 @@ import retrofit2.http.Query
  */
 interface CommanderApi {
 
-    @GET("api/v1/health")
-    suspend fun checkHealth(): String
+    /** `/health` lives outside `/api/v1` and without auth (see `common.RegisterHealthRoute`). */
+    @GET("health")
+    suspend fun checkHealth(): HealthDto
 
     // ---------------------------------------------------------------- decks
 
