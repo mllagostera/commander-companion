@@ -119,6 +119,9 @@ class FakeCommanderApi : CommanderApi {
         userDto(id = id, username = request.username ?: "user-1", moxfieldUsername = request.moxfieldUsername)
     }
     var onChangePassword: suspend (String, ChangePasswordRequest) -> Unit = { _, _ -> }
+    var onGetUserStats: suspend () -> UserStatsDto = { UserStatsDto(userId = "user-1") }
+    var onGetDeckStats: suspend (String) -> DeckStatsDto = { id -> DeckStatsDto(deckId = id) }
+    var onGetPlaygroupStats: suspend (String) -> PlaygroupStatsDto = { id -> PlaygroupStatsDto(playgroupId = id) }
 
     override suspend fun checkHealth(): String = "ok"
 
@@ -196,12 +199,20 @@ class FakeCommanderApi : CommanderApi {
         return onGetMemberDecks(playgroupId, userId)
     }
 
-    override suspend fun getUserStats(): UserStatsDto = UserStatsDto(userId = "user-1")
+    override suspend fun getUserStats(): UserStatsDto {
+        calls += "getUserStats"
+        return onGetUserStats()
+    }
 
-    override suspend fun getDeckStats(deckId: String): DeckStatsDto = DeckStatsDto(deckId = deckId)
+    override suspend fun getDeckStats(deckId: String): DeckStatsDto {
+        calls += "getDeckStats"
+        return onGetDeckStats(deckId)
+    }
 
-    override suspend fun getPlaygroupStats(playgroupId: String): PlaygroupStatsDto =
-        PlaygroupStatsDto(playgroupId = playgroupId)
+    override suspend fun getPlaygroupStats(playgroupId: String): PlaygroupStatsDto {
+        calls += "getPlaygroupStats"
+        return onGetPlaygroupStats(playgroupId)
+    }
 
     override suspend fun updateProfile(userId: String, request: UpdateProfileRequest): UserDto {
         calls += "updateProfile"
