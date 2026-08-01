@@ -11,11 +11,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 
-class DeckRepositoryTest {
+class DeckRepositoryImplTest {
 
     private val api = FakeCommanderApi()
     private val deckDao = FakeDeckDao()
-    private val repository = DeckRepository(api, deckDao)
+    private val repository = DeckRepositoryImpl(api, deckDao)
 
     @Test
     fun `listDecks devuelve los decks del backend`() = runTest {

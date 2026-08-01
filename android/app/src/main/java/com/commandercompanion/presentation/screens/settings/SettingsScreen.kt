@@ -35,6 +35,7 @@ import com.commandercompanion.presentation.components.AuthTextField
 import com.commandercompanion.presentation.components.CircleIconButton
 import com.commandercompanion.presentation.components.GlassCard
 import com.commandercompanion.presentation.components.GradientButton
+import com.commandercompanion.presentation.components.PillSegmentedControl
 import com.commandercompanion.presentation.components.SectionEyebrow
 import com.commandercompanion.presentation.theme.AppFaint
 import com.commandercompanion.presentation.theme.AppOnBackground
@@ -74,6 +75,7 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     ProfileSection(state = state, onSaveUsername = viewModel::updateUsername)
+                    LanguageSection(state = state, onSelect = viewModel::changeLanguage)
                     MoxfieldSection(state = state, onSave = viewModel::updateMoxfieldUsername)
                     SecuritySection(
                         state = state,
@@ -115,6 +117,21 @@ private fun ProfileSection(state: SettingsUiState, onSaveUsername: (String) -> U
                 },
                 onClick = { onSaveUsername(username) },
                 enabled = !state.isSavingUsername
+            )
+        }
+    }
+}
+
+@Composable
+private fun LanguageSection(state: SettingsUiState, onSelect: (AppLanguage) -> Unit) {
+    GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            SectionEyebrow(stringResource(R.string.settings_language_heading))
+            Spacer(modifier = Modifier.height(12.dp))
+            PillSegmentedControl(
+                options = AppLanguage.entries.map { it to stringResource(it.labelRes) },
+                selected = state.language,
+                onSelected = onSelect
             )
         }
     }

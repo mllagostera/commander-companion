@@ -18,51 +18,16 @@ import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.amountPayload
 import com.commandercompanion.data.remote.ws.GameSocketClient
 import com.commandercompanion.data.remote.ws.GameSocketEvent
+import com.commandercompanion.domain.model.LocalSeat
+import com.commandercompanion.domain.model.LocalSeatResult
+import com.commandercompanion.domain.model.RemoteGameSession
+import com.commandercompanion.domain.model.SeatAssignment
+import com.commandercompanion.domain.repository.GameRepository
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
-import javax.inject.Singleton
-
-/** A local tracker seat, as configured by the user in `PlayerSetupScreen`. */
-data class LocalSeat(
-    val seatIndex: Int,
-    val name: String,
-    val colorKey: String,
-    val life: Int,
-    val mulligans: Int
-)
-
-/** Final result of a local seat, to persist when the game ends. */
-data class LocalSeatResult(
-    val seatIndex: Int,
-    val finalLife: Int,
-    val won: Boolean
-)
 
 /**
- * A seat to remotely seat in the bootstrap: which user ([userId]) and with which deck
- * ([deckId]). The backend decides whether it's a self-join or a proxy-join by comparing [userId]
- * against the authenticated user (see the backend's ADR-0013) — Android never needs to know
- * "which seat am I", just pass the assignment as it ended up in `PlayerSetupScreen`.
- */
-data class SeatAssignment(val seatIndex: Int, val userId: String, val deckId: String)
-
-/**
- * A backend game in which this device seated one or more seats with a real
- * `GamePlayer` — its own and, in Group mode, those of proxy-joined teammates. [seatPlayerIds]
- * maps the local seat index (0-based, the same as `PlayerConfig`/`PlayerSetupScreen`) to its
- * `GamePlayer`'s ID — the `actor_id`/`target_id` expected by `POST /games/{id}/actions` (which is
- * NOT the `user_id`).
- */
-data class RemoteGameSession(
-    val gameId: String,
-    val seatPlayerIds: Map<Int, String>,
-    val status: String
-) {
-    val isActive: Boolean get() = status == GameStatus.ACTIVE
-}
-
-/**
- * Single access point for games: decides what goes to the backend and what goes to Room.
+ * [GameRepository] implementation: decides what goes to the backend and what goes to Room.
  *
  * ## Why Room is still the tracker's source of truth
  *
@@ -79,19 +44,17 @@ data class RemoteGameSession(
  *  - `POST /games/{id}/actions` only accepts actions if the game is `active`, and only from
  *    the owner of each `GamePlayer` or whoever proxy-joined it (see ADR-0013).
  */
-@Singleton
-class GameRepository @Inject constructor(
+class GameRepositoryImpl @Inject constructor(
     private val api: CommanderApi,
     private val gameDao: GameDao,
     private val gameSocketClient: GameSocketClient
-) {
+) : GameRepository {
 
     // ------------------------------------------------------------ local (Room)
 
-    /** History of games played on this device. */
-    fun observeHistory(): Flow<List<GameWithPlayers>> = gameDao.getGamesWithPlayers()
+    override fun observeHistory(): Flow<List<GameWithPlayers>> = gameDao.getGamesWithPlayers()
 
-    suspend fun persistNewLocalGame(gameId: String, seats: List<LocalSeat>) {
+    override suspend fun persistNewLocalGame(gameId: String, seats: List<LocalSeat>) {
         gameDao.insertGame(
             GameEntity(
                 id = gameId,
@@ -114,7 +77,7 @@ class GameRepository @Inject constructor(
         )
     }
 
-    suspend fun persistLocalResult(gameId: String, results: List<LocalSeatResult>) {
+    override suspend fun persistLocalResult(gameId: String, results: List<LocalSeatResult>) {
         gameDao.finishGame(
             gameId = gameId,
             status = LOCAL_STATUS_FINISHED,
@@ -132,56 +95,37 @@ class GameRepository @Inject constructor(
 
     // ----------------------------------------------------------- remote (API)
 
-    suspend fun listGames(): Result<List<GameDto>> = apiCall { api.listGames().items }
+    override suspend fun listGames(): Result<List<GameDto>> = apiCall { api.listGames().items }
 
-    /** Full history of a playgroup's games — used by `JoinGameScreen` to list open (`pending`) ones. */
-    suspend fun listGamesForPlaygroup(playgroupId: String): Result<List<GameDto>> =
+    override suspend fun listGamesForPlaygroup(playgroupId: String): Result<List<GameDto>> =
         apiCall { api.listGamesForPlaygroup(playgroupId).items }
 
-    suspend fun getGame(gameId: String): Result<GameDto> = apiCall { api.getGame(gameId) }
+    override suspend fun getGame(gameId: String): Result<GameDto> = apiCall { api.getGame(gameId) }
 
-    suspend fun createGame(playgroupId: String? = null): Result<GameDto> =
+    override suspend fun createGame(playgroupId: String?): Result<GameDto> =
         apiCall { api.createGame(CreateGameRequest(playgroupId)) }
 
-    /** [userId] null or omitted = self-join. Different = proxy-join (see the backend's ADR-0013). */
-    suspend fun joinGame(gameId: String, deckId: String, userId: String? = null): Result<GamePlayerDto> =
+    override suspend fun joinGame(gameId: String, deckId: String, userId: String?): Result<GamePlayerDto> =
         apiCall { api.joinGame(gameId, JoinGameRequest(deckId, userId)) }
 
-    suspend fun leaveGame(gameId: String): Result<Unit> = apiCall { api.leaveGame(gameId) }
+    override suspend fun leaveGame(gameId: String): Result<Unit> = apiCall { api.leaveGame(gameId) }
 
-    suspend fun startGame(gameId: String): Result<GameDto> = apiCall { api.startGame(gameId) }
+    override suspend fun startGame(gameId: String): Result<GameDto> = apiCall { api.startGame(gameId) }
 
-    suspend fun finishGame(gameId: String): Result<GameDto> = apiCall { api.finishGame(gameId) }
+    override suspend fun finishGame(gameId: String): Result<GameDto> = apiCall { api.finishGame(gameId) }
 
-    suspend fun timeline(gameId: String): Result<List<GameActionDto>> =
+    override suspend fun timeline(gameId: String): Result<List<GameActionDto>> =
         apiCall { api.getTimeline(gameId) }
 
-    suspend fun recordAction(gameId: String, request: CreateActionRequest): Result<GameActionDto> =
+    override suspend fun recordAction(gameId: String, request: CreateActionRequest): Result<GameActionDto> =
         apiCall { api.recordAction(gameId, request) }
 
-    /**
-     * Live updates for [gameId] over WebSocket (see `GameSocketClient`/ADR-0005) — connects,
-     * authenticates and reconnects with backoff on its own; the caller only needs to collect and
-     * react to [GameSocketEvent]s (see `GameViewModel`).
-     */
-    fun observeGameEvents(gameId: String, accessToken: suspend () -> String?): Flow<GameSocketEvent> =
+    override fun observeGameEvents(gameId: String, accessToken: suspend () -> String?): Flow<GameSocketEvent> =
         gameSocketClient.connect(gameId, accessToken)
 
     // ------------------------------------------------------------ orchestration
 
-    /**
-     * Full happy path for creating a game: `POST /games` (with `playgroupId` in Group mode)
-     * → one `POST /games/{id}/join` per [assignments] (self-join or proxy-join, as decided
-     * by the backend) → an attempted `POST /games/{id}/start`.
-     *
-     * A 409 on `start` **is not a failure**: it means "there aren't 2 players yet" and the
-     * session is left in [GameStatus.PENDING] waiting for someone else to join. Any other
-     * error — including an individual join failing — propagates and aborts the rest of the joins.
-     *
-     * Returns `null` (success, no session) if [assignments] is empty: Casual mode, or
-     * Group mode with no seat assigned — the game isn't even created in the backend.
-     */
-    suspend fun bootstrapRemoteGame(
+    override suspend fun bootstrapRemoteGame(
         playgroupId: String?, assignments: List<SeatAssignment>
     ): Result<RemoteGameSession?> {
         if (assignments.isEmpty()) return Result.success(null)
@@ -211,14 +155,7 @@ class GameRepository @Inject constructor(
         )
     }
 
-    /**
-     * Mirrors a life change of [playerId] on the backend. No `target_id`: the action affects the
-     * actor itself.
-     *
-     * The backend applies the automatic elimination rule (`life_total <= 0`) when it receives it,
-     * so there's no need to send an explicit `Elimination`.
-     */
-    suspend fun recordLifeChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto> =
+    override suspend fun recordLifeChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto> =
         recordAction(
             gameId = session.gameId,
             request = CreateActionRequest(
@@ -228,13 +165,7 @@ class GameRepository @Inject constructor(
             )
         )
 
-    /**
-     * Mirrors commander damage from [attackerPlayerId] against [defenderPlayerId]. Only makes
-     * sense to call when BOTH seats have a real `GamePlayer` (are in
-     * [RemoteGameSession.seatPlayerIds]) — if the attacker is a seat without remote identity,
-     * there's no one to attribute the damage to (see `GameViewModel.adjustCommanderDamage`).
-     */
-    suspend fun recordCommanderDamage(
+    override suspend fun recordCommanderDamage(
         session: RemoteGameSession, attackerPlayerId: String, defenderPlayerId: String, amount: Int
     ): Result<GameActionDto> =
         recordAction(
@@ -247,8 +178,7 @@ class GameRepository @Inject constructor(
             )
         )
 
-    /** Mirrors a poison counter change of [playerId] on the backend (no `target_id`). */
-    suspend fun recordPoisonChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto> =
+    override suspend fun recordPoisonChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto> =
         recordAction(
             gameId = session.gameId,
             request = CreateActionRequest(

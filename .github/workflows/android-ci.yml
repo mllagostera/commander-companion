@@ -59,8 +59,6 @@ jobs:
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          build-root-directory: android
 
       - name: Dar permisos de ejecución a gradlew
         run: chmod +x gradlew

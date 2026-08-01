@@ -7,11 +7,11 @@ import com.commandercompanion.data.remote.api.CommanderApi
 import com.commandercompanion.data.remote.dto.CreateDeckRequest
 import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
+import com.commandercompanion.domain.repository.DeckRepository
 import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
- * Access to the authenticated user's decks.
+ * [DeckRepository] implementation.
  *
  * [listDecks] is network-first with a Room cache as a fallback (see [DeckDao]): every successful
  * fetch fully replaces the cache (`GET /decks` doesn't say what to prune otherwise, and this repo
@@ -20,13 +20,12 @@ import javax.inject.Singleton
  * screen's per-deck list empty just because of a network blip. An empty cache still propagates the
  * original error — there's nothing useful to show either way.
  */
-@Singleton
-class DeckRepository @Inject constructor(
+class DeckRepositoryImpl @Inject constructor(
     private val api: CommanderApi,
     private val deckDao: DeckDao
-) {
+) : DeckRepository {
 
-    suspend fun listDecks(): Result<List<DeckDto>> {
+    override suspend fun listDecks(): Result<List<DeckDto>> {
         val networkResult = apiCall { api.listDecks().items }
         return networkResult.fold(
             onSuccess = { decks ->
@@ -41,22 +40,21 @@ class DeckRepository @Inject constructor(
         )
     }
 
-    suspend fun getDeck(deckId: String): Result<DeckDto> = apiCall { api.getDeck(deckId) }
+    override suspend fun getDeck(deckId: String): Result<DeckDto> = apiCall { api.getDeck(deckId) }
 
-    suspend fun createDeck(
+    override suspend fun createDeck(
         name: String,
         commander: String,
-        moxfieldId: String? = null
+        moxfieldId: String?
     ): Result<DeckDto> = apiCall {
         api.createDeck(CreateDeckRequest(name = name, commander = commander, moxfieldId = moxfieldId))
     }.onSuccess { deck -> deckDao.insert(deck.toEntity()) }
 
-    /** [urlOrPublicId] accepts either the full Moxfield URL or just the public ID. */
-    suspend fun importFromMoxfield(urlOrPublicId: String): Result<DeckDto> = apiCall {
+    override suspend fun importFromMoxfield(urlOrPublicId: String): Result<DeckDto> = apiCall {
         api.importMoxfieldDeck(ImportMoxfieldRequest(urlOrPublicId))
     }.onSuccess { deck -> deckDao.insert(deck.toEntity()) }
 
-    suspend fun deleteDeck(deckId: String): Result<Unit> =
+    override suspend fun deleteDeck(deckId: String): Result<Unit> =
         apiCall { api.deleteDeck(deckId) }.onSuccess { deckDao.deleteById(deckId) }
 }
 

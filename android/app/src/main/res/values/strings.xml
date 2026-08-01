@@ -131,6 +131,10 @@
     <string name="settings_security_submit">Cambiar contraseña</string>
     <string name="settings_security_password_updated">Contraseña actualizada</string>
     <string name="settings_security_no_password">Iniciaste sesión con Google, esta cuenta no tiene contraseña propia.</string>
+    <string name="settings_language_heading">Idioma</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_catalan">Català</string>
 
     <!-- Estadísticas -->
     <string name="statistics_title">Estadísticas</string>

@@ -26,6 +26,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.commandercompanion.R
 import com.commandercompanion.data.remote.dto.DeckStatsDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
+import com.commandercompanion.domain.model.DeckWithStats
+import com.commandercompanion.domain.model.PlaygroupSummary
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.CircleIconButton
 import com.commandercompanion.presentation.components.GlassCard

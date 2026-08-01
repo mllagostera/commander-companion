@@ -77,6 +77,9 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // AppCompatDelegate.setApplicationLocales(): per-app language override (Settings screen),
+    // works with a plain ComponentActivity since AppCompat 1.6.0 — no need for AppCompatActivity.
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
