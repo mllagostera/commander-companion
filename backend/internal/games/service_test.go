@@ -40,7 +40,8 @@ func (noopBroadcaster) BroadcastGameFinished(_ string) {}
 // playgroups membership checker (over the same pool), so FinishGame
 // and proxy-joins exercise the complete flow in the tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
-	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{}, playgroups.NewService(pool))
+	membership := playgroups.NewService(pool)
+	return games.NewService(pool, statistics.NewService(pool, membership), noopBroadcaster{}, membership)
 }
 
 func truncateGamesTables(t *testing.T, pool *pgxpool.Pool) {
@@ -90,7 +91,9 @@ func asFiberError(t *testing.T, err error) *fiber.Error {
 
 func mustCreateGame(t *testing.T, svc games.Service) *games.GameResponse {
 	t.Helper()
-	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{})
+	// No playgroup_id: the membership check in CreateGame never runs, so the
+	// caller identity is irrelevant here.
+	game, err := svc.CreateGame(context.Background(), "irrelevant", games.CreateGameRequest{})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -148,9 +151,29 @@ func TestCreateGame_InvalidPlaygroupID_ReturnsBadRequest(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	_, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: "not-a-uuid"})
+	_, err := svc.CreateGame(context.Background(), "irrelevant", games.CreateGameRequest{PlaygroupID: "not-a-uuid"})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
 		t.Fatalf("CreateGame() con playgroup_id inválido: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+func TestCreateGame_NotAMemberOfPlaygroup_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	owner, _ := createUserAndDeck(t, pool, "create-game-owner@example.com")
+	outsider, _ := createUserAndDeck(t, pool, "create-game-outsider@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, owner)
+
+	// Regression test: before the fix, any authenticated user could create a
+	// game "belonging" to any playgroup, regardless of membership.
+	_, err := svc.CreateGame(context.Background(), outsider, games.CreateGameRequest{PlaygroupID: playgroupID})
+	if !errors.Is(err, games.ErrPlaygroupNotFound) {
+		t.Fatalf("CreateGame() de alguien ajeno al playgroup: error = %v, want ErrPlaygroupNotFound", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("CreateGame() de alguien ajeno al playgroup: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
 	}
 }
 
@@ -244,7 +267,7 @@ func TestJoinGame_ProxyJoin_Success(t *testing.T) {
 	caller, _ := createUserAndDeck(t, pool, "proxy-caller@example.com")
 	target, targetDeck := createUserAndDeck(t, pool, "proxy-target@example.com")
 	playgroupID := createPlaygroupWithMembers(t, pool, caller, target)
-	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	game, err := svc.CreateGame(context.Background(), caller, games.CreateGameRequest{PlaygroupID: playgroupID})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -286,7 +309,7 @@ func TestJoinGame_ProxyJoin_TargetNotInPlaygroup_ReturnsForbidden(t *testing.T) 
 	target, targetDeck := createUserAndDeck(t, pool, "proxy-outsider-target@example.com")
 	// The caller's playgroup doesn't include target.
 	playgroupID := createPlaygroupWithMembers(t, pool, caller)
-	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	game, err := svc.CreateGame(context.Background(), caller, games.CreateGameRequest{PlaygroupID: playgroupID})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -307,7 +330,7 @@ func TestJoinGame_ProxyJoin_CallerNotInPlaygroup_ReturnsForbidden(t *testing.T) 
 	target, targetDeck := createUserAndDeck(t, pool, "proxy-nonmember-target@example.com")
 	// The caller isn't a member of the playgroup, even though target is.
 	playgroupID := createPlaygroupWithMembers(t, pool, owner, target)
-	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	game, err := svc.CreateGame(context.Background(), owner, games.CreateGameRequest{PlaygroupID: playgroupID})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -326,7 +349,7 @@ func TestJoinGame_ProxyJoin_DeckMustBelongToTarget_ReturnsNotFound(t *testing.T)
 	caller, callerDeck := createUserAndDeck(t, pool, "proxy-deck-caller@example.com")
 	target, _ := createUserAndDeck(t, pool, "proxy-deck-target@example.com")
 	playgroupID := createPlaygroupWithMembers(t, pool, caller, target)
-	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	game, err := svc.CreateGame(context.Background(), caller, games.CreateGameRequest{PlaygroupID: playgroupID})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -612,7 +635,7 @@ func TestListGamesForPlaygroup_Success(t *testing.T) {
 	userID, deckID := createUserAndDeck(t, pool, "list-games-playgroup@example.com")
 	playgroupID := createPlaygroupWithMembers(t, pool, userID)
 
-	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	game, err := svc.CreateGame(context.Background(), userID, games.CreateGameRequest{PlaygroupID: playgroupID})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}

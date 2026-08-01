@@ -45,7 +45,8 @@ func (h *Handler) GetDeckStats(c *fiber.Ctx) error {
 
 // GetPlaygroupStats returns the aggregated statistics for a playgroup.
 func (h *Handler) GetPlaygroupStats(c *fiber.Ctx) error {
-	res, err := h.svc.GetPlaygroupStats(c.Context(), c.Params("id"))
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.GetPlaygroupStats(c.Context(), c.Params("id"), userID)
 	if err != nil {
 		return common.MapError(err)
 	}

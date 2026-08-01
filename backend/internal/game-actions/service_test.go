@@ -32,7 +32,8 @@ func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionRespon
 // playgroup membership checker (over the same pool), so FinishGame
 // and the proxy-joins exercise the full flow in the tests.
 func newGamesSvc(pool *pgxpool.Pool) games.Service {
-	return games.NewService(pool, statistics.NewService(pool), noopBroadcaster{}, playgroups.NewService(pool))
+	membership := playgroups.NewService(pool)
+	return games.NewService(pool, statistics.NewService(pool, membership), noopBroadcaster{}, membership)
 }
 
 // newActionsSvc creates a gameactions.Service with a noop Broadcaster (these tests
@@ -147,7 +148,7 @@ func setupActiveGame(t *testing.T, pool *pgxpool.Pool) activeGame {
 		t.Fatalf("creando deck 2: %v", err)
 	}
 
-	game, err := gamesSvc.CreateGame(ctx, games.CreateGameRequest{})
+	game, err := gamesSvc.CreateGame(ctx, user1.ID, games.CreateGameRequest{})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -188,7 +189,9 @@ func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
 	gamesSvc = newGamesSvc(pool)
 	actionsSvc = newActionsSvc(pool)
 
-	game, err := gamesSvc.CreateGame(ctx, games.CreateGameRequest{})
+	// No playgroup_id: the membership check in CreateGame never runs, so the
+	// caller identity is irrelevant here (no user exists yet at this point).
+	game, err := gamesSvc.CreateGame(ctx, "irrelevant", games.CreateGameRequest{})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -260,7 +263,7 @@ func setupProxyJoinedGame(t *testing.T, pool *pgxpool.Pool) proxyJoinedGame {
 		t.Fatalf("agregando teammate al playgroup: %v", addErr)
 	}
 
-	game, err := gamesSvc.CreateGame(ctx, games.CreateGameRequest{PlaygroupID: playgroup.ID})
+	game, err := gamesSvc.CreateGame(ctx, scorekeeper.ID, games.CreateGameRequest{PlaygroupID: playgroup.ID})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -618,7 +621,7 @@ func TestRecordAction_GameNotActive_ReturnsConflict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creando deck: %v", err)
 	}
-	game, err := gamesSvc.CreateGame(ctx, games.CreateGameRequest{})
+	game, err := gamesSvc.CreateGame(ctx, user.ID, games.CreateGameRequest{})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}

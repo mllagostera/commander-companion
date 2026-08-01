@@ -82,7 +82,10 @@ type PlaygroupMembership interface {
 
 // Service defines the business logic of the games module.
 type Service interface {
-	CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error)
+	// CreateGame creates a new game in pending state. If req.PlaygroupID is
+	// given, userID must be a member of that playgroup (same "don't reveal"
+	// criteria as ListGamesForPlaygroup: ErrPlaygroupNotFound either way).
+	CreateGame(ctx context.Context, userID string, req CreateGameRequest) (*GameResponse, error)
 	// GetGame returns a game by ID, if userID may access it (see authorizeGameAccess).
 	GetGame(ctx context.Context, id, userID string) (*GameResponse, error)
 	// ListGames returns a page of the game history of the given user only —
@@ -115,14 +118,26 @@ func NewService(
 	return &service{repo: New(db), stats: stats, broadcaster: broadcaster, membership: membership}
 }
 
-// CreateGame creates a new game in pending state.
-func (s *service) CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error) {
+// CreateGame creates a new game in pending state. If req.PlaygroupID is
+// given, userID must be a member of that playgroup — otherwise any
+// authenticated user could create games "belonging" to a group they have no
+// relation to, polluting its history and statistics once played out.
+func (s *service) CreateGame(ctx context.Context, userID string, req CreateGameRequest) (*GameResponse, error) {
 	var playgroupID pgtype.UUID
 	if req.PlaygroupID != "" {
 		pid, err := common.ParseUUID(req.PlaygroupID)
 		if err != nil {
 			return nil, ErrInvalidPlaygroupID
 		}
+
+		isMember, err := s.membership.IsMember(ctx, req.PlaygroupID, userID)
+		if err != nil {
+			return nil, fmt.Errorf("checking playgroup membership: %w", err)
+		}
+		if !isMember {
+			return nil, ErrPlaygroupNotFound
+		}
+
 		playgroupID = pid
 	}
 

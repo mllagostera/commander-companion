@@ -57,13 +57,13 @@ type twoPlayerGame struct {
 	player2ID string
 }
 
-func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, playgroupID string) *twoPlayerGame {
+func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, creatorID, playgroupID string) *twoPlayerGame {
 	t.Helper()
 	ctx := context.Background()
 
 	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
-	statsSvc := statistics.NewService(pool)
+	statsSvc := statistics.NewService(pool, playgroups.NewService(pool))
 	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{}, playgroups.NewService(pool))
 	actionsSvc := gameactions.NewService(pool, noopBroadcaster{})
 
@@ -89,7 +89,7 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, playgroupID string) *t
 		t.Fatalf("creando deck 2: %v", err)
 	}
 
-	game := mustCreateGame(t, gamesSvc, playgroupID)
+	game := mustCreateGame(t, gamesSvc, creatorID, playgroupID)
 	p1, err := gamesSvc.JoinGame(ctx, game.ID, user1.ID, games.JoinGameRequest{DeckID: deck1.ID})
 	if err != nil {
 		t.Fatalf("JoinGame(1) error = %v", err)
@@ -108,9 +108,9 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, playgroupID string) *t
 	}
 }
 
-func mustCreateGame(t *testing.T, svc games.Service, playgroupID string) *games.GameResponse {
+func mustCreateGame(t *testing.T, svc games.Service, creatorID, playgroupID string) *games.GameResponse {
 	t.Helper()
-	game, err := svc.CreateGame(context.Background(), games.CreateGameRequest{PlaygroupID: playgroupID})
+	game, err := svc.CreateGame(context.Background(), creatorID, games.CreateGameRequest{PlaygroupID: playgroupID})
 	if err != nil {
 		t.Fatalf("CreateGame() error = %v", err)
 	}
@@ -196,7 +196,7 @@ func TestGetUserStats_NoGamesYet_ReturnsZeroValues(t *testing.T) {
 		t.Fatalf("registrando usuario: %v", err)
 	}
 
-	res := mustGetUserStats(t, statistics.NewService(pool), user.ID)
+	res := mustGetUserStats(t, statistics.NewService(pool, playgroups.NewService(pool)), user.ID)
 	if res.GamesPlayed != 0 || res.GamesWon != 0 {
 		t.Fatalf("GetUserStats() de un usuario sin partidas = %+v, want todo en cero", res)
 	}
@@ -226,7 +226,7 @@ func TestGetDeckStats_OwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 		t.Fatalf("creando deck: %v", err)
 	}
 
-	svc := statistics.NewService(pool)
+	svc := statistics.NewService(pool, playgroups.NewService(pool))
 	_, err = svc.GetDeckStats(ctx, intruder.ID, deck.ID)
 	if !errors.Is(err, statistics.ErrDeckNotFound) {
 		t.Fatalf("GetDeckStats() de un deck ajeno: error = %v, want ErrDeckNotFound", err)
@@ -236,7 +236,7 @@ func TestGetDeckStats_OwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 func TestRecalculateForGame_WinnerGetsCreditForWinAndDamage(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateStatsTables(t, pool)
-	g := setupTwoPlayerGame(t, pool, "")
+	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
 
 	// player1 elimina a player2 a puro CombatDamage; player1 sobrevive con vida llena.
 	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
@@ -272,7 +272,7 @@ func TestRecalculateForGame_WinnerGetsCreditForWinAndDamage(t *testing.T) {
 func TestRecalculateForGame_NoSurvivors_NoWinnerCredited(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateStatsTables(t, pool)
-	g := setupTwoPlayerGame(t, pool, "")
+	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
 
 	// Partida cortada manualmente sin que nadie quede eliminado: 2 sobrevivientes, sin ganador.
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
@@ -289,7 +289,7 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	truncateStatsTables(t, pool)
 	ctx := context.Background()
 
-	g1 := setupTwoPlayerGame(t, pool, "")
+	g1 := setupTwoPlayerGame(t, pool, "irrelevant", "")
 	mustFinishGame(t, g1.games, g1.gameID, g1.user1.ID)
 
 	// setupTwoPlayerGame creates new users on every call; to test real
@@ -297,7 +297,7 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	// second game is built by hand reusing g1.user1/g1.deck1ID.
 	usersSvc := testutil.NewUsersService(pool)
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
-	statsSvc := statistics.NewService(pool)
+	statsSvc := statistics.NewService(pool, playgroups.NewService(pool))
 	gamesSvc := games.NewService(pool, statsSvc, noopBroadcaster{}, playgroups.NewService(pool))
 
 	opponent, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
@@ -311,7 +311,7 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 		t.Fatalf("creando deck del oponente: %v", err)
 	}
 
-	game2 := mustCreateGame(t, gamesSvc, "")
+	game2 := mustCreateGame(t, gamesSvc, "irrelevant", "")
 	mustJoin(t, gamesSvc, game2.ID, g1.user1.ID, g1.deck1ID)
 	mustJoin(t, gamesSvc, game2.ID, opponent.ID, opponentDeck.ID)
 	mustStartGame(t, gamesSvc, game2.ID, g1.user1.ID)
@@ -336,11 +336,11 @@ func TestGetPlaygroupStats_AggregatesFinishedGames(t *testing.T) {
 		t.Fatalf("CreatePlaygroup() error = %v", err)
 	}
 
-	g := setupTwoPlayerGame(t, pool, playgroup.ID)
+	g := setupTwoPlayerGame(t, pool, founder.ID, playgroup.ID)
 	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
-	res, err := g.stats.GetPlaygroupStats(ctx, playgroup.ID)
+	res, err := g.stats.GetPlaygroupStats(ctx, playgroup.ID, founder.ID)
 	if err != nil {
 		t.Fatalf("GetPlaygroupStats() error = %v, want nil", err)
 	}
@@ -348,6 +348,34 @@ func TestGetPlaygroupStats_AggregatesFinishedGames(t *testing.T) {
 		t.Fatalf("GetPlaygroupStats().GamesPlayed = %d, want 1", res.GamesPlayed)
 	}
 	assertPlaygroupMemberStats(t, res.Members, g.user1.ID)
+}
+
+func TestGetPlaygroupStats_NotAMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+	ctx := context.Background()
+
+	playgroupsSvc := playgroups.NewService(pool)
+	founder := createFounder(t, pool)
+	playgroup, err := playgroupsSvc.CreatePlaygroup(ctx, founder.ID, playgroups.CreatePlaygroupRequest{Name: "Liga"})
+	if err != nil {
+		t.Fatalf("CreatePlaygroup() error = %v", err)
+	}
+	usersSvc := testutil.NewUsersService(pool)
+	outsider, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
+		Username: "playgroup-stats-outsider", Email: "playgroup-stats-outsider@example.com", Password: testPassword,
+	})
+	if err != nil {
+		t.Fatalf("registrando usuario: %v", err)
+	}
+
+	// Regression test: before the fix, any authenticated user with the
+	// playgroup's UUID could see its aggregated member statistics.
+	svc := statistics.NewService(pool, playgroupsSvc)
+	_, err = svc.GetPlaygroupStats(ctx, playgroup.ID, outsider.ID)
+	if !errors.Is(err, statistics.ErrPlaygroupNotFound) {
+		t.Fatalf("GetPlaygroupStats() de alguien ajeno: error = %v, want ErrPlaygroupNotFound", err)
+	}
 }
 
 func assertPlaygroupMemberStats(t *testing.T, members []statistics.PlaygroupMemberStats, winnerUserID string) {
