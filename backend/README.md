@@ -55,11 +55,11 @@ free tier, which doesn't offer that hook), in Docker Compose, or locally. The
 [`Dockerfile`](Dockerfile) image includes the `migrations/` directory alongside the
 binary so this works at runtime.
 
-Scaling note: if the service runs with more than one replica, all
-instances run `goose up` on boot in parallel; goose is idempotent
-(each migration is applied only once, tracked in `goose_db_version`) but
-doesn't serialize those concurrent runs with a lock. With a single replica
-(the current case) this doesn't apply.
+Scaling note: `RunMigrations` takes a Postgres session-level advisory lock
+(goose's `lock.NewPostgresSessionLocker()`) before applying migrations, so
+if the service ever runs with more than one replica, the instance that
+loses the race blocks until the winner finishes instead of both running
+`goose up` concurrently.
 
 Minimum environment variables to configure on the Render service: `DB_URL`
 (Supabase connection string — use the **Session pooler**, not the

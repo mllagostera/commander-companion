@@ -61,6 +61,14 @@ instances would run `goose up` in parallel at boot. Goose is idempotent
 lock. No effect as long as the deployment is a single instance (the
 current case).
 
+**Resolved (2026-08-01):** `common.RunMigrations` now runs migrations
+through goose's `Provider` API with `lock.NewPostgresSessionLocker()`
+(`internal/common/migrate.go`), which takes a Postgres session-level
+advisory lock before applying migrations. If the service ever runs with
+more than one replica, whichever instance loses the race blocks until the
+winner finishes and releases the lock, instead of both running `goose up`
+concurrently.
+
 ## Out of scope for this ADR
 
 - `render.yaml` is not version-controlled, nor is explicit Vercel configuration
