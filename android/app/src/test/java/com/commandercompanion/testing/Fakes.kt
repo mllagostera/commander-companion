@@ -17,6 +17,7 @@ import com.commandercompanion.data.remote.dto.GameActionDto
 import com.commandercompanion.data.remote.dto.GameDto
 import com.commandercompanion.data.remote.dto.GamePlayerDto
 import com.commandercompanion.data.remote.dto.GameStatus
+import com.commandercompanion.data.remote.dto.HealthDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
 import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.PagedResponse
@@ -138,7 +139,7 @@ class FakeCommanderApi : CommanderApi {
     var onGetDeckStats: suspend (String) -> DeckStatsDto = { id -> DeckStatsDto(deckId = id) }
     var onGetPlaygroupStats: suspend (String) -> PlaygroupStatsDto = { id -> PlaygroupStatsDto(playgroupId = id) }
 
-    override suspend fun checkHealth(): String = "ok"
+    override suspend fun checkHealth(): HealthDto = HealthDto(status = "ok", db = "ok")
 
     override suspend fun listDecks(): PagedResponse<DeckDto> {
         calls += "listDecks"
