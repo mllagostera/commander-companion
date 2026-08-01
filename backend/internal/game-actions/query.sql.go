@@ -147,6 +147,33 @@ func (q *Queries) GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer
 	return i, err
 }
 
+const getGamePlayerByGameAndUser = `-- name: GetGamePlayerByGameAndUser :one
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by FROM game_players WHERE game_id = $1 AND user_id = $2 LIMIT 1
+`
+
+type GetGamePlayerByGameAndUserParams struct {
+	GameID pgtype.UUID `json:"game_id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetGamePlayerByGameAndUser(ctx context.Context, arg GetGamePlayerByGameAndUserParams) (GamePlayer, error) {
+	row := q.db.QueryRow(ctx, getGamePlayerByGameAndUser, arg.GameID, arg.UserID)
+	var i GamePlayer
+	err := row.Scan(
+		&i.ID,
+		&i.GameID,
+		&i.UserID,
+		&i.DeckID,
+		&i.LifeTotal,
+		&i.PoisonCounters,
+		&i.EnergyCounters,
+		&i.ExperienceCounters,
+		&i.IsEliminated,
+		&i.AddedBy,
+	)
+	return i, err
+}
+
 const listGameActions = `-- name: ListGameActions :many
 SELECT id, game_id, actor_id, target_id, action_type, payload, created_at FROM game_actions WHERE game_id = $1 ORDER BY created_at ASC
 `

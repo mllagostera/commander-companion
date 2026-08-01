@@ -7,11 +7,16 @@ RETURNING *;
 SELECT * FROM games WHERE id = $1 LIMIT 1;
 
 -- name: ListGamesPage :many
--- Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
--- it returns the first page; with a cursor, the rows strictly after it in
--- list order. See internal/common/pagination.go.
-SELECT * FROM games
-WHERE (
+-- Keyset pagination over (created_at, id) DESC, scoped to games where the
+-- authenticated user has (or had) a seat — never the full cross-tenant
+-- history. With cursor_created_at NULL it returns the first page; with a
+-- cursor, the rows strictly after it in list order. See internal/common/pagination.go.
+SELECT games.* FROM games
+WHERE EXISTS (
+    SELECT 1 FROM game_players gp
+    WHERE gp.game_id = games.id AND gp.user_id = sqlc.arg('user_id')::uuid
+  )
+  AND (
     sqlc.narg('cursor_created_at')::timestamp IS NULL
     OR (created_at, id) < (sqlc.narg('cursor_created_at')::timestamp, sqlc.narg('cursor_id')::uuid)
   )

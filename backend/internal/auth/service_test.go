@@ -137,6 +137,41 @@ func TestRefresh_RotatesTokenAndInvalidatesThePrevious(t *testing.T) {
 	}
 }
 
+func TestRefresh_ReuseOfRotatedToken_RevokesTheWholeSessionFamily(t *testing.T) {
+	pool := testutil.DB(t)
+	testutil.Truncate(t, pool, "users")
+
+	authSvc, usersSvc := newAuthSvc(t, pool, defaultTestConfig())
+	registerUser(t, pool, usersSvc, "refresh-reuse@example.com")
+
+	login, err := authSvc.Login(context.Background(), "refresh-reuse@example.com", testPassword)
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+
+	// Legitimate rotation: the client refreshes once, RT1 -> RT2.
+	refreshed, err := authSvc.Refresh(context.Background(), login.RefreshToken)
+	if err != nil {
+		t.Fatalf("Refresh() error = %v, want nil", err)
+	}
+
+	// An attacker who stole RT1 (or a race between two legitimate refreshes) replays
+	// it after it was already rotated away. This must not just fail for RT1 — it must
+	// also kill RT2, the token that replaced it, so the thief (or whoever ends up
+	// holding the surviving copy) can't keep the session alive either.
+	if _, err := authSvc.Refresh(context.Background(), login.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf("Refresh() con token reusado: error = %v, want ErrInvalidToken", err)
+	}
+
+	if _, err := authSvc.Refresh(context.Background(), refreshed.RefreshToken); !errors.Is(err, auth.ErrInvalidToken) {
+		t.Fatalf(
+			"Refresh() del token vigente tras detectar reuso: error = %v, want ErrInvalidToken "+
+				"(la familia entera debe quedar revocada)",
+			err,
+		)
+	}
+}
+
 func TestRefresh_InvalidToken(t *testing.T) {
 	pool := testutil.DB(t)
 	testutil.Truncate(t, pool, "users")

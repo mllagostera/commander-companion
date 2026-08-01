@@ -61,7 +61,9 @@ if the service ever runs with more than one replica, the instance that
 loses the race blocks until the winner finishes instead of both running
 `goose up` concurrently.
 
-Minimum environment variables to configure on the Render service: `DB_URL`
+Minimum environment variables to configure on the Render service: `APP_ENV=production`
+(makes the two variables below mandatory at startup instead of silently
+falling back to the dev defaults — see `internal/config/config.go`), `DB_URL`
 (Supabase connection string — use the **Session pooler**, not the
 Transaction pooler, because this backend uses prepared statements via pgx),
 `JWT_SECRET` (a new one, not the dev default), `GOOGLE_CLIENT_ID`,

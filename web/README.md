@@ -111,7 +111,10 @@ Notes on `docker-compose.yml`'s environment variables:
 ```
 web/
 ├── server/                       # Nitro layer (BFF); never reaches the browser
-│   ├── utils/backend.ts          # httpOnly cookies, refresh + retry, errors
+│   ├── utils/
+│   │   ├── backend.ts             # httpOnly cookies, refresh + retry, errors
+│   │   └── security-headers.ts    # CSP/HSTS/X-Frame-Options/etc., see below
+│   ├── plugins/security-headers.ts # sets them on `beforeResponse` (needs the final HTML to hash inline scripts)
 │   └── api/
 │       ├── auth/                 # register, login, google, logout, session
 │       └── backend/[...path].ts  # authenticated proxy to the Go API
@@ -138,6 +141,25 @@ web/
         ├── api.ts                # Deck (with image_url), SyncResponse, UserStats, DeckStats, PlaygroupStats
         └── google-identity.d.ts  # minimal typing for window.google
 ```
+
+## Security headers
+
+`server/plugins/security-headers.ts` sets `Content-Security-Policy`,
+`Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, and
+`Referrer-Policy` on every response — **only outside dev** (`npm run dev`
+never gets them: Vite's client needs eval-based HMR and a WebSocket to
+itself that this CSP would otherwise block). `script-src` is not
+`'unsafe-inline'`: Nuxt always renders at least one inline `<script>` (the
+runtime-config payload, sometimes also a `type="importmap"` one from Vite),
+so instead `server/utils/security-headers.ts` hashes each inline script's
+actual content from the final rendered HTML (`beforeResponse`, which is why
+this lives in a hook and not regular middleware — the body doesn't exist yet
+earlier in the request) and allowlists those exact hashes. An
+attacker-injected `<script>` (XSS) won't have a matching hash, so it still
+won't execute — unlike `'unsafe-inline'`, which would allow it same as any
+other inline script. `style-src` does stay `'unsafe-inline'`: the app uses
+`:style="..."` attribute bindings in several places, which CSP has no
+hash/nonce mechanism for.
 
 ## Notes
 

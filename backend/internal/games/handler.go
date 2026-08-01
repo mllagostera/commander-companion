@@ -34,7 +34,8 @@ func (h *Handler) CreateGame(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	res, err := h.svc.CreateGame(c.Context(), req)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.CreateGame(c.Context(), userID, req)
 	if err != nil {
 		return common.MapError(err)
 	}
@@ -60,7 +61,8 @@ func (h *Handler) ListGames(c *fiber.Ctx) error {
 		return common.MapError(err)
 	}
 
-	res, err := h.svc.ListGames(c.Context(), page)
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.ListGames(c.Context(), page, userID)
 	if err != nil {
 		return common.MapError(err)
 	}
@@ -69,7 +71,8 @@ func (h *Handler) ListGames(c *fiber.Ctx) error {
 
 // GetGame returns the detail of a game.
 func (h *Handler) GetGame(c *fiber.Ctx) error {
-	res, err := h.svc.GetGame(c.Context(), c.Params("id"))
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.GetGame(c.Context(), c.Params("id"), userID)
 	if err != nil {
 		return common.MapError(err)
 	}
@@ -102,7 +105,8 @@ func (h *Handler) LeaveGame(c *fiber.Ctx) error {
 
 // StartGame starts a game, moving it to active state.
 func (h *Handler) StartGame(c *fiber.Ctx) error {
-	res, err := h.svc.StartGame(c.Context(), c.Params("id"))
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.StartGame(c.Context(), c.Params("id"), userID)
 	if err != nil {
 		return common.MapError(err)
 	}
@@ -111,7 +115,8 @@ func (h *Handler) StartGame(c *fiber.Ctx) error {
 
 // FinishGame finishes a game, moving it to finished state.
 func (h *Handler) FinishGame(c *fiber.Ctx) error {
-	res, err := h.svc.FinishGame(c.Context(), c.Params("id"))
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.FinishGame(c.Context(), c.Params("id"), userID)
 	if err != nil {
 		return common.MapError(err)
 	}

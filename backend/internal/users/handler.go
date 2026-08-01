@@ -29,8 +29,11 @@ func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {
 }
 
 // RegisterProtectedRoutes registers the user endpoints that require a session.
-func (h *Handler) RegisterProtectedRoutes(router fiber.Router) {
-	router.Get("/users/search", h.SearchUsers)
+// searchRateLimit bounds GET /users/search specifically: it does an exact-email
+// lookup (see SearchUsers) that could otherwise be used to check an arbitrary
+// list of addresses at whatever rate an authenticated account wants.
+func (h *Handler) RegisterProtectedRoutes(router fiber.Router, searchRateLimit fiber.Handler) {
+	router.Get("/users/search", searchRateLimit, h.SearchUsers)
 	router.Patch("/users/:id", h.UpdateProfile)
 	router.Post("/users/:id/password", h.ChangePassword)
 }

@@ -204,26 +204,37 @@ func (q *Queries) ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.
 }
 
 const listGamesPage = `-- name: ListGamesPage :many
-SELECT id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id FROM games
-WHERE (
-    $1::timestamp IS NULL
-    OR (created_at, id) < ($1::timestamp, $2::uuid)
+SELECT games.id, games.playgroup_id, games.status, games.started_at, games.finished_at, games.created_at, games.current_turn_player_id FROM games
+WHERE EXISTS (
+    SELECT 1 FROM game_players gp
+    WHERE gp.game_id = games.id AND gp.user_id = $1::uuid
+  )
+  AND (
+    $2::timestamp IS NULL
+    OR (created_at, id) < ($2::timestamp, $3::uuid)
   )
 ORDER BY created_at DESC, id DESC
-LIMIT $3
+LIMIT $4
 `
 
 type ListGamesPageParams struct {
+	UserID          pgtype.UUID      `json:"user_id"`
 	CursorCreatedAt pgtype.Timestamp `json:"cursor_created_at"`
 	CursorID        pgtype.UUID      `json:"cursor_id"`
 	PageLimit       int32            `json:"page_limit"`
 }
 
-// Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
-// it returns the first page; with a cursor, the rows strictly after it in
-// list order. See internal/common/pagination.go.
+// Keyset pagination over (created_at, id) DESC, scoped to games where the
+// authenticated user has (or had) a seat — never the full cross-tenant
+// history. With cursor_created_at NULL it returns the first page; with a
+// cursor, the rows strictly after it in list order. See internal/common/pagination.go.
 func (q *Queries) ListGamesPage(ctx context.Context, arg ListGamesPageParams) ([]Game, error) {
-	rows, err := q.db.Query(ctx, listGamesPage, arg.CursorCreatedAt, arg.CursorID, arg.PageLimit)
+	rows, err := q.db.Query(ctx, listGamesPage,
+		arg.UserID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

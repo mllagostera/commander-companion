@@ -16,6 +16,7 @@ type Querier interface {
 	CreateGameAction(ctx context.Context, arg CreateGameActionParams) (GameAction, error)
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
 	GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer, error)
+	GetGamePlayerByGameAndUser(ctx context.Context, arg GetGamePlayerByGameAndUserParams) (GamePlayer, error)
 	ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error)
 	// current_turn_player_id nullable: TurnStart lo fija al actor, TurnEnd lo limpia
 	// (pasando NULL). Ver internal/game-actions/service.go.

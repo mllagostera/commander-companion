@@ -27,25 +27,40 @@ var (
 	ErrDeckNotFound = common.NotFound("deck not found")
 	// ErrInvalidPlaygroupID indicates the received playgroup ID isn't a valid UUID.
 	ErrInvalidPlaygroupID = common.InvalidInput("invalid playgroup id")
+	// ErrPlaygroupNotFound indicates that the playgroup doesn't exist or the
+	// authenticated user isn't a member — it doesn't distinguish which of the two
+	// cases it is (same "don't reveal" criteria as games.ErrPlaygroupNotFound).
+	ErrPlaygroupNotFound = common.NotFound("playgroup not found")
 )
+
+// PlaygroupMembership is what statistics needs from playgroups to authorize
+// GetPlaygroupStats: confirming a user is a member of a group, without this
+// package depending on internal/playgroups directly (same pattern as
+// games.PlaygroupMembership).
+type PlaygroupMembership interface {
+	IsMember(ctx context.Context, playgroupID, userID string) (bool, error)
+}
 
 // Service defines the business logic of the statistics module.
 type Service interface {
 	GetUserStats(ctx context.Context, userID string) (*UserStatsResponse, error)
 	GetDeckStats(ctx context.Context, userID, deckID string) (*DeckStatsResponse, error)
-	GetPlaygroupStats(ctx context.Context, playgroupID string) (*PlaygroupStatsResponse, error)
+	// GetPlaygroupStats returns the aggregated statistics for a playgroup, if
+	// userID is a member of it.
+	GetPlaygroupStats(ctx context.Context, playgroupID, userID string) (*PlaygroupStatsResponse, error)
 	// RecalculateForGame recalculates the aggregated user and deck statistics from
 	// the result and actions of an already-finished game.
 	RecalculateForGame(ctx context.Context, gameID string) error
 }
 
 type service struct {
-	repo *Queries
+	repo       *Queries
+	membership PlaygroupMembership
 }
 
 // NewService crea un nuevo servicio de statistics.
-func NewService(db *pgxpool.Pool) Service {
-	return &service{repo: New(db)}
+func NewService(db *pgxpool.Pool, membership PlaygroupMembership) Service {
+	return &service{repo: New(db), membership: membership}
 }
 
 // GetUserStats returns a user's precalculated global statistics. A user who
@@ -98,7 +113,17 @@ func (s *service) GetDeckStats(ctx context.Context, userID, deckID string) (*Dec
 
 // GetPlaygroupStats returns statistics aggregated per member within a playgroup,
 // calculated live over the finished games (there's no summary table for this).
-func (s *service) GetPlaygroupStats(ctx context.Context, playgroupID string) (*PlaygroupStatsResponse, error) {
+// Requires userID to be a member of the group, same "don't reveal" criteria
+// as playgroups.GetPlaygroup.
+func (s *service) GetPlaygroupStats(ctx context.Context, playgroupID, userID string) (*PlaygroupStatsResponse, error) {
+	isMember, err := s.membership.IsMember(ctx, playgroupID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("checking playgroup membership: %w", err)
+	}
+	if !isMember {
+		return nil, ErrPlaygroupNotFound
+	}
+
 	pid, err := common.ParseUUID(playgroupID)
 	if err != nil {
 		return nil, ErrInvalidPlaygroupID

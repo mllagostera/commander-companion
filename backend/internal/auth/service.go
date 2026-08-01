@@ -72,12 +72,28 @@ func (s *service) GoogleLogin(ctx context.Context, idToken string) (*TokenRespon
 }
 
 // Refresh validates a valid refresh token, revokes it (rotation), and issues a new token pair.
+//
+// Reuse of an already-revoked token — one that was already rotated away by an earlier
+// Refresh call, or explicitly revoked by Logout — is treated as a signal of theft, not
+// just an expired session: rotation makes every refresh token single-use, so a second
+// presentation of the same one means either the legitimate client and an attacker both
+// have it (replay), or a stolen token is being used after the real client already moved
+// on. Either way, the whole family of that user's active refresh tokens is revoked, so a
+// leaked token can't be replayed indefinitely to keep a session alive on every device —
+// the account owner has to log in again everywhere, not just lose this one token.
 func (s *service) Refresh(ctx context.Context, refreshToken string) (*TokenResponse, error) {
 	record, err := s.repo.GetRefreshTokenByHash(ctx, hashRefreshToken(refreshToken))
 	if err != nil {
 		return nil, ErrInvalidToken
 	}
-	if record.RevokedAt.Valid || !record.ExpiresAt.Valid || record.ExpiresAt.Time.Before(time.Now()) {
+
+	if record.RevokedAt.Valid {
+		if revokeErr := s.repo.RevokeAllRefreshTokensForUser(ctx, record.UserID); revokeErr != nil {
+			return nil, fmt.Errorf("revoking refresh token family after reuse: %w", revokeErr)
+		}
+		return nil, ErrInvalidToken
+	}
+	if !record.ExpiresAt.Valid || record.ExpiresAt.Time.Before(time.Now()) {
 		return nil, ErrInvalidToken
 	}
 

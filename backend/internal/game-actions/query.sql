@@ -12,6 +12,9 @@ SELECT * FROM games WHERE id = $1 LIMIT 1;
 -- name: GetGamePlayer :one
 SELECT * FROM game_players WHERE id = $1 LIMIT 1;
 
+-- name: GetGamePlayerByGameAndUser :one
+SELECT * FROM game_players WHERE game_id = $1 AND user_id = $2 LIMIT 1;
+
 -- name: AdjustGamePlayerLife :one
 UPDATE game_players
 SET life_total = life_total + sqlc.arg(delta)::int

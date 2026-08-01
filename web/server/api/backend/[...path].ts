@@ -8,7 +8,11 @@
  *
  * The `/auth/*` endpoints are deliberately excluded: they go through
  * `/api/auth/*`, which are the only ones that touch session cookies. This way no
- * path from JS can make a token come back to the browser.
+ * path from JS can make a token come back to the browser. The match is done against
+ * the lowercased path (`/Auth/login` blocked the same as `/auth/login`): the Go
+ * backend's router is case-insensitive by default, so comparing case-sensitively
+ * here would let a differently-cased request slip through this filter and still
+ * resolve to the real login/refresh handler on the other side.
  */
 const BLOCKED_PREFIXES = ['auth/']
 
@@ -23,7 +27,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Not Found' })
   }
 
-  if (BLOCKED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+  const lowerPath = path.toLowerCase()
+  if (BLOCKED_PREFIXES.some((prefix) => lowerPath.startsWith(prefix))) {
     throw createError({
       statusCode: 404,
       statusMessage: 'Not Found',

@@ -36,6 +36,13 @@ const (
 	authRateLimitMax    = 20
 	authRateLimitWindow = time.Minute
 
+	// Rate limit for GET /users/search. It's authenticated (unlike the auth
+	// endpoints above), but it does an exact-email lookup — without a bound, an
+	// account could be used to check an arbitrary list of addresses at whatever
+	// rate the client wants (see the 2026-08-01 security audit, docs/roadmap/TASKS.md).
+	searchRateLimitMax    = 20
+	searchRateLimitWindow = time.Minute
+
 	migrationsDir = "migrations"
 )
 
@@ -114,6 +121,19 @@ func newAuthRateLimiter() fiber.Handler {
 	})
 }
 
+// newSearchRateLimiter builds the per-IP rate limiting middleware for
+// GET /users/search (see the constant doc above). Same in-process-memory /
+// ProxyHeader caveats as newAuthRateLimiter.
+func newSearchRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        searchRateLimitMax,
+		Expiration: searchRateLimitWindow,
+		LimitReached: func(_ *fiber.Ctx) error {
+			return fiber.NewError(fiber.StatusTooManyRequests, "too many search requests, try again later")
+		},
+	})
+}
+
 // registerModules instantiates repositories, services, and handlers, and
 // registers the routes of every module under /api/v1 (public and JWT-protected).
 func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
@@ -137,8 +157,9 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	authHandler.RegisterPublicRoutes(api, authRateLimit) // login, google, refresh, logout
 
 	protected := api.Group("", auth.RequireAuth(cfg.Auth.JWTSecret))
-	authHandler.RegisterProtectedRoutes(protected)  // GET /auth/me
-	usersHandler.RegisterProtectedRoutes(protected) // PATCH /users/:id
+	authHandler.RegisterProtectedRoutes(protected) // GET /auth/me
+	// GET /users/search, PATCH /users/:id, POST /users/:id/password.
+	usersHandler.RegisterProtectedRoutes(protected, newSearchRateLimiter())
 
 	moxfieldClient := moxfield.NewClient()
 	decksService := decks.NewService(db.Pool, moxfieldClient)
@@ -147,20 +168,21 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	playgroupsService := playgroups.NewService(db.Pool)
 	playgroups.NewHandler(playgroupsService).RegisterRoutes(protected)
 
-	statisticsService := statistics.NewService(db.Pool)
+	statisticsService := statistics.NewService(db.Pool, playgroupsService)
 	statistics.NewHandler(statisticsService).RegisterRoutes(protected)
 
 	// wsHub relays a game's game_actions live to every client connected to it
 	// (see ADR-0005). It's injected into games/game-actions as a
 	// Broadcaster, without those packages depending on internal/websocket (same
 	// pattern as statisticsService as StatisticsRecalculator). The WebSocket
-	// route is public (no auth.RequireAuth): it authenticates via the initial
-	// message, not via header.
+	// route registration is deferred until gamesService exists below (it's
+	// injected back as a websocket.MembershipChecker) — it's still public (no
+	// auth.RequireAuth): it authenticates via the initial message, not via header.
 	wsHub := websocket.NewHub()
-	websocket.RegisterRoutes(api, wsHub, cfg.Auth.JWTSecret)
 
 	gamesService := games.NewService(db.Pool, statisticsService, wsHub, playgroupsService)
 	games.NewHandler(gamesService).RegisterRoutes(protected)
+	websocket.RegisterRoutes(api, wsHub, cfg.Auth.JWTSecret, gamesService)
 
 	gameActionsService := gameactions.NewService(db.Pool, wsHub)
 	gameactions.NewHandler(gameActionsService).RegisterRoutes(protected)

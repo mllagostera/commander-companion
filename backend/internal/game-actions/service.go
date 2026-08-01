@@ -85,7 +85,9 @@ type Service interface {
 	// (JWT): they must be the owner of the actor GamePlayer or the one who added
 	// them as a proxy (see ADR-0013), or it's rejected with ErrNotAuthorizedForActor.
 	RecordAction(ctx context.Context, gameID, callerUserID string, req CreateActionRequest) (*GameActionResponse, error)
-	GetTimeline(ctx context.Context, gameID string) ([]GameActionResponse, error)
+	// GetTimeline returns the action history of a game, if callerUserID holds
+	// a seat in it.
+	GetTimeline(ctx context.Context, gameID, callerUserID string) ([]GameActionResponse, error)
 }
 
 type service struct {
@@ -215,8 +217,11 @@ func (s *service) resolveActionSubject(
 	return actorID, target, targetID, nil
 }
 
-// GetTimeline returns the complete action history of a game.
-func (s *service) GetTimeline(ctx context.Context, gameID string) ([]GameActionResponse, error) {
+// GetTimeline returns the complete action history of a game, if
+// callerUserID holds a seat in it. Denies with ErrGameNotFound, not a 403,
+// same "don't reveal" pattern as the rest of the module (see
+// authorizeActor and ADR-0013).
+func (s *service) GetTimeline(ctx context.Context, gameID, callerUserID string) ([]GameActionResponse, error) {
 	gid, err := common.ParseUUID(gameID)
 	if err != nil {
 		return nil, ErrGameNotFound
@@ -227,6 +232,19 @@ func (s *service) GetTimeline(ctx context.Context, gameID string) ([]GameActionR
 			return nil, ErrGameNotFound
 		}
 		return nil, fmt.Errorf("looking up game: %w", err)
+	}
+
+	uid, err := common.ParseUUID(callerUserID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+	if _, membershipErr := s.repo.GetGamePlayerByGameAndUser(
+		ctx, GetGamePlayerByGameAndUserParams{GameID: gid, UserID: uid},
+	); membershipErr != nil {
+		if errors.Is(membershipErr, pgx.ErrNoRows) {
+			return nil, ErrGameNotFound
+		}
+		return nil, fmt.Errorf("checking game membership: %w", membershipErr)
 	}
 
 	actions, err := s.repo.ListGameActions(ctx, gid)

@@ -27,6 +27,15 @@ There were decisions to make:
 - **Rotation on every use**: `POST /auth/refresh` revokes the refresh token
   used and issues a new one along with the new access token. Reusing a
   refresh token that has already been rotated returns `401`.
+- **Reuse-detection revokes the whole family** (2026-08-01, security audit
+  follow-up): a second presentation of an already-revoked refresh token is
+  treated as a theft signal, not just a stale session — `Refresh` revokes
+  *every* active refresh token for that user (`RevokeAllRefreshTokensForUser`),
+  logging out all of that account's devices/sessions instead of only
+  invalidating the one reused token. This closes the gap where a stolen
+  refresh token, used once before the legitimate client's own next refresh,
+  would otherwise let the thief keep rotating it into a fresh session
+  indefinitely with no way for the account owner to detect or stop it.
 - **Real logout**: revokes the specified refresh token (`revoked_at`), does
   not depend on the access token expiring to end the session.
 - Refresh token lifetime: `REFRESH_TOKEN_TTL`, default 720h (30 days).
