@@ -20,11 +20,11 @@ class LoadStatisticsUseCaseTest {
 
     private val api = FakeCommanderApi()
 
-    private fun useCase(): LoadStatisticsUseCase = LoadStatisticsUseCase(
+    private suspend fun loadSnapshot() = LoadStatisticsUseCase(
         statisticsRepository = StatisticsRepositoryImpl(api),
         deckRepository = DeckRepositoryImpl(api, FakeDeckDao()),
         playgroupRepository = PlaygroupRepositoryImpl(api)
-    )
+    ).invoke()
 
     @Test
     fun `carga las estadisticas globales, por deck y por grupo`() = runTest {
@@ -34,7 +34,7 @@ class LoadStatisticsUseCaseTest {
         api.onListPlaygroups = { listOf(playgroupDto(id = "group-1")) }
         api.onGetPlaygroupStats = { id -> PlaygroupStatsDto(playgroupId = id, gamesPlayed = 3) }
 
-        val snapshot = useCase()!!
+        val snapshot = loadSnapshot()!!
 
         assertEquals(10, snapshot.userStats.gamesPlayed)
         assertEquals(4, snapshot.userStats.gamesWon)
@@ -49,7 +49,7 @@ class LoadStatisticsUseCaseTest {
         api.onListPlaygroups = { listOf(playgroupDto(id = "group-1")) }
         api.onGetPlaygroupStats = { throw httpException(404) }
 
-        val snapshot = useCase()!!
+        val snapshot = loadSnapshot()!!
 
         assertEquals(0, snapshot.playgroupSummaries.single().gamesPlayed)
     }
@@ -59,7 +59,7 @@ class LoadStatisticsUseCaseTest {
         api.onListDecks = { listOf(deckDto("deck-a")) }
         api.onGetDeckStats = { throw httpException(404) }
 
-        val snapshot = useCase()!!
+        val snapshot = loadSnapshot()!!
 
         assertNull(snapshot.deckStats.single().stats)
     }
@@ -68,6 +68,6 @@ class LoadStatisticsUseCaseTest {
     fun `si fallan las estadisticas globales no hay snapshot`() = runTest {
         api.onGetUserStats = { throw httpException(500) }
 
-        assertNull(useCase())
+        assertNull(loadSnapshot())
     }
 }
