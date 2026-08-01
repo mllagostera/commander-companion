@@ -134,6 +134,10 @@ class GameRepository @Inject constructor(
 
     suspend fun listGames(): Result<List<GameDto>> = apiCall { api.listGames().items }
 
+    /** Full history of a playgroup's games — used by `JoinGameScreen` to list open (`pending`) ones. */
+    suspend fun listGamesForPlaygroup(playgroupId: String): Result<List<GameDto>> =
+        apiCall { api.listGamesForPlaygroup(playgroupId).items }
+
     suspend fun getGame(gameId: String): Result<GameDto> = apiCall { api.getGame(gameId) }
 
     suspend fun createGame(playgroupId: String? = null): Result<GameDto> =

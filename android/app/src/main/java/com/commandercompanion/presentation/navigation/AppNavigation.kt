@@ -12,6 +12,7 @@ import androidx.navigation.toRoute
 import com.commandercompanion.presentation.screens.dashboard.DashboardScreen
 import com.commandercompanion.presentation.screens.game.GameTrackerScreen
 import com.commandercompanion.presentation.screens.history.HistoryScreen
+import com.commandercompanion.presentation.screens.joingame.JoinGameScreen
 import com.commandercompanion.presentation.screens.login.LoginScreen
 import com.commandercompanion.presentation.screens.pregame.PreGameScreen
 import com.commandercompanion.presentation.screens.register.RegisterScreen
@@ -57,11 +58,22 @@ fun AppNavigation(
         composable<DashboardRoute> {
             DashboardScreen(
                 onNewGame = { navController.navigate(PlayerSetupRoute) },
+                onJoinGame = { navController.navigate(JoinGameRoute) },
                 onViewHistory = { navController.navigate(HistoryRoute) },
                 onViewStatistics = { navController.navigate(StatisticsRoute) },
                 onOpenSettings = { navController.navigate(SettingsRoute) },
                 onLogout = {
                     navController.navigate(LoginRoute) { popUpTo(0) { inclusive = true } }
+                }
+            )
+        }
+        composable<JoinGameRoute> {
+            JoinGameScreen(
+                onBack = { navController.popBackStack() },
+                onJoined = { gameId, localPlayerId ->
+                    navController.navigate(JoinedGameTrackerRoute(gameId, localPlayerId)) {
+                        popUpTo(DashboardRoute)
+                    }
                 }
             )
         }
@@ -86,6 +98,15 @@ fun AppNavigation(
             )
         }
         composable<GameTrackerRoute> {
+            GameTrackerScreen(
+                onFinish = {
+                    navController.popBackStack(DashboardRoute, inclusive = false)
+                }
+            )
+        }
+        composable<JoinedGameTrackerRoute> {
+            // Same screen/ViewModel as GameTrackerRoute: GameViewModel tells the two modes apart by
+            // whether `localPlayerId` is present in the SavedStateHandle (see JoinedGameTrackerRoute).
             GameTrackerScreen(
                 onFinish = {
                     navController.popBackStack(DashboardRoute, inclusive = false)

@@ -1,20 +1,28 @@
 package com.commandercompanion.presentation.screens.game
 
 import androidx.lifecycle.SavedStateHandle
+import com.commandercompanion.data.remote.dto.CreateActionRequest
 import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameStatus
+import com.commandercompanion.data.remote.dto.amountPayload
+import com.commandercompanion.data.remote.ws.GameSocketEvent
 import com.commandercompanion.data.repository.GameRepository
+import com.commandercompanion.data.repository.PlaygroupRepository
 import com.commandercompanion.data.session.AccessTokenProvider
 import com.commandercompanion.presentation.navigation.PlayerConfig
 import com.commandercompanion.presentation.navigation.encodePlayerConfigs
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeGameDao
 import com.commandercompanion.testing.FakeGameSocketClient
+import com.commandercompanion.testing.gameActionDto
 import com.commandercompanion.testing.gameDto
 import com.commandercompanion.testing.gamePlayerDto
 import com.commandercompanion.testing.httpException
+import com.commandercompanion.testing.playgroupDto
+import com.commandercompanion.testing.playgroupMemberDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -22,6 +30,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -71,6 +80,20 @@ class GameViewModelTest {
                 )
             ),
             gameRepository = repository,
+            playgroupRepository = PlaygroupRepository(api),
+            accessTokenProvider = accessTokenProvider
+        )
+    }
+
+    /** Joined mode: this device is NOT the one that created [gameId], it just joined it (`JoinGameScreen`). */
+    private fun joinedViewModel(gameId: String = "game-1", localPlayerId: String = "gp-user-1"): GameViewModel {
+        val repository = GameRepository(api, dao, socket)
+        return GameViewModel(
+            savedStateHandle = SavedStateHandle(
+                mapOf("gameId" to gameId, "localPlayerId" to localPlayerId)
+            ),
+            gameRepository = repository,
+            playgroupRepository = PlaygroupRepository(api),
             accessTokenProvider = accessTokenProvider
         )
     }
@@ -286,5 +309,133 @@ class GameViewModelTest {
         assertTrue(!api.calls.contains("finishGame"))
         // The local result is still saved regardless.
         assertEquals("FINISHED", dao.finished.single().second)
+    }
+
+    // ------------------------------------------------------- joined mode (JoinGameScreen)
+
+    private fun givenTwoSeatGame(status: String = GameStatus.ACTIVE) {
+        api.onGetGame = { id ->
+            gameDto(
+                id = id,
+                status = status,
+                playgroupId = "pg-1",
+                players = listOf(
+                    gamePlayerDto(id = "gp-user-1", gameId = id, userId = "user-1", deckId = "deck-1"),
+                    gamePlayerDto(id = "gp-user-2", gameId = id, userId = "user-2", deckId = "deck-2")
+                )
+            )
+        }
+        api.onGetPlaygroup = { id ->
+            playgroupDto(
+                id = id,
+                members = listOf(
+                    playgroupMemberDto(playgroupId = id, userId = "user-1", username = "Ana"),
+                    playgroupMemberDto(playgroupId = id, userId = "user-2", username = "Beto")
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `unirse a una partida existente carga el resto de la mesa`() = runTest(dispatcher) {
+        givenTwoSeatGame()
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+
+        assertEquals(2, vm.state.value.players.size)
+        assertEquals("Ana", vm.state.value.players.first { it.id == 1 }.name)
+        assertEquals("Beto", vm.state.value.players.first { it.id == 2 }.name)
+        assertEquals(1, vm.state.value.localSeatId)
+        assertEquals(RemoteSyncStatus.Synced, vm.state.value.remoteSync.status)
+        assertEquals(listOf("game-1"), socket.connectedGameIds)
+    }
+
+    @Test
+    fun `una partida unida que sigue pendiente no conecta el socket`() = runTest(dispatcher) {
+        givenTwoSeatGame(status = GameStatus.PENDING)
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+
+        assertEquals(RemoteSyncStatus.WaitingForPlayers, vm.state.value.remoteSync.status)
+        assertTrue(socket.connectedGameIds.isEmpty())
+    }
+
+    @Test
+    fun `una accion de vida de otro asiento se refleja en el estado local`() = runTest(dispatcher) {
+        givenTwoSeatGame()
+        val events = MutableSharedFlow<GameSocketEvent>(extraBufferCapacity = 1)
+        socket.onConnect = { events }
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+        val betoInitialLife = vm.state.value.players.first { it.id == 2 }.life
+
+        events.tryEmit(
+            GameSocketEvent.ActionReceived(
+                gameActionDto(
+                    "game-1",
+                    CreateActionRequest(actorId = "gp-user-2", actionType = GameActionType.LIFE_CHANGE, payload = amountPayload(-3))
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(betoInitialLife - 3, vm.state.value.players.first { it.id == 2 }.life)
+    }
+
+    /** Otherwise the device would double-count a change it already applied synchronously before mirroring it. */
+    @Test
+    fun `una accion recibida del propio asiento no se vuelve a aplicar`() = runTest(dispatcher) {
+        givenTwoSeatGame()
+        val events = MutableSharedFlow<GameSocketEvent>(extraBufferCapacity = 1)
+        socket.onConnect = { events }
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+        val ownInitialLife = vm.state.value.players.first { it.id == 1 }.life
+
+        events.tryEmit(
+            GameSocketEvent.ActionReceived(
+                gameActionDto(
+                    "game-1",
+                    CreateActionRequest(actorId = "gp-user-1", actionType = GameActionType.LIFE_CHANGE, payload = amountPayload(-10))
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(ownInitialLife, vm.state.value.players.first { it.id == 1 }.life)
+    }
+
+    @Test
+    fun `el dano de comandante ya registrado se reconstruye desde el timeline al unirse`() = runTest(dispatcher) {
+        givenTwoSeatGame()
+        api.onGetTimeline = {
+            listOf(
+                gameActionDto(
+                    "game-1",
+                    CreateActionRequest(actorId = "gp-user-2", targetId = "gp-user-1", actionType = GameActionType.COMMANDER_DAMAGE, payload = amountPayload(7))
+                )
+            )
+        }
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+
+        assertEquals(7, vm.state.value.players.first { it.id == 1 }.commanderDamage[2])
+    }
+
+    @Test
+    fun `si no se puede cargar la partida unida el estado queda en Failed`() = runTest(dispatcher) {
+        api.onGetGame = { throw httpException(404) }
+
+        val vm = joinedViewModel()
+        advanceUntilIdle()
+
+        assertEquals(RemoteSyncStatus.Failed, vm.state.value.remoteSync.status)
+        assertTrue(vm.state.value.players.isEmpty())
+        assertNull(vm.state.value.localSeatId)
     }
 }

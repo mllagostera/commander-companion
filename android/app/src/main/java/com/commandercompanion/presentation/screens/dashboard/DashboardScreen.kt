@@ -24,6 +24,7 @@ import com.commandercompanion.presentation.theme.StatusDanger
 @Composable
 fun DashboardScreen(
     onNewGame: () -> Unit,
+    onJoinGame: () -> Unit,
     onViewHistory: () -> Unit,
     onViewStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -50,6 +51,8 @@ fun DashboardScreen(
                     letterSpacing = 0.5.sp
                 )
             }
+            Spacer(modifier = Modifier.height(14.dp))
+            GradientOutlineButton(text = stringResource(R.string.dashboard_join_game), onClick = onJoinGame)
             Spacer(modifier = Modifier.height(14.dp))
             GradientOutlineButton(text = stringResource(R.string.dashboard_history), onClick = onViewHistory)
             Spacer(modifier = Modifier.height(20.dp))

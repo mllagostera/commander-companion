@@ -32,6 +32,7 @@
 
     <!-- Dashboard -->
     <string name="dashboard_new_game">NUEVA PARTIDA</string>
+    <string name="dashboard_join_game">UNIRSE A UNA PARTIDA</string>
     <string name="dashboard_history">HISTORIAL</string>
     <string name="dashboard_statistics">Estadísticas</string>
     <string name="dashboard_settings">Ajustes</string>
@@ -65,6 +66,18 @@
     <string name="setup_pick_group_first">Elige un grupo arriba para poder asignar jugadores.</string>
     <string name="setup_guest">Invitado</string>
 
+    <!-- Unirse a una partida (de otro dispositivo) -->
+    <string name="join_game_title">Unirse a una partida</string>
+    <string name="join_game_subtitle">Elige tu grupo y súmate a una partida que ya haya creado alguien más.</string>
+    <string name="join_game_open_games_label">Partidas abiertas</string>
+    <string name="join_game_loading">Buscando partidas…</string>
+    <string name="join_game_no_open_games">No hay partidas abiertas en este grupo ahora mismo.</string>
+    <string name="join_game_no_own_decks">Todavía no tienes decks. Crea uno antes de unirte.</string>
+    <string name="join_game_seats_taken">%1$d jugador(es) ya en la mesa</string>
+    <string name="join_game_select">Elegir</string>
+    <string name="join_game_selected">Elegida</string>
+    <string name="join_game_join_button">UNIRSE</string>
+
     <!-- Pre-partida: sorteo y mulligans -->
     <string name="pregame_rotate_prompt">Gira tu dispositivo\npara elegir asientos</string>
     <string name="pregame_seat_label">Asiento %1$d</string>
@@ -87,6 +100,8 @@
     <string name="tracker_finish_game">Finalizar partida</string>
     <string name="tracker_starter_banner">¡Empieza\n%1$s!</string>
     <string name="tracker_connecting_to_server">Creando la partida en el servidor…</string>
+    <string name="tracker_loading_joined_game">Cargando la mesa…</string>
+    <string name="tracker_back_to_dashboard">Volver al inicio</string>
 
     <!-- Resumen de partida -->
     <string name="summary_subtitle">Estadísticas de la partida · Turno %1$d</string>

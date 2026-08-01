@@ -7,14 +7,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.core.util.ApiError
 import com.commandercompanion.core.util.toUserMessage
+import com.commandercompanion.data.remote.dto.GameActionDto
+import com.commandercompanion.data.remote.dto.GameActionType
+import com.commandercompanion.data.remote.dto.GameDto
+import com.commandercompanion.data.remote.dto.amount
 import com.commandercompanion.data.remote.ws.GameSocketEvent
 import com.commandercompanion.data.repository.GameRepository
 import com.commandercompanion.data.repository.LocalSeat
 import com.commandercompanion.data.repository.LocalSeatResult
+import com.commandercompanion.data.repository.PlaygroupRepository
 import com.commandercompanion.data.repository.RemoteGameSession
 import com.commandercompanion.data.repository.SeatAssignment
 import com.commandercompanion.data.session.AccessTokenProvider
+import com.commandercompanion.presentation.navigation.PlayerConfig
 import com.commandercompanion.presentation.navigation.decodePlayerConfigs
+import com.commandercompanion.presentation.theme.PlayerColorPalette
 import com.commandercompanion.presentation.theme.colorForKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -23,28 +30,55 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
+private const val HTTP_CONFLICT = 409
+
 @HiltViewModel
 class GameViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val gameRepository: GameRepository,
+    private val playgroupRepository: PlaygroupRepository,
     private val accessTokenProvider: AccessTokenProvider
 ) : ViewModel() {
 
     private val gameId: String = checkNotNull(savedStateHandle["gameId"])
-    private val playerConfigs = decodePlayerConfigs(checkNotNull(savedStateHandle["playersEncoded"]))
+
+    /**
+     * Set only by [com.commandercompanion.presentation.navigation.JoinedGameTrackerRoute]: the
+     * `GamePlayer.id` this device got back from `POST /games/{id}/join` when joining SOMEONE
+     * ELSE's already-created remote game (see `JoinGameScreen`), as opposed to hosting a new
+     * pass-and-play session (`GameTrackerRoute`, which carries `playersEncoded` instead). Its
+     * presence is what tells the two modes apart.
+     */
+    private val localPlayerId: String? = savedStateHandle["localPlayerId"]
+    private val joinedMode: Boolean = localPlayerId != null
+
+    private val playerConfigs: List<PlayerConfig> = if (joinedMode) {
+        emptyList()
+    } else {
+        decodePlayerConfigs(checkNotNull(savedStateHandle["playersEncoded"]))
+    }
     private val startingPlayerSeat: Int = savedStateHandle["startingPlayerSeat"] ?: -1
 
     /** Group chosen in Group mode (`PlayerSetupScreen`), or null in Casual mode. */
     private val playgroupId: String? = savedStateHandle["playgroupId"]
 
     /**
-     * Backend game mirrored by this device, or null if it couldn't be created / doesn't apply
-     * (Casual mode, or Group mode with no seat assigned). See [GameRepository]: any
-     * seat present in [RemoteGameSession.seatPlayerIds] has a real `GamePlayer`, not just the
-     * authenticated user's — Group mode can seat several teammates at once
-     * (proxy-join, see the backend's ADR-0013).
+     * Backend game mirrored by this device, or null if it couldn't be created/joined. See
+     * [GameRepository]: in host mode, [RemoteGameSession.seatPlayerIds] only has THIS device's own
+     * seats (self- or proxy-joined, ADR-0013); in joined mode ([joinedMode]) it has EVERY seat of
+     * the table, since this device also needs to reconcile the other seats' live actions — see
+     * [ownedSeatIds] for which of those this device is allowed to mirror changes for.
      */
     private var remoteSession: RemoteGameSession? = null
+
+    /**
+     * Seats THIS device is the source of truth for and mirrors local UI edits from — every seat in
+     * host mode (it created all of them), or just [GameState.localSeatId] in joined mode. An
+     * incoming `game_action` for a seat in this set is this device's own echo (already applied
+     * synchronously before mirroring it); for any other seat present in [RemoteGameSession] it's a
+     * genuine update from whichever device actually controls it, see [applyRemoteAction].
+     */
+    private var ownedSeatIds: Set<Int> = emptySet()
 
     /**
      * Serializes remote operations: their order matters and can't be left to how two loose
@@ -60,23 +94,31 @@ class GameViewModel @Inject constructor(
     private var socketJob: Job? = null
 
     private val _state = mutableStateOf(
-        GameState(
-            players = playerConfigs.mapIndexed { index, config ->
-                PlayerState(
-                    id = index + 1,
-                    name = config.name,
-                    color = colorForKey(config.colorKey),
-                    mulligans = config.mulligans
-                )
-            },
-            startingPlayerId = startingPlayerSeat.takeIf { it >= 0 }?.plus(1)
-        )
+        if (joinedMode) {
+            GameState(remoteSync = RemoteSyncState(status = RemoteSyncStatus.Connecting))
+        } else {
+            GameState(
+                players = playerConfigs.mapIndexed { index, config ->
+                    PlayerState(
+                        id = index + 1,
+                        name = config.name,
+                        color = colorForKey(config.colorKey),
+                        mulligans = config.mulligans
+                    )
+                },
+                startingPlayerId = startingPlayerSeat.takeIf { it >= 0 }?.plus(1)
+            )
+        }
     )
     val state: State<GameState> = _state
 
     init {
-        persistNewGame()
-        bootstrapRemoteGame()
+        if (joinedMode) {
+            initJoinedGame()
+        } else {
+            persistNewGame()
+            bootstrapRemoteGame()
+        }
     }
 
     private fun persistNewGame() {
@@ -106,6 +148,7 @@ class GameViewModel @Inject constructor(
             val deckId = config.deckId
             if (userId != null && deckId != null) SeatAssignment(index, userId, deckId) else null
         }
+        ownedSeatIds = assignments.map { it.seatIndex + 1 }.toSet()
         launchRemote {
             gameRepository.bootstrapRemoteGame(playgroupId, assignments).fold(
                 onSuccess = { session ->
@@ -131,6 +174,78 @@ class GameViewModel @Inject constructor(
                 onFailure = { error -> reportRemoteFailure(error) }
             )
         }
+    }
+
+    /**
+     * Joined-mode counterpart of [bootstrapRemoteGame]: instead of creating a game, fetches the
+     * one this device just joined via `JoinGameScreen` (`GET /games/{id}`) and renders every seat
+     * already there — usernames resolved from the game's playgroup members, commander damage
+     * reconstructed by replaying `GET /games/{id}/timeline` (the backend only exposes each
+     * player's current totals, not the per-opponent breakdown `GamePlayerResponse` lacks).
+     */
+    private fun initJoinedGame() {
+        viewModelScope.launch {
+            val game = gameRepository.getGame(gameId).getOrElse { error ->
+                reportRemoteFailure(error)
+                return@launch
+            }
+
+            val seatPlayerIds = game.players.mapIndexed { index, player -> index to player.id }.toMap()
+            val localSeatId = game.players.indexOfFirst { it.id == localPlayerId }
+                .takeIf { it >= 0 }
+                ?.plus(1)
+            ownedSeatIds = setOfNotNull(localSeatId)
+            remoteSession = RemoteGameSession(gameId = game.id, seatPlayerIds = seatPlayerIds, status = game.status)
+
+            val usernames = game.playgroupId
+                ?.let { gamePlaygroupId -> playgroupRepository.getPlaygroup(gamePlaygroupId).getOrNull() }
+                ?.members
+                ?.associate { it.userId to it.username }
+                ?: emptyMap()
+            val commanderDamageBySeat = replayCommanderDamage(game)
+
+            val players = game.players.mapIndexed { index, player ->
+                val seatId = index + 1
+                PlayerState(
+                    id = seatId,
+                    name = usernames[player.userId] ?: "Jugador $seatId",
+                    color = colorForKey(PlayerColorPalette[index % PlayerColorPalette.size].first),
+                    life = player.lifeTotal,
+                    poison = player.poisonCounters,
+                    commanderDamage = commanderDamageBySeat[seatId] ?: emptyMap()
+                )
+            }
+            _state.value = _state.value.copy(players = players, localSeatId = localSeatId)
+
+            updateRemoteSync(
+                if (remoteSession?.isActive == true) {
+                    observeGameSocket(game.id)
+                    RemoteSyncState(status = RemoteSyncStatus.Synced, gameId = game.id)
+                } else {
+                    RemoteSyncState(
+                        status = RemoteSyncStatus.WaitingForPlayers,
+                        message = "Esperando a que se una otro jugador para iniciarla en el servidor",
+                        gameId = game.id
+                    )
+                }
+            )
+        }
+    }
+
+    /** Replays the `CommanderDamage` actions of [game]'s timeline into a per-seat, per-attacker-seat map. */
+    private suspend fun replayCommanderDamage(game: GameDto): Map<Int, Map<Int, Int>> {
+        val seatByPlayerId = game.players.mapIndexed { index, player -> player.id to (index + 1) }.toMap()
+        val actions = gameRepository.timeline(game.id).getOrElse { return emptyMap() }
+
+        val damage = mutableMapOf<Int, MutableMap<Int, Int>>()
+        actions.filter { it.actionType == GameActionType.COMMANDER_DAMAGE }.forEach { action ->
+            val attackerSeat = seatByPlayerId[action.actorId] ?: return@forEach
+            val targetSeat = action.targetId?.let { seatByPlayerId[it] } ?: return@forEach
+            val amount = action.amount ?: return@forEach
+            val perOpponent = damage.getOrPut(targetSeat) { mutableMapOf() }
+            perOpponent[attackerSeat] = (perOpponent[attackerSeat] ?: 0) + amount
+        }
+        return damage
     }
 
     fun adjustLife(playerId: Int, amount: Int) {
@@ -262,13 +377,21 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    /** Finishes the remote game, which triggers the server-side statistics recalculation. */
+    /**
+     * Finishes the remote game, which triggers the server-side statistics recalculation. In joined
+     * mode more than one device can independently reach "only one player left standing" from its
+     * own view of the table (updates arrive with network lag); a 409 here just means someone else's
+     * `finish` already won that race, not a real failure.
+     */
     private fun finishRemoteGame() {
         socketJob?.cancel()
         launchRemote {
             val session = activeSession() ?: return@launchRemote
             gameRepository.finishGame(session.gameId)
-                .onFailure { error -> reportRemoteFailure(error) }
+                .onFailure { error ->
+                    val someoneElseAlreadyFinishedIt = error is ApiError.Http && error.code == HTTP_CONFLICT
+                    if (!someoneElseAlreadyFinishedIt) reportRemoteFailure(error)
+                }
         }
     }
 
@@ -286,28 +409,88 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * Every `GamePlayer` this device mirrors actions for is one of ITS OWN local seats — Casual
-     * mode has none, Group mode proxy-joins its own group's seats (see `GameRepository`,
-     * ADR-0013). There's no flow yet for a second device to join an already-created remote game
-     * (the "Complete end-to-end flow" gap in Stage 5 of `docs/roadmap/TASKS.md`), so **every**
-     * `game_action` this socket can currently receive for this room is necessarily the server's
-     * echo of an action this same device already recorded and applied synchronously to
-     * [GameState] before mirroring it — there's nothing new to reconcile, and applying it again
-     * would double-count the change. `GameFinished`/`Connected`/`Disconnected` need no handling
-     * either: this device already knows locally when its own game finishes, and reconnection is
-     * fully handled inside `GameSocketClient`.
-     *
-     * Kept as an explicit no-op (rather than not subscribing at all) so the connection,
-     * authentication and reconnection machinery run for real against the backend today, ready to
-     * start reconciling other seats' actions the moment that missing join flow exists.
+     * `Connected`/`Disconnected` need no handling: reconnection is fully handled inside
+     * `GameSocketClient`. `game_action` events for a seat in [ownedSeatIds] are this device's own
+     * echo (see [applyRemoteAction]); a `game_finished` broadcast is only new information if THIS
+     * device hasn't already reached that conclusion on its own (see [finishRemoteGame]'s note on
+     * the multi-device race).
      */
     private fun handleSocketEvent(event: GameSocketEvent) {
         when (event) {
-            is GameSocketEvent.ActionReceived,
-            GameSocketEvent.GameFinished,
-            GameSocketEvent.Connected,
-            is GameSocketEvent.Disconnected -> Unit
+            is GameSocketEvent.ActionReceived -> applyRemoteAction(event.action)
+            GameSocketEvent.GameFinished -> applyRemoteGameFinished()
+            GameSocketEvent.Connected, is GameSocketEvent.Disconnected -> Unit
         }
+    }
+
+    /**
+     * Reconciles a `game_action` broadcast for a seat this device does NOT own (see [ownedSeatIds])
+     * into [GameState] — the live-sync half of joining someone else's game (see `JoinGameScreen`).
+     * Unknown actor/target `GamePlayer` ids (not present in [RemoteGameSession.seatPlayerIds], e.g.
+     * a host-mode device receiving a proxy-joined teammate's own echo under a different seat) are
+     * silently ignored, same as an owned seat's echo.
+     */
+    private fun applyRemoteAction(action: GameActionDto) {
+        val session = remoteSession ?: return
+        val actorSeatId = seatIdForPlayer(session, action.actorId) ?: return
+        if (actorSeatId in ownedSeatIds) return
+
+        when (action.actionType) {
+            GameActionType.LIFE_CHANGE -> action.amount?.let { applyLifeDelta(actorSeatId, it) }
+            GameActionType.POISON_COUNTER -> action.amount?.let { applyPoisonDelta(actorSeatId, it) }
+            GameActionType.COMMANDER_DAMAGE -> {
+                val targetSeatId = action.targetId?.let { seatIdForPlayer(session, it) }
+                val amount = action.amount
+                if (targetSeatId != null && amount != null) {
+                    applyCommanderDamageDelta(targetSeatId = targetSeatId, attackerSeatId = actorSeatId, amount = amount)
+                }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun seatIdForPlayer(session: RemoteGameSession, remotePlayerId: String): Int? =
+        session.seatPlayerIds.entries.firstOrNull { it.value == remotePlayerId }?.key?.plus(1)
+
+    private fun applyLifeDelta(seatId: Int, amount: Int) {
+        _state.value = _state.value.copy(
+            players = _state.value.players.map { player ->
+                if (player.id == seatId) player.copy(life = player.life + amount) else player
+            }
+        )
+    }
+
+    private fun applyPoisonDelta(seatId: Int, amount: Int) {
+        _state.value = _state.value.copy(
+            players = _state.value.players.map { player ->
+                if (player.id == seatId) player.copy(poison = (player.poison + amount).coerceAtLeast(0)) else player
+            }
+        )
+    }
+
+    private fun applyCommanderDamageDelta(targetSeatId: Int, attackerSeatId: Int, amount: Int) {
+        _state.value = _state.value.copy(
+            players = _state.value.players.map { player ->
+                if (player.id == targetSeatId) {
+                    val current = player.commanderDamage[attackerSeatId] ?: 0
+                    player.copy(
+                        life = player.life - amount,
+                        commanderDamage = player.commanderDamage + (attackerSeatId to (current + amount).coerceAtLeast(0))
+                    )
+                } else {
+                    player
+                }
+            }
+        )
+    }
+
+    /** A `game_finished` broadcast only matters if this device hasn't already finished locally. */
+    private fun applyRemoteGameFinished() {
+        if (_state.value.isFinished) return
+        socketJob?.cancel()
+        val winnerId = _state.value.players.filter { it.isAlive() }.singleOrNull()?.id
+        _state.value = _state.value.copy(isFinished = true, winnerId = winnerId)
+        persistGameResult(winnerId)
     }
 
     private fun activeSession(): RemoteGameSession? = remoteSession?.takeIf { it.isActive }

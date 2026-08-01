@@ -1,6 +1,8 @@
 package com.commandercompanion.testing
 
+import com.commandercompanion.data.local.dao.DeckDao
 import com.commandercompanion.data.local.dao.GameDao
+import com.commandercompanion.data.local.entity.DeckEntity
 import com.commandercompanion.data.local.entity.GameEntity
 import com.commandercompanion.data.local.entity.GameWithPlayers
 import com.commandercompanion.data.local.entity.PlayerResultEntity
@@ -48,9 +50,16 @@ fun deckDto(id: String = "deck-1", name: String = "Atraxa") = DeckDto(
     moxfieldId = null
 )
 
-fun gameDto(id: String = "game-1", status: String = GameStatus.PENDING) = GameDto(
+fun gameDto(
+    id: String = "game-1",
+    status: String = GameStatus.PENDING,
+    playgroupId: String? = null,
+    players: List<GamePlayerDto> = emptyList()
+) = GameDto(
     id = id,
-    status = status
+    playgroupId = playgroupId,
+    status = status,
+    players = players
 )
 
 fun gamePlayerDto(id: String = "gp-1", gameId: String = "game-1", userId: String = "user-1", deckId: String = "deck-1") =
@@ -104,6 +113,7 @@ class FakeCommanderApi : CommanderApi {
     val calls = mutableListOf<String>()
 
     var onListDecks: suspend () -> List<DeckDto> = { listOf(deckDto()) }
+    var onListGamesForPlaygroup: suspend (String) -> List<GameDto> = { emptyList() }
     var onImportMoxfield: suspend (ImportMoxfieldRequest) -> DeckDto = { deckDto() }
     var onDeleteDeck: suspend (String) -> Unit = { }
     var onCreateGame: suspend (CreateGameRequest) -> GameDto = { gameDto() }
@@ -115,6 +125,8 @@ class FakeCommanderApi : CommanderApi {
     var onRecordAction: suspend (String, CreateActionRequest) -> GameActionDto = { id, request ->
         gameActionDto(id, request)
     }
+    var onGetGame: suspend (String) -> GameDto = { id -> gameDto(id) }
+    var onGetTimeline: suspend (String) -> List<GameActionDto> = { emptyList() }
     var onListPlaygroups: suspend () -> List<PlaygroupDto> = { emptyList() }
     var onGetPlaygroup: suspend (String) -> PlaygroupDto = { id -> playgroupDto(id = id) }
     var onGetMemberDecks: suspend (String, String) -> List<DeckDto> = { _, _ -> emptyList() }
@@ -150,12 +162,20 @@ class FakeCommanderApi : CommanderApi {
 
     override suspend fun listGames(): PagedResponse<GameDto> = PagedResponse(items = listOf(gameDto()))
 
+    override suspend fun listGamesForPlaygroup(playgroupId: String): PagedResponse<GameDto> {
+        calls += "listGamesForPlaygroup"
+        return PagedResponse(items = onListGamesForPlaygroup(playgroupId))
+    }
+
     override suspend fun createGame(request: CreateGameRequest): GameDto {
         calls += "createGame"
         return onCreateGame(request)
     }
 
-    override suspend fun getGame(gameId: String): GameDto = gameDto(gameId)
+    override suspend fun getGame(gameId: String): GameDto {
+        calls += "getGame"
+        return onGetGame(gameId)
+    }
 
     override suspend fun joinGame(gameId: String, request: JoinGameRequest): GamePlayerDto {
         calls += "joinGame"
@@ -185,7 +205,10 @@ class FakeCommanderApi : CommanderApi {
         return onRecordAction(gameId, request)
     }
 
-    override suspend fun getTimeline(gameId: String): List<GameActionDto> = emptyList()
+    override suspend fun getTimeline(gameId: String): List<GameActionDto> {
+        calls += "getTimeline"
+        return onGetTimeline(gameId)
+    }
 
     override suspend fun listPlaygroups(): List<PlaygroupDto> {
         calls += "listPlaygroups"
@@ -285,4 +308,28 @@ class FakeGameDao : GameDao {
     }
 
     override fun getGamesWithPlayers(): Flow<List<GameWithPlayers>> = history
+}
+
+/** In-memory fake of [DeckDao]. */
+class FakeDeckDao : DeckDao {
+
+    private val decks = mutableMapOf<String, DeckEntity>()
+
+    override suspend fun getAll(): List<DeckEntity> = decks.values.toList()
+
+    override suspend fun insert(deck: DeckEntity) {
+        decks[deck.id] = deck
+    }
+
+    override suspend fun insertAll(decks: List<DeckEntity>) {
+        decks.forEach { this.decks[it.id] = it }
+    }
+
+    override suspend fun clear() {
+        decks.clear()
+    }
+
+    override suspend fun deleteById(deckId: String) {
+        decks.remove(deckId)
+    }
 }
