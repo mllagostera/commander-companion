@@ -31,7 +31,17 @@ Within ROADMAP Option 1, the following is chosen:
 - **Frontend:** [Vercel](https://vercel.com), for the Nuxt client (`web/`).
   Nuxt/Nitro auto-detects the Vercel preset at build time without any
   additional explicit configuration in `nuxt.config.ts` — no `vercel.json` is
-  needed for the standard case.
+  needed for the standard case. **Updated 2026-08-01**: since the Vercel
+  project's Root Directory is `web/` but its GitHub integration watches the
+  whole monorepo, it was building/deploying a preview for every PR regardless
+  of what changed — including Android- or backend-only ones (noticed on a PR
+  that touched zero files under `web/`). New `web/vercel.json` with
+  `ignoreCommand: "git diff --quiet HEAD^ HEAD ./"` skips the deployment when
+  the pushed commit has no changes under `web/` (the `ignoreCommand` runs with
+  the Root Directory as its working directory, so `./` means `web/`) — same
+  "don't run unless this pushed touches this project" criterion the 4
+  `.github/workflows/*-ci.yml` already apply via `dorny/paths-filter`, now
+  extended to Vercel's own deploy trigger.
 - **Database:** [Supabase](https://supabase.com) (managed
   PostgreSQL). Use the **Session pooler**, not the Transaction pooler: the
   backend uses `pgx` with prepared statements, which the Transaction pooler
