@@ -47,7 +47,7 @@ commander-companion/
 │       ├── composables/  # useAuth, useDecks, useStatistics, useApi, useGoogleIdentity
 │       └── middleware/   # auth.global.ts (route guard)
 ├── docs/                 # see section 8 for the full index, document by document
-│   ├── roadmap/          # ROADMAP.md (vision/stages) and TASKS.md (progress checklist, source of truth for real status)
+│   ├── roadmap/          # ROADMAP.md (vision/stages), TASKS.md (compact status checklist) and DECISIONS-LOG.md (narrative history)
 │   ├── architecture/     # ARCHITECTURE.md (principles and patterns)
 │   ├── database/         # schema.dbml (source of truth for the data model)
 │   ├── api/               # openapi.yaml (source of truth for the REST contract)
@@ -65,7 +65,7 @@ Rule: if you're going to change how backend and Android communicate, edit `opena
 
 ## 4. How to proceed (for AI agents)
 
-1. **Read `docs/roadmap/TASKS.md` first.** It's the list of pending tasks organized by stage, with real status audited against the code (not against what "should" exist).
+1. **Read `docs/roadmap/TASKS.md` first.** It's the list of pending tasks organized by stage, with real status audited against the code (not against what "should" exist). It's a compact checklist on purpose — for the narrative behind any item (why, gotchas, how it was verified), see [docs/roadmap/DECISIONS-LOG.md](docs/roadmap/DECISIONS-LOG.md); don't read the whole log up front, only the entries you actually need.
 2. **Don't trust that something is finished just because the file exists.** Much of the backend is scaffolding: several modules' `service.go` return dummy data instead of using the injected repository. Verify by reading the code before assuming a function does what its name suggests.
 3. **Follow the already-established layer pattern** — backend (Handler → Service → Repository), Android (MVVM + UDF, no `domain/` layer yet), Web (SSR + Nitro BFF). Full detail in [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) §"System Architecture".
 4. **Respect the suggested work order** at the end of `TASKS.md`, unless the user explicitly asks to prioritize something else.
@@ -74,13 +74,14 @@ Rule: if you're going to change how backend and Android communicate, edit `opena
 
 ## 5. How to update `docs/roadmap/TASKS.md`
 
-`TASKS.md` is a living document — it gets updated in the same change that resolves the task, not as a separate step.
+`TASKS.md` is a living document — it gets updated in the same change that resolves the task, not as a separate step. Since 2026-08-01 it's deliberately kept **compact**: one short line per item (status + what + a file/module pointer). Narrative — why, gotchas hit, how it was verified, dates, exact user requests — goes in [docs/roadmap/DECISIONS-LOG.md](docs/roadmap/DECISIONS-LOG.md) instead, not back into TASKS.md; that split exists specifically to keep a new session from having to load the whole project history just to check status.
 
 - Mark `- [x]` **only** when the task is functionally complete (it builds and works), not when the file simply exists or compiles with a stub.
-- If a task is left half-done, keep it as `- [ ]` and add a note in parentheses explaining exactly what's missing (see examples already present in the document, e.g. "GameViewModel.kt — the file exists but is empty").
+- If a task is left half-done, keep it as `- [ ]` and add a short note in parentheses explaining what's missing (see examples already present in the document).
 - If during the work you discover a new task that wasn't listed (a dependency, an edge case, technical debt), add it to the corresponding stage section instead of leaving it loose in the conversation.
 - **Don't delete completed tasks** — they are the project's progress history. If a task stops making sense (the approach is dropped), strike it through explaining why instead of deleting it.
-- Update the `**Last reviewed:**` line at the end of the work session with the current date.
+- Keep each line short. If an item needs more than a sentence or two of context, add a dated entry to `DECISIONS-LOG.md` under the matching stage and link to it from the TASKS.md line instead of inlining the detail.
+- Update the `**Last reviewed:**` line at the end of the work session with the current date, and add the corresponding entry to `DECISIONS-LOG.md`'s audit/session history.
 - If a completed task changes one of the 4 sources of truth, confirm that file (`schema.dbml`, `openapi.yaml`, diagram, ADR) was updated before marking it done.
 
 ## 6. Quality gates (GitHub Actions)
@@ -135,7 +136,8 @@ for a new module), add it to this list too in the same change.
 
 **Start here:**
 
-- [docs/roadmap/TASKS.md](docs/roadmap/TASKS.md) — **the source of truth for real status**, audited against the code, not against what "should" exist. Read it before anything else.
+- [docs/roadmap/TASKS.md](docs/roadmap/TASKS.md) — **the source of truth for real status**, audited against the code, not against what "should" exist. Read it before anything else. Kept deliberately compact — one line per item.
+- [docs/roadmap/DECISIONS-LOG.md](docs/roadmap/DECISIONS-LOG.md) — the narrative behind TASKS.md's items (why, gotchas, verification, dates), plus the chronological audit/session history. Read only the entries you need, not the whole file.
 - [docs/roadmap/ROADMAP.md](docs/roadmap/ROADMAP.md) — vision, philosophy, high-level stages (original intent document; for real status see TASKS.md).
 - [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — the 4 sources of truth, design principles, and layer patterns (backend, Android, Web).
 

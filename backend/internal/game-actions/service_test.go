@@ -56,6 +56,11 @@ const (
 	payloadAmountKey = "amount"
 
 	testPassword = "test-password-123"
+
+	// defaultLifeTotalForTest mirrors game-actions' defaultLifeTotal (the
+	// package doesn't export it): the starting life_total a fresh GamePlayer
+	// gets on JoinGame, before any action.
+	defaultLifeTotalForTest = 40
 )
 
 // noopMoxfieldClient satisfies decks.MoxfieldClient without hitting the real API;
@@ -603,6 +608,137 @@ func TestRecordAction_MissingAmount_ReturnsBadRequest(t *testing.T) {
 	})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
 		t.Fatalf("RecordAction() sin payload.amount: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+func TestRecordAction_DamageAmount_MustBePositive(t *testing.T) {
+	cases := []struct {
+		name       string
+		actionType string
+		amount     float64
+	}{
+		{"CombatDamage negative", actionTypeCombatDamage, -500},
+		{"CombatDamage zero", actionTypeCombatDamage, 0},
+		{"CommanderDamage negative", actionTypeCommanderDamage, -30},
+		{"CommanderDamage zero", actionTypeCommanderDamage, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := testutil.DB(t)
+			truncateGameActionsTables(t, pool)
+			g := setupActiveGame(t, pool)
+
+			_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+				ActorID:    g.player1ID,
+				TargetID:   g.player2ID,
+				ActionType: tc.actionType,
+				Payload:    amountPayload(tc.amount),
+			})
+			if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+				t.Fatalf("RecordAction() amount=%v: code = %d, want %d", tc.amount, fiberErr.Code, fiber.StatusBadRequest)
+			}
+
+			// The rejection must be pre-write: the target's state stays untouched
+			// (in particular, it must NOT have been healed by a "negative damage" amount).
+			game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
+			if err != nil {
+				t.Fatalf("GetGame() error = %v", err)
+			}
+			target := playerByID(t, game.Players, g.player2ID)
+			if target.LifeTotal != defaultLifeTotalForTest {
+				t.Errorf("target life_total = %d, want unchanged %d", target.LifeTotal, defaultLifeTotalForTest)
+			}
+		})
+	}
+}
+
+func TestRecordAction_AmountOutOfRange_ReturnsBadRequest(t *testing.T) {
+	cases := []struct {
+		name       string
+		actionType string
+		amount     float64
+	}{
+		// Chosen so int32(amount) would otherwise silently wrap into a large
+		// negative number instead of erroring (see payloadAmount's doc).
+		{"CombatDamage above int32 range", actionTypeCombatDamage, 3e9},
+		{"LifeChange above int32 range", actionTypeLifeChange, 3e9},
+		{"LifeChange below negative int32 range", actionTypeLifeChange, -3e9},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := testutil.DB(t)
+			truncateGameActionsTables(t, pool)
+			g := setupActiveGame(t, pool)
+
+			_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+				ActorID:    g.player1ID,
+				TargetID:   g.player2ID,
+				ActionType: tc.actionType,
+				Payload:    amountPayload(tc.amount),
+			})
+			if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+				t.Fatalf("RecordAction() amount=%v: code = %d, want %d", tc.amount, fiberErr.Code, fiber.StatusBadRequest)
+			}
+
+			game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
+			if err != nil {
+				t.Fatalf("GetGame() error = %v", err)
+			}
+			target := playerByID(t, game.Players, g.player2ID)
+			if target.IsEliminated {
+				t.Errorf("target was eliminated by an amount that should have been rejected before any write")
+			}
+			if target.LifeTotal != defaultLifeTotalForTest {
+				t.Errorf("target life_total = %d, want unchanged %d", target.LifeTotal, defaultLifeTotalForTest)
+			}
+		})
+	}
+}
+
+func TestRecordAction_NonIntegerAmount_ReturnsBadRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	g := setupActiveGame(t, pool)
+
+	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
+		ActionType: actionTypeLifeChange,
+		Payload:    amountPayload(2.5),
+	})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("RecordAction() amount=2.5: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+func TestRecordAction_PoisonCounter_NegativeAmountStillAllowed(t *testing.T) {
+	// Unlike CombatDamage/CommanderDamage, PoisonCounter is a signed delta (like
+	// LifeChange): a negative amount corrects a misclick rather than meaning
+	// "damage", so it's deliberately not rejected the same way.
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	g := setupActiveGame(t, pool)
+	ctx := context.Background()
+
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
+		TargetID:   g.player2ID,
+		ActionType: actionTypePoisonCounter,
+		Payload:    amountPayload(3),
+	})
+	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
+		TargetID:   g.player2ID,
+		ActionType: actionTypePoisonCounter,
+		Payload:    amountPayload(-1),
+	})
+
+	game, err := g.games.GetGame(ctx, g.gameID, g.user1ID)
+	if err != nil {
+		t.Fatalf("GetGame() error = %v", err)
+	}
+	target := playerByID(t, game.Players, g.player2ID)
+	if target.PoisonCounters != 2 {
+		t.Errorf("target poison_counters = %d, want 2", target.PoisonCounters)
 	}
 }
 

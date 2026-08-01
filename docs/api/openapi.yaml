@@ -1344,10 +1344,20 @@ paths:
                   enum: [LifeChange, CombatDamage, CommanderDamage, PoisonCounter, TurnStart, TurnEnd, Elimination]
                 payload:
                   type: object
-                  description: 'For LifeChange/CombatDamage/CommanderDamage/PoisonCounter: { "amount": <integer> }.'
+                  description: >-
+                    For LifeChange/CombatDamage/CommanderDamage/PoisonCounter:
+                    { "amount": <integer> }. Must be a whole number with
+                    magnitude <= 1,000,000. For CombatDamage/CommanderDamage
+                    it must additionally be strictly positive (it's a
+                    quantity of damage, not a signed delta) — LifeChange and
+                    PoisonCounter accept negative values (a signed delta,
+                    e.g. to correct a misclick).
       responses:
         '400':
-          description: Invalid action_type, or missing/non-numeric payload.amount
+          description: >-
+            Invalid action_type; missing, non-numeric, non-integer, or
+            out-of-range payload.amount; or payload.amount isn't positive for
+            CombatDamage/CommanderDamage
           content:
             application/json:
               schema:

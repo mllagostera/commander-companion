@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -56,8 +57,15 @@ var (
 	ErrInvalidTargetID = common.InvalidInput("invalid target_id")
 	// ErrAmountRequired indicates that the action needs a payload.amount and doesn't have one.
 	ErrAmountRequired = common.InvalidInput("payload.amount is required")
-	// ErrAmountNotNumeric indicates that payload.amount isn't a number.
-	ErrAmountNotNumeric = common.InvalidInput("payload.amount must be a number")
+	// ErrAmountNotNumeric indicates that payload.amount isn't a (whole) number.
+	ErrAmountNotNumeric = common.InvalidInput("payload.amount must be a whole number")
+	// ErrAmountOutOfRange indicates that payload.amount's magnitude is
+	// unreasonably large (see maxAmountMagnitude).
+	ErrAmountOutOfRange = common.InvalidInput("payload.amount is out of range")
+	// ErrAmountMustBePositive indicates that payload.amount must be a positive
+	// quantity of damage (CombatDamage/CommanderDamage): zero or negative
+	// doesn't mean "no damage", it would silently heal or no-op the target.
+	ErrAmountMustBePositive = common.InvalidInput("payload.amount must be a positive number")
 	// ErrGameNotActive indicates that actions can only be recorded in an active game.
 	ErrGameNotActive = common.Conflict("game is not active")
 	// ErrCommanderDamageTargetRequired indicates that CommanderDamage needs a
@@ -270,9 +278,9 @@ func (s *service) applyAction(
 ) error {
 	switch actionType {
 	case actionLifeChange:
-		return s.applyLifeDelta(ctx, q, player.ID, payload, 1)
+		return s.applyLifeChange(ctx, q, player.ID, payload)
 	case actionCombatDamage:
-		return s.applyLifeDelta(ctx, q, player.ID, payload, -1)
+		return s.applyCombatDamage(ctx, q, player.ID, payload)
 	case actionCommanderDamage:
 		return s.applyCommanderDamage(ctx, q, gid, actorID, player.ID, hasTarget, payload)
 	case actionPoisonCounter:
@@ -303,17 +311,29 @@ func (s *service) adjustLife(ctx context.Context, q *Queries, playerID pgtype.UU
 	return nil
 }
 
-// applyLifeDelta reads payload.amount and applies it to life_total multiplied by sign:
-// 1 for LifeChange (the amount already comes with the sign the client wants), -1 for
-// CombatDamage (amount is always "how much damage", never negative).
-func (s *service) applyLifeDelta(
-	ctx context.Context, q *Queries, playerID pgtype.UUID, payload map[string]interface{}, sign int32,
+// applyLifeChange reads payload.amount (signed: the client already chose whether
+// this is a gain or a loss) and applies it directly to life_total.
+func (s *service) applyLifeChange(
+	ctx context.Context, q *Queries, playerID pgtype.UUID, payload map[string]interface{},
 ) error {
 	amount, err := payloadAmount(payload)
 	if err != nil {
 		return err
 	}
-	return s.adjustLife(ctx, q, playerID, sign*amount)
+	return s.adjustLife(ctx, q, playerID, amount)
+}
+
+// applyCombatDamage reads payload.amount and subtracts it from life_total.
+// Unlike LifeChange, the amount is never negative here — negative "damage" would
+// silently heal the target instead of hurting them (see payloadPositiveAmount).
+func (s *service) applyCombatDamage(
+	ctx context.Context, q *Queries, playerID pgtype.UUID, payload map[string]interface{},
+) error {
+	amount, err := payloadPositiveAmount(payload)
+	if err != nil {
+		return err
+	}
+	return s.adjustLife(ctx, q, playerID, -amount)
 }
 
 // applyCommanderDamage accumulates the attacker's commander damage against the
@@ -330,7 +350,7 @@ func (s *service) applyCommanderDamage(
 	if !hasTarget || defenderID == attackerID {
 		return ErrCommanderDamageTargetRequired
 	}
-	amount, err := payloadAmount(payload)
+	amount, err := payloadPositiveAmount(payload)
 	if err != nil {
 		return err
 	}
@@ -430,6 +450,16 @@ func (s *service) getGamePlayer(ctx context.Context, q *Queries, gameID, playerI
 	return &player, nil
 }
 
+// maxAmountMagnitude bounds any single action's payload.amount, in both
+// directions. It's set far above anything a real Commander game needs (life
+// totals and poison counters never get remotely close to it) purely to reject
+// garbage input before it reaches life_total/poison_counters/commander_damage —
+// without a bound, encoding/json decodes payload.amount into a float64, and a
+// naive int32(amount) conversion on an out-of-range value doesn't error, it
+// silently wraps (e.g. 3e9 becomes a large *negative* int32, so "3 billion
+// damage" reads as a life gain instead of an instant kill).
+const maxAmountMagnitude = 1_000_000
+
 func payloadAmount(payload map[string]interface{}) (int32, error) {
 	raw, ok := payload["amount"]
 	if !ok {
@@ -439,7 +469,28 @@ func payloadAmount(payload map[string]interface{}) (int32, error) {
 	if !ok {
 		return 0, ErrAmountNotNumeric
 	}
+	if math.IsNaN(amount) || math.Trunc(amount) != amount {
+		return 0, ErrAmountNotNumeric
+	}
+	if amount < -maxAmountMagnitude || amount > maxAmountMagnitude {
+		return 0, ErrAmountOutOfRange
+	}
 	return int32(amount), nil
+}
+
+// payloadPositiveAmount is payloadAmount for the actions where "amount" means
+// a quantity of damage dealt, not a signed delta (CombatDamage,
+// CommanderDamage): 0 or negative doesn't mean "no damage", it would silently
+// heal or no-op the target, so it's rejected instead.
+func payloadPositiveAmount(payload map[string]interface{}) (int32, error) {
+	amount, err := payloadAmount(payload)
+	if err != nil {
+		return 0, err
+	}
+	if amount <= 0 {
+		return 0, ErrAmountMustBePositive
+	}
+	return amount, nil
 }
 
 func toGameActionResponse(action *GameAction) *GameActionResponse {
