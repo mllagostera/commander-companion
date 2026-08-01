@@ -1,5 +1,6 @@
 package com.commandercompanion.data.remote.ws
 
+import com.commandercompanion.data.remote.dto.amount
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
