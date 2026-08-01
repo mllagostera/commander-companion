@@ -98,7 +98,7 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, playgroupID string) *t
 	if err != nil {
 		t.Fatalf("JoinGame(2) error = %v", err)
 	}
-	mustStartGame(t, gamesSvc, game.ID)
+	mustStartGame(t, gamesSvc, game.ID, user1.ID)
 
 	return &twoPlayerGame{
 		games: gamesSvc, actions: actionsSvc, stats: statsSvc,
@@ -125,17 +125,17 @@ func mustJoin(t *testing.T, svc games.Service, gameID, userID, deckID string) {
 	}
 }
 
-func mustStartGame(t *testing.T, svc games.Service, gameID string) {
+func mustStartGame(t *testing.T, svc games.Service, gameID, userID string) {
 	t.Helper()
-	_, err := svc.StartGame(context.Background(), gameID)
+	_, err := svc.StartGame(context.Background(), gameID, userID)
 	if err != nil {
 		t.Fatalf("StartGame() error = %v", err)
 	}
 }
 
-func mustFinishGame(t *testing.T, svc games.Service, gameID string) {
+func mustFinishGame(t *testing.T, svc games.Service, gameID, userID string) {
 	t.Helper()
-	_, err := svc.FinishGame(context.Background(), gameID)
+	_, err := svc.FinishGame(context.Background(), gameID, userID)
 	if err != nil {
 		t.Fatalf("FinishGame() error = %v, want nil", err)
 	}
@@ -240,7 +240,7 @@ func TestRecalculateForGame_WinnerGetsCreditForWinAndDamage(t *testing.T) {
 
 	// player1 elimina a player2 a puro CombatDamage; player1 sobrevive con vida llena.
 	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
-	mustFinishGame(t, g.games, g.gameID)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
 	winnerStats := mustGetUserStats(t, g.stats, g.user1.ID)
 	if winnerStats.GamesPlayed != 1 || winnerStats.GamesWon != 1 {
@@ -275,7 +275,7 @@ func TestRecalculateForGame_NoSurvivors_NoWinnerCredited(t *testing.T) {
 	g := setupTwoPlayerGame(t, pool, "")
 
 	// Partida cortada manualmente sin que nadie quede eliminado: 2 sobrevivientes, sin ganador.
-	mustFinishGame(t, g.games, g.gameID)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
 	stats1 := mustGetUserStats(t, g.stats, g.user1.ID)
 	stats2 := mustGetUserStats(t, g.stats, g.user2.ID)
@@ -290,7 +290,7 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	ctx := context.Background()
 
 	g1 := setupTwoPlayerGame(t, pool, "")
-	mustFinishGame(t, g1.games, g1.gameID)
+	mustFinishGame(t, g1.games, g1.gameID, g1.user1.ID)
 
 	// setupTwoPlayerGame creates new users on every call; to test real
 	// accumulation you need to play twice with the SAME user, so the
@@ -314,8 +314,8 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	game2 := mustCreateGame(t, gamesSvc, "")
 	mustJoin(t, gamesSvc, game2.ID, g1.user1.ID, g1.deck1ID)
 	mustJoin(t, gamesSvc, game2.ID, opponent.ID, opponentDeck.ID)
-	mustStartGame(t, gamesSvc, game2.ID)
-	mustFinishGame(t, gamesSvc, game2.ID)
+	mustStartGame(t, gamesSvc, game2.ID, g1.user1.ID)
+	mustFinishGame(t, gamesSvc, game2.ID, g1.user1.ID)
 
 	stats := mustGetUserStats(t, statsSvc, g1.user1.ID)
 	if stats.GamesPlayed != 2 {
@@ -338,7 +338,7 @@ func TestGetPlaygroupStats_AggregatesFinishedGames(t *testing.T) {
 
 	g := setupTwoPlayerGame(t, pool, playgroup.ID)
 	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
-	mustFinishGame(t, g.games, g.gameID)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
 	res, err := g.stats.GetPlaygroupStats(ctx, playgroup.ID)
 	if err != nil {

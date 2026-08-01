@@ -161,7 +161,7 @@ func setupActiveGame(t *testing.T, pool *pgxpool.Pool) activeGame {
 		t.Fatalf("JoinGame(2) error = %v", err)
 	}
 
-	if _, err := gamesSvc.StartGame(ctx, game.ID); err != nil {
+	if _, err := gamesSvc.StartGame(ctx, game.ID, user1.ID); err != nil {
 		t.Fatalf("StartGame() error = %v", err)
 	}
 
@@ -210,7 +210,7 @@ func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
 		userIDs = append(userIDs, user.ID)
 	}
 
-	if _, err := gamesSvc.StartGame(ctx, game.ID); err != nil {
+	if _, err := gamesSvc.StartGame(ctx, game.ID, userIDs[0]); err != nil {
 		t.Fatalf("StartGame() error = %v", err)
 	}
 
@@ -277,7 +277,7 @@ func setupProxyJoinedGame(t *testing.T, pool *pgxpool.Pool) proxyJoinedGame {
 	); joinErr != nil {
 		t.Fatalf("JoinGame() del scorekeeper error = %v", joinErr)
 	}
-	if _, startErr := gamesSvc.StartGame(ctx, game.ID); startErr != nil {
+	if _, startErr := gamesSvc.StartGame(ctx, game.ID, scorekeeper.ID); startErr != nil {
 		t.Fatalf("StartGame() error = %v", startErr)
 	}
 
@@ -309,7 +309,7 @@ func TestRecordAction_LifeChange_AppliesToActorWhenNoTarget(t *testing.T) {
 		Payload:    amountPayload(-3),
 	})
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -330,7 +330,7 @@ func TestRecordAction_CombatDamage_ReducesTargetLife(t *testing.T) {
 		Payload:    amountPayload(15),
 	})
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -355,7 +355,7 @@ func TestRecordAction_CombatDamage_AutoEliminatesAtZeroLife(t *testing.T) {
 		Payload:    amountPayload(40),
 	})
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -382,7 +382,7 @@ func TestRecordAction_CommanderDamage_AccumulatesAndReducesLife(t *testing.T) {
 		})
 	}
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -440,7 +440,7 @@ func TestRecordAction_CommanderDamage_EliminatesAt21FromSingleSourceWithPositive
 		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(6),
 	})
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -467,7 +467,7 @@ func TestRecordAction_CommanderDamage_DistinctAttackersDoNotCombine(t *testing.T
 		ActorID: attackerB, TargetID: defender, ActionType: actionTypeCommanderDamage, Payload: amountPayload(15),
 	})
 
-	game, err := gamesSvc.GetGame(context.Background(), gameID)
+	game, err := gamesSvc.GetGame(context.Background(), gameID, userA)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -489,7 +489,7 @@ func TestRecordAction_PoisonCounter_AutoEliminatesAtThreshold(t *testing.T) {
 	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
 		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypePoisonCounter, Payload: amountPayload(9),
 	})
-	game, err := g.games.GetGame(ctx, g.gameID)
+	game, err := g.games.GetGame(ctx, g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -500,7 +500,7 @@ func TestRecordAction_PoisonCounter_AutoEliminatesAtThreshold(t *testing.T) {
 	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
 		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypePoisonCounter, Payload: amountPayload(1),
 	})
-	game, err = g.games.GetGame(ctx, g.gameID)
+	game, err = g.games.GetGame(ctx, g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -523,7 +523,7 @@ func TestRecordAction_Elimination_MarksSelfEliminated(t *testing.T) {
 		ActionType: actionTypeElimination,
 	})
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -542,7 +542,7 @@ func TestRecordAction_TurnStart_SetsCurrentTurnPlayer(t *testing.T) {
 		ActionType: actionTypeTurnStart,
 	})
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -565,7 +565,7 @@ func TestRecordAction_TurnEnd_ClearsCurrentTurnPlayer(t *testing.T) {
 		ActionType: actionTypeTurnEnd,
 	})
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -711,7 +711,7 @@ func TestRecordAction_CallerProxyJoinedTheActor_Allowed(t *testing.T) {
 		t.Fatalf("RecordAction() del scorekeeper por el teammate proxy-joineado: error = %v, want nil", err)
 	}
 
-	game, err := g.games.GetGame(context.Background(), g.gameID)
+	game, err := g.games.GetGame(context.Background(), g.gameID, g.scorekeeperID)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
@@ -732,7 +732,7 @@ func TestGetTimeline_ReturnsActionsInOrder(t *testing.T) {
 		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypeCombatDamage, Payload: amountPayload(5),
 	})
 
-	timeline, err := g.actions.GetTimeline(context.Background(), g.gameID)
+	timeline, err := g.actions.GetTimeline(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
 		t.Fatalf("GetTimeline() error = %v, want nil", err)
 	}
@@ -755,7 +755,7 @@ func TestGetTimeline_UnknownGame_ReturnsNotFound(t *testing.T) {
 	truncateGameActionsTables(t, pool)
 
 	actionsSvc := newActionsSvc(pool)
-	_, err := actionsSvc.GetTimeline(context.Background(), "00000000-0000-0000-0000-000000000000")
+	_, err := actionsSvc.GetTimeline(context.Background(), "00000000-0000-0000-0000-000000000000", "irrelevant")
 	if !errors.Is(err, gameactions.ErrGameNotFound) {
 		t.Fatalf("GetTimeline() en partida inexistente: error = %v, want ErrGameNotFound", err)
 	}

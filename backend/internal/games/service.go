@@ -83,15 +83,22 @@ type PlaygroupMembership interface {
 // Service defines the business logic of the games module.
 type Service interface {
 	CreateGame(ctx context.Context, req CreateGameRequest) (*GameResponse, error)
-	GetGame(ctx context.Context, id string) (*GameResponse, error)
-	ListGames(ctx context.Context, page common.PageRequest) (*GameListResponse, error)
+	// GetGame returns a game by ID, if userID may access it (see authorizeGameAccess).
+	GetGame(ctx context.Context, id, userID string) (*GameResponse, error)
+	// ListGames returns a page of the game history of the given user only —
+	// never the full cross-tenant history (see ListGamesPage in query.sql).
+	ListGames(ctx context.Context, page common.PageRequest, userID string) (*GameListResponse, error)
 	// ListGamesForPlaygroup returns the complete game history of a group,
 	// if the given user is a member.
 	ListGamesForPlaygroup(ctx context.Context, playgroupID, userID string) (*GameListResponse, error)
 	JoinGame(ctx context.Context, gameID, userID string, req JoinGameRequest) (*GamePlayerResponse, error)
 	LeaveGame(ctx context.Context, gameID, userID string) error
-	StartGame(ctx context.Context, gameID string) (*GameResponse, error)
-	FinishGame(ctx context.Context, gameID string) (*GameResponse, error)
+	StartGame(ctx context.Context, gameID, userID string) (*GameResponse, error)
+	FinishGame(ctx context.Context, gameID, userID string) (*GameResponse, error)
+	// CanAccessGame reports whether userID may access gameID. Implements
+	// websocket.MembershipChecker so the live game channel enforces the same
+	// authorization boundary as GetGame (see ADR-0013).
+	CanAccessGame(ctx context.Context, gameID, userID string) (bool, error)
 }
 
 type service struct {
@@ -126,8 +133,9 @@ func (s *service) CreateGame(ctx context.Context, req CreateGameRequest) (*GameR
 	return toGameResponse(&game, nil), nil
 }
 
-// GetGame returns a game by its ID, including the current state of its players.
-func (s *service) GetGame(ctx context.Context, id string) (*GameResponse, error) {
+// GetGame returns a game by its ID, including the current state of its
+// players, if userID may access it (see authorizeGameAccess).
+func (s *service) GetGame(ctx context.Context, id, userID string) (*GameResponse, error) {
 	game, err := s.getGame(ctx, id)
 	if err != nil {
 		return nil, err
@@ -138,19 +146,90 @@ func (s *service) GetGame(ctx context.Context, id string) (*GameResponse, error)
 		return nil, fmt.Errorf("listing game players: %w", err)
 	}
 
+	if err := s.authorizeGameAccess(ctx, game, userID, players); err != nil {
+		return nil, err
+	}
+
 	return toGameResponse(game, players), nil
 }
 
-// ListGames returns a page of the game history, from most recent to
-// oldest. See internal/common/pagination.go for the cursor scheme.
-func (s *service) ListGames(ctx context.Context, page common.PageRequest) (*GameListResponse, error) {
+// authorizeGameAccess requires the caller to either be a member of the
+// game's playgroup (if it has one — playgroup membership is the established
+// trust boundary for this module, see ADR-0013) or to hold a seat in the
+// game itself (for ad-hoc games with no playgroup). Denies with
+// ErrGameNotFound, not a 403, to not reveal whether a game the caller can't
+// access exists — same "don't reveal" pattern used across the rest of the module.
+func (s *service) authorizeGameAccess(ctx context.Context, game *Game, userID string, players []GamePlayer) error {
+	allowed, err := s.isGameMember(ctx, game, userID, players)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return ErrGameNotFound
+	}
+	return nil
+}
+
+// isGameMember is the boolean core of authorizeGameAccess, factored out so
+// CanAccessGame (which wants a plain bool, not an error to translate) doesn't
+// have to distinguish "not authorized" from a real lookup failure by string
+// matching or discarding a non-nil error.
+func (s *service) isGameMember(ctx context.Context, game *Game, userID string, players []GamePlayer) (bool, error) {
+	if game.PlaygroupID.Valid {
+		isMember, err := s.membership.IsMember(ctx, game.PlaygroupID.String(), userID)
+		if err != nil {
+			return false, fmt.Errorf("checking playgroup membership: %w", err)
+		}
+		if isMember {
+			return true, nil
+		}
+	}
+	for i := range players {
+		if players[i].UserID.String() == userID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// CanAccessGame reports whether userID may access gameID (see
+// authorizeGameAccess). A game that doesn't exist and one the caller can't
+// access both return false, nil: from a caller like the WebSocket handler's
+// perspective, "doesn't exist" and "not yours" are the same "may not connect".
+func (s *service) CanAccessGame(ctx context.Context, gameID, userID string) (bool, error) {
+	game, err := s.getGame(ctx, gameID)
+	if err != nil {
+		if errors.Is(err, ErrGameNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	players, err := s.repo.ListGamePlayers(ctx, game.ID)
+	if err != nil {
+		return false, fmt.Errorf("listing game players: %w", err)
+	}
+
+	return s.isGameMember(ctx, game, userID, players)
+}
+
+// ListGames returns a page of userID's game history, from most recent to
+// oldest — scoped to games where they have a seat (see ListGamesPage in
+// query.sql), never the full cross-tenant history. See
+// internal/common/pagination.go for the cursor scheme.
+func (s *service) ListGames(ctx context.Context, page common.PageRequest, userID string) (*GameListResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+
 	// One row more than the limit is requested: if it comes back, there's a
 	// next page. Avoids a separate COUNT(*) just to know whether to keep paginating.
-	params := ListGamesPageParams{PageLimit: page.Limit + 1}
+	params := ListGamesPageParams{UserID: uid, PageLimit: page.Limit + 1}
 	if page.Cursor != "" {
-		cursorCreatedAt, cursorID, err := decodeCursor(page.Cursor)
-		if err != nil {
-			return nil, err
+		cursorCreatedAt, cursorID, cursorErr := decodeCursor(page.Cursor)
+		if cursorErr != nil {
+			return nil, cursorErr
 		}
 		params.CursorCreatedAt = cursorCreatedAt
 		params.CursorID = cursorID
@@ -386,19 +465,24 @@ func (s *service) LeaveGame(ctx context.Context, gameID, userID string) error {
 	return nil
 }
 
-// StartGame starts the given game, if it has enough players.
-func (s *service) StartGame(ctx context.Context, gameID string) (*GameResponse, error) {
+// StartGame starts the given game, if the caller may access it and it has
+// enough players.
+func (s *service) StartGame(ctx context.Context, gameID, userID string) (*GameResponse, error) {
 	game, err := s.getGame(ctx, gameID)
 	if err != nil {
 		return nil, err
-	}
-	if game.Status != statusPending {
-		return nil, ErrGameAlreadyStarted
 	}
 
 	players, err := s.repo.ListGamePlayers(ctx, game.ID)
 	if err != nil {
 		return nil, fmt.Errorf("listing game players: %w", err)
+	}
+	if authErr := s.authorizeGameAccess(ctx, game, userID, players); authErr != nil {
+		return nil, authErr
+	}
+
+	if game.Status != statusPending {
+		return nil, ErrGameAlreadyStarted
 	}
 	if len(players) < minPlayersToStart {
 		return nil, ErrNotEnoughPlayers
@@ -411,12 +495,21 @@ func (s *service) StartGame(ctx context.Context, gameID string) (*GameResponse, 
 	return toGameResponse(&started, players), nil
 }
 
-// FinishGame finishes an active game.
-func (s *service) FinishGame(ctx context.Context, gameID string) (*GameResponse, error) {
+// FinishGame finishes an active game, if the caller may access it.
+func (s *service) FinishGame(ctx context.Context, gameID, userID string) (*GameResponse, error) {
 	game, err := s.getGame(ctx, gameID)
 	if err != nil {
 		return nil, err
 	}
+
+	players, err := s.repo.ListGamePlayers(ctx, game.ID)
+	if err != nil {
+		return nil, fmt.Errorf("listing game players: %w", err)
+	}
+	if authErr := s.authorizeGameAccess(ctx, game, userID, players); authErr != nil {
+		return nil, authErr
+	}
+
 	if game.Status != statusActive {
 		return nil, ErrGameNotActive
 	}

@@ -39,7 +39,8 @@ func (h *Handler) CreateAction(c *fiber.Ctx) error {
 
 // GetTimeline returns the action history of a game.
 func (h *Handler) GetTimeline(c *fiber.Ctx) error {
-	res, err := h.svc.GetTimeline(c.Context(), c.Params("id"))
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.GetTimeline(c.Context(), c.Params("id"), userID)
 	if err != nil {
 		return common.MapError(err)
 	}

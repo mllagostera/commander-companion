@@ -20,9 +20,10 @@ type Querier interface {
 	// Game history for a group. Unpaginated: scoped to a single playgroup,
 	// never approaches the volume of ListGamesPage (the global history).
 	ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) ([]Game, error)
-	// Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
-	// it returns the first page; with a cursor, the rows strictly after it in
-	// list order. See internal/common/pagination.go.
+	// Keyset pagination over (created_at, id) DESC, scoped to games where the
+	// authenticated user has (or had) a seat — never the full cross-tenant
+	// history. With cursor_created_at NULL it returns the first page; with a
+	// cursor, the rows strictly after it in list order. See internal/common/pagination.go.
 	ListGamesPage(ctx context.Context, arg ListGamesPageParams) ([]Game, error)
 	RemoveGamePlayer(ctx context.Context, arg RemoveGamePlayerParams) error
 	StartGame(ctx context.Context, id pgtype.UUID) (Game, error)

@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -10,6 +11,16 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/auth"
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
+
+// MembershipChecker is what websocket needs from games to authorize a
+// connection: whether userID may access gameID — the same boundary as
+// games.GetGame (playgroup membership, or a seat in the game — see
+// ADR-0013). Implemented by games.Service, injected here without this
+// package depending on internal/games directly (same pattern as
+// games.Broadcaster/gameactions.Broadcaster, which go the other way).
+type MembershipChecker interface {
+	CanAccessGame(ctx context.Context, gameID, userID string) (bool, error)
+}
 
 // authMessageTimeout is how long the server waits, after accepting the upgrade, for
 // the first message ({"type":"auth","token":"..."}) to arrive before closing the connection.
@@ -29,7 +40,7 @@ type authMessage struct {
 // auth.RequireAuth): the HTTP upgrade handshake is done by the browser itself, which
 // can't attach the Authorization header, so authentication happens in a message
 // sent after the connection is established (see ADR-0005).
-func RegisterRoutes(router fiber.Router, hub *Hub, jwtSecret []byte) {
+func RegisterRoutes(router fiber.Router, hub *Hub, jwtSecret []byte, membership MembershipChecker) {
 	router.Use("/ws/games/:id", func(c *fiber.Ctx) error {
 		if !fiberws.IsWebSocketUpgrade(c) {
 			return fiber.ErrUpgradeRequired
@@ -41,15 +52,26 @@ func RegisterRoutes(router fiber.Router, hub *Hub, jwtSecret []byte) {
 	})
 
 	router.Get("/ws/games/:id", fiberws.New(func(conn *fiberws.Conn) {
-		handleConnection(hub, jwtSecret, conn.Params("id"), conn)
+		handleConnection(hub, jwtSecret, membership, conn.Params("id"), conn)
 	}))
 }
 
 // handleConnection handles the full lifecycle of a WebSocket connection:
-// authentication, registration in the Hub, and reading/writing until it disconnects.
-func handleConnection(hub *Hub, jwtSecret []byte, gameID string, conn *fiberws.Conn) {
+// authentication, authorization, registration in the Hub, and
+// reading/writing until it disconnects.
+func handleConnection(hub *Hub, jwtSecret []byte, membership MembershipChecker, gameID string, conn *fiberws.Conn) {
 	userID, ok := authenticate(conn, jwtSecret, gameID)
 	if !ok {
+		_ = conn.Close()
+		return
+	}
+
+	// A valid JWT only proves who the caller is, not that they may watch this
+	// particular game's live feed — that requires the same check as
+	// GET /games/{id} (see MembershipChecker).
+	allowed, err := membership.CanAccessGame(context.Background(), gameID, userID)
+	if err != nil || !allowed {
+		rejectAuth(conn, gameID, "not authorized to access this game")
 		_ = conn.Close()
 		return
 	}

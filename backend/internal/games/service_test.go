@@ -106,9 +106,9 @@ func mustJoin(t *testing.T, svc games.Service, gameID, userID, deckID string) *g
 	return player
 }
 
-func mustStart(t *testing.T, svc games.Service, gameID string) *games.GameResponse {
+func mustStart(t *testing.T, svc games.Service, gameID, userID string) *games.GameResponse {
 	t.Helper()
-	game, err := svc.StartGame(context.Background(), gameID)
+	game, err := svc.StartGame(context.Background(), gameID, userID)
 	if err != nil {
 		t.Fatalf("StartGame() error = %v, want nil", err)
 	}
@@ -344,8 +344,8 @@ func TestJoinGame_GameAlreadyStarted_ReturnsConflict(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	gameID, _ := setupTwoPlayerGame(t, pool, svc, "join-started")
-	mustStart(t, svc, gameID)
+	gameID, user1 := setupTwoPlayerGame(t, pool, svc, "join-started")
+	mustStart(t, svc, gameID, user1)
 	user3, deck3 := createUserAndDeck(t, pool, "join-started-3@example.com")
 
 	_, err := svc.JoinGame(context.Background(), gameID, user3, games.JoinGameRequest{DeckID: deck3})
@@ -359,20 +359,24 @@ func TestLeaveGame_Success(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	userID, deckID := createUserAndDeck(t, pool, "leave-success@example.com")
+	// Two players: after user1 leaves, user2 (still a member) is used to verify
+	// the seat was removed — a game with no members left can't be queried by anyone.
+	user1, deck1 := createUserAndDeck(t, pool, "leave-success-1@example.com")
+	user2, deck2 := createUserAndDeck(t, pool, "leave-success-2@example.com")
 	game := mustCreateGame(t, svc)
-	mustJoin(t, svc, game.ID, userID, deckID)
+	mustJoin(t, svc, game.ID, user1, deck1)
+	mustJoin(t, svc, game.ID, user2, deck2)
 
-	if err := svc.LeaveGame(context.Background(), game.ID, userID); err != nil {
+	if err := svc.LeaveGame(context.Background(), game.ID, user1); err != nil {
 		t.Fatalf("LeaveGame() error = %v, want nil", err)
 	}
 
-	got, err := svc.GetGame(context.Background(), game.ID)
+	got, err := svc.GetGame(context.Background(), game.ID, user2)
 	if err != nil {
 		t.Fatalf("GetGame() error = %v", err)
 	}
-	if len(got.Players) != 0 {
-		t.Fatalf("GetGame() tras LeaveGame() players = %+v, want vacío", got.Players)
+	if len(got.Players) != 1 {
+		t.Fatalf("GetGame() tras LeaveGame() players = %+v, want 1", got.Players)
 	}
 }
 
@@ -396,7 +400,7 @@ func TestLeaveGame_GameAlreadyStarted_ReturnsConflict(t *testing.T) {
 
 	svc := newGamesSvc(pool)
 	gameID, user1 := setupTwoPlayerGame(t, pool, svc, "leave-started")
-	mustStart(t, svc, gameID)
+	mustStart(t, svc, gameID, user1)
 
 	err := svc.LeaveGame(context.Background(), gameID, user1)
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
@@ -413,7 +417,7 @@ func TestStartGame_NotEnoughPlayers_ReturnsConflict(t *testing.T) {
 	game := mustCreateGame(t, svc)
 	mustJoin(t, svc, game.ID, userID, deckID)
 
-	_, err := svc.StartGame(context.Background(), game.ID)
+	_, err := svc.StartGame(context.Background(), game.ID, userID)
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
 		t.Fatalf("StartGame() con 1 jugador: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
 	}
@@ -424,9 +428,9 @@ func TestStartGame_Success(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	gameID, _ := setupTwoPlayerGame(t, pool, svc, "start-success")
+	gameID, user1 := setupTwoPlayerGame(t, pool, svc, "start-success")
 
-	started := mustStart(t, svc, gameID)
+	started := mustStart(t, svc, gameID, user1)
 	if started.Status != "active" {
 		t.Fatalf("StartGame() status = %q, want active", started.Status)
 	}
@@ -443,10 +447,10 @@ func TestStartGame_AlreadyStarted_ReturnsConflict(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	gameID, _ := setupTwoPlayerGame(t, pool, svc, "start-twice")
-	mustStart(t, svc, gameID)
+	gameID, user1 := setupTwoPlayerGame(t, pool, svc, "start-twice")
+	mustStart(t, svc, gameID, user1)
 
-	_, err := svc.StartGame(context.Background(), gameID)
+	_, err := svc.StartGame(context.Background(), gameID, user1)
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
 		t.Fatalf("StartGame() repetido: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
 	}
@@ -457,10 +461,10 @@ func TestFinishGame_Success(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	gameID, _ := setupTwoPlayerGame(t, pool, svc, "finish-success")
-	mustStart(t, svc, gameID)
+	gameID, user1 := setupTwoPlayerGame(t, pool, svc, "finish-success")
+	mustStart(t, svc, gameID, user1)
 
-	finished, err := svc.FinishGame(context.Background(), gameID)
+	finished, err := svc.FinishGame(context.Background(), gameID, user1)
 	if err != nil {
 		t.Fatalf("FinishGame() error = %v, want nil", err)
 	}
@@ -477,9 +481,11 @@ func TestFinishGame_NotActive_ReturnsConflict(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
+	userID, deckID := createUserAndDeck(t, pool, "finish-pending@example.com")
 	game := mustCreateGame(t, svc)
+	mustJoin(t, svc, game.ID, userID, deckID)
 
-	_, err := svc.FinishGame(context.Background(), game.ID)
+	_, err := svc.FinishGame(context.Background(), game.ID, userID)
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
 		t.Fatalf("FinishGame() en pending: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
 	}
@@ -490,13 +496,13 @@ func TestFinishGame_AlreadyFinished_ReturnsConflict(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	gameID, _ := setupTwoPlayerGame(t, pool, svc, "finish-twice")
-	mustStart(t, svc, gameID)
-	if _, err := svc.FinishGame(context.Background(), gameID); err != nil {
+	gameID, user1 := setupTwoPlayerGame(t, pool, svc, "finish-twice")
+	mustStart(t, svc, gameID, user1)
+	if _, err := svc.FinishGame(context.Background(), gameID, user1); err != nil {
 		t.Fatalf("primer FinishGame() error = %v", err)
 	}
 
-	_, err := svc.FinishGame(context.Background(), gameID)
+	_, err := svc.FinishGame(context.Background(), gameID, user1)
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
 		t.Fatalf("FinishGame() repetido: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
 	}
@@ -507,7 +513,7 @@ func TestGetGame_UnknownID_ReturnsNotFound(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	_, err := svc.GetGame(context.Background(), "00000000-0000-0000-0000-000000000000")
+	_, err := svc.GetGame(context.Background(), "00000000-0000-0000-0000-000000000000", "irrelevant")
 	if !errors.Is(err, games.ErrGameNotFound) {
 		t.Fatalf("GetGame() con id inexistente: error = %v, want ErrGameNotFound", err)
 	}
@@ -518,9 +524,83 @@ func TestGetGame_MalformedID_ReturnsNotFound(t *testing.T) {
 	truncateGamesTables(t, pool)
 
 	svc := newGamesSvc(pool)
-	_, err := svc.GetGame(context.Background(), "not-a-uuid")
+	_, err := svc.GetGame(context.Background(), "not-a-uuid", "irrelevant")
 	if !errors.Is(err, games.ErrGameNotFound) {
 		t.Fatalf("GetGame() con id malformado: error = %v, want ErrGameNotFound", err)
+	}
+}
+
+func TestGetGame_NotAMemberOrPlaygroupMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	gameID, _ := setupTwoPlayerGame(t, pool, svc, "get-outsider")
+	outsider, _ := createUserAndDeck(t, pool, "get-outsider-3@example.com")
+
+	// Regression test for the broken access control fix: an authenticated user
+	// with no seat in the game and no shared playgroup must not be able to read it.
+	_, err := svc.GetGame(context.Background(), gameID, outsider)
+	if !errors.Is(err, games.ErrGameNotFound) {
+		t.Fatalf("GetGame() de un usuario ajeno: error = %v, want ErrGameNotFound", err)
+	}
+}
+
+func TestStartGame_NotAMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	gameID, _ := setupTwoPlayerGame(t, pool, svc, "start-outsider")
+	outsider, _ := createUserAndDeck(t, pool, "start-outsider-3@example.com")
+
+	// Regression test: before the fix, any authenticated user could force any
+	// pending game to start regardless of whether they had a seat in it.
+	_, err := svc.StartGame(context.Background(), gameID, outsider)
+	if !errors.Is(err, games.ErrGameNotFound) {
+		t.Fatalf("StartGame() de un usuario ajeno: error = %v, want ErrGameNotFound", err)
+	}
+}
+
+func TestFinishGame_NotAMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	gameID, user1 := setupTwoPlayerGame(t, pool, svc, "finish-outsider")
+	mustStart(t, svc, gameID, user1)
+	outsider, _ := createUserAndDeck(t, pool, "finish-outsider-3@example.com")
+
+	// Regression test: before the fix, any authenticated user could force any
+	// active game to finish (and trigger statistics recalculation) regardless
+	// of whether they had a seat in it.
+	_, err := svc.FinishGame(context.Background(), gameID, outsider)
+	if !errors.Is(err, games.ErrGameNotFound) {
+		t.Fatalf("FinishGame() de un usuario ajeno: error = %v, want ErrGameNotFound", err)
+	}
+}
+
+func TestListGames_OnlyReturnsGamesTheUserHasASeatIn(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	userID, deckID := createUserAndDeck(t, pool, "list-scoped@example.com")
+	myGame := mustCreateGame(t, svc)
+	mustJoin(t, svc, myGame.ID, userID, deckID)
+
+	// Another user's game, with no relation to userID: must not leak into
+	// their history (regression test for the previously unfiltered ListGames).
+	otherUserID, otherDeckID := createUserAndDeck(t, pool, "list-scoped-other@example.com")
+	otherGame := mustCreateGame(t, svc)
+	mustJoin(t, svc, otherGame.ID, otherUserID, otherDeckID)
+
+	res, err := svc.ListGames(context.Background(), common.PageRequest{Limit: 20}, userID)
+	if err != nil {
+		t.Fatalf("ListGames() error = %v, want nil", err)
+	}
+	if len(res.Items) != 1 || res.Items[0].ID != myGame.ID {
+		t.Fatalf("ListGames() = %+v, want solo %q", res.Items, myGame.ID)
 	}
 }
 

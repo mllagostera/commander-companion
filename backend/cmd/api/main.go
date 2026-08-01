@@ -154,13 +154,14 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	// (see ADR-0005). It's injected into games/game-actions as a
 	// Broadcaster, without those packages depending on internal/websocket (same
 	// pattern as statisticsService as StatisticsRecalculator). The WebSocket
-	// route is public (no auth.RequireAuth): it authenticates via the initial
-	// message, not via header.
+	// route registration is deferred until gamesService exists below (it's
+	// injected back as a websocket.MembershipChecker) — it's still public (no
+	// auth.RequireAuth): it authenticates via the initial message, not via header.
 	wsHub := websocket.NewHub()
-	websocket.RegisterRoutes(api, wsHub, cfg.Auth.JWTSecret)
 
 	gamesService := games.NewService(db.Pool, statisticsService, wsHub, playgroupsService)
 	games.NewHandler(gamesService).RegisterRoutes(protected)
+	websocket.RegisterRoutes(api, wsHub, cfg.Auth.JWTSecret, gamesService)
 
 	gameActionsService := gameactions.NewService(db.Pool, wsHub)
 	gameactions.NewHandler(gameActionsService).RegisterRoutes(protected)
