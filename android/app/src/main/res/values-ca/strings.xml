@@ -30,6 +30,7 @@
     <!-- Dashboard -->
     <string name="dashboard_new_game">NOVA PARTIDA</string>
     <string name="dashboard_history">HISTORIAL</string>
+    <string name="dashboard_statistics">Estadístiques</string>
     <string name="dashboard_settings">Ajustos</string>
     <string name="dashboard_logout">Tanca sessió</string>
 
@@ -112,4 +113,22 @@
     <string name="settings_security_submit">Canvia la contrasenya</string>
     <string name="settings_security_password_updated">Contrasenya actualitzada</string>
     <string name="settings_security_no_password">Vas iniciar sessió amb Google, aquest compte no té contrasenya pròpia.</string>
+
+    <!-- Estadístiques -->
+    <string name="statistics_title">Estadístiques</string>
+    <string name="statistics_load_error">No s\'han pogut carregar les estadístiques</string>
+    <string name="statistics_global_heading">Resum general</string>
+    <string name="statistics_games">Partides</string>
+    <string name="statistics_wins">Victòries</string>
+    <string name="statistics_win_rate">% victòries</string>
+    <string name="statistics_total_damage">Dany total</string>
+    <string name="statistics_commander_damage">Dany de comandant</string>
+    <string name="statistics_eliminations">Eliminacions</string>
+    <string name="statistics_per_deck_heading">Per deck</string>
+    <string name="statistics_no_decks">Encara no tens cap deck importat.</string>
+    <string name="statistics_no_deck_stats">Encara no hi ha partides jugades amb aquest deck.</string>
+    <string name="statistics_deck_max_life">Vida màx.</string>
+    <string name="statistics_per_group_heading">Per grup</string>
+    <string name="statistics_no_groups">Encara no ets membre de cap grup.</string>
+    <string name="statistics_group_summary">%1$d partides · %2$d membres</string>
 </resources>

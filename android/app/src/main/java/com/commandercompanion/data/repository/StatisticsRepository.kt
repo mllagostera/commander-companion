@@ -15,8 +15,7 @@ import javax.inject.Singleton
  * sense to duplicate that aggregation on the client. Returns zeros (not an error) for a
  * user/deck that hasn't finished any game yet.
  *
- * TODO: there's no screen consuming this yet — the statistics UI is Stage 7 of `TASKS.md`,
- * out of scope for this pass (which was about unblocking it by wiring up the API).
+ * Consumed by `StatisticsScreen`/`StatisticsViewModel` (Stage 7 of `TASKS.md`).
  */
 @Singleton
 class StatisticsRepository @Inject constructor(

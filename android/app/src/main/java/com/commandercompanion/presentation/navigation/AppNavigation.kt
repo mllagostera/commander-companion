@@ -17,6 +17,7 @@ import com.commandercompanion.presentation.screens.pregame.PreGameScreen
 import com.commandercompanion.presentation.screens.register.RegisterScreen
 import com.commandercompanion.presentation.screens.settings.SettingsScreen
 import com.commandercompanion.presentation.screens.setup.PlayerSetupScreen
+import com.commandercompanion.presentation.screens.statistics.StatisticsScreen
 
 @OptIn(ExperimentalSafeArgsApi::class)
 @Composable
@@ -57,6 +58,7 @@ fun AppNavigation(
             DashboardScreen(
                 onNewGame = { navController.navigate(PlayerSetupRoute) },
                 onViewHistory = { navController.navigate(HistoryRoute) },
+                onViewStatistics = { navController.navigate(StatisticsRoute) },
                 onOpenSettings = { navController.navigate(SettingsRoute) },
                 onLogout = {
                     navController.navigate(LoginRoute) { popUpTo(0) { inclusive = true } }
@@ -100,6 +102,9 @@ fun AppNavigation(
                     navController.navigate(LoginRoute) { popUpTo(0) { inclusive = true } }
                 }
             )
+        }
+        composable<StatisticsRoute> {
+            StatisticsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

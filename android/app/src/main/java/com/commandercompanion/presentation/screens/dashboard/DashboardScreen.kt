@@ -25,6 +25,7 @@ import com.commandercompanion.presentation.theme.StatusDanger
 fun DashboardScreen(
     onNewGame: () -> Unit,
     onViewHistory: () -> Unit,
+    onViewStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
     onLogout: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel()
@@ -52,6 +53,13 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(14.dp))
             GradientOutlineButton(text = stringResource(R.string.dashboard_history), onClick = onViewHistory)
             Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = stringResource(R.string.dashboard_statistics),
+                color = AppFaint,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onViewStatistics)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = stringResource(R.string.dashboard_settings),
                 color = AppFaint,
