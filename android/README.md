@@ -108,6 +108,11 @@ own — see `docs/roadmap/TASKS.md` Stage 4.
 
 ## Notes
 
+- Language (`SettingsScreen` → "Idioma") is overridable per-app via
+  `AppCompatDelegate.setApplicationLocales()` (`androidx.appcompat`), same 3
+  languages as the web (`values`/`values-en`/`values-ca`) — persisted across
+  restarts via `autoStoreLocales` in `AndroidManifest.xml`. See
+  `presentation/screens/settings/AppLanguage.kt`.
 - The local life tracker (`GameViewModel`, Room) works 100% without network
   or session — the mirror against the backend (`GameRepository.bootstrapRemoteGame`)
   is best-effort and additive, it never blocks the local game. Status is visible in

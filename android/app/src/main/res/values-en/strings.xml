@@ -128,6 +128,10 @@
     <string name="settings_security_submit">Change password</string>
     <string name="settings_security_password_updated">Password updated</string>
     <string name="settings_security_no_password">You signed in with Google, this account doesn\'t have its own password.</string>
+    <string name="settings_language_heading">Language</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_catalan">Català</string>
 
     <!-- Statistics -->
     <string name="statistics_title">Statistics</string>

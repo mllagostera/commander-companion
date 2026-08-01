@@ -1,5 +1,7 @@
 package com.commandercompanion.presentation.screens.settings
 
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.data.remote.api.AuthApi
@@ -33,7 +35,9 @@ data class SettingsUiState(
 
     val isChangingPassword: Boolean = false,
     val passwordError: String? = null,
-    val passwordChanged: Boolean = false
+    val passwordChanged: Boolean = false,
+
+    val language: AppLanguage = AppLanguage.SPANISH
 )
 
 /**
@@ -53,7 +57,9 @@ class SettingsViewModel @Inject constructor(
     private val sessionManager: SessionManager
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SettingsUiState())
+    private val _uiState = MutableStateFlow(
+        SettingsUiState(language = AppLanguage.fromTag(AppCompatDelegate.getApplicationLocales().toLanguageTags()))
+    )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
@@ -136,6 +142,19 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(isChangingPassword = false, passwordError = "No se pudo conectar con el servidor") }
             }
         }
+    }
+
+    /**
+     * Overrides the app's language regardless of the device's own setting, persisted
+     * automatically across restarts (`autoStoreLocales`, see `AndroidManifest.xml`) — same 3
+     * languages the web client offers (`values`/`values-en`/`values-ca`). Setting it recreates
+     * every active `Activity` so the new resources take effect immediately; the callback-free
+     * `AppCompatDelegate` API works with a plain `ComponentActivity`, no `AppCompatActivity`
+     * required (AppCompat 1.6.0+).
+     */
+    fun changeLanguage(language: AppLanguage) {
+        _uiState.update { it.copy(language = language) }
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.tag))
     }
 
     fun logout(onComplete: () -> Unit) {

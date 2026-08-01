@@ -128,6 +128,10 @@
     <string name="settings_security_submit">Canvia la contrasenya</string>
     <string name="settings_security_password_updated">Contrasenya actualitzada</string>
     <string name="settings_security_no_password">Vas iniciar sessió amb Google, aquest compte no té contrasenya pròpia.</string>
+    <string name="settings_language_heading">Idioma</string>
+    <string name="settings_language_spanish">Español</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_catalan">Català</string>
 
     <!-- Estadístiques -->
     <string name="statistics_title">Estadístiques</string>

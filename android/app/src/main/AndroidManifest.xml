@@ -11,6 +11,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CommanderCompanion"
         tools:targetApi="31">
+
+        <!-- Lets AppCompat persist the per-app language chosen in Settings across restarts
+             (LocaleManager on API 33+, its own SharedPreferences-backed store below that). -->
+        <meta-data
+            android:name="autoStoreLocales"
+            android:value="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
