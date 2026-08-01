@@ -23,6 +23,7 @@ import retrofit2.http.GET
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * Protected backend endpoints (`decks`, `games`, `game-actions`, `statistics`),
@@ -63,6 +64,16 @@ interface CommanderApi {
     /** Server-side cursor-based pagination; always requests the first page (default 20 items). */
     @GET("api/v1/games")
     suspend fun listGames(): PagedResponse<GameDto>
+
+    /**
+     * Full (unpaginated) history of a group's games — same `games` list endpoint, but scoped to a
+     * `playgroup_id` (`ListGamesForPlaygroup` on the backend). Includes games in every status;
+     * callers looking for open seats filter to [GameStatus.PENDING] themselves (see
+     * `JoinGameViewModel`). Shares [GameDto]/[PagedResponse]'s shape with [listGames], the backend
+     * responds the exact same `{items, next_cursor}` envelope for both.
+     */
+    @GET("api/v1/games")
+    suspend fun listGamesForPlaygroup(@Query("playgroup_id") playgroupId: String): PagedResponse<GameDto>
 
     @POST("api/v1/games")
     suspend fun createGame(@Body request: CreateGameRequest): GameDto

@@ -67,9 +67,11 @@ fun GameTrackerScreen(
         when {
             !isLandscape -> RotateDevicePrompt(message = stringResource(R.string.tracker_rotate_prompt))
             state.isFinished -> GameSummary(state = state, onBack = onFinish)
+            state.players.isEmpty() -> LoadingTable(remoteSync = state.remoteSync, onBack = onFinish)
             else -> {
                 QuadrantGrid(
                     players = state.players,
+                    localSeatId = state.localSeatId,
                     expandedPlayerId = expandedPlayerId,
                     onToggleExpand = { id -> expandedPlayerId = if (expandedPlayerId == id) null else id },
                     onLifeChange = viewModel::adjustLife,
@@ -117,6 +119,7 @@ fun GameTrackerScreen(
 @Composable
 private fun QuadrantGrid(
     players: List<PlayerState>,
+    localSeatId: Int?,
     expandedPlayerId: Int?,
     onToggleExpand: (Int) -> Unit,
     onLifeChange: (playerId: Int, amount: Int) -> Unit,
@@ -131,9 +134,13 @@ private fun QuadrantGrid(
     ) {
         Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             players.take(topCount).forEach { player ->
+                // Null localSeatId = pass-and-play (host mode): every seat on this one device is
+                // editable, as it's always been. Non-null = joined mode: only the local seat is.
+                val editable = localSeatId == null || player.id == localSeatId
                 PlayerQuadrant(
                     player = player,
                     opponents = players.filter { it.id != player.id },
+                    editable = editable,
                     expanded = expandedPlayerId == player.id,
                     onToggleExpand = { onToggleExpand(player.id) },
                     onLifeChange = { delta -> onLifeChange(player.id, delta) },
@@ -147,9 +154,11 @@ private fun QuadrantGrid(
         }
         Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             players.drop(topCount).forEach { player ->
+                val editable = localSeatId == null || player.id == localSeatId
                 PlayerQuadrant(
                     player = player,
                     opponents = players.filter { it.id != player.id },
+                    editable = editable,
                     expanded = expandedPlayerId == player.id,
                     onToggleExpand = { onToggleExpand(player.id) },
                     onLifeChange = { delta -> onLifeChange(player.id, delta) },
@@ -168,6 +177,7 @@ private fun QuadrantGrid(
 private fun PlayerQuadrant(
     player: PlayerState,
     opponents: List<PlayerState>,
+    editable: Boolean,
     expanded: Boolean,
     onToggleExpand: () -> Unit,
     onLifeChange: (Int) -> Unit,
@@ -210,9 +220,9 @@ private fun PlayerQuadrant(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                LifeStepButton("−", onClick = { onLifeChange(-1) })
+                if (editable) LifeStepButton("−", onClick = { onLifeChange(-1) })
                 Text(player.life.toString(), color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 38.sp)
-                LifeStepButton("+", onClick = { onLifeChange(1) })
+                if (editable) LifeStepButton("+", onClick = { onLifeChange(1) })
             }
 
             Row(
@@ -257,6 +267,7 @@ private fun PlayerQuadrant(
                 opponents = opponents,
                 commanderDamage = player.commanderDamage,
                 poison = player.poison,
+                editable = editable,
                 onCommanderDamageChange = onCommanderDamageChange,
                 onPoisonChange = onPoisonChange,
                 modifier = Modifier.fillMaxSize().clickable(onClick = onToggleExpand)
@@ -301,6 +312,7 @@ private fun CommanderDamagePanel(
     opponents: List<PlayerState>,
     commanderDamage: Map<Int, Int>,
     poison: Int,
+    editable: Boolean,
     onCommanderDamageChange: (attackerId: Int, delta: Int) -> Unit,
     onPoisonChange: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -315,7 +327,7 @@ private fun CommanderDamagePanel(
                 val amount = commanderDamage[opponent.id] ?: 0
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(10.dp).clip(CircleShape).background(opponent.color))
-                    MiniStepButton("−") { onCommanderDamageChange(opponent.id, -1) }
+                    if (editable) MiniStepButton("−") { onCommanderDamageChange(opponent.id, -1) }
                     Text(
                         amount.toString(),
                         color = Color.White,
@@ -323,13 +335,13 @@ private fun CommanderDamagePanel(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.width(16.dp)
                     )
-                    MiniStepButton("+") { onCommanderDamageChange(opponent.id, 1) }
+                    if (editable) MiniStepButton("+") { onCommanderDamageChange(opponent.id, 1) }
                 }
             }
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.tracker_poison), color = StatusPoison, fontSize = 9.sp)
-                MiniStepButton("−") { onPoisonChange(-1) }
+                if (editable) MiniStepButton("−") { onPoisonChange(-1) }
                 Text(
                     poison.toString(),
                     color = Color.White,
@@ -337,7 +349,7 @@ private fun CommanderDamagePanel(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.width(16.dp)
                 )
-                MiniStepButton("+") { onPoisonChange(1) }
+                if (editable) MiniStepButton("+") { onPoisonChange(1) }
             }
         }
     }
@@ -385,6 +397,32 @@ private fun StarterBanner(name: String, modifier: Modifier = Modifier) {
             fontSize = 22.sp,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+/**
+ * Shown instead of the [QuadrantGrid] while joined mode is still fetching the rest of the table
+ * (`GameViewModel.initJoinedGame`) — pass-and-play mode never hits this, its players are known
+ * synchronously from `playersEncoded`. On failure, offers a way back instead of loading forever.
+ */
+@Composable
+private fun LoadingTable(remoteSync: RemoteSyncState, onBack: () -> Unit) {
+    val isError = remoteSync.status == RemoteSyncStatus.Failed
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = remoteSync.message ?: stringResource(R.string.tracker_loading_joined_game),
+            color = if (isError) StatusDanger else AppOnBackground,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        if (isError) {
+            Spacer(Modifier.height(16.dp))
+            GradientButton(text = stringResource(R.string.tracker_back_to_dashboard), onClick = onBack)
+        }
     }
 }
 

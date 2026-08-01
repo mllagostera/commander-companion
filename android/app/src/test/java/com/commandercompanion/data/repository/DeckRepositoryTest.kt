@@ -2,6 +2,7 @@ package com.commandercompanion.data.repository
 
 import com.commandercompanion.core.util.ApiError
 import com.commandercompanion.testing.FakeCommanderApi
+import com.commandercompanion.testing.FakeDeckDao
 import com.commandercompanion.testing.deckDto
 import com.commandercompanion.testing.httpException
 import kotlinx.coroutines.test.runTest
@@ -13,7 +14,8 @@ import java.io.IOException
 class DeckRepositoryTest {
 
     private val api = FakeCommanderApi()
-    private val repository = DeckRepository(api)
+    private val deckDao = FakeDeckDao()
+    private val repository = DeckRepository(api, deckDao)
 
     @Test
     fun `listDecks devuelve los decks del backend`() = runTest {
@@ -25,12 +27,24 @@ class DeckRepositoryTest {
     }
 
     @Test
-    fun `listDecks propaga el error de red en vez de devolver una lista vacia`() = runTest {
+    fun `listDecks propaga el error de red si no hay nada cacheado todavia`() = runTest {
         api.onListDecks = { throw IOException("sin red") }
 
         val result = repository.listDecks()
 
         assertTrue(result.exceptionOrNull() is ApiError.Network)
+    }
+
+    /** Offline-first: a previous successful fetch left the Room cache populated for next time. */
+    @Test
+    fun `listDecks devuelve lo cacheado si el backend no responde`() = runTest {
+        api.onListDecks = { listOf(deckDto("deck-a"), deckDto("deck-b")) }
+        repository.listDecks() // populates the cache
+
+        api.onListDecks = { throw IOException("sin red") }
+        val result = repository.listDecks()
+
+        assertEquals(listOf("deck-a", "deck-b"), result.getOrThrow().map { it.id })
     }
 
     @Test

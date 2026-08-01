@@ -29,6 +29,7 @@
 
     <!-- Dashboard -->
     <string name="dashboard_new_game">NEW GAME</string>
+    <string name="dashboard_join_game">JOIN A GAME</string>
     <string name="dashboard_history">HISTORY</string>
     <string name="dashboard_statistics">Statistics</string>
     <string name="dashboard_settings">Settings</string>
@@ -62,6 +63,18 @@
     <string name="setup_pick_group_first">Pick a group above to be able to assign players.</string>
     <string name="setup_guest">Guest</string>
 
+    <!-- Join a game (from another device) -->
+    <string name="join_game_title">Join a game</string>
+    <string name="join_game_subtitle">Pick your group and join a game someone else already created.</string>
+    <string name="join_game_open_games_label">Open games</string>
+    <string name="join_game_loading">Looking for games…</string>
+    <string name="join_game_no_open_games">No open games in this group right now.</string>
+    <string name="join_game_no_own_decks">You don\'t have any decks yet. Create one before joining.</string>
+    <string name="join_game_seats_taken">%1$d player(s) already at the table</string>
+    <string name="join_game_select">Select</string>
+    <string name="join_game_selected">Selected</string>
+    <string name="join_game_join_button">JOIN</string>
+
     <!-- Pre-partida: sorteo y mulligans -->
     <string name="pregame_rotate_prompt">Rotate your device\nto pick seats</string>
     <string name="pregame_seat_label">Seat %1$d</string>
@@ -84,6 +97,8 @@
     <string name="tracker_finish_game">Finish game</string>
     <string name="tracker_starter_banner">%1$s\nstarts!</string>
     <string name="tracker_connecting_to_server">Creating the game on the server…</string>
+    <string name="tracker_loading_joined_game">Loading the table…</string>
+    <string name="tracker_back_to_dashboard">Back home</string>
 
     <!-- Resumen de partida -->
     <string name="summary_subtitle">Game statistics · Turn %1$d</string>

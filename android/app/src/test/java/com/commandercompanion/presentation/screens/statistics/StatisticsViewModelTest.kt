@@ -7,6 +7,7 @@ import com.commandercompanion.data.repository.DeckRepository
 import com.commandercompanion.data.repository.PlaygroupRepository
 import com.commandercompanion.data.repository.StatisticsRepository
 import com.commandercompanion.testing.FakeCommanderApi
+import com.commandercompanion.testing.FakeDeckDao
 import com.commandercompanion.testing.deckDto
 import com.commandercompanion.testing.httpException
 import com.commandercompanion.testing.playgroupDto
@@ -43,7 +44,7 @@ class StatisticsViewModelTest {
 
     private fun viewModel(): StatisticsViewModel {
         val statisticsRepository = StatisticsRepository(api)
-        val deckRepository = DeckRepository(api)
+        val deckRepository = DeckRepository(api, FakeDeckDao())
         val playgroupRepository = PlaygroupRepository(api)
         return StatisticsViewModel(statisticsRepository, deckRepository, playgroupRepository)
     }

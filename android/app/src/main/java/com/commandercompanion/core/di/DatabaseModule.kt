@@ -3,6 +3,7 @@ package com.commandercompanion.core.di
 import android.content.Context
 import androidx.room.Room
 import com.commandercompanion.data.local.CommanderDatabase
+import com.commandercompanion.data.local.dao.DeckDao
 import com.commandercompanion.data.local.dao.GameDao
 import dagger.Module
 import dagger.Provides
@@ -25,4 +26,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideGameDao(database: CommanderDatabase): GameDao = database.gameDao
+
+    @Provides
+    @Singleton
+    fun provideDeckDao(database: CommanderDatabase): DeckDao = database.deckDao
 }

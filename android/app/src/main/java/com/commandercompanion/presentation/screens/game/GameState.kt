@@ -22,7 +22,7 @@ fun PlayerState.isEliminated(): Boolean =
 
 /** Status of the game's mirror against the backend (see `GameRepository`). */
 enum class RemoteSyncStatus {
-    /** Still creating the remote game / joining it. */
+    /** Still creating/joining the remote game and, in joined mode, fetching the rest of the table. */
     Connecting,
 
     /** Sync isn't attempted (e.g. the user has no decks). 100% local game. */
@@ -50,5 +50,13 @@ data class GameState(
     val startingPlayerId: Int? = null,
     val isFinished: Boolean = false,
     val winnerId: Int? = null,
-    val remoteSync: RemoteSyncState = RemoteSyncState()
+    val remoteSync: RemoteSyncState = RemoteSyncState(),
+    /**
+     * Which seat THIS device controls, when it joined someone else's already-created remote game
+     * (see `JoinGameScreen`/`GameViewModel`'s joined mode). Null in the usual pass-and-play mode,
+     * where every seat on this single device is editable, same as always. Non-null seats are
+     * read-only in the UI — their life/poison/commander damage only change via the WebSocket
+     * events broadcast by whichever device actually controls them.
+     */
+    val localSeatId: Int? = null
 )
