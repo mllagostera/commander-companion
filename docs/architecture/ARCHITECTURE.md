@@ -27,19 +27,40 @@ To ensure the project can scale and that parallel development (including collabo
 ## System Architecture
 
 ### Backend (Go)
-- **Pattern:** Modular Monolith.
-- **Internal structure:** Clean Architecture focused on use cases (Service).
-  - `Handler`: transport layer (HTTP/REST, WebSocket).
-  - `Service`: business logic (pure, no infrastructure dependencies).
-  - `Repository`: persistence and data access.
+- **Pattern:** Modular Monolith, one package per feature under `internal/`
+  (`auth`, `decks`, `games`, `playgroups`, `statistics`, ...), each a
+  self-contained vertical slice (`handler.go`, `service.go`, `db.go`,
+  `dto.go`/`models.go`, `query.sql`).
+- **Internal structure, per slice:**
+  - `Handler`: transport layer (HTTP/REST, WebSocket) — the only layer that's
+    actually decoupled from infrastructure. It knows nothing about SQL or the
+    Postgres driver, only about `Service`.
+  - `Service`: business logic. In practice it is **not** pure/infra-free — it
+    takes `*pgxpool.Pool` directly (to open transactions) and works with the
+    types sqlc generates (`pgtype.UUID`, `pgtype.Text`, `pgtype.Timestamptz`,
+    `pgx.ErrNoRows`, etc.) rather than plain Go types. This is a deliberate,
+    consistent trade-off across every slice, not an accidental leak: with a
+    single Postgres database and no plan to swap it, wrapping every
+    sqlc-generated `Querier` in a translation layer would buy testability we
+    don't currently need, at the cost of touching every method signature in
+    the backend. The real decoupling boundary in this codebase is
+    Handler ↔ Service, not Service ↔ persistence.
+  - `Repository`: persistence and data access — the `Querier` interface plus
+    `.sql.go` code sqlc generates from `query.sql`, consumed directly by
+    `Service`.
 
 ### Client (Android)
 - **Pattern:** Clean Architecture + MVVM + UDF (Unidirectional Data Flow).
 - **Logical modules:**
   - `Presentation`: UI with Jetpack Compose and ViewModels.
-  - `Domain`: use cases and repository interfaces — a layer that doesn't
-    exist yet; `ViewModel`s go straight against `data/repository/` or,
-    in auth, straight against the API (see `docs/roadmap/TASKS.md`, Stage 4).
+  - `Domain`: use cases (`LoadStatisticsUseCase`, `ResolveGameOutcomeUseCase`,
+    `ReplayCommanderDamageUseCase`) and repository interfaces
+    (`GameRepository`, `DeckRepository`, `PlaygroupRepository`,
+    `StatisticsRepository`) that `Data` implements. Most `ViewModel`s
+    (game, history, join-game, player setup, statistics) depend on this
+    layer, not on `Data` directly. The one deliberate exception is auth:
+    `LoginViewModel` still goes straight against the API (`AuthApi`,
+    Retrofit) — see `docs/roadmap/TASKS.md`, Stage 4.
   - `Data`: repositories (`GameRepository`, `DeckRepository`) that decide
     what's persisted in Room (local) and what calls the real backend (Retrofit,
     `CommanderApi`) — not a purely pass-through layer, it already holds the
