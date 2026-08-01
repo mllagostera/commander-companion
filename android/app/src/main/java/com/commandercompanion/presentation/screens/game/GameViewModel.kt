@@ -7,14 +7,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.core.util.ApiError
 import com.commandercompanion.core.util.toUserMessage
+import com.commandercompanion.data.remote.ws.GameSocketEvent
 import com.commandercompanion.data.repository.GameRepository
 import com.commandercompanion.data.repository.LocalSeat
 import com.commandercompanion.data.repository.LocalSeatResult
 import com.commandercompanion.data.repository.RemoteGameSession
 import com.commandercompanion.data.repository.SeatAssignment
+import com.commandercompanion.data.session.AccessTokenProvider
 import com.commandercompanion.presentation.navigation.decodePlayerConfigs
 import com.commandercompanion.presentation.theme.colorForKey
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -23,7 +26,8 @@ import javax.inject.Inject
 @HiltViewModel
 class GameViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val gameRepository: GameRepository
+    private val gameRepository: GameRepository,
+    private val accessTokenProvider: AccessTokenProvider
 ) : ViewModel() {
 
     private val gameId: String = checkNotNull(savedStateHandle["gameId"])
@@ -51,6 +55,9 @@ class GameViewModel @Inject constructor(
      * kotlinx's `Mutex` is FIFO, so calls come out in the same order the UI generated them.
      */
     private val remoteMutex = Mutex()
+
+    /** Collects [GameRepository.observeGameEvents] while the remote game is [RemoteSyncStatus.Synced]. */
+    private var socketJob: Job? = null
 
     private val _state = mutableStateOf(
         GameState(
@@ -109,10 +116,10 @@ class GameViewModel @Inject constructor(
                                 status = RemoteSyncStatus.Disabled,
                                 message = "Nadie quedó asignado: la partida se juega solo en este dispositivo"
                             )
-                            session.isActive -> RemoteSyncState(
-                                status = RemoteSyncStatus.Synced,
-                                gameId = session.gameId
-                            )
+                            session.isActive -> {
+                                observeGameSocket(session.gameId)
+                                RemoteSyncState(status = RemoteSyncStatus.Synced, gameId = session.gameId)
+                            }
                             else -> RemoteSyncState(
                                 status = RemoteSyncStatus.WaitingForPlayers,
                                 message = "Esperando a que se una otro jugador para iniciarla en el servidor",
@@ -257,10 +264,49 @@ class GameViewModel @Inject constructor(
 
     /** Finishes the remote game, which triggers the server-side statistics recalculation. */
     private fun finishRemoteGame() {
+        socketJob?.cancel()
         launchRemote {
             val session = activeSession() ?: return@launchRemote
             gameRepository.finishGame(session.gameId)
                 .onFailure { error -> reportRemoteFailure(error) }
+        }
+    }
+
+    /**
+     * Subscribes to live updates for [remoteGameId] (see `GameRepository.observeGameEvents`/ADR-0005).
+     * Only makes sense once the remote game is `active` — `pending`-state transitions
+     * (join/leave/start) aren't broadcast, so connecting any earlier would just wait for nothing.
+     */
+    private fun observeGameSocket(remoteGameId: String) {
+        socketJob?.cancel()
+        socketJob = viewModelScope.launch {
+            gameRepository.observeGameEvents(remoteGameId) { accessTokenProvider.currentAccessToken() }
+                .collect { event -> handleSocketEvent(event) }
+        }
+    }
+
+    /**
+     * Every `GamePlayer` this device mirrors actions for is one of ITS OWN local seats — Casual
+     * mode has none, Group mode proxy-joins its own group's seats (see `GameRepository`,
+     * ADR-0013). There's no flow yet for a second device to join an already-created remote game
+     * (the "Complete end-to-end flow" gap in Stage 5 of `docs/roadmap/TASKS.md`), so **every**
+     * `game_action` this socket can currently receive for this room is necessarily the server's
+     * echo of an action this same device already recorded and applied synchronously to
+     * [GameState] before mirroring it — there's nothing new to reconcile, and applying it again
+     * would double-count the change. `GameFinished`/`Connected`/`Disconnected` need no handling
+     * either: this device already knows locally when its own game finishes, and reconnection is
+     * fully handled inside `GameSocketClient`.
+     *
+     * Kept as an explicit no-op (rather than not subscribing at all) so the connection,
+     * authentication and reconnection machinery run for real against the backend today, ready to
+     * start reconciling other seats' actions the moment that missing join flow exists.
+     */
+    private fun handleSocketEvent(event: GameSocketEvent) {
+        when (event) {
+            is GameSocketEvent.ActionReceived,
+            GameSocketEvent.GameFinished,
+            GameSocketEvent.Connected,
+            is GameSocketEvent.Disconnected -> Unit
         }
     }
 

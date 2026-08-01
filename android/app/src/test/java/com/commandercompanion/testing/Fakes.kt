@@ -24,8 +24,11 @@ import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.UpdateProfileRequest
 import com.commandercompanion.data.remote.dto.UserDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
+import com.commandercompanion.data.remote.ws.GameSocketClient
+import com.commandercompanion.data.remote.ws.GameSocketEvent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.HttpException
@@ -211,6 +214,24 @@ class FakeCommanderApi : CommanderApi {
     override suspend fun changePassword(userId: String, request: ChangePasswordRequest) {
         calls += "changePassword"
         onChangePassword(userId, request)
+    }
+}
+
+/**
+ * Fake of [GameSocketClient]: no real socket, no reconnection — just replays whatever [onConnect]
+ * returns for the given `gameId`. Empty by default (never emits), which is enough for tests that
+ * don't care about live-sync events.
+ */
+class FakeGameSocketClient : GameSocketClient {
+
+    /** `gameId` of every [connect] call, in order. */
+    val connectedGameIds = mutableListOf<String>()
+
+    var onConnect: (gameId: String) -> Flow<GameSocketEvent> = { emptyFlow() }
+
+    override fun connect(gameId: String, accessToken: suspend () -> String?): Flow<GameSocketEvent> {
+        connectedGameIds += gameId
+        return onConnect(gameId)
     }
 }
 

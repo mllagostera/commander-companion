@@ -16,6 +16,8 @@ import com.commandercompanion.data.remote.dto.GamePlayerDto
 import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.amountPayload
+import com.commandercompanion.data.remote.ws.GameSocketClient
+import com.commandercompanion.data.remote.ws.GameSocketEvent
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -80,7 +82,8 @@ data class RemoteGameSession(
 @Singleton
 class GameRepository @Inject constructor(
     private val api: CommanderApi,
-    private val gameDao: GameDao
+    private val gameDao: GameDao,
+    private val gameSocketClient: GameSocketClient
 ) {
 
     // ------------------------------------------------------------ local (Room)
@@ -151,6 +154,14 @@ class GameRepository @Inject constructor(
 
     suspend fun recordAction(gameId: String, request: CreateActionRequest): Result<GameActionDto> =
         apiCall { api.recordAction(gameId, request) }
+
+    /**
+     * Live updates for [gameId] over WebSocket (see `GameSocketClient`/ADR-0005) — connects,
+     * authenticates and reconnects with backoff on its own; the caller only needs to collect and
+     * react to [GameSocketEvent]s (see `GameViewModel`).
+     */
+    fun observeGameEvents(gameId: String, accessToken: suspend () -> String?): Flow<GameSocketEvent> =
+        gameSocketClient.connect(gameId, accessToken)
 
     // ------------------------------------------------------------ orchestration
 

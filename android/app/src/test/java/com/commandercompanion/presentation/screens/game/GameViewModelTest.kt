@@ -4,10 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.repository.GameRepository
+import com.commandercompanion.data.session.AccessTokenProvider
 import com.commandercompanion.presentation.navigation.PlayerConfig
 import com.commandercompanion.presentation.navigation.encodePlayerConfigs
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeGameDao
+import com.commandercompanion.testing.FakeGameSocketClient
 import com.commandercompanion.testing.gameDto
 import com.commandercompanion.testing.gamePlayerDto
 import com.commandercompanion.testing.httpException
@@ -35,6 +37,8 @@ class GameViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val api = FakeCommanderApi()
     private val dao = FakeGameDao()
+    private val socket = FakeGameSocketClient()
+    private val accessTokenProvider = AccessTokenProvider { "access-token" }
 
     @Before
     fun setUp() {
@@ -57,7 +61,7 @@ class GameViewModelTest {
         beto: PlayerConfig = PlayerConfig(name = "Beto", colorKey = "red")
     ): GameViewModel {
         val players = encodePlayerConfigs(listOf(ana, beto))
-        val repository = GameRepository(api, dao)
+        val repository = GameRepository(api, dao, socket)
         return GameViewModel(
             savedStateHandle = SavedStateHandle(
                 mapOf(
@@ -66,7 +70,8 @@ class GameViewModelTest {
                     "startingPlayerSeat" to 0
                 )
             ),
-            gameRepository = repository
+            gameRepository = repository,
+            accessTokenProvider = accessTokenProvider
         )
     }
 
@@ -80,6 +85,17 @@ class GameViewModelTest {
         assertEquals(RemoteSyncStatus.Synced, vm.state.value.remoteSync.status)
     }
 
+    /** Connecting any earlier would be pointless: `pending`-state transitions aren't broadcast (ADR-0005). */
+    @Test
+    fun `la partida activa conecta el socket de sincronizacion en vivo`() = runTest(dispatcher) {
+        api.onStartGame = { id -> gameDto(id, GameStatus.ACTIVE) }
+
+        viewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("game-1"), socket.connectedGameIds)
+    }
+
     @Test
     fun `sin quorum para iniciar queda esperando jugadores, no en error`() = runTest(dispatcher) {
         api.onStartGame = { throw httpException(409) }
@@ -88,6 +104,7 @@ class GameViewModelTest {
         advanceUntilIdle()
 
         assertEquals(RemoteSyncStatus.WaitingForPlayers, vm.state.value.remoteSync.status)
+        assertTrue(socket.connectedGameIds.isEmpty())
     }
 
     @Test

@@ -5,6 +5,10 @@ import com.commandercompanion.data.remote.api.AuthApi
 import com.commandercompanion.data.remote.api.CommanderApi
 import com.commandercompanion.data.remote.interceptor.AuthAuthenticator
 import com.commandercompanion.data.remote.interceptor.AuthInterceptor
+import com.commandercompanion.data.remote.ws.GameSocketClient
+import com.commandercompanion.data.remote.ws.OkHttpGameSocketClient
+import com.commandercompanion.data.session.AccessTokenProvider
+import com.commandercompanion.data.session.SessionManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,6 +32,16 @@ annotation class UnauthenticatedClient
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class AuthenticatedClient
+
+/**
+ * Client used for the live-sync WebSocket ([GameSocketClient]) — no Bearer interceptor (the
+ * token travels in the first WebSocket message, not an HTTP header, see ADR-0005) and no read
+ * timeout (an idle-but-alive room would otherwise be killed by the same 15s timeout the REST
+ * clients use).
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class WebSocketOkHttpClient
 
 /**
  * Network module: Retrofit + OkHttp to talk to the Go backend.
@@ -88,6 +102,17 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    @WebSocketOkHttpClient
+    fun provideWebSocketOkHttpClient(): OkHttpClient =
+        OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor())
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .pingInterval(20, TimeUnit.SECONDS)
+            .build()
+
+    @Provides
+    @Singleton
     @UnauthenticatedClient
     fun provideUnauthenticatedRetrofit(
         json: Json,
@@ -119,4 +144,13 @@ object NetworkModule {
     @Singleton
     fun provideCommanderApi(@AuthenticatedClient retrofit: Retrofit): CommanderApi =
         retrofit.create(CommanderApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideGameSocketClient(impl: OkHttpGameSocketClient): GameSocketClient = impl
+
+    @Provides
+    @Singleton
+    fun provideAccessTokenProvider(sessionManager: SessionManager): AccessTokenProvider =
+        AccessTokenProvider { sessionManager.currentAccessToken() }
 }

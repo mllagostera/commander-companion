@@ -5,6 +5,7 @@ import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeGameDao
+import com.commandercompanion.testing.FakeGameSocketClient
 import com.commandercompanion.testing.gameDto
 import com.commandercompanion.testing.gamePlayerDto
 import com.commandercompanion.testing.httpException
@@ -20,7 +21,7 @@ class GameRepositoryTest {
 
     private val api = FakeCommanderApi()
     private val dao = FakeGameDao()
-    private val repository = GameRepository(api, dao)
+    private val repository = GameRepository(api, dao, FakeGameSocketClient())
 
     private fun oneAssignment(userId: String = "user-1", deckId: String = "deck-a") =
         listOf(SeatAssignment(seatIndex = 0, userId = userId, deckId = deckId))
