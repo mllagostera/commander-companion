@@ -296,6 +296,8 @@
       "commanderDamage": "Daño comandante",
       "startRandom": "Sortear quién empieza",
       "starterBanner": "{name} empieza",
+      "fullscreen": "Pantalla completa",
+      "exitFullscreen": "Salir de pantalla completa",
       "rotatePrompt": "Gira tu dispositivo\npara jugar"
     },
     "summary": {
