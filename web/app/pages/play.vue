@@ -10,6 +10,8 @@ const {
   isEliminated,
 } = useLocalGame()
 
+const { isFullscreen, isSupported: isFullscreenSupported, toggleFullscreen } = useFullscreen()
+
 type Phase = 'setup' | 'tracker'
 const phase = ref<Phase>('setup')
 
@@ -279,6 +281,17 @@ onUnmounted(() => {
               @click="backToSetup"
             >
               ✕
+            </button>
+
+            <button
+              v-if="isFullscreenSupported"
+              type="button"
+              :title="$t(isFullscreen ? 'play.tracker.exitFullscreen' : 'play.tracker.fullscreen')"
+              class="absolute z-[5] flex items-center justify-center rounded-full border"
+              style="left: clamp(52px,7.5vw,72px); top: clamp(8px,1.5vw,16px); width: clamp(36px,5vw,48px); height: clamp(36px,5vw,48px); background: rgba(20,16,38,0.96); border-color: rgba(255,255,255,0.15); color: #f1f0f6; font-size: clamp(14px,1.8vw,18px);"
+              @click="toggleFullscreen"
+            >
+              ⛶
             </button>
 
             <button
