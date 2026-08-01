@@ -53,9 +53,14 @@ To ensure the project can scale and that parallel development (including collabo
 - **Pattern:** Clean Architecture + MVVM + UDF (Unidirectional Data Flow).
 - **Logical modules:**
   - `Presentation`: UI with Jetpack Compose and ViewModels.
-  - `Domain`: use cases and repository interfaces — a layer that doesn't
-    exist yet; `ViewModel`s go straight against `data/repository/` or,
-    in auth, straight against the API (see `docs/roadmap/TASKS.md`, Stage 4).
+  - `Domain`: use cases (`LoadStatisticsUseCase`, `ResolveGameOutcomeUseCase`,
+    `ReplayCommanderDamageUseCase`) and repository interfaces
+    (`GameRepository`, `DeckRepository`, `PlaygroupRepository`,
+    `StatisticsRepository`) that `Data` implements. Most `ViewModel`s
+    (game, history, join-game, player setup, statistics) depend on this
+    layer, not on `Data` directly. The one deliberate exception is auth:
+    `LoginViewModel` still goes straight against the API (`AuthApi`,
+    Retrofit) — see `docs/roadmap/TASKS.md`, Stage 4.
   - `Data`: repositories (`GameRepository`, `DeckRepository`) that decide
     what's persisted in Room (local) and what calls the real backend (Retrofit,
     `CommanderApi`) — not a purely pass-through layer, it already holds the
