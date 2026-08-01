@@ -3,6 +3,10 @@ package com.commandercompanion.data.repository
 import com.commandercompanion.core.util.ApiError
 import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameStatus
+import com.commandercompanion.domain.model.LocalSeat
+import com.commandercompanion.domain.model.LocalSeatResult
+import com.commandercompanion.domain.model.RemoteGameSession
+import com.commandercompanion.domain.model.SeatAssignment
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeGameDao
 import com.commandercompanion.testing.FakeGameSocketClient
@@ -17,11 +21,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class GameRepositoryTest {
+class GameRepositoryImplTest {
 
     private val api = FakeCommanderApi()
     private val dao = FakeGameDao()
-    private val repository = GameRepository(api, dao, FakeGameSocketClient())
+    private val repository = GameRepositoryImpl(api, dao, FakeGameSocketClient())
 
     private fun oneAssignment(userId: String = "user-1", deckId: String = "deck-a") =
         listOf(SeatAssignment(seatIndex = 0, userId = userId, deckId = deckId))

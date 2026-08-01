@@ -6,9 +6,11 @@ import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.remote.dto.amountPayload
 import com.commandercompanion.data.remote.ws.GameSocketEvent
-import com.commandercompanion.data.repository.GameRepository
-import com.commandercompanion.data.repository.PlaygroupRepository
+import com.commandercompanion.data.repository.GameRepositoryImpl
+import com.commandercompanion.data.repository.PlaygroupRepositoryImpl
 import com.commandercompanion.data.session.AccessTokenProvider
+import com.commandercompanion.domain.usecase.ReplayCommanderDamageUseCase
+import com.commandercompanion.domain.usecase.ResolveGameOutcomeUseCase
 import com.commandercompanion.presentation.navigation.PlayerConfig
 import com.commandercompanion.presentation.navigation.encodePlayerConfigs
 import com.commandercompanion.testing.FakeCommanderApi
@@ -70,7 +72,7 @@ class GameViewModelTest {
         beto: PlayerConfig = PlayerConfig(name = "Beto", colorKey = "red")
     ): GameViewModel {
         val players = encodePlayerConfigs(listOf(ana, beto))
-        val repository = GameRepository(api, dao, socket)
+        val repository = GameRepositoryImpl(api, dao, socket)
         return GameViewModel(
             savedStateHandle = SavedStateHandle(
                 mapOf(
@@ -80,21 +82,25 @@ class GameViewModelTest {
                 )
             ),
             gameRepository = repository,
-            playgroupRepository = PlaygroupRepository(api),
-            accessTokenProvider = accessTokenProvider
+            playgroupRepository = PlaygroupRepositoryImpl(api),
+            accessTokenProvider = accessTokenProvider,
+            resolveGameOutcomeUseCase = ResolveGameOutcomeUseCase(),
+            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase()
         )
     }
 
     /** Joined mode: this device is NOT the one that created [gameId], it just joined it (`JoinGameScreen`). */
     private fun joinedViewModel(gameId: String = "game-1", localPlayerId: String = "gp-user-1"): GameViewModel {
-        val repository = GameRepository(api, dao, socket)
+        val repository = GameRepositoryImpl(api, dao, socket)
         return GameViewModel(
             savedStateHandle = SavedStateHandle(
                 mapOf("gameId" to gameId, "localPlayerId" to localPlayerId)
             ),
             gameRepository = repository,
-            playgroupRepository = PlaygroupRepository(api),
-            accessTokenProvider = accessTokenProvider
+            playgroupRepository = PlaygroupRepositoryImpl(api),
+            accessTokenProvider = accessTokenProvider,
+            resolveGameOutcomeUseCase = ResolveGameOutcomeUseCase(),
+            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase()
         )
     }
 

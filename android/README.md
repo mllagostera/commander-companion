@@ -79,24 +79,32 @@ android/app/src/main/java/com/commandercompanion/
 │   │   ├── api/          # CommanderApi.kt (decks/games/game-actions/statistics), AuthApi.kt
 │   │   ├── dto/           # Retrofit DTOs
 │   │   └── interceptor/   # AuthInterceptor (Bearer), AuthAuthenticator (refresh-on-401)
-│   ├── repository/        # GameRepository, DeckRepository — decide Room vs. backend
+│   ├── repository/        # GameRepositoryImpl, DeckRepositoryImpl, etc. — decide Room vs. backend
 │   ├── local/
 │   │   ├── dao/           # GameDao
 │   │   └── entity/        # GameEntity, PlayerResultEntity
 │   └── session/           # SessionManager (DataStore: access/refresh token + expiry)
+├── domain/
+│   ├── repository/        # GameRepository, DeckRepository, PlaygroupRepository, StatisticsRepository (interfaces)
+│   ├── model/              # LocalSeat/RemoteGameSession/SeatAssignment, DeckWithStats/PlaygroupSummary, PlayerOutcome
+│   └── usecase/            # ResolveGameOutcomeUseCase, ReplayCommanderDamageUseCase, LoadStatisticsUseCase
 ├── presentation/
 │   ├── screens/           # login, dashboard, setup, pregame, game, history
 │   ├── navigation/        # AppNavigation.kt, Routes.kt, PlayerConfigCodec.kt
 │   ├── components/        # AppComponents (buttons, cards, chips), PlayerQuadrant
 │   └── theme/             # Color.kt, Theme.kt, Type.kt (Material 3)
 └── core/
-    ├── di/                 # DatabaseModule, NetworkModule (Hilt)
+    ├── di/                 # DatabaseModule, NetworkModule, RepositoryModule (Hilt)
     └── util/               # ApiCall (maps HttpException/IOException -> ApiError)
 ```
 
-Note: there is no `domain/` layer (use cases) — `ViewModel`s go straight
-against `data/repository/` (or, in auth, straight against `AuthApi`). A
-deliberate decision, see ADR-0009 and `docs/roadmap/TASKS.md` Stage 4.
+`ViewModel`s depend on the `domain/repository/` interfaces, not on the
+`data/repository/` classes directly — Hilt binds each interface to its
+`*Impl` via `core/di/RepositoryModule.kt`. Auth is the one area that still
+goes straight against `AuthApi`/`SessionManager` (no `AuthRepository`):
+`SessionManager` has a `Context` constructor, unfakeable in a pure-JVM
+test without Robolectric, so wrapping it wouldn't add testability on its
+own — see `docs/roadmap/TASKS.md` Stage 4.
 
 ## Notes
 

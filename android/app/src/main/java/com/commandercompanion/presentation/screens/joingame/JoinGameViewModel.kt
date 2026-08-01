@@ -11,9 +11,9 @@ import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.GameDto
 import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.remote.dto.PlaygroupDto
-import com.commandercompanion.data.repository.DeckRepository
-import com.commandercompanion.data.repository.GameRepository
-import com.commandercompanion.data.repository.PlaygroupRepository
+import com.commandercompanion.domain.repository.DeckRepository
+import com.commandercompanion.domain.repository.GameRepository
+import com.commandercompanion.domain.repository.PlaygroupRepository
 import com.commandercompanion.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch

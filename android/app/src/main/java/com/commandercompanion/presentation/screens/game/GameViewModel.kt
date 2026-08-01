@@ -12,13 +12,16 @@ import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameDto
 import com.commandercompanion.data.remote.dto.amount
 import com.commandercompanion.data.remote.ws.GameSocketEvent
-import com.commandercompanion.data.repository.GameRepository
-import com.commandercompanion.data.repository.LocalSeat
-import com.commandercompanion.data.repository.LocalSeatResult
-import com.commandercompanion.data.repository.PlaygroupRepository
-import com.commandercompanion.data.repository.RemoteGameSession
-import com.commandercompanion.data.repository.SeatAssignment
 import com.commandercompanion.data.session.AccessTokenProvider
+import com.commandercompanion.domain.model.LocalSeat
+import com.commandercompanion.domain.model.LocalSeatResult
+import com.commandercompanion.domain.model.PlayerOutcome
+import com.commandercompanion.domain.model.RemoteGameSession
+import com.commandercompanion.domain.model.SeatAssignment
+import com.commandercompanion.domain.repository.GameRepository
+import com.commandercompanion.domain.repository.PlaygroupRepository
+import com.commandercompanion.domain.usecase.ReplayCommanderDamageUseCase
+import com.commandercompanion.domain.usecase.ResolveGameOutcomeUseCase
 import com.commandercompanion.presentation.navigation.PlayerConfig
 import com.commandercompanion.presentation.navigation.decodePlayerConfigs
 import com.commandercompanion.presentation.theme.PlayerColorPalette
@@ -37,7 +40,9 @@ class GameViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val gameRepository: GameRepository,
     private val playgroupRepository: PlaygroupRepository,
-    private val accessTokenProvider: AccessTokenProvider
+    private val accessTokenProvider: AccessTokenProvider,
+    private val resolveGameOutcomeUseCase: ResolveGameOutcomeUseCase,
+    private val replayCommanderDamageUseCase: ReplayCommanderDamageUseCase
 ) : ViewModel() {
 
     private val gameId: String = checkNotNull(savedStateHandle["gameId"])
@@ -236,16 +241,7 @@ class GameViewModel @Inject constructor(
     private suspend fun replayCommanderDamage(game: GameDto): Map<Int, Map<Int, Int>> {
         val seatByPlayerId = game.players.mapIndexed { index, player -> player.id to (index + 1) }.toMap()
         val actions = gameRepository.timeline(game.id).getOrElse { return emptyMap() }
-
-        val damage = mutableMapOf<Int, MutableMap<Int, Int>>()
-        actions.filter { it.actionType == GameActionType.COMMANDER_DAMAGE }.forEach { action ->
-            val attackerSeat = seatByPlayerId[action.actorId] ?: return@forEach
-            val targetSeat = action.targetId?.let { seatByPlayerId[it] } ?: return@forEach
-            val amount = action.amount ?: return@forEach
-            val perOpponent = damage.getOrPut(targetSeat) { mutableMapOf() }
-            perOpponent[attackerSeat] = (perOpponent[attackerSeat] ?: 0) + amount
-        }
-        return damage
+        return replayCommanderDamageUseCase(actions, seatByPlayerId)
     }
 
     fun adjustLife(playerId: Int, amount: Int) {
@@ -303,19 +299,13 @@ class GameViewModel @Inject constructor(
     }
 
     private fun checkForGameOver() {
-        val alive = _state.value.players.filter { it.isAlive() }
-        if (alive.size == 1 && _state.value.players.size > 1) {
-            finishGame(winnerId = alive.first().id)
-        }
+        val winnerId = resolveGameOutcomeUseCase.automaticWinner(_state.value.players.toOutcomes()) ?: return
+        finishGame(winnerId = winnerId)
     }
 
     fun finishGame(winnerId: Int? = null) {
         if (_state.value.isFinished) return
-        val resolvedWinnerId = winnerId ?: _state.value.players
-            .filter { it.isAlive() }
-            .maxByOrNull { it.life }
-            ?.takeIf { player -> _state.value.players.count { it.life == player.life } == 1 }
-            ?.id
+        val resolvedWinnerId = resolveGameOutcomeUseCase.resolveWinner(_state.value.players.toOutcomes(), winnerId)
 
         _state.value = _state.value.copy(isFinished = true, winnerId = resolvedWinnerId)
         persistGameResult(resolvedWinnerId)
@@ -324,6 +314,9 @@ class GameViewModel @Inject constructor(
 
     /** Alive = not eliminated (see [isEliminated], shared with the tracker UI). */
     private fun PlayerState.isAlive(): Boolean = !isEliminated()
+
+    private fun List<PlayerState>.toOutcomes(): List<PlayerOutcome> =
+        map { PlayerOutcome(id = it.id, life = it.life, isAlive = it.isAlive()) }
 
     private fun persistGameResult(winnerId: Int?) {
         val results = _state.value.players.map { player ->

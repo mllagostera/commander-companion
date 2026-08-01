@@ -11,10 +11,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 
-class PlaygroupRepositoryTest {
+class PlaygroupRepositoryImplTest {
 
     private val api = FakeCommanderApi()
-    private val repository = PlaygroupRepository(api)
+    private val repository = PlaygroupRepositoryImpl(api)
 
     @Test
     fun `listPlaygroups devuelve los grupos del usuario con sus miembros`() = runTest {

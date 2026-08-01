@@ -3,7 +3,7 @@ package com.commandercompanion.presentation.screens.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.data.local.entity.GameWithPlayers
-import com.commandercompanion.data.repository.GameRepository
+import com.commandercompanion.domain.repository.GameRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow

@@ -3,9 +3,10 @@ package com.commandercompanion.presentation.screens.statistics
 import com.commandercompanion.data.remote.dto.DeckStatsDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
-import com.commandercompanion.data.repository.DeckRepository
-import com.commandercompanion.data.repository.PlaygroupRepository
-import com.commandercompanion.data.repository.StatisticsRepository
+import com.commandercompanion.data.repository.DeckRepositoryImpl
+import com.commandercompanion.data.repository.PlaygroupRepositoryImpl
+import com.commandercompanion.data.repository.StatisticsRepositoryImpl
+import com.commandercompanion.domain.usecase.LoadStatisticsUseCase
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeDeckDao
 import com.commandercompanion.testing.deckDto
@@ -43,10 +44,11 @@ class StatisticsViewModelTest {
     }
 
     private fun viewModel(): StatisticsViewModel {
-        val statisticsRepository = StatisticsRepository(api)
-        val deckRepository = DeckRepository(api, FakeDeckDao())
-        val playgroupRepository = PlaygroupRepository(api)
-        return StatisticsViewModel(statisticsRepository, deckRepository, playgroupRepository)
+        val statisticsRepository = StatisticsRepositoryImpl(api)
+        val deckRepository = DeckRepositoryImpl(api, FakeDeckDao())
+        val playgroupRepository = PlaygroupRepositoryImpl(api)
+        val loadStatisticsUseCase = LoadStatisticsUseCase(statisticsRepository, deckRepository, playgroupRepository)
+        return StatisticsViewModel(loadStatisticsUseCase)
     }
 
     @Test

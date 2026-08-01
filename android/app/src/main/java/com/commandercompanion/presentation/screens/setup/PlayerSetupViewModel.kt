@@ -8,7 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.PlaygroupDto
-import com.commandercompanion.data.repository.PlaygroupRepository
+import com.commandercompanion.domain.repository.PlaygroupRepository
 import com.commandercompanion.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
