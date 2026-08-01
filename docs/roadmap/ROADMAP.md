@@ -142,8 +142,4 @@ Not in the original roadmap (added 2026-07-27). **Decision closed 2026-07-30**: 
 ---
 
 # Sources of truth
-Four sources of truth are used to make understanding and parallel development easier (especially with AI):
-1. **DBML**: DB schema and relationships.
-2. **OpenAPI 3.1**: Single contract between backend and Android client.
-3. **Mermaid**: Architecture, flows, and behavior diagrams.
-4. **ADR (Architecture Decision Records)**: Record of all important technical decisions.
+See [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md) §"The 4 Sources of Truth" (DBML, OpenAPI 3.1, Mermaid, ADR).

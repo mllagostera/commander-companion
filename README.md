@@ -53,23 +53,13 @@ commander-companion/
 │   ├── api/               # openapi.yaml (source of truth for the REST contract)
 │   ├── decisions/        # ADRs 0001-0010 (technical decisions and their rationale)
 │   ├── diagrams/         # additional Mermaid diagrams (ER, state machine, Android navigation)
-│   ├── ux/                # casos-de-uso.md, wireframes.md
-│   └── frontend/          # client-specific notes (empty for now)
-├── tools/
-│   └── auth-test/        # standalone HTML page to test the auth flow by hand (not part of the product)
+│   └── ux/                # casos-de-uso.md, wireframes.md
 └── docker-compose.yml    # db + api + web, to try the full stack locally
 ```
 
 ## 3. The 4 sources of truth
 
-Before assuming how something works, consult the corresponding document — not another module's code by analogy, and not memory from previous conversations:
-
-| Source | Location | What it defines |
-|---|---|---|
-| DBML | `docs/database/schema.dbml` | DB schema, types, relations |
-| OpenAPI 3.1 | `docs/api/openapi.yaml` | Single contract backend ↔ Android **and** Web |
-| Mermaid | `docs/architecture/`, `docs/diagrams/` | Architecture, flows, states |
-| ADR | `docs/decisions/` | Technical decisions and their rationale |
+Before assuming how something works, consult the corresponding document — not another module's code by analogy, and not memory from previous conversations. Full detail (what each one defines, where it lives) in [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) §"The 4 Sources of Truth": DBML, OpenAPI 3.1, Mermaid, ADR.
 
 Rule: if you're going to change how backend and Android communicate, edit `openapi.yaml` first. If you change the data model, edit `schema.dbml` first and then create the goose migration.
 
@@ -77,10 +67,7 @@ Rule: if you're going to change how backend and Android communicate, edit `opena
 
 1. **Read `docs/roadmap/TASKS.md` first.** It's the list of pending tasks organized by stage, with real status audited against the code (not against what "should" exist).
 2. **Don't trust that something is finished just because the file exists.** Much of the backend is scaffolding: several modules' `service.go` return dummy data instead of using the injected repository. Verify by reading the code before assuming a function does what its name suggests.
-3. **Follow the already-established layer pattern:**
-   - Backend: `Handler` (HTTP/WS transport) → `Service` (business logic, no infrastructure dependencies) → `Repository` (sqlc, data access). See [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
-   - Android: MVVM + UDF — `presentation/` (Compose + ViewModel) → `data/repository/` (decides Room vs. backend, see `GameRepository`) → `data/remote|local/` (Retrofit/Room). Clean Architecture's `domain/` layer (use cases) doesn't exist yet — `ViewModel`s go straight against the repository (or, in auth, straight against `AuthApi`); see ADR-0009 and `docs/roadmap/TASKS.md` Stage 4.
-   - Web: SSR with a Nitro layer (BFF) in between — the browser never sees tokens or calls the Go API directly. See [web/README.md](web/README.md) and ADR-0004.
+3. **Follow the already-established layer pattern** — backend (Handler → Service → Repository), Android (MVVM + UDF, no `domain/` layer yet), Web (SSR + Nitro BFF). Full detail in [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) §"System Architecture".
 4. **Respect the suggested work order** at the end of `TASKS.md`, unless the user explicitly asks to prioritize something else.
 5. **If you make a non-trivial technical decision** (choosing a library, a pattern, a data structure that wasn't already defined), record it as an ADR in `docs/decisions/`.
 6. **If the work touches the API contract or the DB schema**, update `openapi.yaml` / `schema.dbml` (and the corresponding migration) as part of the same change, not afterward.
@@ -152,7 +139,7 @@ for a new module), add it to this list too in the same change.
 - [docs/roadmap/ROADMAP.md](docs/roadmap/ROADMAP.md) — vision, philosophy, high-level stages (original intent document; for real status see TASKS.md).
 - [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — the 4 sources of truth, design principles, and layer patterns (backend, Android, Web).
 
-**Sources of truth (see table in section 3):**
+**Sources of truth (see §3, full detail in ARCHITECTURE.md):**
 
 - [docs/database/schema.dbml](docs/database/schema.dbml) — database schema.
 - [docs/api/openapi.yaml](docs/api/openapi.yaml) — single REST contract backend ↔ Android/Web.
@@ -186,4 +173,3 @@ for a new module), add it to this list too in the same change.
 - [backend/README.md](backend/README.md) — setup, commands (`make`), backend stack.
 - [android/README.md](android/README.md) — setup, required JDK, Google Sign-In, Android client structure.
 - [web/README.md](web/README.md) — setup, session via Nitro/BFF, Nuxt client structure.
-- [tools/auth-test/README.md](tools/auth-test/README.md) — standalone HTML tool to test the auth flow by hand (not part of the product).
