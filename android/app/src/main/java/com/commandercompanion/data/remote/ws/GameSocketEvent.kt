@@ -21,7 +21,8 @@ sealed class GameSocketEvent {
     /**
      * The game ended. Carries no state of its own — the server closes the room right after
      * broadcasting this, and the client is expected to reconcile via REST
-     * (`GET /games/{id}`, `/statistics/*`) rather than trust this channel for the final state.
+     * (`GET /games/{id}`, the `/statistics` endpoints) rather than trust this channel for the
+     * final state.
      */
     object GameFinished : GameSocketEvent()
 
