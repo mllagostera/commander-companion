@@ -76,10 +76,19 @@ func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) (Game, e
 const finishGame = `-- name: FinishGame :one
 UPDATE games
 SET status = 'finished', finished_at = now()
-WHERE id = $1
+WHERE id = $1 AND status = 'active'
 RETURNING id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id
 `
 
+// The "AND status = 'active'" guard is load-bearing, not decorative: without
+// it, N concurrent FinishGame calls on the same game (e.g. two players
+// tapping "Finish" at once) all pass the service's earlier status check,
+// all succeed here, and each one separately triggers
+// statistics.RecalculateForGame — which is purely additive (ON CONFLICT DO
+// UPDATE SET games_played = games_played + EXCLUDED.games_played), so
+// games_played/games_won/etc. end up multiplied by however many calls
+// raced. With the guard, only the first UPDATE actually matches a row; the
+// rest affect 0 rows and the service maps that to ErrGameNotActive (409).
 func (q *Queries) FinishGame(ctx context.Context, id pgtype.UUID) (Game, error) {
 	row := q.db.QueryRow(ctx, finishGame, id)
 	var i Game
@@ -278,10 +287,14 @@ func (q *Queries) RemoveGamePlayer(ctx context.Context, arg RemoveGamePlayerPara
 const startGame = `-- name: StartGame :one
 UPDATE games
 SET status = 'active', started_at = now()
-WHERE id = $1
+WHERE id = $1 AND status = 'pending'
 RETURNING id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id
 `
 
+// The "AND status = 'pending'" guard makes the pending->active transition
+// atomic: without it, two concurrent StartGame calls both read status as
+// pending before either writes, and both succeed. See FinishGame below for
+// the same race with a worse consequence (double-counted statistics).
 func (q *Queries) StartGame(ctx context.Context, id pgtype.UUID) (Game, error) {
 	row := q.db.QueryRow(ctx, startGame, id)
 	var i Game

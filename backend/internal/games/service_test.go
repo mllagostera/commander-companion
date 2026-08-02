@@ -3,6 +3,7 @@ package games_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -529,6 +530,110 @@ func TestFinishGame_AlreadyFinished_ReturnsConflict(t *testing.T) {
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
 		t.Fatalf("FinishGame() repetido: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
 	}
+}
+
+// TestFinishGame_Concurrent_OnlyOneSucceedsAndStatsAreNotDoubleCounted
+// reproduces the race a security review found on 2026-08-01: without the
+// query's "AND status = 'active'" guard, several concurrent FinishGame
+// calls on the same game (e.g. two players tapping "Finish" at once) all
+// passed the service's read-then-write status check, all succeeded, and
+// each one separately triggered statistics.RecalculateForGame — which is
+// purely additive, so games_played/games_won ended up multiplied by
+// however many calls raced (verified experimentally: 8 concurrent callers
+// against a fresh 2-player game produced games_played = 8 for both
+// players). This test fires several concurrent FinishGame calls from both
+// seated players and asserts exactly one succeeds and each player's
+// recalculated statistics reflect exactly one game played.
+func TestFinishGame_Concurrent_OnlyOneSucceedsAndStatsAreNotDoubleCounted(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+	ctx := context.Background()
+
+	membership := playgroups.NewService(pool)
+	statsSvc := statistics.NewService(pool, membership)
+	svc := games.NewService(pool, statsSvc, noopBroadcaster{}, membership)
+
+	user1, deck1 := createUserAndDeck(t, pool, "finish-race-1@example.com")
+	user2, deck2 := createUserAndDeck(t, pool, "finish-race-2@example.com")
+
+	game := mustCreateGame(t, svc)
+	mustJoin(t, svc, game.ID, user1, deck1)
+	mustJoin(t, svc, game.ID, user2, deck2)
+	mustStart(t, svc, game.ID, user1)
+
+	const concurrentCallers = 8
+	callers := alternatingCallers(concurrentCallers, user1, user2)
+	results := finishGameConcurrently(ctx, svc, game.ID, callers)
+
+	succeeded := countNilErrors(t, results)
+	if succeeded != 1 {
+		t.Fatalf("FinishGame() concurrent calls: %d succeeded, want exactly 1", succeeded)
+	}
+
+	stats1, err := statsSvc.GetUserStats(ctx, user1)
+	if err != nil {
+		t.Fatalf("GetUserStats(user1) error = %v", err)
+	}
+	stats2, err := statsSvc.GetUserStats(ctx, user2)
+	if err != nil {
+		t.Fatalf("GetUserStats(user2) error = %v", err)
+	}
+	if stats1.GamesPlayed != 1 {
+		t.Errorf("user1 GamesPlayed = %d, want 1 (not double-counted)", stats1.GamesPlayed)
+	}
+	if stats2.GamesPlayed != 1 {
+		t.Errorf("user2 GamesPlayed = %d, want 1 (not double-counted)", stats2.GamesPlayed)
+	}
+}
+
+// alternatingCallers builds a slice of n caller IDs, alternating between a and b.
+func alternatingCallers(n int, a, b string) []string {
+	callers := make([]string, n)
+	for i := range callers {
+		if i%2 == 0 {
+			callers[i] = a
+		} else {
+			callers[i] = b
+		}
+	}
+	return callers
+}
+
+// finishGameConcurrently fires svc.FinishGame(gameID, callers[i]) for every
+// caller at the same time (synchronized on a shared start signal) and
+// returns each call's error, indexed the same way as callers.
+func finishGameConcurrently(ctx context.Context, svc games.Service, gameID string, callers []string) []error {
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	results := make([]error, len(callers))
+	for i := range callers {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			_, results[i] = svc.FinishGame(ctx, gameID, callers[i])
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	return results
+}
+
+// countNilErrors returns how many results are nil, failing the test if any
+// non-nil result isn't the expected 409 (a losing concurrent FinishGame call).
+func countNilErrors(t *testing.T, results []error) int {
+	t.Helper()
+	succeeded := 0
+	for _, err := range results {
+		if err == nil {
+			succeeded++
+			continue
+		}
+		if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
+			t.Errorf("FinishGame() concurrent call error = %v, want nil or 409", err)
+		}
+	}
+	return succeeded
 }
 
 func TestGetGame_UnknownID_ReturnsNotFound(t *testing.T) {

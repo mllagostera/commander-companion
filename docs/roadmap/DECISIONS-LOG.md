@@ -305,7 +305,7 @@ description and 400 response updated to match. Full backend test suite
 (`go test -race -p 1 ./...`) and `golangci-lint` verified clean after the
 change.
 
-### Stage 1 — `FinishGame` concurrency / statistics double-counting (found 2026-08-01, not yet fixed)
+### Stage 1 — `FinishGame` concurrency / statistics double-counting (found and fixed 2026-08-01)
 
 Two issues that compound:
 
@@ -339,15 +339,107 @@ which already flags "`RecalculateForGame` is incremental, not idempotent —
 each game must be processed exactly once" as an invariant to respect, but
 nothing currently enforces it.
 
-**Not fixed in this pass.** The fix needs two parts: (a) add
-`WHERE status = 'active'` to the `FinishGame` UPDATE (and check
-`RowsAffected`/the returned row to detect the race and respond `409`
-instead of silently no-op'ing) so only one concurrent call can ever
-succeed; (b) a real way to recompute stats from scratch — either process
-each game exactly once via an idempotency mechanism (e.g. a
-`games.stats_recalculated_at` marker checked-and-set atomically with the
-`FinishGame` transition), or add the `recalculate-stats` command
-ADR-0011 already proposes and never implemented.
+**Fixed the same day.** `internal/games/query.sql`'s `FinishGame`/`StartGame`
+queries now guard their `UPDATE` with the status they require
+(`AND status = 'active'`/`'pending'`) instead of relying solely on the
+service's earlier read-then-write check — that check is kept as a
+fast-path (avoids the write entirely for an obviously-wrong-state game),
+but the guard on the `UPDATE` itself is what actually makes the state
+transition atomic. `internal/games/service.go` now treats `pgx.ErrNoRows`
+from either call as the corresponding existing domain error
+(`ErrGameNotActive`/`ErrGameAlreadyStarted`, both already mapped to `409`)
+instead of wrapping it as an unexpected error. `sqlc generate` re-run,
+diff reviewed (only the two queries' `WHERE` clauses changed, nothing
+else). New regression test,
+`TestFinishGame_Concurrent_OnlyOneSucceedsAndStatsAreNotDoubleCounted`
+(`internal/games/service_test.go`): fires 8 concurrent `FinishGame` calls
+(alternating between both seated players) against one real Postgres-backed
+game, asserts exactly one succeeds and the rest get `409`, and asserts
+both players' recalculated `games_played` is exactly 1 — run 5x with
+`-race` with no failures. Full backend suite (`go test -race -p 1 ./...`,
+16 packages) and `golangci-lint` verified clean after the change.
+
+This closes the immediate bug (double-counting under a race) but doesn't
+add a general recompute-from-scratch capability: `RecalculateForGame` is
+still purely additive by design. That's now provably safe, since the guard
+above guarantees it's only ever invoked once per game's finish transition
+— but it still means there's no way to *re-derive* `user_statistics_summary`/
+`deck_statistics_summary` if the aggregation formula itself ever changes,
+which is exactly the gap [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md)
+already flagged and proposed a (never-implemented) `recalculate-stats`
+command for. Left as a separate, larger piece of future work.
+
+### Stage 4/5 — `SessionManager.refreshAccessToken()` concurrency (found and fixed 2026-08-01)
+
+`AuthAuthenticator.authenticate()` calls `runBlocking { sessionManager.refreshAccessToken() }`
+synchronously, on whichever OkHttp dispatcher thread received the 401 — and
+OkHttp genuinely runs concurrent requests on separate threads, so this is a
+real multi-threaded call site, not just a theoretical one. The scenario
+that makes it likely rather than exotic: `LoadStatisticsUseCase` fires a
+batch of `async`/`awaitAll` calls (global stats, then every deck's and
+every playgroup's stats) that all share the same access token; once that
+token expires, opening the Statistics screen can 401 several requests at
+once. Before this fix, `refreshAccessToken()` had no synchronization at
+all — each concurrent caller independently read the stored refresh token,
+called `POST /auth/refresh`, and saved the response. Since the backend
+**rotates** the refresh token on every use (see
+[ADR-0001](../decisions/0001-auth-jwt-refresh-token-strategy.md)) and, as
+of the 2026-08-01 backend security-audit pass above, treats presenting an
+already-rotated-away refresh token as a signal of theft — revoking the
+*entire* session family, logging the user out on every device — two
+concurrent refresh calls racing against each other could trigger exactly
+that: the loser presents a token the winner already rotated away,
+`SessionManager.forceLogout()` fires, and the user is logged out
+everywhere over what was really just a timing coincidence between two of
+their own requests.
+
+**Fixed the same day** with a new `core/util/SingleFlight.kt`: a small,
+Android/Context-free class that collapses concurrent callers of a suspend
+block into a single real execution, sharing the one result — the same
+shape as the web client's own `inFlightRefresh` map
+(`web/server/utils/backend.ts`), which already solved the identical
+problem in the Nitro BFF (see that file's own doc comment, which
+independently arrived at the same fix for the same underlying reason).
+`SessionManager` gained a class-level `refreshScope`
+(`CoroutineScope(SupervisorJob() + Dispatchers.IO)`, deliberately NOT tied
+to any individual `runBlocking` call's own scope — it needs to outlive
+every one of them for the dedup to work across separate OkHttp threads)
+and now runs `refreshAccessToken()`'s body through
+`refreshSingleFlight.run { ... }`.
+
+`SessionManager` itself remains untestable in a pure-JVM test (the
+pre-existing, documented gap: it has a `Context` constructor parameter, no
+Robolectric in this project) so the fix couldn't get a `SessionManagerTest`
+the normal way — same reasoning already on file for
+`SettingsViewModel`/`DashboardViewModel`/etc. Followed the project's own
+established workaround instead (see `GameSocketReconnect.kt`'s doc: "kept
+as a plain function... so the retry/backoff behavior can be unit tested...
+without a real socket"): `SingleFlight` is a standalone, dependency-free
+class with its own test, `SingleFlightTest.kt` — 3 cases: N concurrent
+callers collapse into exactly one execution of the block and all receive
+its result; a call made after the previous one completed triggers a fresh
+execution (not permanently cached); and a failing block's exception
+propagates to the caller while still clearing the in-flight state so the
+next call retries instead of getting stuck.
+
+**Verification note**: this sandbox's network policy still blocks
+`dl.google.com`, so `./gradlew` couldn't run here, same limitation as
+every other Android pass in this log. Unlike those previous passes, this
+one wasn't only reviewed by hand — the risk was concentrated entirely in
+`SingleFlight.kt`'s coroutine logic, which has zero Android/Hilt/Room
+dependencies, so it was possible to fetch a standalone Kotlin compiler
+(2.2.10, matching `libs.versions.toml`) and `kotlinx-coroutines-core`/
+`-test` straight from Maven Central (reachable even though
+`dl.google.com` isn't), compile `SingleFlight.kt` + `SingleFlightTest.kt`
+outside Gradle entirely, and run the tests with real JUnit — all 3 passed.
+The exact `return@run` early-return idiom used in `SessionManager`'s new
+`refreshAccessToken()` body (`someSingleFlightInstance.run { ... return@run
+null ... }`) was independently compiled and executed in isolation too, to
+confirm Kotlin resolves the label to `SingleFlight.run`'s lambda and not
+something else. Still needs a real `assembleDebug lintDebug
+testDebugUnitTest` run in an environment with Google Maven access before
+merging, same as every other Android change in this log — this only
+closes the gap for the specific new logic, not for the full app.
 
 ### Stage 2 — `schema.dbml` drift from real migrations (found 2026-08-01, not yet fixed)
 
