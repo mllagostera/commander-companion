@@ -26,7 +26,12 @@ const (
 	// searchPath is Moxfield's public deck-search endpoint, reused by
 	// ListDecksByUsername filtered to a single author. Undocumented and
 	// reverse-engineered from a third-party client (github.com/Aleqsd/moxfield-api),
-	// not from Moxfield's own docs -- there are none.
+	// not from Moxfield's own docs -- there are none. The response shape
+	// (searchResponse below) was manually confirmed live on 2026-08-02
+	// (no Cloudflare challenge, no Referer needed) -- see docs/roadmap/TASKS.md,
+	// Stage 8. Still unconfirmed: whether Cloudflare accepts this endpoint from
+	// this Client's actual User-Agent (below), since that request came from a
+	// real mobile browser instead.
 	searchPath = "/v2/decks/search-sfw"
 	// searchPageSize is how many decks ListDecksByUsername asks for per page;
 	// Moxfield's search-sfw endpoint paginates.
