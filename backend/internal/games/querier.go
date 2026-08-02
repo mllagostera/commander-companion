@@ -13,6 +13,15 @@ import (
 type Querier interface {
 	AddGamePlayer(ctx context.Context, arg AddGamePlayerParams) (GamePlayer, error)
 	CreateGame(ctx context.Context, arg CreateGameParams) (Game, error)
+	// The "AND status = 'active'" guard is load-bearing, not decorative: without
+	// it, N concurrent FinishGame calls on the same game (e.g. two players
+	// tapping "Finish" at once) all pass the service's earlier status check,
+	// all succeed here, and each one separately triggers
+	// statistics.RecalculateForGame — which is purely additive (ON CONFLICT DO
+	// UPDATE SET games_played = games_played + EXCLUDED.games_played), so
+	// games_played/games_won/etc. end up multiplied by however many calls
+	// raced. With the guard, only the first UPDATE actually matches a row; the
+	// rest affect 0 rows and the service maps that to ErrGameNotActive (409).
 	FinishGame(ctx context.Context, id pgtype.UUID) (Game, error)
 	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
@@ -26,6 +35,10 @@ type Querier interface {
 	// cursor, the rows strictly after it in list order. See internal/common/pagination.go.
 	ListGamesPage(ctx context.Context, arg ListGamesPageParams) ([]Game, error)
 	RemoveGamePlayer(ctx context.Context, arg RemoveGamePlayerParams) error
+	// The "AND status = 'pending'" guard makes the pending->active transition
+	// atomic: without it, two concurrent StartGame calls both read status as
+	// pending before either writes, and both succeed. See FinishGame below for
+	// the same race with a worse consequence (double-counted statistics).
 	StartGame(ctx context.Context, id pgtype.UUID) (Game, error)
 }
 

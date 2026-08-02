@@ -29,15 +29,28 @@ LIMIT sqlc.arg('page_limit');
 SELECT * FROM games WHERE playgroup_id = $1 ORDER BY created_at DESC;
 
 -- name: StartGame :one
+-- The "AND status = 'pending'" guard makes the pending->active transition
+-- atomic: without it, two concurrent StartGame calls both read status as
+-- pending before either writes, and both succeed. See FinishGame below for
+-- the same race with a worse consequence (double-counted statistics).
 UPDATE games
 SET status = 'active', started_at = now()
-WHERE id = $1
+WHERE id = $1 AND status = 'pending'
 RETURNING *;
 
 -- name: FinishGame :one
+-- The "AND status = 'active'" guard is load-bearing, not decorative: without
+-- it, N concurrent FinishGame calls on the same game (e.g. two players
+-- tapping "Finish" at once) all pass the service's earlier status check,
+-- all succeed here, and each one separately triggers
+-- statistics.RecalculateForGame — which is purely additive (ON CONFLICT DO
+-- UPDATE SET games_played = games_played + EXCLUDED.games_played), so
+-- games_played/games_won/etc. end up multiplied by however many calls
+-- raced. With the guard, only the first UPDATE actually matches a row; the
+-- rest affect 0 rows and the service maps that to ErrGameNotActive (409).
 UPDATE games
 SET status = 'finished', finished_at = now()
-WHERE id = $1
+WHERE id = $1 AND status = 'active'
 RETURNING *;
 
 -- name: AddGamePlayer :one

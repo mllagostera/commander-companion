@@ -503,8 +503,16 @@ func (s *service) StartGame(ctx context.Context, gameID, userID string) (*GameRe
 		return nil, ErrNotEnoughPlayers
 	}
 
+	// The query's own "AND status = 'pending'" guard (not the check above,
+	// which is racy on its own) is what actually makes this atomic: if another
+	// call already moved the game out of pending between our read and this
+	// write, this UPDATE matches 0 rows and returns pgx.ErrNoRows instead of
+	// silently starting it twice.
 	started, err := s.repo.StartGame(ctx, game.ID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrGameAlreadyStarted
+		}
 		return nil, fmt.Errorf("starting game: %w", err)
 	}
 	return toGameResponse(&started, players), nil
@@ -529,8 +537,15 @@ func (s *service) FinishGame(ctx context.Context, gameID, userID string) (*GameR
 		return nil, ErrGameNotActive
 	}
 
+	// Same atomicity note as StartGame: the query's own "AND status = 'active'"
+	// guard is what prevents two concurrent FinishGame calls from both
+	// succeeding and both triggering RecalculateForGame (see the query's doc
+	// comment — that duplication is exactly the bug this guard closes).
 	finished, err := s.repo.FinishGame(ctx, game.ID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrGameNotActive
+		}
 		return nil, fmt.Errorf("finishing game: %w", err)
 	}
 
