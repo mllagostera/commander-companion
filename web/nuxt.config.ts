@@ -39,10 +39,11 @@ export default defineNuxtConfig({
       // Google Cloud Console Web Client ID, same value as GOOGLE_CLIENT_ID
       // in the backend. Empty = Google button disabled.
       googleClientId: process.env.NUXT_PUBLIC_GOOGLE_CLIENT_ID || '',
-      // Bulk deck import by Moxfield username: the endpoint
-      // (POST /moxfield-import) returns 501 because MoxfieldClient.ListDecksByUsername
-      // is still an unimplemented stub (see backend/internal/moxfield/client.go).
-      // The UI stays hidden until the endpoint actually works.
+      // Bulk deck import by Moxfield username: POST /moxfield-import is
+      // implemented (backend/internal/moxfield/client.go), but the endpoint it
+      // relies on is undocumented/reverse-engineered and unverified against the
+      // real Moxfield API (see that file's ListDecksByUsername doc). Opt-in
+      // until it's been confirmed working end to end.
       enableBulkMoxfieldImport: process.env.NUXT_PUBLIC_ENABLE_BULK_MOXFIELD_IMPORT === 'true',
     },
   },

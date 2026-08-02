@@ -31,7 +31,7 @@ const (
 var errSimulatedImportFailure = errors.New("simulated import failure")
 
 // fakeMoxfieldClient controls what ListDecksByUsername returns, without hitting the
-// real API or depending on internal/moxfield's stub.
+// real API.
 type fakeMoxfieldClient struct {
 	publicIDs []string
 	err       error
@@ -125,19 +125,18 @@ func waitForTerminalStatus(t *testing.T, svc moxfieldimport.Service, userID, job
 	return nil
 }
 
-func TestStartImport_ListDecksNotImplemented_ReturnsNotImplemented(t *testing.T) {
+func TestStartImport_MoxfieldUpstreamUnavailable_ReturnsServiceUnavailable(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateImportTables(t, pool)
-	user := registerUserWithMoxfieldUsername(t, pool, "stub-501@example.com", "someone")
+	user := registerUserWithMoxfieldUsername(t, pool, "upstream-503@example.com", "someone")
 
-	// Real client, unmocked: ListDecksByUsername is a stub that always fails
-	// (see internal/moxfield/client.go), which is exactly what this test verifies.
-	svc := newTestSvc(pool, moxfield.NewClient(), &fakeDeckImporter{})
+	mox := fakeMoxfieldClient{err: moxfield.ErrUpstreamUnavailable}
+	svc := newTestSvc(pool, mox, &fakeDeckImporter{})
 
 	_, err := svc.StartImport(context.Background(), user.ID)
-	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotImplemented {
-		t.Fatalf("StartImport() con ListDecksByUsername sin implementar: code = %d, want %d",
-			fiberErr.Code, fiber.StatusNotImplemented)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusServiceUnavailable {
+		t.Fatalf("StartImport() con moxfield caído: code = %d, want %d",
+			fiberErr.Code, fiber.StatusServiceUnavailable)
 	}
 
 	// It shouldn't have created any job: the list is resolved BEFORE creating the job.
@@ -148,7 +147,7 @@ func TestStartImport_ListDecksNotImplemented_ReturnsNotImplemented(t *testing.T)
 		t.Fatalf("contando jobs: %v", err)
 	}
 	if count != 0 {
-		t.Fatalf("StartImport() con 501 creó %d jobs, want 0", count)
+		t.Fatalf("StartImport() con moxfield caído creó %d jobs, want 0", count)
 	}
 }
 

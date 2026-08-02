@@ -1532,9 +1532,8 @@ paths:
       description: >-
         Bulk, asynchronous counterpart to `/decks/import/moxfield` (a single
         deck, synchronous). The list of decks is resolved synchronously
-        before creating the job: if Moxfield still cannot list them (see
-        `internal/moxfieldimport`), it responds 501 immediately, without
-        creating any job.
+        before creating the job: if Moxfield can't be reached, it responds
+        immediately without creating any job.
       responses:
         '202':
           description: Job created, import in progress
@@ -1550,12 +1549,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: There is already a pending/in_progress import for this user
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '501':
-          description: Listing decks for a Moxfield username is not yet implemented
           content:
             application/json:
               schema:

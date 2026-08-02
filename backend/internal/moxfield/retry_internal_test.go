@@ -129,6 +129,102 @@ func TestGetDeck_ImageURL_TwoFacedCard_UsesFrontFaceID(t *testing.T) {
 	}
 }
 
+func TestListDecksByUsername_SinglePage_ReturnsPublicIDs(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("authorUserNames"); got != "vansid" {
+			t.Errorf("authorUserNames = %q, want vansid", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data": [{"publicId": "deck-a"}, {"publicId": "deck-b"}], "totalPages": 1}`))
+	})
+
+	got, err := client.ListDecksByUsername(context.Background(), "vansid")
+	if err != nil {
+		t.Fatalf("ListDecksByUsername() unexpected error = %v", err)
+	}
+	want := []string{"deck-a", "deck-b"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("ListDecksByUsername() = %v, want %v", got, want)
+	}
+}
+
+func TestListDecksByUsername_PaginatesUntilLastPage(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Query().Get("pageNumber") {
+		case "1":
+			_, _ = w.Write([]byte(`{"data": [{"publicId": "deck-a"}], "totalPages": 2}`))
+		case "2":
+			_, _ = w.Write([]byte(`{"data": [{"publicId": "deck-b"}], "totalPages": 2}`))
+		default:
+			t.Fatalf("unexpected pageNumber %q", r.URL.Query().Get("pageNumber"))
+		}
+	})
+
+	got, err := client.ListDecksByUsername(context.Background(), "vansid")
+	if err != nil {
+		t.Fatalf("ListDecksByUsername() unexpected error = %v", err)
+	}
+	want := []string{"deck-a", "deck-b"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("ListDecksByUsername() = %v, want %v", got, want)
+	}
+}
+
+func TestListDecksByUsername_NoDecks_ReturnsEmpty(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data": [], "totalPages": 0}`))
+	})
+
+	got, err := client.ListDecksByUsername(context.Background(), "nobody")
+	if err != nil {
+		t.Fatalf("ListDecksByUsername() unexpected error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("ListDecksByUsername() = %v, want empty", got)
+	}
+}
+
+func TestListDecksByUsername_RetriesOn500ThenSucceeds(t *testing.T) {
+	var calls int32
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data": [{"publicId": "deck-a"}], "totalPages": 1}`))
+	})
+
+	got, err := client.ListDecksByUsername(context.Background(), "vansid")
+	if err != nil {
+		t.Fatalf("ListDecksByUsername() unexpected error = %v", err)
+	}
+	if len(got) != 1 || got[0] != "deck-a" {
+		t.Fatalf("ListDecksByUsername() = %v, want [deck-a]", got)
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("calls = %d, want 2 (1 failure + 1 retry)", got)
+	}
+}
+
+func TestListDecksByUsername_ExhaustsRetriesAsUpstreamUnavailable(t *testing.T) {
+	var calls int32
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	_, err := client.ListDecksByUsername(context.Background(), "vansid")
+	if !errors.Is(err, ErrUpstreamUnavailable) {
+		t.Fatalf("ListDecksByUsername() error = %v, want ErrUpstreamUnavailable", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != maxAttempts {
+		t.Fatalf("calls = %d, want %d (all attempts exhausted)", got, maxAttempts)
+	}
+}
+
 func TestGetDeck_RespectsRetryAfterOn429(t *testing.T) {
 	var calls int32
 	client := testClient(t, func(w http.ResponseWriter, r *http.Request) {

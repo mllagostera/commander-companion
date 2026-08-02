@@ -192,8 +192,8 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	syncService := sync.NewService(decksService)
 	sync.NewHandler(syncService).RegisterRoutes(protected)
 
-	// moxfieldimport: bulk background import, scaffold complete but with
-	// ListDecksByUsername still stubbed out (see internal/moxfieldimport).
+	// moxfieldimport: bulk background import of a Moxfield username's public
+	// decks (see internal/moxfieldimport).
 	moxfieldImportService := moxfieldimport.NewService(db.Pool, usersService, decksService, moxfieldClient)
 	moxfieldimport.NewHandler(moxfieldImportService).RegisterRoutes(protected)
 

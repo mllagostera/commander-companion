@@ -3,15 +3,17 @@
 // internal/users: UpdateMoxfieldUsername). It's the bulk, async counterpart of
 // POST /decks/import/moxfield (a single deck, synchronous, see internal/decks).
 //
-// Scope of this pass: the complete scaffold (jobs table, goroutine, endpoints)
-// is implemented, BUT MoxfieldClient.ListDecksByUsername remains a stub that
-// always returns an error. There's no way to verify that Moxfield endpoint
-// from this environment (the sandbox's network policy blocks api2.moxfield.com);
-// it needs to be confirmed in one with real access before this feature works
-// end to end. StartImport resolves the deck list synchronously before
-// creating the job, so today it responds 501 on the spot — it never gets to create a
-// job or launch the goroutine. The rest (409 for duplicate import, progress,
-// completion) is real and tested with a mocked MoxfieldClient.
+// MoxfieldClient.ListDecksByUsername (internal/moxfield/client.go) is the only
+// place in the codebase that calls Moxfield's undocumented, reverse-engineered
+// deck-search endpoint -- the single-deck import path (internal/decks) never
+// uses it, only GetDeck's documented-by-observation /v3/decks/all/{publicId}.
+// It hasn't been verified against the real API from this sandbox (network
+// policy blocks api2.moxfield.com); confirm end to end from an environment
+// with network access. StartImport resolves the deck list synchronously
+// before creating the job: if Moxfield fails, the client sees a clean error
+// right at request time instead of a job that starts and fails only later
+// when queried. The rest (409 for duplicate import, progress, completion) is
+// real and tested with a mocked MoxfieldClient.
 //
 // Background mechanism: a simple goroutine launched from StartImport, not a
 // real queue (broker/worker pool) — the project is a single-process monolith
@@ -65,14 +67,9 @@ var (
 	ErrImportAlreadyInProgress = common.Conflict("a moxfield import is already in progress")
 	// ErrJobNotFound indicates that the job doesn't exist or doesn't belong to the authenticated user.
 	ErrJobNotFound = common.NotFound("import job not found")
-	// ErrListDecksNotImplemented is what MoxfieldClient.ListDecksByUsername must
-	// return until Moxfield's real endpoint is verified (see
-	// docs/roadmap/TASKS.md, Stage 8, and this package's doc).
-	ErrListDecksNotImplemented = common.NotImplemented("listing a moxfield user's decks is not implemented yet")
 )
 
 // MoxfieldClient is what moxfieldimport needs from the Moxfield client.
-// ListDecksByUsername is a STUB in this pass — see the package doc.
 type MoxfieldClient interface {
 	ListDecksByUsername(ctx context.Context, username string) ([]string, error)
 }
@@ -114,8 +111,7 @@ func NewService(
 // newly created job; progress is queried with GetJobStatus.
 //
 // The deck list is resolved SYNCHRONOUSLY, before creating the job: if
-// Moxfield can't list them (today, always — MoxfieldClient.ListDecksByUsername is
-// a stub, see the package doc), the client sees a clean 501 right at request
+// Moxfield can't list them, the client sees a clean error right at request
 // time, instead of a job that starts and fails only later when queried.
 func (s *service) StartImport(ctx context.Context, userID string) (*JobResponse, error) {
 	uid, err := common.ParseUUID(userID)
@@ -149,13 +145,13 @@ func (s *service) StartImport(ctx context.Context, userID string) (*JobResponse,
 	return toJobResponse(&job), nil
 }
 
-// resolveDeckList translates MoxfieldClient.ListDecksByUsername's stub/error into the
-// corresponding domain error (501 while it remains unimplemented).
+// resolveDeckList translates MoxfieldClient.ListDecksByUsername's error into the
+// corresponding domain error, same mapping as internal/decks uses for GetDeck.
 func (s *service) resolveDeckList(ctx context.Context, moxfieldUsername string) ([]string, error) {
 	publicIDs, err := s.moxfield.ListDecksByUsername(ctx, moxfieldUsername)
 	if err != nil {
-		if errors.Is(err, moxfield.ErrListDecksByUsernameNotImplemented) {
-			return nil, ErrListDecksNotImplemented
+		if errors.Is(err, moxfield.ErrUpstreamUnavailable) {
+			return nil, common.UpstreamUnavailable("moxfield no está disponible, intentalo de nuevo en unos minutos")
 		}
 		return nil, fmt.Errorf("listing moxfield decks: %w", err)
 	}
