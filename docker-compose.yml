@@ -50,10 +50,6 @@ services:
       # would try to resolve "localhost:8080" inside the web container itself.
       - NUXT_API_BASE=http://api:8080/api/v1
       - NUXT_PUBLIC_GOOGLE_CLIENT_ID=908385413195-ktblog02ecjj78f8ghffamuid3iaj6cu.apps.googleusercontent.com
-      # Bulk Moxfield import button: on here so it's testable in local Compose.
-      # Stays off by default in nuxt.config.ts elsewhere (see that file) until
-      # ListDecksByUsername is confirmed against the real Moxfield API end to end.
-      - NUXT_PUBLIC_ENABLE_BULK_MOXFIELD_IMPORT=true
     depends_on:
       - api
 

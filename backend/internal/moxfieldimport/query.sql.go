@@ -96,6 +96,29 @@ func (q *Queries) GetImportJob(ctx context.Context, id pgtype.UUID) (MoxfieldImp
 	return i, err
 }
 
+const getLatestImportJobByUser = `-- name: GetLatestImportJobByUser :one
+SELECT id, user_id, moxfield_username, status, total_decks, imported_count, failed_count, error_message, created_at, updated_at, finished_at FROM moxfield_import_jobs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *Queries) GetLatestImportJobByUser(ctx context.Context, userID pgtype.UUID) (MoxfieldImportJob, error) {
+	row := q.db.QueryRow(ctx, getLatestImportJobByUser, userID)
+	var i MoxfieldImportJob
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.MoxfieldUsername,
+		&i.Status,
+		&i.TotalDecks,
+		&i.ImportedCount,
+		&i.FailedCount,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const recordImportJobDeckResult = `-- name: RecordImportJobDeckResult :one
 UPDATE moxfield_import_jobs
 SET imported_count = imported_count + $1::int,

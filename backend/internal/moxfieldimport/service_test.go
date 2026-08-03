@@ -378,3 +378,78 @@ func TestGetJobStatus_OtherUsersJob_ReturnsNotFound(t *testing.T) {
 
 	waitForTerminalStatus(t, svc, owner.ID, job.ID)
 }
+
+func TestGetLatestJobStatus_NoImportEver_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	user := registerUserWithMoxfieldUsername(t, pool, "never-imported@example.com", "handle9")
+
+	svc := newTestSvc(pool, fakeMoxfieldClient{}, &fakeDeckImporter{})
+	_, err := svc.GetLatestJobStatus(context.Background(), user.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("GetLatestJobStatus() sin imports: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+}
+
+// TestGetLatestJobStatus_ResumesAcrossPageNavigation is the regression test
+// for the bug reported against the web client: settings.vue only kept the
+// job ID in a plain ref, so navigating away and back lost track of it and
+// the running job looked like it had silently stopped, even though it was
+// still going in the background. The frontend now calls this on mount to
+// recover the ID it lost.
+func TestGetLatestJobStatus_ResumesAcrossPageNavigation(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	user := registerUserWithMoxfieldUsername(t, pool, "resume-tracking@example.com", "handle10")
+
+	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA}}
+	svc := newTestSvc(pool, mox, &fakeDeckImporter{})
+
+	started, err := svc.StartImport(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("StartImport() error = %v, want nil", err)
+	}
+
+	latest, err := svc.GetLatestJobStatus(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("GetLatestJobStatus() error = %v, want nil", err)
+	}
+	if latest.ID != started.ID {
+		t.Fatalf("GetLatestJobStatus() ID = %q, want the job just started (%q)", latest.ID, started.ID)
+	}
+
+	waitForTerminalStatus(t, svc, user.ID, started.ID)
+
+	// After finishing, it's still "the latest" -- lets the settings page show
+	// the completed/failed banner too, not just an in-progress one.
+	latest, err = svc.GetLatestJobStatus(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("GetLatestJobStatus() tras completar: error = %v, want nil", err)
+	}
+	if latest.Status != jobStatusCompleted {
+		t.Fatalf("GetLatestJobStatus() status = %q, want %q", latest.Status, jobStatusCompleted)
+	}
+}
+
+func TestGetLatestJobStatus_OtherUsersJob_NotVisible(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	owner := registerUserWithMoxfieldUsername(t, pool, "latest-owner@example.com", "handle11")
+	other := registerUserWithMoxfieldUsername(t, pool, "latest-other@example.com", "handle12")
+
+	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA}}
+	svc := newTestSvc(pool, mox, &fakeDeckImporter{})
+
+	job, err := svc.StartImport(context.Background(), owner.ID)
+	if err != nil {
+		t.Fatalf("StartImport() error = %v, want nil", err)
+	}
+
+	_, err = svc.GetLatestJobStatus(context.Background(), other.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("GetLatestJobStatus() de otro usuario sin imports propios: code = %d, want %d",
+			fiberErr.Code, fiber.StatusNotFound)
+	}
+
+	waitForTerminalStatus(t, svc, owner.ID, job.ID)
+}

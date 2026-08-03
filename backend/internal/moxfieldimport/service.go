@@ -97,6 +97,7 @@ type UserLookup interface {
 type Service interface {
 	StartImport(ctx context.Context, userID string) (*JobResponse, error)
 	GetJobStatus(ctx context.Context, userID, jobID string) (*JobResponse, error)
+	GetLatestJobStatus(ctx context.Context, userID string) (*JobResponse, error)
 }
 
 type service struct {
@@ -204,6 +205,28 @@ func (s *service) GetJobStatus(ctx context.Context, userID, jobID string) (*JobR
 	}
 	if job.UserID.String() != userID {
 		return nil, ErrJobNotFound
+	}
+
+	return toJobResponse(&job), nil
+}
+
+// GetLatestJobStatus returns the authenticated user's most recently created
+// import job (pending/in_progress/completed/failed), regardless of its
+// status. Used by the settings page to resume tracking a job across page
+// navigations/reloads, since it only keeps the job ID in memory otherwise.
+// ErrJobNotFound if the user never started an import.
+func (s *service) GetLatestJobStatus(ctx context.Context, userID string) (*JobResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, ErrJobNotFound
+	}
+
+	job, err := s.repo.GetLatestImportJobByUser(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrJobNotFound
+		}
+		return nil, fmt.Errorf("looking up latest import job: %w", err)
 	}
 
 	return toJobResponse(&job), nil

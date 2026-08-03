@@ -19,6 +19,7 @@ func NewHandler(svc Service) *Handler {
 // RegisterRoutes registers all the endpoints of the moxfieldimport module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/moxfield-import", h.StartImport)
+	router.Get("/moxfield-import", h.GetLatestJobStatus)
 	router.Get("/moxfield-import/:jobId", h.GetJobStatus)
 }
 
@@ -38,6 +39,19 @@ func (h *Handler) StartImport(c *fiber.Ctx) error {
 func (h *Handler) GetJobStatus(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
 	res, err := h.svc.GetJobStatus(c.Context(), userID, c.Params("jobId"))
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
+}
+
+// GetLatestJobStatus returns the authenticated user's most recently started
+// import job, whatever its status. Lets the frontend resume tracking a job
+// (e.g. after navigating away and back to the settings page) without having
+// kept the job ID around. 404 if the user never started an import.
+func (h *Handler) GetLatestJobStatus(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.GetLatestJobStatus(c.Context(), userID)
 	if err != nil {
 		return common.MapError(err)
 	}

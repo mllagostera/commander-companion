@@ -1562,6 +1562,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Check the authenticated user's most recently started bulk import job
+      description: >-
+        Whatever its status (pending/in_progress/completed/failed) -- lets a
+        client that lost track of the job ID (e.g. the web settings page
+        after navigating away and back) resume showing its progress without
+        needing the ID.
+      responses:
+        '200':
+          description: Latest job for the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoxfieldImportJob'
+        '404':
+          description: The user has never started a bulk import
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /moxfield-import/{jobId}:
     get:

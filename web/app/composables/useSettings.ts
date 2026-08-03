@@ -50,12 +50,29 @@ export function useSettings() {
     return apiFetch<MoxfieldImportJob>(`/moxfield-import/${jobId}`)
   }
 
+  /**
+   * The most recently started import job for the current user, whatever its
+   * status, or null if they never ran one. Used on mount to resume tracking
+   * a job across page navigations/reloads (settings.vue only keeps the job
+   * ID in memory otherwise, so leaving the page loses it even though the
+   * import itself keeps running in the background).
+   */
+  async function getLatestMoxfieldImportStatus() {
+    try {
+      return await apiFetch<MoxfieldImportJob>('/moxfield-import')
+    } catch (err) {
+      if (apiErrorStatus(err) === 404) return null
+      throw err
+    }
+  }
+
   return {
     updateMoxfieldUsername,
     updateUsername,
     changePassword,
     startMoxfieldImport,
     getMoxfieldImportStatus,
+    getLatestMoxfieldImportStatus,
   }
 }
 

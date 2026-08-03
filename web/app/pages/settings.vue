@@ -3,13 +3,13 @@ import type { MoxfieldImportJob } from '~/types/api'
 
 const { t, d } = useI18n()
 const { user, fetchSession, logout } = useAuth()
-const { public: publicConfig } = useRuntimeConfig()
 const {
   updateMoxfieldUsername,
   updateUsername,
   changePassword,
   startMoxfieldImport,
   getMoxfieldImportStatus,
+  getLatestMoxfieldImportStatus,
 } = useSettings()
 const { showToast } = useToast()
 
@@ -135,6 +135,19 @@ async function handleStartImport() {
   }
 }
 
+// Recovers a job still running (or just finished) from a previous visit:
+// the import itself lives in the backend, but importJob/pollImportStatus are
+// only in-memory, so navigating away and back used to look like the import
+// had silently stopped even though it kept going server-side.
+onMounted(async () => {
+  const latest = await getLatestMoxfieldImportStatus().catch(() => null)
+  if (!latest) return
+  importJob.value = latest
+  if (isImportRunning(latest.status)) {
+    pollImportStatus(latest.id)
+  }
+})
+
 onUnmounted(stopPolling)
 </script>
 
@@ -206,7 +219,7 @@ onUnmounted(stopPolling)
       </form>
       <p v-if="moxfieldError" class="text-sm" style="color: var(--lose);">{{ moxfieldError }}</p>
 
-      <div v-if="publicConfig.enableBulkMoxfieldImport" class="border-t pt-4" style="border-color: var(--card-border);">
+      <div class="border-t pt-4" style="border-color: var(--card-border);">
         <button
           type="button"
           :disabled="isStartingImport || !user?.moxfield_username || !!importJob && isImportRunning(importJob.status)"

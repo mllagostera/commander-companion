@@ -6,6 +6,9 @@ RETURNING *;
 -- name: GetImportJob :one
 SELECT * FROM moxfield_import_jobs WHERE id = $1 LIMIT 1;
 
+-- name: GetLatestImportJobByUser :one
+SELECT * FROM moxfield_import_jobs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1;
+
 -- name: SetImportJobInProgress :one
 UPDATE moxfield_import_jobs
 SET status = 'in_progress', total_decks = sqlc.arg(total_decks), updated_at = now()
