@@ -65,6 +65,7 @@ Table playgroup_members {
 
   indexes {
     (playgroup_id, user_id) [pk]
+    user_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
   }
 }
 
@@ -76,6 +77,11 @@ Table games {
   finished_at timestamp
   created_at timestamp [default: `now()`]
   current_turn_player_id uuid [ref: > game_players.id, null, note: 'Whose turn it is now (does not model turn order). Migration 00008_current_turn.sql']
+
+  indexes {
+    playgroup_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
+    current_turn_player_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
+  }
 
   Note: 'CHECK: status IN (\'pending\', \'active\', \'finished\') (migration 00004_status_constraints.sql)'
 }
@@ -94,6 +100,9 @@ Table game_players {
 
   indexes {
     game_id [note: 'Hot path for reading the players of a game (migration 00003_indices.sql)']
+    user_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
+    deck_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
+    added_by [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
   }
 }
 
@@ -108,6 +117,8 @@ Table game_actions {
 
   indexes {
     game_id [note: 'Hot path for reading the timeline of a game (migration 00003_indices.sql)']
+    actor_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
+    target_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
   }
 
   Note: 'CHECK: action_type IN (\'LifeChange\', \'CombatDamage\', \'CommanderDamage\', \'PoisonCounter\', \'TurnStart\', \'TurnEnd\', \'Elimination\') (migration 00004_status_constraints.sql)'
@@ -122,6 +133,7 @@ Table commander_damage {
   indexes {
     (attacker_id, defender_id) [pk]
     game_id [note: 'Migration 00007_commander_damage.sql']
+    defender_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
   }
 
   Note: 'CHECK: attacker_id <> defender_id, amount >= 0 (migration 00007_commander_damage.sql). 21+ from the same attacker_id eliminates the defender_id (actual Commander rule), independent of game_players.life_total'
@@ -167,4 +179,27 @@ Table moxfield_import_jobs {
   }
 
   Note: 'CHECK: status IN (\'pending\', \'in_progress\', \'completed\', \'failed\') (migration 00010_moxfield_import_jobs.sql)'
+}
+
+// Background re-sync of ALL of a user's already-imported decks that have a
+// moxfield_id (see internal/deckresync) -- different from moxfield_import_jobs,
+// which brings in NEW decks from a username. Same shape (aggregate counters,
+// not one item per deck). Migration 00013_deck_resync_jobs.sql.
+Table deck_resync_jobs {
+  id uuid [primary key]
+  user_id uuid [ref: > users.id]
+  status varchar [not null, default: 'pending', note: 'pending, in_progress, completed, failed']
+  total_decks int [not null]
+  updated_count int [default: 0]
+  failed_count int [default: 0]
+  error_message varchar [null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+  finished_at timestamp
+
+  indexes {
+    (user_id) [name: 'deck_resync_jobs_active_user_idx', note: 'Partial UNIQUE WHERE status IN (pending, in_progress) -- only one active job per user, same reason as moxfield_import_jobs. Migration 00013_deck_resync_jobs.sql']
+  }
+
+  Note: 'CHECK: status IN (\'pending\', \'in_progress\', \'completed\', \'failed\') (migration 00013_deck_resync_jobs.sql)'
 }
