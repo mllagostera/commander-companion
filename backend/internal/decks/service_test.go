@@ -16,6 +16,8 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
+const testCommander = "Korvold, Fae-Cursed King"
+
 // mockMoxfieldClient allows controlling the Moxfield response without hitting the
 // real API from the tests (see decks.MoxfieldClient, designed for this).
 type mockMoxfieldClient struct {
@@ -296,7 +298,7 @@ func TestImportFromMoxfield_Success(t *testing.T) {
 	svc := newDecksSvc(pool, &mockMoxfieldClient{deck: &moxfield.Deck{
 		PublicID:  "abc123",
 		Name:      "Imported Deck",
-		Commander: "Korvold, Fae-Cursed King",
+		Commander: testCommander,
 	}})
 
 	res, err := svc.ImportFromMoxfield(context.Background(), owner.ID, decks.ImportMoxfieldRequest{
@@ -305,8 +307,40 @@ func TestImportFromMoxfield_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ImportFromMoxfield() error = %v, want nil", err)
 	}
-	if res.Name != "Imported Deck" || res.Commander != "Korvold, Fae-Cursed King" || res.MoxfieldID != "abc123" {
+	if res.Name != "Imported Deck" || res.Commander != testCommander || res.MoxfieldID != "abc123" {
 		t.Fatalf("ImportFromMoxfield() devolvió datos inesperados: %+v", res)
+	}
+}
+
+func TestImportFromMoxfield_AlreadyImported_ReturnsConflict(t *testing.T) {
+	pool := testutil.DB(t)
+	testutil.Truncate(t, pool, "users")
+
+	owner := createTestUser(t, pool, "import-duplicate@example.com")
+	svc := newDecksSvc(pool, &mockMoxfieldClient{deck: &moxfield.Deck{
+		PublicID:  "dup123",
+		Name:      "Duplicate Deck",
+		Commander: testCommander,
+	}})
+	req := decks.ImportMoxfieldRequest{URL: "https://moxfield.com/decks/dup123"}
+
+	if _, err := svc.ImportFromMoxfield(context.Background(), owner.ID, req); err != nil {
+		t.Fatalf("ImportFromMoxfield() primera vez: error = %v, want nil", err)
+	}
+
+	_, err := svc.ImportFromMoxfield(context.Background(), owner.ID, req)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
+		t.Fatalf("ImportFromMoxfield() repetido: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
+	}
+
+	var count int
+	if err := pool.QueryRow(context.Background(),
+		"SELECT count(*) FROM decks WHERE user_id = $1 AND moxfield_id = $2", owner.ID, "dup123",
+	).Scan(&count); err != nil {
+		t.Fatalf("contando decks: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("decks con moxfield_id=dup123 = %d, want 1 (no debería haber creado un duplicado)", count)
 	}
 }
 

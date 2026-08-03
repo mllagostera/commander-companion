@@ -53,14 +53,17 @@ export function useDecks() {
 
 /**
  * Translates Moxfield import errors into something actionable.
- * The backend responds 404 if there's no public deck with that ID, and 400 if the
- * URL is invalid or the deck has no commander (not Commander format).
+ * The backend responds 404 if there's no public deck with that ID, 400 if the
+ * URL is invalid or the deck has no commander (not Commander format), and 409
+ * if the user already imported this same Moxfield deck.
  */
 export function moxfieldImportError(err: unknown): string {
   const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.moxfieldImport.notFound')
+    case 409:
+      return t('errors.moxfieldImport.alreadyImported')
     case 400:
       // The '' is a sentinel to test apiErrorMessage(...).includes('commander')
       // against the backend's raw English text — it's not a visible message, it's not translated.

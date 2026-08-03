@@ -47,6 +47,7 @@ Table decks {
 
   indexes {
     moxfield_id [note: 'Lookup/de-dup of Moxfield imports (migration 00003_indices.sql)']
+    (user_id, moxfield_id) [unique, note: 'One deck per user per Moxfield public ID, NULLs excluded (migration 00015_decks_unique_moxfield_id_per_user.sql)']
   }
 }
 

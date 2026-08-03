@@ -47,11 +47,13 @@ func (f fakeMoxfieldClient) ListDecksByUsername(_ context.Context, _ string) ([]
 }
 
 // fakeDeckImporter simulates decks.Service.ImportFromMoxfield: it fails for the
-// publicIDs listed in failFor, and optionally delays each call (for the duplicate
-// import test, which needs the job to stay in_progress for a while).
+// publicIDs listed in failFor, reports the ones in alreadyImportedFor as
+// decks.ErrDeckAlreadyImported, and optionally delays each call (for the
+// duplicate import test, which needs the job to stay in_progress for a while).
 type fakeDeckImporter struct {
-	failFor map[string]bool
-	delay   time.Duration
+	failFor            map[string]bool
+	alreadyImportedFor map[string]bool
+	delay              time.Duration
 
 	mu    sync.Mutex
 	calls []string
@@ -66,6 +68,9 @@ func (f *fakeDeckImporter) ImportFromMoxfield(
 	f.mu.Lock()
 	f.calls = append(f.calls, req.URL)
 	f.mu.Unlock()
+	if f.alreadyImportedFor[req.URL] {
+		return nil, decks.ErrDeckAlreadyImported
+	}
 	if f.failFor[req.URL] {
 		return nil, errSimulatedImportFailure
 	}
@@ -258,6 +263,36 @@ func TestStartImport_PartialFailure_StillCompletes(t *testing.T) {
 	}
 	if final.ImportedCount != 1 || final.FailedCount != 1 {
 		t.Fatalf("ImportedCount/FailedCount = %d/%d, want 1/1", final.ImportedCount, final.FailedCount)
+	}
+}
+
+// TestStartImport_AlreadyImportedDecks_CountAsImportedNotFailed guards
+// against the bug reported after inspecting the DB for duplicate decks:
+// re-running the bulk import over decks the user already has must not
+// inflate failed_count (they're not failures, decks.ErrDeckAlreadyImported
+// means the desired end state -- the deck being in the user's collection --
+// already holds).
+func TestStartImport_AlreadyImportedDecks_CountAsImportedNotFailed(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	user := registerUserWithMoxfieldUsername(t, pool, "already-imported@example.com", "handle2b")
+
+	mox := fakeMoxfieldClient{publicIDs: []string{"deck-new", "deck-had-already"}}
+	imp := &fakeDeckImporter{alreadyImportedFor: map[string]bool{"deck-had-already": true}}
+	svc := newTestSvc(pool, mox, imp)
+
+	job, err := svc.StartImport(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("StartImport() error = %v, want nil", err)
+	}
+
+	final := waitForTerminalStatus(t, svc, user.ID, job.ID)
+	if final.Status != jobStatusCompleted {
+		t.Fatalf("job.Status = %q, want completed", final.Status)
+	}
+	if final.ImportedCount != 2 || final.FailedCount != 0 {
+		t.Fatalf("ImportedCount/FailedCount = %d/%d, want 2/0 (already-imported decks aren't failures)",
+			final.ImportedCount, final.FailedCount)
 	}
 }
 

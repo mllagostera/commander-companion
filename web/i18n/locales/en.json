@@ -337,6 +337,7 @@
     },
     "moxfieldImport": {
       "notFound": "There's no public Moxfield deck with that ID. Check the URL and that the deck isn't private.",
+      "alreadyImported": "You already have that deck imported.",
       "notCommander": "That Moxfield deck has no commander: it doesn't look like a Commander-format deck.",
       "invalidUrl": "The Moxfield URL or ID isn't valid. Paste something like https://moxfield.com/decks/abc123 or just abc123.",
       "generic": "Couldn't import the deck from Moxfield."

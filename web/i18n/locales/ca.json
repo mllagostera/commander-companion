@@ -337,6 +337,7 @@
     },
     "moxfieldImport": {
       "notFound": "No existeix cap deck públic de Moxfield amb aquest ID. Revisa l'URL i que el deck no sigui privat.",
+      "alreadyImported": "Ja tens aquest deck importat.",
       "notCommander": "Aquest deck de Moxfield no té comandant: no sembla un deck de format Commander.",
       "invalidUrl": "L'URL o l'ID de Moxfield no són vàlids. Enganxa alguna cosa com https://moxfield.com/decks/abc123 o només abc123.",
       "generic": "No s'ha pogut importar el deck des de Moxfield."

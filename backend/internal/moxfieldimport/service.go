@@ -247,17 +247,8 @@ func (s *service) runImport(jobID pgtype.UUID, userID, moxfieldUsername string) 
 		if i > 0 {
 			time.Sleep(interDeckDelay)
 		}
-
-		_, importErr := s.decks.ImportFromMoxfield(ctx, userID, decks.ImportMoxfieldRequest{URL: publicID})
-		delta := RecordImportJobDeckResultParams{ID: jobID}
-		if importErr != nil {
+		if !s.importOneDeck(ctx, jobID, userID, publicID) {
 			failed++
-			delta.FailedDelta = 1
-		} else {
-			delta.ImportedDelta = 1
-		}
-		if _, updateErr := s.repo.RecordImportJobDeckResult(ctx, delta); updateErr != nil {
-			log.Printf("moxfieldimport: actualizando progreso del job %s: %v", jobID, updateErr)
 		}
 	}
 
@@ -266,6 +257,28 @@ func (s *service) runImport(jobID pgtype.UUID, userID, moxfieldUsername string) 
 		status = statusFailed
 	}
 	s.finishJob(ctx, jobID, status, "")
+}
+
+// importOneDeck imports a single deck as part of a bulk import job and
+// records the result against the job's progress counters. Returns whether it
+// counts as a success: a deck the user already had (decks.ErrDeckAlreadyImported,
+// e.g. re-running the import over decks it already brought in) counts as a
+// success too, not a failure -- the desired end state, the deck being in
+// their collection, is the same either way.
+func (s *service) importOneDeck(ctx context.Context, jobID pgtype.UUID, userID, publicID string) bool {
+	_, importErr := s.decks.ImportFromMoxfield(ctx, userID, decks.ImportMoxfieldRequest{URL: publicID})
+	succeeded := importErr == nil || errors.Is(importErr, decks.ErrDeckAlreadyImported)
+
+	delta := RecordImportJobDeckResultParams{ID: jobID}
+	if succeeded {
+		delta.ImportedDelta = 1
+	} else {
+		delta.FailedDelta = 1
+	}
+	if _, updateErr := s.repo.RecordImportJobDeckResult(ctx, delta); updateErr != nil {
+		log.Printf("moxfieldimport: actualizando progreso del job %s: %v", jobID, updateErr)
+	}
+	return succeeded
 }
 
 func (s *service) finishJob(ctx context.Context, jobID pgtype.UUID, status, errMsg string) {

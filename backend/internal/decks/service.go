@@ -7,12 +7,21 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
 )
+
+// deckMoxfieldIDUniqueConstraint is the partial unique index that guarantees a
+// user never has two decks with the same moxfield_id (migration
+// 00015_decks_unique_moxfield_id_per_user.sql). Found and fixed 2026-08-03:
+// neither ImportFromMoxfield nor the bulk import (internal/moxfieldimport)
+// checked for an existing row before inserting, so re-running either created
+// duplicates of decks the user already had.
+const deckMoxfieldIDUniqueConstraint = "decks_user_id_moxfield_id_unique_idx"
 
 var (
 	// ErrDeckNotFound indicates that the deck doesn't exist or doesn't belong to the user requesting it.
@@ -22,6 +31,9 @@ var (
 	// ErrNoCommander indicates that the Moxfield deck doesn't declare a commander, so it's
 	// not a Commander-format deck and there's no point importing it.
 	ErrNoCommander = common.InvalidInput("moxfield deck has no commander (not a Commander-format deck?)")
+	// ErrDeckAlreadyImported indicates the user already has a deck imported from
+	// this same Moxfield public ID (see deckMoxfieldIDUniqueConstraint).
+	ErrDeckAlreadyImported = common.Conflict("this moxfield deck is already imported")
 )
 
 // MoxfieldClient is what decks needs from a Moxfield client (allows mocking it in tests).
@@ -181,13 +193,7 @@ func (s *service) ImportFromMoxfield(
 
 	moxDeck, err := s.moxfield.GetDeck(ctx, publicID)
 	if err != nil {
-		if errors.Is(err, moxfield.ErrDeckNotFound) {
-			return nil, ErrMoxfieldDeckNotFound
-		}
-		if errors.Is(err, moxfield.ErrUpstreamUnavailable) {
-			return nil, common.UpstreamUnavailable("moxfield no está disponible, intentalo de nuevo en unos minutos")
-		}
-		return nil, fmt.Errorf("fetching moxfield deck: %w", err)
+		return nil, mapMoxfieldGetDeckError(err)
 	}
 	if moxDeck.Commander == "" {
 		return nil, ErrNoCommander
@@ -206,10 +212,28 @@ func (s *service) ImportFromMoxfield(
 		ImageUrl:   imageURL,
 	})
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.ConstraintName == deckMoxfieldIDUniqueConstraint {
+			return nil, ErrDeckAlreadyImported
+		}
 		return nil, fmt.Errorf("saving imported deck: %w", err)
 	}
 
 	return toDeckResponse(&deck), nil
+}
+
+// mapMoxfieldGetDeckError translates a MoxfieldClient.GetDeck error into the
+// domain error ImportFromMoxfield/ResyncFromMoxfield return, since both hit
+// the exact same failure modes (deck not found, upstream unavailable, or
+// something unexpected worth wrapping with context).
+func mapMoxfieldGetDeckError(err error) error {
+	if errors.Is(err, moxfield.ErrDeckNotFound) {
+		return ErrMoxfieldDeckNotFound
+	}
+	if errors.Is(err, moxfield.ErrUpstreamUnavailable) {
+		return common.UpstreamUnavailable("moxfield no está disponible, intentalo de nuevo en unos minutos")
+	}
+	return fmt.Errorf("fetching moxfield deck: %w", err)
 }
 
 // ResyncFromMoxfield queries Moxfield again for a deck already imported by the
@@ -230,13 +254,7 @@ func (s *service) ResyncFromMoxfield(
 
 	moxDeck, err := s.moxfield.GetDeck(ctx, deck.MoxfieldID.String)
 	if err != nil {
-		if errors.Is(err, moxfield.ErrDeckNotFound) {
-			return nil, ErrMoxfieldDeckNotFound
-		}
-		if errors.Is(err, moxfield.ErrUpstreamUnavailable) {
-			return nil, common.UpstreamUnavailable("moxfield no está disponible, intentalo de nuevo en unos minutos")
-		}
-		return nil, fmt.Errorf("fetching moxfield deck: %w", err)
+		return nil, mapMoxfieldGetDeckError(err)
 	}
 	if moxDeck.Commander == "" {
 		return nil, ErrNoCommander

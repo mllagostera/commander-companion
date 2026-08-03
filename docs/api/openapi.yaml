@@ -1063,6 +1063,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The authenticated user already has a deck imported from this Moxfield ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /decks/{id}:
     get:
       summary: Get deck
