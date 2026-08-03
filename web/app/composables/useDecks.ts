@@ -3,10 +3,27 @@ import type { Deck, DeckResyncJob, PaginatedResponse, SyncResponse } from '~/typ
 export function useDecks() {
   const { apiFetch } = useApi()
 
-  /** Returns the full first page (default 20 decks); there's no pagination UI yet. */
-  async function listDecks(): Promise<Deck[]> {
-    const page = await apiFetch<PaginatedResponse<Deck>>('/decks')
-    return page.items
+  /** One page of the authenticated user's decks (default 20). Pass the
+   * previous page's `next_cursor` to get the next one; omit it for the first
+   * page. For the full list, use listAllDecks. */
+  function listDecksPage(cursor?: string): Promise<PaginatedResponse<Deck>> {
+    return apiFetch<PaginatedResponse<Deck>>('/decks', { query: cursor ? { cursor } : undefined })
+  }
+
+  /**
+   * Follows next_cursor until every page is fetched. Used where the real
+   * total matters (dashboard's deck count stat, the per-deck stats page) --
+   * a plain first page silently undercounts/omits decks past it.
+   */
+  async function listAllDecks(): Promise<Deck[]> {
+    const all: Deck[] = []
+    let cursor: string | undefined
+    do {
+      const page = await listDecksPage(cursor)
+      all.push(...page.items)
+      cursor = page.next_cursor ?? undefined
+    } while (cursor)
+    return all
   }
 
   /** `input` accepts either the full Moxfield URL or just the public ID. */
@@ -38,19 +55,22 @@ export function useDecks() {
     return apiFetch<DeckResyncJob>(`/decks/resync-all/${jobId}`)
   }
 
-  return { listDecks, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus }
+  return { listDecksPage, listAllDecks, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus }
 }
 
 /**
  * Translates Moxfield import errors into something actionable.
- * The backend responds 404 if there's no public deck with that ID, and 400 if the
- * URL is invalid or the deck has no commander (not Commander format).
+ * The backend responds 404 if there's no public deck with that ID, 400 if the
+ * URL is invalid or the deck has no commander (not Commander format), and 409
+ * if the user already imported this same Moxfield deck.
  */
 export function moxfieldImportError(err: unknown): string {
   const { t } = useI18n()
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.moxfieldImport.notFound')
+    case 409:
+      return t('errors.moxfieldImport.alreadyImported')
     case 400:
       // The '' is a sentinel to test apiErrorMessage(...).includes('commander')
       // against the backend's raw English text — it's not a visible message, it's not translated.

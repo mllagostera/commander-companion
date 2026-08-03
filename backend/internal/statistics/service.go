@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	// ErrDeckNotFound indica que el deck no existe o no pertenece al usuario autenticado.
+	// ErrDeckNotFound indicates that the deck doesn't exist or doesn't belong to the authenticated user.
 	ErrDeckNotFound = common.NotFound("deck not found")
 	// ErrInvalidPlaygroupID indicates the received playgroup ID isn't a valid UUID.
 	ErrInvalidPlaygroupID = common.InvalidInput("invalid playgroup id")
@@ -45,6 +45,10 @@ type PlaygroupMembership interface {
 type Service interface {
 	GetUserStats(ctx context.Context, userID string) (*UserStatsResponse, error)
 	GetDeckStats(ctx context.Context, userID, deckID string) (*DeckStatsResponse, error)
+	// ListDeckStats returns the statistics of every deck the user owns in a
+	// single query, instead of the caller having to call GetDeckStats once
+	// per deck (see ListDeckStatisticsForUser's doc for why this exists).
+	ListDeckStats(ctx context.Context, userID string) ([]DeckStatsResponse, error)
 	// GetPlaygroupStats returns the aggregated statistics for a playgroup, if
 	// userID is a member of it.
 	GetPlaygroupStats(ctx context.Context, playgroupID, userID string) (*PlaygroupStatsResponse, error)
@@ -58,7 +62,7 @@ type service struct {
 	membership PlaygroupMembership
 }
 
-// NewService crea un nuevo servicio de statistics.
+// NewService creates a new statistics service.
 func NewService(db *pgxpool.Pool, membership PlaygroupMembership) Service {
 	return &service{repo: New(db), membership: membership}
 }
@@ -97,7 +101,7 @@ func (s *service) GetDeckStats(ctx context.Context, userID, deckID string) (*Dec
 		return nil, fmt.Errorf("looking up deck: %w", err)
 	}
 	if deck.UserID.String() != userID {
-		// No se distingue "no existe" de "no es tuyo": evita revelar que el deck existe.
+		// Doesn't distinguish "doesn't exist" from "not yours": avoids revealing the deck exists.
 		return nil, ErrDeckNotFound
 	}
 
@@ -109,6 +113,32 @@ func (s *service) GetDeckStats(ctx context.Context, userID, deckID string) (*Dec
 		return nil, fmt.Errorf("looking up deck statistics: %w", err)
 	}
 	return toDeckStatsResponse(&stats), nil
+}
+
+// ListDeckStats returns the statistics of every deck owned by the user (zeros
+// for a deck never played, same as GetDeckStats), in a single query.
+func (s *service) ListDeckStats(ctx context.Context, userID string) ([]DeckStatsResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+
+	rows, err := s.repo.ListDeckStatisticsForUser(ctx, uid)
+	if err != nil {
+		return nil, fmt.Errorf("listing deck statistics: %w", err)
+	}
+
+	res := make([]DeckStatsResponse, 0, len(rows))
+	for i := range rows {
+		res = append(res, DeckStatsResponse{
+			DeckID:               rows[i].DeckID.String(),
+			GamesPlayed:          rows[i].GamesPlayed,
+			GamesWon:             rows[i].GamesWon,
+			HighestLifeTotal:     rows[i].HighestLifeTotalAchieved,
+			TotalCommanderDamage: rows[i].TotalCommanderDamageDealt,
+		})
+	}
+	return res, nil
 }
 
 // GetPlaygroupStats returns statistics aggregated per member within a playgroup,
@@ -155,8 +185,8 @@ func (s *service) GetPlaygroupStats(ctx context.Context, playgroupID, userID str
 	return res, nil
 }
 
-// RecalculateForGame recorre a los jugadores y las acciones de una partida ya
-// finished game and accumulates the result into user_statistics_summary/deck_statistics_summary.
+// RecalculateForGame walks the players and actions of an already-finished
+// game and accumulates the result into user_statistics_summary/deck_statistics_summary.
 // The winner is the only player still alive (is_eliminated = false) at the end; if
 // 0 or 2+ players are left alive (game cut short by hand) it doesn't count as a win
 // for anyone, but games_played is still counted for all participants.

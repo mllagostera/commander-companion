@@ -1,5 +1,7 @@
-// Package moxfield is a client for Moxfield's public (unofficial) API,
-// used to import decks by their URL or public ID.
+// Package moxfield is a client for Moxfield's public (unofficial) API: it
+// imports decks by their URL or public ID (GetDeck) and lists a user's public
+// decks by username (ListDecksByUsername, used only by internal/moxfieldimport's
+// background bulk import -- the single-deck import path never calls it).
 package moxfield
 
 import (
@@ -16,7 +18,24 @@ import (
 )
 
 const (
-	apiBaseURL     = "https://api2.moxfield.com/v3/decks/all"
+	// apiRootURL is Moxfield's public (unofficial) API host. Client.baseURL
+	// defaults to it and gets overridden in tests to point at an httptest.Server.
+	apiRootURL = "https://api2.moxfield.com"
+	// deckPath + "/{publicId}" fetches a single public deck (GetDeck).
+	deckPath = "/v3/decks/all"
+	// searchPath is Moxfield's public deck-search endpoint, reused by
+	// ListDecksByUsername filtered to a single author. Undocumented and
+	// reverse-engineered from a third-party client (github.com/Aleqsd/moxfield-api),
+	// not from Moxfield's own docs -- there are none. The response shape
+	// (searchResponse below) was manually confirmed live on 2026-08-02
+	// (no Cloudflare challenge, no Referer needed) -- see docs/roadmap/TASKS.md,
+	// Stage 8. Still unconfirmed: whether Cloudflare accepts this endpoint from
+	// this Client's actual User-Agent (below), since that request came from a
+	// real mobile browser instead.
+	searchPath = "/v2/decks/search-sfw"
+	// searchPageSize is how many decks ListDecksByUsername asks for per page;
+	// Moxfield's search-sfw endpoint paginates.
+	searchPageSize = 100
 	requestTimeout = 10 * time.Second
 	// Moxfield is behind Cloudflare and blocks clients without a
 	// User-Agent that looks like a real browser.
@@ -47,16 +66,8 @@ var (
 	// ErrIDNotFoundInURL indicates that the given URL doesn't have the expected shape (.../decks/{id}).
 	ErrIDNotFoundInURL = errors.New("could not find a deck id in the moxfield url")
 	// ErrUpstreamUnavailable indicates that Moxfield kept failing (network/timeout, 5xx,
-	// 429) after GetDeck exhausted its retries.
+	// 429) after GetDeck or ListDecksByUsername exhausted their retries.
 	ErrUpstreamUnavailable = errors.New("moxfield unavailable after retries")
-	// ErrListDecksByUsernameNotImplemented indicates that ListDecksByUsername is a
-	// stub: there's no verified evidence of which Moxfield endpoint lists a user's
-	// public decks (this sandbox blocks network access to api2.moxfield.com,
-	// so it couldn't be investigated the way it was for GetDeck — see
-	// docs/roadmap/TASKS.md, Stage 8). Confirm the real endpoint (path, pagination
-	// shape, whether it needs the same User-Agent/Referer as GetDeck) in an
-	// environment with network access before actually implementing it.
-	ErrListDecksByUsernameNotImplemented = errors.New("listing a moxfield user's decks is not implemented yet")
 )
 
 // Deck holds the Moxfield deck data relevant to importing.
@@ -79,7 +90,7 @@ type Client struct {
 
 // NewClient creates a new Moxfield client.
 func NewClient() *Client {
-	return &Client{httpClient: &http.Client{Timeout: requestTimeout}, baseURL: apiBaseURL}
+	return &Client{httpClient: &http.Client{Timeout: requestTimeout}, baseURL: apiRootURL}
 }
 
 type deckResponse struct {
@@ -153,7 +164,7 @@ func (c *Client) GetDeck(ctx context.Context, publicID string) (*Deck, error) {
 // out nonzero only when Moxfield responds 429 with the
 // Retry-After header, so that GetDeck respects it instead of the fixed backoff.
 func (c *Client) getDeckOnce(ctx context.Context, publicID string) (*Deck, time.Duration, error) {
-	reqURL := fmt.Sprintf("%s/%s", c.baseURL, url.PathEscape(publicID))
+	reqURL := fmt.Sprintf("%s%s/%s", c.baseURL, deckPath, url.PathEscape(publicID))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, http.NoBody)
 	if err != nil {
@@ -261,9 +272,115 @@ func ExtractPublicID(input string) (string, error) {
 	return "", ErrIDNotFoundInURL
 }
 
-// ListDecksByUsername should return the public IDs of all of a Moxfield
-// user's public decks (given their username, not their ID). STUB: see
-// ErrListDecksByUsernameNotImplemented for the reason.
-func (c *Client) ListDecksByUsername(_ context.Context, _ string) ([]string, error) {
-	return nil, ErrListDecksByUsernameNotImplemented
+// searchResponse is the paginated shape of Moxfield's public deck-search
+// endpoint (searchPath). Only the fields ListDecksByUsername needs are mapped.
+type searchResponse struct {
+	Data       []searchDeckSummary `json:"data"`
+	TotalPages int                 `json:"totalPages"`
+}
+
+type searchDeckSummary struct {
+	PublicID string `json:"publicId"`
+}
+
+// ListDecksByUsername returns the public IDs of all of a Moxfield user's
+// public decks, given their username (not their internal user ID), newest
+// updated first. It pages through searchPath until Moxfield reports no more
+// pages or a page comes back empty.
+func (c *Client) ListDecksByUsername(ctx context.Context, username string) ([]string, error) {
+	var publicIDs []string
+
+	for page := 1; ; page++ {
+		result, err := c.searchDecksPageWithRetry(ctx, username, page)
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range result.Data {
+			if d.PublicID != "" {
+				publicIDs = append(publicIDs, d.PublicID)
+			}
+		}
+		if len(result.Data) == 0 || page >= result.TotalPages {
+			return publicIDs, nil
+		}
+	}
+}
+
+// searchDecksPageWithRetry fetches one page of searchPath, retrying on
+// transient errors (network/timeout, 5xx, 429) with the same
+// backoff/Retry-After handling as GetDeck.
+func (c *Client) searchDecksPageWithRetry(ctx context.Context, username string, page int) (*searchResponse, error) {
+	var lastErr error
+	delay := initialRetryDelay
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result, retryAfter, err := c.searchDecksPageOnce(ctx, username, page)
+		if err == nil {
+			return result, nil
+		}
+
+		lastErr = err
+		if attempt == maxAttempts {
+			break
+		}
+
+		wait := delay
+		if retryAfter > 0 {
+			wait = retryAfter
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+		delay *= 2
+	}
+
+	return nil, fmt.Errorf("%w: %w", ErrUpstreamUnavailable, lastErr)
+}
+
+// searchDecksPageOnce makes a single attempt at one page of searchPath,
+// filtered to a single author, sorted newest-updated first.
+func (c *Client) searchDecksPageOnce(
+	ctx context.Context, username string, page int,
+) (*searchResponse, time.Duration, error) {
+	query := url.Values{
+		"authorUserNames": {username},
+		"pageNumber":      {strconv.Itoa(page)},
+		"pageSize":        {strconv.Itoa(searchPageSize)},
+		"sortType":        {"Updated"},
+		"sortDirection":   {"Descending"},
+		"includePinned":   {"true"},
+		"showIllegal":     {"true"},
+	}
+	reqURL := c.baseURL + searchPath + "?" + query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, http.NoBody)
+	if err != nil {
+		return nil, 0, fmt.Errorf("building moxfield search request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Referer", "https://www.moxfield.com/")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("calling moxfield: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		retryAfter := retryAfterDuration(resp.Header.Get("Retry-After"))
+		return nil, retryAfter, fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, 0, fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
+	}
+
+	var parsed searchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, 0, fmt.Errorf("decoding moxfield search response: %w", err)
+	}
+
+	return &parsed, 0, nil
 }

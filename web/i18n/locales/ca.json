@@ -136,6 +136,7 @@
       "name": "Nom (A-Z)"
     },
     "loadError": "No s'han pogut carregar els decks.",
+    "loadingMore": "Carregant més decks…",
     "empty": "Encara no tens cap deck. Importa'n un des de Moxfield per començar.",
     "stats": "{played} partides · {won} victòries",
     "sync": {
@@ -209,6 +210,7 @@
       "placeholder": "El teu usuari de Moxfield",
       "importAction": "Importa els meus decks en segon pla",
       "starting": "Iniciant…",
+      "listing": "Cercant els teus decks a Moxfield…",
       "importing": "Important… {done} / {total} decks processats.",
       "importingNoTotal": "Important… {done} decks processats.",
       "completed": "Fet: {imported} decks importats, {failed} fallits.",
@@ -335,6 +337,7 @@
     },
     "moxfieldImport": {
       "notFound": "No existeix cap deck públic de Moxfield amb aquest ID. Revisa l'URL i que el deck no sigui privat.",
+      "alreadyImported": "Ja tens aquest deck importat.",
       "notCommander": "Aquest deck de Moxfield no té comandant: no sembla un deck de format Commander.",
       "invalidUrl": "L'URL o l'ID de Moxfield no són vàlids. Enganxa alguna cosa com https://moxfield.com/decks/abc123 o només abc123.",
       "generic": "No s'ha pogut importar el deck des de Moxfield."
@@ -360,7 +363,6 @@
     "startMoxfieldImport": {
       "needUsername": "Primer desa el teu usuari de Moxfield.",
       "inProgress": "Ja hi ha una importació en curs per al teu compte.",
-      "notAvailable": "La importació massiva de Moxfield encara no està disponible al servidor.",
       "generic": "No s'ha pogut iniciar la importació."
     },
     "playgroups": {

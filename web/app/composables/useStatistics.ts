@@ -12,12 +12,21 @@ export function useStatistics() {
     return apiFetch<DeckStats>(`/statistics/deck/${deckId}`)
   }
 
+  /**
+   * Statistics for every deck the user owns, in a single request -- use this
+   * instead of calling deckStats once per deck (that's what the dashboard and
+   * the statistics page used to do, one HTTP round-trip per deck).
+   */
+  function allDeckStats() {
+    return apiFetch<DeckStats[]>('/statistics/decks')
+  }
+
   /** Consumed from pages/playgroups/[id].vue. Best-effort: 404 if the group never played. */
   function playgroupStats(playgroupId: string) {
     return apiFetch<PlaygroupStats>(`/statistics/playgroup/${playgroupId}`)
   }
 
-  return { userStats, deckStats, playgroupStats }
+  return { userStats, deckStats, allDeckStats, playgroupStats }
 }
 
 /** Formatted win percentage, tolerant of 0 games. */

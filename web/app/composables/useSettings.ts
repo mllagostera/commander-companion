@@ -50,12 +50,29 @@ export function useSettings() {
     return apiFetch<MoxfieldImportJob>(`/moxfield-import/${jobId}`)
   }
 
+  /**
+   * The most recently started import job for the current user, whatever its
+   * status, or null if they never ran one. Used on mount to resume tracking
+   * a job across page navigations/reloads (settings.vue only keeps the job
+   * ID in memory otherwise, so leaving the page loses it even though the
+   * import itself keeps running in the background).
+   */
+  async function getLatestMoxfieldImportStatus() {
+    try {
+      return await apiFetch<MoxfieldImportJob>('/moxfield-import')
+    } catch (err) {
+      if (apiErrorStatus(err) === 404) return null
+      throw err
+    }
+  }
+
   return {
     updateMoxfieldUsername,
     updateUsername,
     changePassword,
     startMoxfieldImport,
     getMoxfieldImportStatus,
+    getLatestMoxfieldImportStatus,
   }
 }
 
@@ -93,9 +110,11 @@ export function updateUsernameError(err: unknown): string {
 }
 
 /**
- * Translates POST /moxfield-import errors. 501 is the expected state today:
- * MoxfieldClient.ListDecksByUsername is a stub (see internal/moxfieldimport,
- * the package doc) until the real Moxfield endpoint is confirmed.
+ * Translates POST /moxfield-import errors. Listing decks on Moxfield and
+ * importing them both happen in the background (internal/moxfieldimport):
+ * this call itself can only fail synchronously on 400/409 (a Moxfield
+ * failure surfaces later, on the job's own 'failed' status/error_message,
+ * see importJob.error_message in settings.vue).
  */
 export function startMoxfieldImportError(err: unknown): string {
   const { t } = useI18n()
@@ -104,8 +123,6 @@ export function startMoxfieldImportError(err: unknown): string {
       return t('errors.startMoxfieldImport.needUsername')
     case 409:
       return t('errors.startMoxfieldImport.inProgress')
-    case 501:
-      return t('errors.startMoxfieldImport.notAvailable')
     default:
       return apiErrorMessage(err, t('errors.startMoxfieldImport.generic'))
   }

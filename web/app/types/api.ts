@@ -39,7 +39,9 @@ export interface SyncResponse {
 export interface MoxfieldImportJob {
   id: string
   moxfield_username: string
-  status: 'in_progress' | 'completed' | 'failed'
+  // 'pending': the job was created but the deck list hasn't been fetched from
+  // Moxfield yet (total_decks is still null at that point).
+  status: 'pending' | 'in_progress' | 'completed' | 'failed'
   total_decks: number | null
   imported_count: number
   failed_count: number

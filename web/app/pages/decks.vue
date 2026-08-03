@@ -1,32 +1,84 @@
 <script setup lang="ts">
-import type { Deck, DeckResyncJob, DeckStats } from '~/types/api'
+import type { Deck, DeckResyncJob, DeckStats, PaginatedResponse } from '~/types/api'
 
 const { t } = useI18n()
-const { listDecks, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus } = useDecks()
-const { deckStats } = useStatistics()
+const { listDecksPage, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus } = useDecks()
+const { allDeckStats } = useStatistics()
 const { showToast } = useToast()
 
-const { data: decks, refresh, error: listError } = await useAsyncData<Deck[]>(
-  'decks',
-  () => listDecks(),
-  { default: () => [] },
+// --------------------------------------------------------- paginated list
+// The API returns decks a page at a time (default 20). The grid loads pages
+// lazily as the user scrolls (see scrollSentinel/IntersectionObserver
+// below); a search, though, has to be able to match decks that haven't
+// scrolled into view yet, so typing into the search box eagerly fetches
+// every remaining page instead of only filtering what's already loaded.
+const { data: firstPage, refresh: refreshFirstPage, error: listError } = await useAsyncData<PaginatedResponse<Deck>>(
+  'decks-first-page',
+  () => listDecksPage(),
+  { default: () => ({ items: [], next_cursor: null }) },
 )
 
-// Stats per deck, only used for sorting (played/wins/win rate) — the
-// Deck itself doesn't carry them. Best-effort: a deck with no stats doesn't break the rest of the list.
-const statsByDeckId = ref<Record<string, DeckStats | null>>({})
+const decks = ref<Deck[]>([])
+const nextCursor = ref<string | null>(null)
+const isLoadingMore = ref(false)
 
-watch(
-  decks,
-  async (list) => {
-    if (!list) return
-    const entries = await Promise.all(
-      list.map(async (d) => [d.id, await deckStats(d.id).catch(() => null)] as const),
-    )
-    statsByDeckId.value = Object.fromEntries(entries)
-  },
-  { immediate: true },
-)
+function syncFromFirstPage(page: PaginatedResponse<Deck> | null | undefined) {
+  decks.value = page?.items ?? []
+  nextCursor.value = page?.next_cursor ?? null
+}
+
+watch(firstPage, syncFromFirstPage, { immediate: true })
+
+async function loadMore() {
+  if (isLoadingMore.value || !nextCursor.value) return
+  isLoadingMore.value = true
+  try {
+    const page = await listDecksPage(nextCursor.value)
+    decks.value = [...decks.value, ...page.items]
+    nextCursor.value = page.next_cursor
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
+async function loadAllRemaining() {
+  while (nextCursor.value) {
+    await loadMore()
+  }
+}
+
+// Doesn't rely on the `watch` above to have already synced `decks`/`nextCursor`
+// by the time this continues (its flush timing isn't guaranteed relative to
+// this function resuming after the `await`) -- syncs explicitly instead.
+async function refresh() {
+  await Promise.all([refreshFirstPage(), refreshStats()])
+  syncFromFirstPage(firstPage.value)
+  if (deckSearch.value.trim()) await loadAllRemaining()
+}
+
+const scrollSentinel = ref<HTMLElement | null>(null)
+let scrollObserver: IntersectionObserver | null = null
+
+onMounted(() => {
+  scrollObserver = new IntersectionObserver((entries) => {
+    if (entries[0]?.isIntersecting) loadMore()
+  })
+  if (scrollSentinel.value) scrollObserver.observe(scrollSentinel.value)
+})
+
+watch(scrollSentinel, (el, previousEl) => {
+  if (previousEl) scrollObserver?.unobserve(previousEl)
+  if (el) scrollObserver?.observe(el)
+})
+
+onUnmounted(() => scrollObserver?.disconnect())
+
+// Stats per deck, only used for sorting (played/wins/win rate) — the Deck
+// itself doesn't carry them. Fetched once for every deck up front (not
+// incrementally as pages load): a single request, independent of how many
+// pages the grid ends up loading via scroll/search.
+const { data: statsList, refresh: refreshStats } = await useAsyncData('decks-stats', () => allDeckStats(), { default: () => [] })
+const statsByDeckId = computed(() => new Map((statsList.value ?? []).map((s) => [s.deck_id, s])))
 
 const isImportModalOpen = ref(false)
 const moxfieldInput = ref('')
@@ -133,8 +185,15 @@ type SortKey = 'played' | 'won' | 'winrate' | 'name'
 const deckSearch = ref('')
 const deckSort = ref<SortKey>('played')
 
+// A search has to match against every deck, not just the ones already
+// scrolled into view: as soon as there's a query, fetch whatever pages are
+// still missing instead of relying on scroll to bring them in eventually.
+watch(deckSearch, (q) => {
+  if (q.trim()) loadAllRemaining()
+})
+
 function statsFor(deck: Deck): DeckStats | null {
-  return statsByDeckId.value[deck.id] ?? null
+  return statsByDeckId.value.get(deck.id) ?? null
 }
 
 const filteredDecks = computed(() => {
@@ -268,6 +327,11 @@ const filteredDecks = computed(() => {
         </div>
       </div>
     </div>
+
+    <div v-if="nextCursor" ref="scrollSentinel" class="h-4 w-full" />
+    <p v-if="isLoadingMore" class="text-center text-xs" style="color: var(--text-dim);">
+      {{ $t('decks.loadingMore') }}
+    </p>
 
     <div
       v-if="isImportModalOpen"

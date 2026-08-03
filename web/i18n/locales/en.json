@@ -136,6 +136,7 @@
       "name": "Name (A-Z)"
     },
     "loadError": "Couldn't load the decks.",
+    "loadingMore": "Loading more decks…",
     "empty": "You don't have any decks yet. Import one from Moxfield to get started.",
     "stats": "{played} games · {won} wins",
     "sync": {
@@ -209,6 +210,7 @@
       "placeholder": "Your Moxfield username",
       "importAction": "Import my decks in the background",
       "starting": "Starting…",
+      "listing": "Looking up your decks on Moxfield…",
       "importing": "Importing… {done} / {total} decks processed.",
       "importingNoTotal": "Importing… {done} decks processed.",
       "completed": "Done: {imported} decks imported, {failed} failed.",
@@ -335,6 +337,7 @@
     },
     "moxfieldImport": {
       "notFound": "There's no public Moxfield deck with that ID. Check the URL and that the deck isn't private.",
+      "alreadyImported": "You already have that deck imported.",
       "notCommander": "That Moxfield deck has no commander: it doesn't look like a Commander-format deck.",
       "invalidUrl": "The Moxfield URL or ID isn't valid. Paste something like https://moxfield.com/decks/abc123 or just abc123.",
       "generic": "Couldn't import the deck from Moxfield."
@@ -360,7 +363,6 @@
     "startMoxfieldImport": {
       "needUsername": "First save your Moxfield username.",
       "inProgress": "There's already an import in progress for your account.",
-      "notAvailable": "Bulk Moxfield import isn't available on the server yet.",
       "generic": "Couldn't start the import."
     },
     "playgroups": {

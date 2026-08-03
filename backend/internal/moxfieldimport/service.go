@@ -3,15 +3,24 @@
 // internal/users: UpdateMoxfieldUsername). It's the bulk, async counterpart of
 // POST /decks/import/moxfield (a single deck, synchronous, see internal/decks).
 //
-// Scope of this pass: the complete scaffold (jobs table, goroutine, endpoints)
-// is implemented, BUT MoxfieldClient.ListDecksByUsername remains a stub that
-// always returns an error. There's no way to verify that Moxfield endpoint
-// from this environment (the sandbox's network policy blocks api2.moxfield.com);
-// it needs to be confirmed in one with real access before this feature works
-// end to end. StartImport resolves the deck list synchronously before
-// creating the job, so today it responds 501 on the spot — it never gets to create a
-// job or launch the goroutine. The rest (409 for duplicate import, progress,
-// completion) is real and tested with a mocked MoxfieldClient.
+// MoxfieldClient.ListDecksByUsername (internal/moxfield/client.go) is the only
+// place in the codebase that calls Moxfield's undocumented, reverse-engineered
+// deck-search endpoint -- the single-deck import path (internal/decks) never
+// uses it, only GetDeck's documented-by-observation /v3/decks/all/{publicId}.
+//
+// StartImport creates the job (status 'pending', total_decks unknown) and
+// returns immediately: listing the user's decks on Moxfield AND importing
+// them both happen inside the background goroutine, same as the rest of the
+// import. Earlier passes resolved the deck list synchronously before
+// creating the job, so the request stayed open for however long Moxfield's
+// search endpoint took to answer -- from the browser it looked like the web
+// tab was doing the work. Now the client gets its 202 back as soon as the
+// job row exists; GetJobStatus reports 'pending' while the list is being
+// fetched, same as it already reported 'in_progress' while decks were being
+// imported. If listing fails, the job transitions straight to 'failed' with
+// error_message set, instead of the request itself failing. The rest (409
+// for duplicate import, progress, completion) is real and tested with a
+// mocked MoxfieldClient.
 //
 // Background mechanism: a simple goroutine launched from StartImport, not a
 // real queue (broker/worker pool) — the project is a single-process monolith
@@ -65,14 +74,9 @@ var (
 	ErrImportAlreadyInProgress = common.Conflict("a moxfield import is already in progress")
 	// ErrJobNotFound indicates that the job doesn't exist or doesn't belong to the authenticated user.
 	ErrJobNotFound = common.NotFound("import job not found")
-	// ErrListDecksNotImplemented is what MoxfieldClient.ListDecksByUsername must
-	// return until Moxfield's real endpoint is verified (see
-	// docs/roadmap/TASKS.md, Stage 8, and this package's doc).
-	ErrListDecksNotImplemented = common.NotImplemented("listing a moxfield user's decks is not implemented yet")
 )
 
 // MoxfieldClient is what moxfieldimport needs from the Moxfield client.
-// ListDecksByUsername is a STUB in this pass — see the package doc.
 type MoxfieldClient interface {
 	ListDecksByUsername(ctx context.Context, username string) ([]string, error)
 }
@@ -93,6 +97,7 @@ type UserLookup interface {
 type Service interface {
 	StartImport(ctx context.Context, userID string) (*JobResponse, error)
 	GetJobStatus(ctx context.Context, userID, jobID string) (*JobResponse, error)
+	GetLatestJobStatus(ctx context.Context, userID string) (*JobResponse, error)
 }
 
 type service struct {
@@ -109,14 +114,10 @@ func NewService(
 	return &service{repo: New(db), users: userLookup, decks: deckImporter, moxfield: moxfieldClient}
 }
 
-// StartImport triggers a background import of all public decks of the
-// Moxfield username linked to the authenticated user's profile. Returns the
-// newly created job; progress is queried with GetJobStatus.
-//
-// The deck list is resolved SYNCHRONOUSLY, before creating the job: if
-// Moxfield can't list them (today, always — MoxfieldClient.ListDecksByUsername is
-// a stub, see the package doc), the client sees a clean 501 right at request
-// time, instead of a job that starts and fails only later when queried.
+// StartImport creates a 'pending' job for the Moxfield username linked to the
+// authenticated user's profile and returns it immediately; listing the
+// user's decks on Moxfield and importing them both happen afterwards, in the
+// background (see runImport). Progress is queried with GetJobStatus.
 func (s *service) StartImport(ctx context.Context, userID string) (*JobResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
@@ -131,12 +132,7 @@ func (s *service) StartImport(ctx context.Context, userID string) (*JobResponse,
 		return nil, ErrMoxfieldUsernameNotSet
 	}
 
-	publicIDs, err := s.resolveDeckList(ctx, *user.MoxfieldUsername)
-	if err != nil {
-		return nil, err
-	}
-
-	job, err := s.createJob(ctx, uid, *user.MoxfieldUsername, len(publicIDs))
+	job, err := s.createJob(ctx, uid, *user.MoxfieldUsername)
 	if err != nil {
 		return nil, err
 	}
@@ -144,28 +140,28 @@ func (s *service) StartImport(ctx context.Context, userID string) (*JobResponse,
 	//nolint:gosec // G118: intentional, not an oversight -- runImport uses
 	// context.Background() on purpose because ctx (the request's) stops being
 	// valid as soon as the handler returns, see runImport's doc.
-	go s.runImport(job.ID, userID, publicIDs)
+	go s.runImport(job.ID, userID, *user.MoxfieldUsername)
 
 	return toJobResponse(&job), nil
 }
 
-// resolveDeckList translates MoxfieldClient.ListDecksByUsername's stub/error into the
-// corresponding domain error (501 while it remains unimplemented).
+// resolveDeckList translates MoxfieldClient.ListDecksByUsername's error into the
+// corresponding domain error, same mapping as internal/decks uses for GetDeck.
 func (s *service) resolveDeckList(ctx context.Context, moxfieldUsername string) ([]string, error) {
 	publicIDs, err := s.moxfield.ListDecksByUsername(ctx, moxfieldUsername)
 	if err != nil {
-		if errors.Is(err, moxfield.ErrListDecksByUsernameNotImplemented) {
-			return nil, ErrListDecksNotImplemented
+		if errors.Is(err, moxfield.ErrUpstreamUnavailable) {
+			return nil, common.UpstreamUnavailable("moxfield no está disponible, intentalo de nuevo en unos minutos")
 		}
 		return nil, fmt.Errorf("listing moxfield decks: %w", err)
 	}
 	return publicIDs, nil
 }
 
-// createJob inserts the job (pending) and marks it in_progress with the total deck
-// count already known, in the same request that creates it.
+// createJob inserts the job, left in its default 'pending' status with no
+// total_decks yet (see runImport for when it's known).
 func (s *service) createJob(
-	ctx context.Context, uid pgtype.UUID, moxfieldUsername string, totalDecks int,
+	ctx context.Context, uid pgtype.UUID, moxfieldUsername string,
 ) (MoxfieldImportJob, error) {
 	job, err := s.repo.CreateImportJob(ctx, CreateImportJobParams{
 		UserID:           uid,
@@ -177,14 +173,6 @@ func (s *service) createJob(
 			return MoxfieldImportJob{}, ErrImportAlreadyInProgress
 		}
 		return MoxfieldImportJob{}, fmt.Errorf("creating import job: %w", err)
-	}
-
-	job, err = s.repo.SetImportJobInProgress(ctx, SetImportJobInProgressParams{
-		ID:         job.ID,
-		TotalDecks: pgtype.Int4{Int32: deckCount(totalDecks), Valid: true},
-	})
-	if err != nil {
-		return MoxfieldImportJob{}, fmt.Errorf("marking import job in_progress: %w", err)
 	}
 	return job, nil
 }
@@ -222,13 +210,40 @@ func (s *service) GetJobStatus(ctx context.Context, userID, jobID string) (*JobR
 	return toJobResponse(&job), nil
 }
 
-// runImport runs in its own goroutine, decoupled from the request that triggered
-// it: it uses context.Background() (Fiber invalidates the request's context when
-// the handler finishes, it can't be reused here) and recovers any panic — unlike
-// an HTTP handler, already covered by Fiber's recover.New(), nothing protects a
-// loose goroutine, and an unrecovered panic brings down the whole process. The
-// deck list is already resolved (see StartImport): all that's left here is importing them.
-func (s *service) runImport(jobID pgtype.UUID, userID string, publicIDs []string) {
+// GetLatestJobStatus returns the authenticated user's most recently created
+// import job (pending/in_progress/completed/failed), regardless of its
+// status. Used by the settings page to resume tracking a job across page
+// navigations/reloads, since it only keeps the job ID in memory otherwise.
+// ErrJobNotFound if the user never started an import.
+func (s *service) GetLatestJobStatus(ctx context.Context, userID string) (*JobResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, ErrJobNotFound
+	}
+
+	job, err := s.repo.GetLatestImportJobByUser(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrJobNotFound
+		}
+		return nil, fmt.Errorf("looking up latest import job: %w", err)
+	}
+
+	return toJobResponse(&job), nil
+}
+
+// runImport runs in its own goroutine, decoupled from the request that
+// triggered it: it uses context.Background() (Fiber invalidates the
+// request's context when the handler finishes, it can't be reused here) and
+// recovers any panic — unlike an HTTP handler, already covered by Fiber's
+// recover.New(), nothing protects a loose goroutine, and an unrecovered
+// panic brings down the whole process.
+//
+// It first lists the user's decks on Moxfield (the job stays 'pending' while
+// this runs) and, once that's known, marks the job 'in_progress' with
+// total_decks set and imports them one by one, same as before. If listing
+// fails, the job goes straight to 'failed' with error_message set.
+func (s *service) runImport(jobID pgtype.UUID, userID, moxfieldUsername string) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("moxfieldimport: panic recuperado en el job %s: %v", jobID, r)
@@ -236,22 +251,27 @@ func (s *service) runImport(jobID pgtype.UUID, userID string, publicIDs []string
 	}()
 
 	ctx := context.Background()
+
+	publicIDs, err := s.resolveDeckList(ctx, moxfieldUsername)
+	if err != nil {
+		s.finishJob(ctx, jobID, statusFailed, err.Error())
+		return
+	}
+
+	if _, err := s.repo.SetImportJobInProgress(ctx, SetImportJobInProgressParams{
+		ID:         jobID,
+		TotalDecks: pgtype.Int4{Int32: deckCount(len(publicIDs)), Valid: true},
+	}); err != nil {
+		log.Printf("moxfieldimport: marcando in_progress el job %s: %v", jobID, err)
+	}
+
 	var failed int
 	for i, publicID := range publicIDs {
 		if i > 0 {
 			time.Sleep(interDeckDelay)
 		}
-
-		_, importErr := s.decks.ImportFromMoxfield(ctx, userID, decks.ImportMoxfieldRequest{URL: publicID})
-		delta := RecordImportJobDeckResultParams{ID: jobID}
-		if importErr != nil {
+		if !s.importOneDeck(ctx, jobID, userID, publicID) {
 			failed++
-			delta.FailedDelta = 1
-		} else {
-			delta.ImportedDelta = 1
-		}
-		if _, updateErr := s.repo.RecordImportJobDeckResult(ctx, delta); updateErr != nil {
-			log.Printf("moxfieldimport: actualizando progreso del job %s: %v", jobID, updateErr)
 		}
 	}
 
@@ -260,6 +280,28 @@ func (s *service) runImport(jobID pgtype.UUID, userID string, publicIDs []string
 		status = statusFailed
 	}
 	s.finishJob(ctx, jobID, status, "")
+}
+
+// importOneDeck imports a single deck as part of a bulk import job and
+// records the result against the job's progress counters. Returns whether it
+// counts as a success: a deck the user already had (decks.ErrDeckAlreadyImported,
+// e.g. re-running the import over decks it already brought in) counts as a
+// success too, not a failure -- the desired end state, the deck being in
+// their collection, is the same either way.
+func (s *service) importOneDeck(ctx context.Context, jobID pgtype.UUID, userID, publicID string) bool {
+	_, importErr := s.decks.ImportFromMoxfield(ctx, userID, decks.ImportMoxfieldRequest{URL: publicID})
+	succeeded := importErr == nil || errors.Is(importErr, decks.ErrDeckAlreadyImported)
+
+	delta := RecordImportJobDeckResultParams{ID: jobID}
+	if succeeded {
+		delta.ImportedDelta = 1
+	} else {
+		delta.FailedDelta = 1
+	}
+	if _, updateErr := s.repo.RecordImportJobDeckResult(ctx, delta); updateErr != nil {
+		log.Printf("moxfieldimport: actualizando progreso del job %s: %v", jobID, updateErr)
+	}
+	return succeeded
 }
 
 func (s *service) finishJob(ctx context.Context, jobID pgtype.UUID, status, errMsg string) {

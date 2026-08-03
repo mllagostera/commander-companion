@@ -21,6 +21,7 @@ import (
 const testPassword = "correct-horse-battery-staple"
 
 const (
+	jobStatusPending   = "pending"
 	jobStatusCompleted = "completed"
 	jobStatusFailed    = "failed"
 
@@ -31,22 +32,28 @@ const (
 var errSimulatedImportFailure = errors.New("simulated import failure")
 
 // fakeMoxfieldClient controls what ListDecksByUsername returns, without hitting the
-// real API or depending on internal/moxfield's stub.
+// real API. delay simulates listing latency, to verify StartImport doesn't wait on it.
 type fakeMoxfieldClient struct {
 	publicIDs []string
 	err       error
+	delay     time.Duration
 }
 
 func (f fakeMoxfieldClient) ListDecksByUsername(_ context.Context, _ string) ([]string, error) {
+	if f.delay > 0 {
+		time.Sleep(f.delay)
+	}
 	return f.publicIDs, f.err
 }
 
 // fakeDeckImporter simulates decks.Service.ImportFromMoxfield: it fails for the
-// publicIDs listed in failFor, and optionally delays each call (for the duplicate
-// import test, which needs the job to stay in_progress for a while).
+// publicIDs listed in failFor, reports the ones in alreadyImportedFor as
+// decks.ErrDeckAlreadyImported, and optionally delays each call (for the
+// duplicate import test, which needs the job to stay in_progress for a while).
 type fakeDeckImporter struct {
-	failFor map[string]bool
-	delay   time.Duration
+	failFor            map[string]bool
+	alreadyImportedFor map[string]bool
+	delay              time.Duration
 
 	mu    sync.Mutex
 	calls []string
@@ -61,6 +68,9 @@ func (f *fakeDeckImporter) ImportFromMoxfield(
 	f.mu.Lock()
 	f.calls = append(f.calls, req.URL)
 	f.mu.Unlock()
+	if f.alreadyImportedFor[req.URL] {
+		return nil, decks.ErrDeckAlreadyImported
+	}
 	if f.failFor[req.URL] {
 		return nil, errSimulatedImportFailure
 	}
@@ -125,31 +135,64 @@ func waitForTerminalStatus(t *testing.T, svc moxfieldimport.Service, userID, job
 	return nil
 }
 
-func TestStartImport_ListDecksNotImplemented_ReturnsNotImplemented(t *testing.T) {
+func TestStartImport_MoxfieldUpstreamUnavailable_JobFailsAsync(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateImportTables(t, pool)
-	user := registerUserWithMoxfieldUsername(t, pool, "stub-501@example.com", "someone")
+	user := registerUserWithMoxfieldUsername(t, pool, "upstream-503@example.com", "someone")
 
-	// Real client, unmocked: ListDecksByUsername is a stub that always fails
-	// (see internal/moxfield/client.go), which is exactly what this test verifies.
-	svc := newTestSvc(pool, moxfield.NewClient(), &fakeDeckImporter{})
+	mox := fakeMoxfieldClient{err: moxfield.ErrUpstreamUnavailable}
+	svc := newTestSvc(pool, mox, &fakeDeckImporter{})
 
-	_, err := svc.StartImport(context.Background(), user.ID)
-	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotImplemented {
-		t.Fatalf("StartImport() con ListDecksByUsername sin implementar: code = %d, want %d",
-			fiberErr.Code, fiber.StatusNotImplemented)
+	// StartImport itself must succeed: listing now happens in the background,
+	// so a Moxfield failure surfaces on the job, not on this call.
+	job, err := svc.StartImport(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("StartImport() unexpected error = %v", err)
 	}
 
-	// It shouldn't have created any job: the list is resolved BEFORE creating the job.
-	var count int
-	if err := pool.QueryRow(context.Background(),
-		"SELECT count(*) FROM moxfield_import_jobs WHERE user_id = $1", user.ID,
-	).Scan(&count); err != nil {
-		t.Fatalf("contando jobs: %v", err)
+	final := waitForTerminalStatus(t, svc, user.ID, job.ID)
+	if final.Status != jobStatusFailed {
+		t.Fatalf("job.Status = %q, want %q (moxfield unavailable while listing)", final.Status, jobStatusFailed)
 	}
-	if count != 0 {
-		t.Fatalf("StartImport() con 501 creó %d jobs, want 0", count)
+	if final.ErrorMessage == nil || *final.ErrorMessage == "" {
+		t.Fatalf("ErrorMessage = %v, want a non-empty message", final.ErrorMessage)
 	}
+}
+
+// TestStartImport_ReturnsImmediately_DoesNotWaitForMoxfieldListing is the
+// regression test for the bug reported against the web client: StartImport
+// used to resolve the deck list (a call to Moxfield) synchronously before
+// returning, so the request -- and the browser tab that made it -- stayed
+// blocked for however long that took. Listing now happens inside the
+// background goroutine (see runImport), same as the deck-by-deck import
+// already did, so StartImport must return well before a slow listing call finishes.
+func TestStartImport_ReturnsImmediately_DoesNotWaitForMoxfieldListing(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	user := registerUserWithMoxfieldUsername(t, pool, "fast-response@example.com", "handle8")
+
+	const listingDelay = 300 * time.Millisecond
+	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA}, delay: listingDelay}
+	svc := newTestSvc(pool, mox, &fakeDeckImporter{})
+
+	start := time.Now()
+	job, err := svc.StartImport(context.Background(), user.ID)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("StartImport() error = %v, want nil", err)
+	}
+	if elapsed >= listingDelay {
+		t.Fatalf("StartImport() took %v, want it to return before the %v (background) Moxfield listing call finishes",
+			elapsed, listingDelay)
+	}
+	if job.Status != jobStatusPending {
+		t.Fatalf("StartImport() status = %q, want %q (deck list not resolved yet)", job.Status, jobStatusPending)
+	}
+	if job.TotalDecks != nil {
+		t.Fatalf("StartImport() TotalDecks = %v, want nil (not known until listing finishes)", job.TotalDecks)
+	}
+
+	waitForTerminalStatus(t, svc, user.ID, job.ID)
 }
 
 func TestStartImport_NoMoxfieldUsername_ReturnsBadRequest(t *testing.T) {
@@ -184,13 +227,16 @@ func TestStartImport_Success_CompletesJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartImport() error = %v, want nil", err)
 	}
-	if job.TotalDecks == nil || *job.TotalDecks != 2 {
-		t.Fatalf("StartImport() TotalDecks = %v, want 2", job.TotalDecks)
+	if job.Status != jobStatusPending {
+		t.Fatalf("StartImport() status = %q, want %q (deck list is resolved in the background)", job.Status, jobStatusPending)
 	}
 
 	final := waitForTerminalStatus(t, svc, user.ID, job.ID)
 	if final.Status != jobStatusCompleted {
 		t.Fatalf("job.Status = %q, want completed", final.Status)
+	}
+	if final.TotalDecks == nil || *final.TotalDecks != 2 {
+		t.Fatalf("TotalDecks = %v, want 2", final.TotalDecks)
 	}
 	if final.ImportedCount != 2 || final.FailedCount != 0 {
 		t.Fatalf("ImportedCount/FailedCount = %d/%d, want 2/0", final.ImportedCount, final.FailedCount)
@@ -217,6 +263,36 @@ func TestStartImport_PartialFailure_StillCompletes(t *testing.T) {
 	}
 	if final.ImportedCount != 1 || final.FailedCount != 1 {
 		t.Fatalf("ImportedCount/FailedCount = %d/%d, want 1/1", final.ImportedCount, final.FailedCount)
+	}
+}
+
+// TestStartImport_AlreadyImportedDecks_CountAsImportedNotFailed guards
+// against the bug reported after inspecting the DB for duplicate decks:
+// re-running the bulk import over decks the user already has must not
+// inflate failed_count (they're not failures, decks.ErrDeckAlreadyImported
+// means the desired end state -- the deck being in the user's collection --
+// already holds).
+func TestStartImport_AlreadyImportedDecks_CountAsImportedNotFailed(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	user := registerUserWithMoxfieldUsername(t, pool, "already-imported@example.com", "handle2b")
+
+	mox := fakeMoxfieldClient{publicIDs: []string{"deck-new", "deck-had-already"}}
+	imp := &fakeDeckImporter{alreadyImportedFor: map[string]bool{"deck-had-already": true}}
+	svc := newTestSvc(pool, mox, imp)
+
+	job, err := svc.StartImport(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("StartImport() error = %v, want nil", err)
+	}
+
+	final := waitForTerminalStatus(t, svc, user.ID, job.ID)
+	if final.Status != jobStatusCompleted {
+		t.Fatalf("job.Status = %q, want completed", final.Status)
+	}
+	if final.ImportedCount != 2 || final.FailedCount != 0 {
+		t.Fatalf("ImportedCount/FailedCount = %d/%d, want 2/0 (already-imported decks aren't failures)",
+			final.ImportedCount, final.FailedCount)
 	}
 }
 
@@ -298,6 +374,81 @@ func TestGetJobStatus_OtherUsersJob_ReturnsNotFound(t *testing.T) {
 	_, err = svc.GetJobStatus(context.Background(), other.ID, job.ID)
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
 		t.Fatalf("GetJobStatus() job ajeno: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+
+	waitForTerminalStatus(t, svc, owner.ID, job.ID)
+}
+
+func TestGetLatestJobStatus_NoImportEver_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	user := registerUserWithMoxfieldUsername(t, pool, "never-imported@example.com", "handle9")
+
+	svc := newTestSvc(pool, fakeMoxfieldClient{}, &fakeDeckImporter{})
+	_, err := svc.GetLatestJobStatus(context.Background(), user.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("GetLatestJobStatus() sin imports: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+}
+
+// TestGetLatestJobStatus_ResumesAcrossPageNavigation is the regression test
+// for the bug reported against the web client: settings.vue only kept the
+// job ID in a plain ref, so navigating away and back lost track of it and
+// the running job looked like it had silently stopped, even though it was
+// still going in the background. The frontend now calls this on mount to
+// recover the ID it lost.
+func TestGetLatestJobStatus_ResumesAcrossPageNavigation(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	user := registerUserWithMoxfieldUsername(t, pool, "resume-tracking@example.com", "handle10")
+
+	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA}}
+	svc := newTestSvc(pool, mox, &fakeDeckImporter{})
+
+	started, err := svc.StartImport(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("StartImport() error = %v, want nil", err)
+	}
+
+	latest, err := svc.GetLatestJobStatus(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("GetLatestJobStatus() error = %v, want nil", err)
+	}
+	if latest.ID != started.ID {
+		t.Fatalf("GetLatestJobStatus() ID = %q, want the job just started (%q)", latest.ID, started.ID)
+	}
+
+	waitForTerminalStatus(t, svc, user.ID, started.ID)
+
+	// After finishing, it's still "the latest" -- lets the settings page show
+	// the completed/failed banner too, not just an in-progress one.
+	latest, err = svc.GetLatestJobStatus(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("GetLatestJobStatus() tras completar: error = %v, want nil", err)
+	}
+	if latest.Status != jobStatusCompleted {
+		t.Fatalf("GetLatestJobStatus() status = %q, want %q", latest.Status, jobStatusCompleted)
+	}
+}
+
+func TestGetLatestJobStatus_OtherUsersJob_NotVisible(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	owner := registerUserWithMoxfieldUsername(t, pool, "latest-owner@example.com", "handle11")
+	other := registerUserWithMoxfieldUsername(t, pool, "latest-other@example.com", "handle12")
+
+	mox := fakeMoxfieldClient{publicIDs: []string{testDeckA}}
+	svc := newTestSvc(pool, mox, &fakeDeckImporter{})
+
+	job, err := svc.StartImport(context.Background(), owner.ID)
+	if err != nil {
+		t.Fatalf("StartImport() error = %v, want nil", err)
+	}
+
+	_, err = svc.GetLatestJobStatus(context.Background(), other.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("GetLatestJobStatus() de otro usuario sin imports propios: code = %d, want %d",
+			fiberErr.Code, fiber.StatusNotFound)
 	}
 
 	waitForTerminalStatus(t, svc, owner.ID, job.ID)
