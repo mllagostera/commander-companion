@@ -136,6 +136,7 @@
       "name": "Nombre (A-Z)"
     },
     "loadError": "No se pudieron cargar los decks.",
+    "loadingMore": "Cargando más decks…",
     "empty": "Todavía no tienes decks. Importa uno desde Moxfield para empezar.",
     "stats": "{played} partidas · {won} victorias",
     "sync": {

@@ -136,6 +136,7 @@
       "name": "Name (A-Z)"
     },
     "loadError": "Couldn't load the decks.",
+    "loadingMore": "Loading more decks…",
     "empty": "You don't have any decks yet. Import one from Moxfield to get started.",
     "stats": "{played} games · {won} wins",
     "sync": {

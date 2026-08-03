@@ -136,6 +136,7 @@
       "name": "Nom (A-Z)"
     },
     "loadError": "No s'han pogut carregar els decks.",
+    "loadingMore": "Carregant més decks…",
     "empty": "Encara no tens cap deck. Importa'n un des de Moxfield per començar.",
     "stats": "{played} partides · {won} victòries",
     "sync": {
