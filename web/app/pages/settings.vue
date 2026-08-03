@@ -99,6 +99,13 @@ function stopPolling() {
   pollHandle = null
 }
 
+// The job is still going in the background (not yet completed/failed): the
+// backend resolves the deck list AND imports them without waiting on this
+// page, 'pending' just means the list hasn't come back from Moxfield yet.
+function isImportRunning(status: MoxfieldImportJob['status']) {
+  return status === 'pending' || status === 'in_progress'
+}
+
 function pollImportStatus(jobId: string) {
   stopPolling()
   pollHandle = setTimeout(async () => {
@@ -107,7 +114,7 @@ function pollImportStatus(jobId: string) {
     } catch {
       // Best-effort: a one-off network error shouldn't stop polling.
     }
-    if (importJob.value?.status === 'in_progress') {
+    if (importJob.value && isImportRunning(importJob.value.status)) {
       pollImportStatus(jobId)
     }
   }, 2000)
@@ -118,7 +125,7 @@ async function handleStartImport() {
   isStartingImport.value = true
   try {
     importJob.value = await startMoxfieldImport()
-    if (importJob.value.status === 'in_progress') {
+    if (isImportRunning(importJob.value.status)) {
       pollImportStatus(importJob.value.id)
     }
   } catch (err) {
@@ -202,7 +209,7 @@ onUnmounted(stopPolling)
       <div v-if="publicConfig.enableBulkMoxfieldImport" class="border-t pt-4" style="border-color: var(--card-border);">
         <button
           type="button"
-          :disabled="isStartingImport || !user?.moxfield_username || importJob?.status === 'in_progress'"
+          :disabled="isStartingImport || !user?.moxfield_username || !!importJob && isImportRunning(importJob.status)"
           class="rounded-full border px-4 py-2 text-[13px] disabled:opacity-50"
           style="border-color: var(--input-border); color: var(--text);"
           @click="handleStartImport"
@@ -213,7 +220,10 @@ onUnmounted(stopPolling)
         <p v-if="importError" class="mt-3 text-sm" style="color: var(--lose);">{{ importError }}</p>
 
         <div v-if="importJob" class="mt-3 text-sm" style="color: var(--text-muted);">
-          <p v-if="importJob.status === 'in_progress'">
+          <p v-if="importJob.status === 'pending'">
+            {{ $t('settings.moxfield.listing') }}
+          </p>
+          <p v-else-if="importJob.status === 'in_progress'">
             {{ importJob.total_decks !== null
               ? $t('settings.moxfield.importing', { done: importJob.imported_count + importJob.failed_count, total: importJob.total_decks })
               : $t('settings.moxfield.importingNoTotal', { done: importJob.imported_count + importJob.failed_count }) }}

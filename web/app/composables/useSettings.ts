@@ -93,9 +93,11 @@ export function updateUsernameError(err: unknown): string {
 }
 
 /**
- * Translates POST /moxfield-import errors. 501 is the expected state today:
- * MoxfieldClient.ListDecksByUsername is a stub (see internal/moxfieldimport,
- * the package doc) until the real Moxfield endpoint is confirmed.
+ * Translates POST /moxfield-import errors. Listing decks on Moxfield and
+ * importing them both happen in the background (internal/moxfieldimport):
+ * this call itself can only fail synchronously on 400/409 (a Moxfield
+ * failure surfaces later, on the job's own 'failed' status/error_message,
+ * see importJob.error_message in settings.vue).
  */
 export function startMoxfieldImportError(err: unknown): string {
   const { t } = useI18n()
@@ -104,8 +106,6 @@ export function startMoxfieldImportError(err: unknown): string {
       return t('errors.startMoxfieldImport.needUsername')
     case 409:
       return t('errors.startMoxfieldImport.inProgress')
-    case 501:
-      return t('errors.startMoxfieldImport.notAvailable')
     default:
       return apiErrorMessage(err, t('errors.startMoxfieldImport.generic'))
   }

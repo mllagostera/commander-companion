@@ -10,6 +10,8 @@ import (
 	"testing"
 )
 
+const testDeckA = "deck-a"
+
 func testClient(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
 	srv := httptest.NewServer(handler)
@@ -142,7 +144,7 @@ func TestListDecksByUsername_SinglePage_ReturnsPublicIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListDecksByUsername() unexpected error = %v", err)
 	}
-	want := []string{"deck-a", "deck-b"}
+	want := []string{testDeckA, "deck-b"}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("ListDecksByUsername() = %v, want %v", got, want)
 	}
@@ -165,7 +167,7 @@ func TestListDecksByUsername_PaginatesUntilLastPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListDecksByUsername() unexpected error = %v", err)
 	}
-	want := []string{"deck-a", "deck-b"}
+	want := []string{testDeckA, "deck-b"}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("ListDecksByUsername() = %v, want %v", got, want)
 	}
@@ -201,8 +203,8 @@ func TestListDecksByUsername_RetriesOn500ThenSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListDecksByUsername() unexpected error = %v", err)
 	}
-	if len(got) != 1 || got[0] != "deck-a" {
-		t.Fatalf("ListDecksByUsername() = %v, want [deck-a]", got)
+	if len(got) != 1 || got[0] != testDeckA {
+		t.Fatalf("ListDecksByUsername() = %v, want [%s]", got, testDeckA)
 	}
 	if got := atomic.LoadInt32(&calls); got != 2 {
 		t.Fatalf("calls = %d, want 2 (1 failure + 1 retry)", got)

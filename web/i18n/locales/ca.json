@@ -209,6 +209,7 @@
       "placeholder": "El teu usuari de Moxfield",
       "importAction": "Importa els meus decks en segon pla",
       "starting": "Iniciant…",
+      "listing": "Cercant els teus decks a Moxfield…",
       "importing": "Important… {done} / {total} decks processats.",
       "importingNoTotal": "Important… {done} decks processats.",
       "completed": "Fet: {imported} decks importats, {failed} fallits.",
@@ -360,7 +361,6 @@
     "startMoxfieldImport": {
       "needUsername": "Primer desa el teu usuari de Moxfield.",
       "inProgress": "Ja hi ha una importació en curs per al teu compte.",
-      "notAvailable": "La importació massiva de Moxfield encara no està disponible al servidor.",
       "generic": "No s'ha pogut iniciar la importació."
     },
     "playgroups": {

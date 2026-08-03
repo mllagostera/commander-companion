@@ -209,6 +209,7 @@
       "placeholder": "Your Moxfield username",
       "importAction": "Import my decks in the background",
       "starting": "Starting…",
+      "listing": "Looking up your decks on Moxfield…",
       "importing": "Importing… {done} / {total} decks processed.",
       "importingNoTotal": "Importing… {done} decks processed.",
       "completed": "Done: {imported} decks imported, {failed} failed.",
@@ -360,7 +361,6 @@
     "startMoxfieldImport": {
       "needUsername": "First save your Moxfield username.",
       "inProgress": "There's already an import in progress for your account.",
-      "notAvailable": "Bulk Moxfield import isn't available on the server yet.",
       "generic": "Couldn't start the import."
     },
     "playgroups": {

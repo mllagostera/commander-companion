@@ -1531,12 +1531,15 @@ paths:
       summary: Import in the background all public decks of the Moxfield username linked to the profile
       description: >-
         Bulk, asynchronous counterpart to `/decks/import/moxfield` (a single
-        deck, synchronous). The list of decks is resolved synchronously
-        before creating the job: if Moxfield can't be reached, it responds
-        immediately without creating any job.
+        deck, synchronous). Returns as soon as the job row exists: listing the
+        decks on Moxfield and importing them both happen afterwards, in the
+        background. The job starts in `pending` (Moxfield hasn't been queried
+        yet, `total_decks` is null) and moves to `in_progress` once the deck
+        list is known; if listing itself fails, the job goes straight to
+        `failed` with `error_message` set, instead of this request failing.
       responses:
         '202':
-          description: Job created, import in progress
+          description: Job created (status `pending`), import starting in the background
           content:
             application/json:
               schema:
