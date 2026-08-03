@@ -27,7 +27,7 @@ type PlaygroupStatsResponse struct {
 	Members     []PlaygroupMemberStats `json:"members"`
 }
 
-// PlaygroupMemberStats resume las partidas jugadas/ganadas de un miembro dentro del grupo.
+// PlaygroupMemberStats summarizes the games played/won by a member within the group.
 type PlaygroupMemberStats struct {
 	UserID      string `json:"user_id"`
 	GamesPlayed int32  `json:"games_played"`

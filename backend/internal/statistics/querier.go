@@ -15,6 +15,11 @@ type Querier interface {
 	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetDeckStatistics(ctx context.Context, deckID pgtype.UUID) (DeckStatisticsSummary, error)
 	GetUserStatistics(ctx context.Context, userID pgtype.UUID) (UserStatisticsSummary, error)
+	// Every deck owned by the user, LEFT JOINed against its summary row (a deck
+	// never played has none) so a single query replaces the GetDeckStats N+1 the
+	// web dashboard used to do (one request per deck): see internal/decks for
+	// the ordering/definition of "owned by the user".
+	ListDeckStatisticsForUser(ctx context.Context, userID pgtype.UUID) ([]ListDeckStatisticsForUserRow, error)
 	ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error)
 	ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
 	ListPlaygroupMemberGameStats(ctx context.Context, playgroupID pgtype.UUID) ([]ListPlaygroupMemberGameStatsRow, error)

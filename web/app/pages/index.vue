@@ -3,8 +3,8 @@ import type { Deck, DeckStats, Game, Playgroup } from '~/types/api'
 
 const { d } = useI18n()
 const { user } = useAuth()
-const { userStats, deckStats } = useStatistics()
-const { listDecks } = useDecks()
+const { userStats, allDeckStats } = useStatistics()
+const { listAllDecks } = useDecks()
 const { listPlaygroups } = usePlaygroups()
 const { listPlaygroupGames } = useGames()
 
@@ -13,7 +13,10 @@ interface GroupSummary extends Playgroup { memberCount: number; gamesPlayed: num
 interface DeckWithStats { deck: Deck; stats: DeckStats | null }
 
 const { data, error, refresh } = await useAsyncData('dashboard', async () => {
-  const [stats, decks, playgroups] = await Promise.all([userStats(), listDecks(), listPlaygroups()])
+  const [stats, decks, playgroups, deckStatsList] = await Promise.all([
+    userStats(), listAllDecks(), listPlaygroups(), allDeckStats(),
+  ])
+  const statsByDeckId = new Map(deckStatsList.map((s) => [s.deck_id, s]))
 
   const groupsWithGames = await Promise.all(
     playgroups.map(async (playgroup) => ({
@@ -55,9 +58,7 @@ const { data, error, refresh } = await useAsyncData('dashboard', async () => {
     }
   }
 
-  const deckEntries: DeckWithStats[] = await Promise.all(
-    decks.map(async (deck) => ({ deck, stats: await deckStats(deck.id).catch(() => null) })),
-  )
+  const deckEntries: DeckWithStats[] = decks.map((deck) => ({ deck, stats: statsByDeckId.get(deck.id) ?? null }))
   const bestDeckEntry = [...deckEntries]
     .filter((e) => e.stats && e.stats.games_played > 0)
     .sort((a, b) => (b.stats!.games_won / b.stats!.games_played) - (a.stats!.games_won / a.stats!.games_played))[0]

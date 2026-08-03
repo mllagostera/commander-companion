@@ -3,20 +3,27 @@ import type { Deck, DeckResyncJob, PaginatedResponse, SyncResponse } from '~/typ
 export function useDecks() {
   const { apiFetch } = useApi()
 
-  /**
-   * Returns just the first page (default 20 decks). Used where the full list
-   * isn't needed (dashboard/statistics deck pickers) -- for a page that needs
-   * every deck (browsing, search), use listDecksPage and follow next_cursor.
-   */
-  async function listDecks(): Promise<Deck[]> {
-    const page = await apiFetch<PaginatedResponse<Deck>>('/decks')
-    return page.items
-  }
-
-  /** One page of the authenticated user's decks. Pass the previous page's
-   * `next_cursor` to get the next one; omit it for the first page. */
+  /** One page of the authenticated user's decks (default 20). Pass the
+   * previous page's `next_cursor` to get the next one; omit it for the first
+   * page. For the full list, use listAllDecks. */
   function listDecksPage(cursor?: string): Promise<PaginatedResponse<Deck>> {
     return apiFetch<PaginatedResponse<Deck>>('/decks', { query: cursor ? { cursor } : undefined })
+  }
+
+  /**
+   * Follows next_cursor until every page is fetched. Used where the real
+   * total matters (dashboard's deck count stat, the per-deck stats page) --
+   * a plain first page silently undercounts/omits decks past it.
+   */
+  async function listAllDecks(): Promise<Deck[]> {
+    const all: Deck[] = []
+    let cursor: string | undefined
+    do {
+      const page = await listDecksPage(cursor)
+      all.push(...page.items)
+      cursor = page.next_cursor ?? undefined
+    } while (cursor)
+    return all
   }
 
   /** `input` accepts either the full Moxfield URL or just the public ID. */
@@ -48,7 +55,7 @@ export function useDecks() {
     return apiFetch<DeckResyncJob>(`/decks/resync-all/${jobId}`)
   }
 
-  return { listDecks, listDecksPage, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus }
+  return { listDecksPage, listAllDecks, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus }
 }
 
 /**

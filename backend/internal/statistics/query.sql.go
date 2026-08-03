@@ -81,6 +81,57 @@ func (q *Queries) GetUserStatistics(ctx context.Context, userID pgtype.UUID) (Us
 	return i, err
 }
 
+const listDeckStatisticsForUser = `-- name: ListDeckStatisticsForUser :many
+SELECT
+  d.id AS deck_id,
+  COALESCE(s.games_played, 0)::int AS games_played,
+  COALESCE(s.games_won, 0)::int AS games_won,
+  COALESCE(s.highest_life_total_achieved, 0)::int AS highest_life_total_achieved,
+  COALESCE(s.total_commander_damage_dealt, 0)::int AS total_commander_damage_dealt
+FROM decks d
+LEFT JOIN deck_statistics_summary s ON s.deck_id = d.id
+WHERE d.user_id = $1
+ORDER BY d.created_at DESC
+`
+
+type ListDeckStatisticsForUserRow struct {
+	DeckID                    pgtype.UUID `json:"deck_id"`
+	GamesPlayed               int32       `json:"games_played"`
+	GamesWon                  int32       `json:"games_won"`
+	HighestLifeTotalAchieved  int32       `json:"highest_life_total_achieved"`
+	TotalCommanderDamageDealt int32       `json:"total_commander_damage_dealt"`
+}
+
+// Every deck owned by the user, LEFT JOINed against its summary row (a deck
+// never played has none) so a single query replaces the GetDeckStats N+1 the
+// web dashboard used to do (one request per deck): see internal/decks for
+// the ordering/definition of "owned by the user".
+func (q *Queries) ListDeckStatisticsForUser(ctx context.Context, userID pgtype.UUID) ([]ListDeckStatisticsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listDeckStatisticsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDeckStatisticsForUserRow
+	for rows.Next() {
+		var i ListDeckStatisticsForUserRow
+		if err := rows.Scan(
+			&i.DeckID,
+			&i.GamesPlayed,
+			&i.GamesWon,
+			&i.HighestLifeTotalAchieved,
+			&i.TotalCommanderDamageDealt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGameActionsForGame = `-- name: ListGameActionsForGame :many
 SELECT id, game_id, actor_id, target_id, action_type, payload, created_at FROM game_actions WHERE game_id = $1 ORDER BY created_at ASC
 `

@@ -1418,6 +1418,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserStatsResponse'
+  /statistics/decks:
+    get:
+      summary: Get statistics for every deck of the authenticated user
+      description: >-
+        A single call replacing one GET /statistics/deck/{id} per deck --
+        used by the web dashboard and the per-deck statistics page, which
+        used to do that N+1.
+      responses:
+        '200':
+          description: Statistics for every deck owned by the user (zeros for a deck never played), empty array if they own none
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeckStatsResponse'
   /statistics/deck/{id}:
     get:
       summary: Get statistics for a deck of the authenticated user

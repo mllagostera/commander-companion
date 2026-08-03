@@ -19,8 +19,8 @@ import (
 
 const testPassword = "test-password-123"
 
-// noopMoxfieldClient satisface decks.MoxfieldClient sin golpear la API real;
-// estos tests nunca importan decks de Moxfield, solo necesitan crear decks propios.
+// noopMoxfieldClient satisfies decks.MoxfieldClient without hitting the real API;
+// these tests never import decks from Moxfield, they only need to create their own decks.
 type noopMoxfieldClient struct{}
 
 func (noopMoxfieldClient) GetDeck(_ context.Context, _ string) (*moxfield.Deck, error) {
@@ -42,8 +42,8 @@ func truncateStatsTables(t *testing.T, pool *pgxpool.Pool) {
 	testutil.Truncate(t, pool, "games", "playgroups", "users")
 }
 
-// twoPlayerGame agrupa todos los servicios y IDs de una partida de 2 jugadores lista
-// para jugarse, para no repetir el setup en cada test.
+// twoPlayerGame groups all the services and IDs of a 2-player game ready to
+// be played, to avoid repeating the setup in every test.
 type twoPlayerGame struct {
 	games     games.Service
 	actions   gameactions.Service
@@ -71,22 +71,22 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, creatorID, playgroupID
 		Username: "p1-" + t.Name(), Email: "p1-" + t.Name() + "@example.com", Password: testPassword,
 	})
 	if err != nil {
-		t.Fatalf("registrando usuario 1: %v", err)
+		t.Fatalf("registering user 1: %v", err)
 	}
 	user2, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "p2-" + t.Name(), Email: "p2-" + t.Name() + "@example.com", Password: testPassword,
 	})
 	if err != nil {
-		t.Fatalf("registrando usuario 2: %v", err)
+		t.Fatalf("registering user 2: %v", err)
 	}
 
 	deck1, err := decksSvc.CreateDeck(ctx, user1.ID, decks.CreateDeckRequest{Name: "D1", Commander: "C1"})
 	if err != nil {
-		t.Fatalf("creando deck 1: %v", err)
+		t.Fatalf("creating deck 1: %v", err)
 	}
 	deck2, err := decksSvc.CreateDeck(ctx, user2.ID, decks.CreateDeckRequest{Name: "D2", Commander: "C2"})
 	if err != nil {
-		t.Fatalf("creando deck 2: %v", err)
+		t.Fatalf("creating deck 2: %v", err)
 	}
 
 	game := mustCreateGame(t, gamesSvc, creatorID, playgroupID)
@@ -179,7 +179,7 @@ func createFounder(t *testing.T, pool *pgxpool.Pool) *users.UserResponse {
 		Username: "founder-" + t.Name(), Email: "founder-" + t.Name() + "@example.com", Password: testPassword,
 	})
 	if err != nil {
-		t.Fatalf("registrando fundador del playgroup: %v", err)
+		t.Fatalf("registering playgroup founder: %v", err)
 	}
 	return user
 }
@@ -193,12 +193,12 @@ func TestGetUserStats_NoGamesYet_ReturnsZeroValues(t *testing.T) {
 		Username: "fresh-user", Email: "fresh-user@example.com", Password: testPassword,
 	})
 	if err != nil {
-		t.Fatalf("registrando usuario: %v", err)
+		t.Fatalf("registering user: %v", err)
 	}
 
 	res := mustGetUserStats(t, statistics.NewService(pool, playgroups.NewService(pool)), user.ID)
 	if res.GamesPlayed != 0 || res.GamesWon != 0 {
-		t.Fatalf("GetUserStats() de un usuario sin partidas = %+v, want todo en cero", res)
+		t.Fatalf("GetUserStats() for a user with no games = %+v, want everything zero", res)
 	}
 }
 
@@ -213,23 +213,23 @@ func TestGetDeckStats_OwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 		Username: "deck-owner", Email: "deck-owner@example.com", Password: testPassword,
 	})
 	if err != nil {
-		t.Fatalf("registrando usuario: %v", err)
+		t.Fatalf("registering user: %v", err)
 	}
 	intruder, err := usersSvc.RegisterUser(ctx, users.RegisterRequest{
 		Username: "deck-intruder", Email: "deck-intruder@example.com", Password: testPassword,
 	})
 	if err != nil {
-		t.Fatalf("registrando usuario: %v", err)
+		t.Fatalf("registering user: %v", err)
 	}
 	deck, err := decksSvc.CreateDeck(ctx, owner.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
 	if err != nil {
-		t.Fatalf("creando deck: %v", err)
+		t.Fatalf("creating deck: %v", err)
 	}
 
 	svc := statistics.NewService(pool, playgroups.NewService(pool))
 	_, err = svc.GetDeckStats(ctx, intruder.ID, deck.ID)
 	if !errors.Is(err, statistics.ErrDeckNotFound) {
-		t.Fatalf("GetDeckStats() de un deck ajeno: error = %v, want ErrDeckNotFound", err)
+		t.Fatalf("GetDeckStats() for someone else's deck: error = %v, want ErrDeckNotFound", err)
 	}
 }
 
@@ -238,7 +238,7 @@ func TestRecalculateForGame_WinnerGetsCreditForWinAndDamage(t *testing.T) {
 	truncateStatsTables(t, pool)
 	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
 
-	// player1 elimina a player2 a puro CombatDamage; player1 sobrevive con vida llena.
+	// player1 eliminates player2 with pure CombatDamage; player1 survives at full life.
 	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
@@ -274,7 +274,7 @@ func TestRecalculateForGame_NoSurvivors_NoWinnerCredited(t *testing.T) {
 	truncateStatsTables(t, pool)
 	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
 
-	// Partida cortada manualmente sin que nadie quede eliminado: 2 sobrevivientes, sin ganador.
+	// Game manually cut short with nobody eliminated: 2 survivors, no winner.
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
 	stats1 := mustGetUserStats(t, g.stats, g.user1.ID)
@@ -304,11 +304,11 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 		Username: "opponent-" + t.Name(), Email: "opponent-" + t.Name() + "@example.com", Password: testPassword,
 	})
 	if err != nil {
-		t.Fatalf("registrando oponente: %v", err)
+		t.Fatalf("registering opponent: %v", err)
 	}
 	opponentDeck, err := decksSvc.CreateDeck(ctx, opponent.ID, decks.CreateDeckRequest{Name: "OD", Commander: "OC"})
 	if err != nil {
-		t.Fatalf("creando deck del oponente: %v", err)
+		t.Fatalf("creating opponent's deck: %v", err)
 	}
 
 	game2 := mustCreateGame(t, gamesSvc, "irrelevant", "")
@@ -319,7 +319,75 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 
 	stats := mustGetUserStats(t, statsSvc, g1.user1.ID)
 	if stats.GamesPlayed != 2 {
-		t.Fatalf("GetUserStats() tras 2 partidas del mismo usuario: games_played = %d, want 2", stats.GamesPlayed)
+		t.Fatalf("GetUserStats() after 2 games by the same user: games_played = %d, want 2", stats.GamesPlayed)
+	}
+}
+
+// setupListDeckStatsFixture plays one finished game (player1 wins with a
+// combat-damage kill) and adds a second, never-played deck for user1, so
+// ListDeckStats has both a played and an unplayed deck to report on.
+func setupListDeckStatsFixture(t *testing.T, pool *pgxpool.Pool) (*twoPlayerGame, *decks.DeckResponse) {
+	t.Helper()
+	ctx := context.Background()
+	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
+
+	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
+	unplayedDeck, err := decksSvc.CreateDeck(ctx, g.user1.ID, decks.CreateDeckRequest{Name: "D3", Commander: "C3"})
+	if err != nil {
+		t.Fatalf("creating unplayed deck: %v", err)
+	}
+
+	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
+	return g, unplayedDeck
+}
+
+// TestListDeckStats_ReturnsEveryDeckIncludingUnplayed is the regression test
+// for the web dashboard's N+1: before ListDeckStats existed, showing stats
+// for every deck meant one GetDeckStats call per deck. It must return every
+// deck the user owns in one call, with zeros for a deck never played (same
+// as GetDeckStats).
+func TestListDeckStats_ReturnsEveryDeckIncludingUnplayed(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+	g, unplayedDeck := setupListDeckStatsFixture(t, pool)
+
+	all, err := g.stats.ListDeckStats(context.Background(), g.user1.ID)
+	if err != nil {
+		t.Fatalf("ListDeckStats() error = %v, want nil", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("ListDeckStats() returned %d decks, want 2 (played + unplayed)", len(all))
+	}
+
+	statsByDeckID := make(map[string]statistics.DeckStatsResponse, len(all))
+	for _, s := range all {
+		statsByDeckID[s.DeckID] = s
+	}
+
+	played := statsByDeckID[g.deck1ID]
+	if played.GamesWon != 1 || played.HighestLifeTotal != 40 {
+		t.Fatalf("ListDeckStats()[played] = %+v, want games_won=1 highest_life_total=40", played)
+	}
+	unplayed := statsByDeckID[unplayedDeck.ID]
+	if unplayed.GamesPlayed != 0 || unplayed.GamesWon != 0 {
+		t.Fatalf("ListDeckStats()[unplayed] = %+v, want everything zero", unplayed)
+	}
+}
+
+// TestListDeckStats_OnlyReturnsOwnDecks guards against leaking another
+// user's decks through the join: user2's list must contain exactly their own deck.
+func TestListDeckStats_OnlyReturnsOwnDecks(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+	g, _ := setupListDeckStatsFixture(t, pool)
+
+	otherUsersStats, err := g.stats.ListDeckStats(context.Background(), g.user2.ID)
+	if err != nil {
+		t.Fatalf("ListDeckStats() error = %v, want nil", err)
+	}
+	if len(otherUsersStats) != 1 || otherUsersStats[0].DeckID != g.deck2ID {
+		t.Fatalf("ListDeckStats(user2) = %+v, want only deck2ID (%s)", otherUsersStats, g.deck2ID)
 	}
 }
 
@@ -329,7 +397,7 @@ func TestGetPlaygroupStats_AggregatesFinishedGames(t *testing.T) {
 	ctx := context.Background()
 
 	playgroupsSvc := playgroups.NewService(pool)
-	// El creador del playgroup no participa de la partida; solo se usa el ID del grupo.
+	// The playgroup's creator doesn't take part in the game; only the group's ID is used.
 	founder := createFounder(t, pool)
 	playgroup, err := playgroupsSvc.CreatePlaygroup(ctx, founder.ID, playgroups.CreatePlaygroupRequest{Name: "Liga"})
 	if err != nil {
@@ -366,7 +434,7 @@ func TestGetPlaygroupStats_NotAMember_ReturnsNotFound(t *testing.T) {
 		Username: "playgroup-stats-outsider", Email: "playgroup-stats-outsider@example.com", Password: testPassword,
 	})
 	if err != nil {
-		t.Fatalf("registrando usuario: %v", err)
+		t.Fatalf("registering user: %v", err)
 	}
 
 	// Regression test: before the fix, any authenticated user with the
@@ -374,14 +442,14 @@ func TestGetPlaygroupStats_NotAMember_ReturnsNotFound(t *testing.T) {
 	svc := statistics.NewService(pool, playgroupsSvc)
 	_, err = svc.GetPlaygroupStats(ctx, playgroup.ID, outsider.ID)
 	if !errors.Is(err, statistics.ErrPlaygroupNotFound) {
-		t.Fatalf("GetPlaygroupStats() de alguien ajeno: error = %v, want ErrPlaygroupNotFound", err)
+		t.Fatalf("GetPlaygroupStats() for a non-member: error = %v, want ErrPlaygroupNotFound", err)
 	}
 }
 
 func assertPlaygroupMemberStats(t *testing.T, members []statistics.PlaygroupMemberStats, winnerUserID string) {
 	t.Helper()
 	if len(members) != 2 {
-		t.Fatalf("Members = %+v, want 2 entradas", members)
+		t.Fatalf("Members = %+v, want 2 entries", members)
 	}
 	for _, m := range members {
 		wantWon := int32(0)
@@ -389,7 +457,7 @@ func assertPlaygroupMemberStats(t *testing.T, members []statistics.PlaygroupMemb
 			wantWon = 1
 		}
 		if m.GamesPlayed != 1 || m.GamesWon != wantWon {
-			t.Fatalf("miembro %+v inesperado (want games_played=1 games_won=%d)", m, wantWon)
+			t.Fatalf("unexpected member %+v (want games_played=1 games_won=%d)", m, wantWon)
 		}
 	}
 }

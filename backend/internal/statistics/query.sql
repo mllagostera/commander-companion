@@ -6,6 +6,22 @@ WHERE user_id = $1 LIMIT 1;
 SELECT * FROM deck_statistics_summary
 WHERE deck_id = $1 LIMIT 1;
 
+-- name: ListDeckStatisticsForUser :many
+-- Every deck owned by the user, LEFT JOINed against its summary row (a deck
+-- never played has none) so a single query replaces the GetDeckStats N+1 the
+-- web dashboard used to do (one request per deck): see internal/decks for
+-- the ordering/definition of "owned by the user".
+SELECT
+  d.id AS deck_id,
+  COALESCE(s.games_played, 0)::int AS games_played,
+  COALESCE(s.games_won, 0)::int AS games_won,
+  COALESCE(s.highest_life_total_achieved, 0)::int AS highest_life_total_achieved,
+  COALESCE(s.total_commander_damage_dealt, 0)::int AS total_commander_damage_dealt
+FROM decks d
+LEFT JOIN deck_statistics_summary s ON s.deck_id = d.id
+WHERE d.user_id = $1
+ORDER BY d.created_at DESC;
+
 -- name: GetDeckByID :one
 SELECT * FROM decks WHERE id = $1 LIMIT 1;
 

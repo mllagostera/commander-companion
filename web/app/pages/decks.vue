@@ -3,7 +3,7 @@ import type { Deck, DeckResyncJob, DeckStats, PaginatedResponse } from '~/types/
 
 const { t } = useI18n()
 const { listDecksPage, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus } = useDecks()
-const { deckStats } = useStatistics()
+const { allDeckStats } = useStatistics()
 const { showToast } = useToast()
 
 // --------------------------------------------------------- paginated list
@@ -51,7 +51,7 @@ async function loadAllRemaining() {
 // by the time this continues (its flush timing isn't guaranteed relative to
 // this function resuming after the `await`) -- syncs explicitly instead.
 async function refresh() {
-  await refreshFirstPage()
+  await Promise.all([refreshFirstPage(), refreshStats()])
   syncFromFirstPage(firstPage.value)
   if (deckSearch.value.trim()) await loadAllRemaining()
 }
@@ -73,26 +73,12 @@ watch(scrollSentinel, (el, previousEl) => {
 
 onUnmounted(() => scrollObserver?.disconnect())
 
-// Stats per deck, only used for sorting (played/wins/win rate) — the
-// Deck itself doesn't carry them. Best-effort: a deck with no stats doesn't break the rest of the list.
-// Only fetches for decks not already known: `decks` grows as more pages load
-// (scroll/search), and re-fetching everyone's stats on every page would make
-// each new page redo all the work of the ones before it.
-const statsByDeckId = ref<Record<string, DeckStats | null>>({})
-
-watch(
-  decks,
-  async (list) => {
-    if (!list) return
-    const missing = list.filter((d) => !(d.id in statsByDeckId.value))
-    if (!missing.length) return
-    const entries = await Promise.all(
-      missing.map(async (d) => [d.id, await deckStats(d.id).catch(() => null)] as const),
-    )
-    statsByDeckId.value = { ...statsByDeckId.value, ...Object.fromEntries(entries) }
-  },
-  { immediate: true },
-)
+// Stats per deck, only used for sorting (played/wins/win rate) — the Deck
+// itself doesn't carry them. Fetched once for every deck up front (not
+// incrementally as pages load): a single request, independent of how many
+// pages the grid ends up loading via scroll/search.
+const { data: statsList, refresh: refreshStats } = await useAsyncData('decks-stats', () => allDeckStats(), { default: () => [] })
+const statsByDeckId = computed(() => new Map((statsList.value ?? []).map((s) => [s.deck_id, s])))
 
 const isImportModalOpen = ref(false)
 const moxfieldInput = ref('')
@@ -207,7 +193,7 @@ watch(deckSearch, (q) => {
 })
 
 function statsFor(deck: Deck): DeckStats | null {
-  return statsByDeckId.value[deck.id] ?? null
+  return statsByDeckId.value.get(deck.id) ?? null
 }
 
 const filteredDecks = computed(() => {

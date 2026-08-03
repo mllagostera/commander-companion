@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { Deck, DeckStats, Playgroup, UserStats } from '~/types/api'
 
-const { userStats, deckStats, playgroupStats } = useStatistics()
-const { listDecks } = useDecks()
+const { userStats, allDeckStats, playgroupStats } = useStatistics()
+const { listAllDecks } = useDecks()
 const { listPlaygroups } = usePlaygroups()
 
 interface DeckWithStats {
@@ -16,14 +16,12 @@ interface GroupSummary extends Playgroup {
 }
 
 const { data, error, refresh } = await useAsyncData('statistics', async () => {
-  const [user, decks, playgroups] = await Promise.all([userStats(), listDecks(), listPlaygroups()])
+  const [user, decks, playgroups, deckStatsList] = await Promise.all([
+    userStats(), listAllDecks(), listPlaygroups(), allDeckStats(),
+  ])
+  const statsByDeckId = new Map(deckStatsList.map((s) => [s.deck_id, s]))
 
-  const perDeck: DeckWithStats[] = await Promise.all(
-    decks.map(async (deck) => ({
-      deck,
-      stats: await deckStats(deck.id).catch(() => null),
-    })),
-  )
+  const perDeck: DeckWithStats[] = decks.map((deck) => ({ deck, stats: statsByDeckId.get(deck.id) ?? null }))
 
   // games_played is best-effort: a group that never played may return 404
   // (see GetPlaygroupStats in internal/statistics/service.go).
