@@ -48,6 +48,8 @@ data class GameState(
     val players: List<PlayerState> = emptyList(),
     val currentTurn: Int = 1,
     val startingPlayerId: Int? = null,
+    /** Seat whose turn it currently is, so the tracker UI can ring-highlight its quadrant. Mirrors [startingPlayerId] until [nextTurn][GameViewModel.nextTurn] advances it. */
+    val currentTurnPlayerId: Int? = startingPlayerId,
     val isFinished: Boolean = false,
     val winnerId: Int? = null,
     val remoteSync: RemoteSyncState = RemoteSyncState(),

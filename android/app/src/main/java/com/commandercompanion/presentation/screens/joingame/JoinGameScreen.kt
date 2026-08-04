@@ -52,97 +52,113 @@ fun JoinGameScreen(
                 )
             }
 
-            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-                Text(
-                    stringResource(R.string.join_game_subtitle),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                SectionEyebrow(stringResource(R.string.setup_group_label))
-                Spacer(modifier = Modifier.height(8.dp))
-                if (state.playgroups.isEmpty()) {
-                    Text(stringResource(R.string.setup_no_playgroups), color = AppFaint, fontSize = 12.sp)
-                } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(state.playgroups) { playgroup ->
-                            SelectableChip(
-                                label = playgroup.name,
-                                selected = playgroup.id == state.selectedPlaygroup?.id,
-                                onClick = { viewModel.selectPlaygroup(playgroup) }
-                            )
-                        }
-                    }
-                }
-
-                if (state.selectedPlaygroup != null) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    SectionEyebrow(stringResource(R.string.join_game_open_games_label))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    when {
-                        state.isLoadingGames ->
-                            Text(stringResource(R.string.join_game_loading), color = AppFaint, fontSize = 12.sp)
-                        state.joinableGames.isEmpty() ->
-                            Text(stringResource(R.string.join_game_no_open_games), color = AppFaint, fontSize = 12.sp)
-                        else -> LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(state.joinableGames) { game ->
-                                GameRow(
-                                    game = game,
-                                    playgroup = state.selectedPlaygroup,
-                                    selected = game.id == state.selectedGameId,
-                                    onClick = { viewModel.selectGame(game.id) }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (state.selectedGameId != null) {
+            // A single scrolling LazyColumn (header info + game rows + the join button all as
+            // items) rather than a fixed header above a weighted games list: in landscape
+            // there's much less height to work with, and a non-scrollable header could
+            // otherwise push the games list and the join button off-screen with no way to
+            // reach them (same issue fixed on PlayerSetupScreen).
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                contentPadding = PaddingValues(bottom = 20.dp)
+            ) {
+                item {
+                    Text(
+                        stringResource(R.string.join_game_subtitle),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
-                    SectionEyebrow(stringResource(R.string.setup_which_deck))
+
+                    SectionEyebrow(stringResource(R.string.setup_group_label))
                     Spacer(modifier = Modifier.height(8.dp))
-                    if (state.ownDecks.isEmpty()) {
-                        Text(stringResource(R.string.join_game_no_own_decks), color = AppFaint, fontSize = 12.sp)
+                    if (state.playgroups.isEmpty()) {
+                        Text(stringResource(R.string.setup_no_playgroups), color = AppFaint, fontSize = 12.sp)
                     } else {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(state.ownDecks) { deck ->
+                            items(state.playgroups) { playgroup ->
                                 SelectableChip(
-                                    label = deck.name,
-                                    selected = deck.id == state.selectedDeckId,
-                                    onClick = { viewModel.selectDeck(deck.id) }
+                                    label = playgroup.name,
+                                    selected = playgroup.id == state.selectedPlaygroup?.id,
+                                    onClick = { viewModel.selectPlaygroup(playgroup) }
                                 )
                             }
                         }
                     }
+
+                    if (state.selectedPlaygroup != null) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        SectionEyebrow(stringResource(R.string.join_game_open_games_label))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        when {
+                            state.isLoadingGames ->
+                                Text(stringResource(R.string.join_game_loading), color = AppFaint, fontSize = 12.sp)
+                            state.joinableGames.isEmpty() ->
+                                Text(stringResource(R.string.join_game_no_open_games), color = AppFaint, fontSize = 12.sp)
+                        }
+                    }
                 }
 
-                if (state.error != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(state.error, color = StatusDanger, fontSize = 12.sp)
+                if (state.selectedPlaygroup != null && !state.isLoadingGames && state.joinableGames.isNotEmpty()) {
+                    items(state.joinableGames) { game ->
+                        GameRow(
+                            game = game,
+                            playgroup = state.selectedPlaygroup,
+                            selected = game.id == state.selectedGameId,
+                            onClick = { viewModel.selectGame(game.id) },
+                            modifier = Modifier.padding(bottom = 10.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                GradientButton(
-                    text = stringResource(R.string.join_game_join_button),
-                    enabled = state.selectedGameId != null && state.selectedDeckId != null && !state.isJoining,
-                    onClick = { viewModel.join(onJoined) },
-                    modifier = Modifier.padding(bottom = 20.dp)
-                )
+                item {
+                    if (state.selectedGameId != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        SectionEyebrow(stringResource(R.string.setup_which_deck))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (state.ownDecks.isEmpty()) {
+                            Text(stringResource(R.string.join_game_no_own_decks), color = AppFaint, fontSize = 12.sp)
+                        } else {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(state.ownDecks) { deck ->
+                                    SelectableChip(
+                                        label = deck.name,
+                                        selected = deck.id == state.selectedDeckId,
+                                        onClick = { viewModel.selectDeck(deck.id) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (state.error != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(state.error, color = StatusDanger, fontSize = 12.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    GradientButton(
+                        text = stringResource(R.string.join_game_join_button),
+                        enabled = state.selectedGameId != null && state.selectedDeckId != null && !state.isJoining,
+                        onClick = { viewModel.join(onJoined) }
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun GameRow(game: GameDto, playgroup: PlaygroupDto?, selected: Boolean, onClick: () -> Unit) {
+private fun GameRow(
+    game: GameDto,
+    playgroup: PlaygroupDto?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val usernames = game.players.mapNotNull { player ->
         playgroup?.members?.firstOrNull { it.userId == player.userId }?.username
     }
-    GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    GlassCard(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 stringResource(R.string.join_game_seats_taken, game.players.size),

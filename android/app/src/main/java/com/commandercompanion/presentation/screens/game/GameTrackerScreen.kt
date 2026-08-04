@@ -44,6 +44,10 @@ import com.commandercompanion.presentation.theme.StatusDanger
 import com.commandercompanion.presentation.theme.StatusPoison
 import kotlinx.coroutines.delay
 
+/** How long the starter-draw ring spins across the seats before landing, and how fast each step advances. */
+private const val RANDOMIZE_STEP_DELAY_MS = 130L
+private const val RANDOMIZE_STEPS = 10
+
 @Composable
 fun GameTrackerScreen(
     onFinish: () -> Unit,
@@ -52,13 +56,24 @@ fun GameTrackerScreen(
     val state by viewModel.state
     var paused by rememberSaveable { mutableStateOf(false) }
     var expandedPlayerId by rememberSaveable { mutableStateOf<Int?>(null) }
-    var showStarterBanner by rememberSaveable { mutableStateOf(state.startingPlayerId != null) }
+    var randomizingStarter by rememberSaveable { mutableStateOf(state.startingPlayerId != null) }
+    var randomHighlightId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showStarterBanner by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        if (showStarterBanner) {
-            delay(1800)
-            showStarterBanner = false
+        if (!randomizingStarter) return@LaunchedEffect
+        val seatIds = state.players.map { it.id }
+        if (seatIds.isNotEmpty()) {
+            repeat(RANDOMIZE_STEPS) { step ->
+                randomHighlightId = seatIds[step % seatIds.size]
+                delay(RANDOMIZE_STEP_DELAY_MS)
+            }
         }
+        randomizingStarter = false
+        randomHighlightId = null
+        showStarterBanner = true
+        delay(1800)
+        showStarterBanner = false
     }
 
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -77,7 +92,10 @@ fun GameTrackerScreen(
                     onLifeChange = viewModel::adjustLife,
                     onCommanderDamageChange = viewModel::adjustCommanderDamage,
                     onPoisonChange = viewModel::adjustPoison,
-                    onPassTurn = { viewModel.nextTurn() }
+                    onPassTurn = { viewModel.nextTurn() },
+                    activeTurnPlayerId = state.currentTurnPlayerId,
+                    randomizingStarter = randomizingStarter,
+                    randomHighlightId = randomHighlightId
                 )
 
                 Text(
@@ -125,9 +143,19 @@ private fun QuadrantGrid(
     onLifeChange: (playerId: Int, amount: Int) -> Unit,
     onCommanderDamageChange: (targetPlayerId: Int, attackerId: Int, amount: Int) -> Unit,
     onPoisonChange: (playerId: Int, amount: Int) -> Unit,
-    onPassTurn: () -> Unit
+    onPassTurn: () -> Unit,
+    activeTurnPlayerId: Int?,
+    randomizingStarter: Boolean,
+    randomHighlightId: Int?
 ) {
     val topCount = (players.size + 1) / 2
+    // While the starter draw is spinning, its highlight takes over the ring from whoever's turn it
+    // actually is; once it lands, the ring reverts to reflecting the real turn owner.
+    fun ringFor(playerId: Int): SeatRing? = when {
+        randomizingStarter && randomHighlightId == playerId -> SeatRing.Randomizing
+        !randomizingStarter && activeTurnPlayerId == playerId -> SeatRing.ActiveTurn
+        else -> null
+    }
     Column(
         modifier = Modifier.fillMaxSize().padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -147,6 +175,7 @@ private fun QuadrantGrid(
                     onCommanderDamageChange = { attackerId, delta -> onCommanderDamageChange(player.id, attackerId, delta) },
                     onPoisonChange = { delta -> onPoisonChange(player.id, delta) },
                     onPassTurn = onPassTurn,
+                    ring = ringFor(player.id),
                     rotated = true,
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
@@ -165,6 +194,7 @@ private fun QuadrantGrid(
                     onCommanderDamageChange = { attackerId, delta -> onCommanderDamageChange(player.id, attackerId, delta) },
                     onPoisonChange = { delta -> onPoisonChange(player.id, delta) },
                     onPassTurn = onPassTurn,
+                    ring = ringFor(player.id),
                     rotated = false,
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
@@ -172,6 +202,9 @@ private fun QuadrantGrid(
         }
     }
 }
+
+/** Which ring, if any, wraps a seat's quadrant this frame — see [QuadrantGrid]'s `ringFor`. */
+private enum class SeatRing { Randomizing, ActiveTurn }
 
 @Composable
 private fun PlayerQuadrant(
@@ -184,17 +217,24 @@ private fun PlayerQuadrant(
     onCommanderDamageChange: (attackerId: Int, delta: Int) -> Unit,
     onPoisonChange: (Int) -> Unit,
     onPassTurn: () -> Unit,
+    ring: SeatRing?,
     rotated: Boolean,
     modifier: Modifier = Modifier
 ) {
     val eliminated = player.isEliminated()
     val deathAlpha by animateFloatAsState(targetValue = if (eliminated) 1f else 0f, animationSpec = tween(900), label = "death")
+    val ringColor = when (ring) {
+        SeatRing.Randomizing -> AppOnBackground
+        SeatRing.ActiveTurn -> AccentSoft
+        null -> null
+    }
 
     Box(
         modifier = modifier
             .then(if (rotated) Modifier.rotate(180f) else Modifier)
             .clip(RoundedCornerShape(22.dp))
             .background(player.color)
+            .then(if (ringColor != null) Modifier.border(4.dp, ringColor, RoundedCornerShape(22.dp)) else Modifier)
             .clickable(onClick = onToggleExpand)
     ) {
         Box(

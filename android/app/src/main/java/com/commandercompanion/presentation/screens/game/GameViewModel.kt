@@ -142,7 +142,7 @@ class GameViewModel @Inject constructor(
     /**
      * Creates the game on the backend and seats every seat that ended up assigned to a
      * real user with a chosen deck (`PlayerConfig.assignedUserId`/`deckId`, set by
-     * `PlayerSetupScreen` in Group mode).
+     * `PreGameScreen` in Group mode).
      *
      * Deliberately best-effort: if it fails (no network, no session) the game is still
      * playable locally, and only the reason is reflected in [GameState.remoteSync].
@@ -294,8 +294,12 @@ class GameViewModel @Inject constructor(
         checkForGameOver()
     }
 
+    /** Advances the turn counter and hands the ring highlight to the next seat, wrapping around. */
     fun nextTurn() {
-        _state.value = _state.value.copy(currentTurn = _state.value.currentTurn + 1)
+        val seatIds = _state.value.players.map { it.id }
+        val currentIndex = seatIds.indexOf(_state.value.currentTurnPlayerId)
+        val nextPlayerId = if (currentIndex == -1) seatIds.firstOrNull() else seatIds[(currentIndex + 1) % seatIds.size]
+        _state.value = _state.value.copy(currentTurn = _state.value.currentTurn + 1, currentTurnPlayerId = nextPlayerId)
     }
 
     private fun checkForGameOver() {

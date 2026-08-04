@@ -79,9 +79,6 @@
     <string name="pregame_rotate_prompt">Rotate your device\nto pick seats</string>
     <string name="pregame_seat_label">Seat %1$d</string>
     <string name="pregame_mulligans">Mulligans</string>
-    <string name="pregame_starts">Starting: %1$s</string>
-    <string name="pregame_who_starts">Who goes first?</string>
-    <string name="pregame_shuffle">SHUFFLE</string>
     <string name="pregame_begin">START</string>
 
     <!-- Tracker de partida -->

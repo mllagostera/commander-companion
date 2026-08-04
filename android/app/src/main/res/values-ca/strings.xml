@@ -79,9 +79,6 @@
     <string name="pregame_rotate_prompt">Gira el teu dispositiu\nper triar seients</string>
     <string name="pregame_seat_label">Seient %1$d</string>
     <string name="pregame_mulligans">Mulligans</string>
-    <string name="pregame_starts">Comença: %1$s</string>
-    <string name="pregame_who_starts">Qui comença?</string>
-    <string name="pregame_shuffle">SORTEIG</string>
     <string name="pregame_begin">COMENÇA</string>
 
     <!-- Tracker de partida -->

@@ -43,12 +43,13 @@ fun httpException(code: Int, body: String = """{"message":"boom"}"""): HttpExcep
 
 // --------------------------------------------------------------------- fixture DTOs
 
-fun deckDto(id: String = "deck-1", name: String = "Atraxa") = DeckDto(
+fun deckDto(id: String = "deck-1", name: String = "Atraxa", imageUrl: String? = null) = DeckDto(
     id = id,
     userId = "user-1",
     name = name,
     commander = "Atraxa, Praetors' Voice",
-    moxfieldId = null
+    moxfieldId = null,
+    imageUrl = imageUrl
 )
 
 fun gameDto(
