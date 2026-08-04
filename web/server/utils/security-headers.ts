@@ -44,7 +44,7 @@ export function inlineScriptHashes(html: string): string[] {
   return [...hashes]
 }
 
-export function buildCsp(scriptHashes: string[]): string {
+export function buildCsp(scriptHashes: string[], isHttps: boolean): string {
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
     'base-uri': ["'self'"],
@@ -62,8 +62,14 @@ export function buildCsp(scriptHashes: string[]): string {
     'font-src': ["'self'", 'data:'],
     'connect-src': ["'self'", GOOGLE_IDENTITY_ORIGIN],
     'frame-src': [GOOGLE_IDENTITY_ORIGIN],
-    'upgrade-insecure-requests': [],
   }
+
+  // Same condition as the HSTS header below: only meaningful (and not actively
+  // harmful) when this response itself was served over HTTPS. On a plain-HTTP
+  // response it forces every sub-resource fetch (the `/_nuxt/*` scripts and
+  // stylesheets included) to be upgraded to https:// regardless of whether
+  // anything is listening there — breaking the page instead of securing it.
+  if (isHttps) directives['upgrade-insecure-requests'] = []
 
   return Object.entries(directives)
     .map(([directive, sources]) => (sources.length ? `${directive} ${sources.join(' ')}` : directive))
@@ -71,16 +77,19 @@ export function buildCsp(scriptHashes: string[]): string {
 }
 
 export function applySecurityHeaders(event: H3Event, body: string) {
+  const isHttps = getRequestProtocol(event) === 'https'
+
   setResponseHeader(event, 'X-Content-Type-Options', 'nosniff')
   setResponseHeader(event, 'X-Frame-Options', 'DENY')
   setResponseHeader(event, 'Referrer-Policy', 'strict-origin-when-cross-origin')
-  setResponseHeader(event, 'Content-Security-Policy', buildCsp(inlineScriptHashes(body)))
+  setResponseHeader(event, 'Content-Security-Policy', buildCsp(inlineScriptHashes(body), isHttps))
 
   // HSTS only makes sense (and is only honored by browsers) over an actual
-  // HTTPS connection — same check setSessionCookies uses for the Secure cookie
-  // flag. includeSubDomains without preload: a strong default without the
+  // HTTPS connection — same check the CSP's upgrade-insecure-requests above
+  // uses, and that setSessionCookies uses for the Secure cookie flag.
+  // includeSubDomains without preload: a strong default without the
   // harder-to-reverse commitment of submitting to browsers' preload lists.
-  if (getRequestProtocol(event) === 'https') {
+  if (isHttps) {
     setResponseHeader(event, 'Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
   }
 }
