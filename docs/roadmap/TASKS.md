@@ -11,7 +11,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - Keep each line short (status + what + a pointer to the file/module). Put narrative, rationale, and verification detail in DECISIONS-LOG.md instead, dated, under the matching stage — don't let it accumulate here again.
 - Update the "Last reviewed" date every time the real state of the code is audited, and add the corresponding entry to DECISIONS-LOG.md.
 
-**Last reviewed:** 2026-08-01 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
+**Last reviewed:** 2026-08-05 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
 
 ---
 
@@ -79,6 +79,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Proxy-join via `game_players.added_by` + `RecordAction` actor-ownership authorization — see [ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)
 - [x] `GET /users/search?q=`: username partial + exact-email match, no email leak of others, rate-limited
 - [x] `PATCH /playgroups/{id}` rename; `GET /playgroups/{id}/members/{userId}/decks`
+- [x] `GET /users/username-available?username=`: public, rate-limited, exact case-sensitive match — used by the web/Android registration forms to validate before submitting (2026-08-05)
 
 ### Statistics — real recalculation and queries
 - [x] `games/service.go: FinishGame` triggers `statistics.RecalculateForGame(gameID)`
@@ -98,6 +99,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] PostgreSQL pinned to 18 everywhere (`docker-compose.yml`, `backend-ci.yml`)
 - [x] Goose migrations applied automatically on binary startup (`internal/common/migrate.go`, session-level advisory lock for multi-replica safety)
 - [x] Render deployment groundwork documented (`backend/README.md`) — see [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md)
+- [x] **TCP_NODELAY on accepted connections** (`cmd/api/listener.go`, found and fixed 2026-08-05): fasthttp (Fiber's engine) doesn't disable Nagle's algorithm itself, so a keep-alive connection reused across requests stalled ~40ms per request (Nagle plus the peer's delayed ACK) before the server saw a split header/body write. `main.go` now wraps the raw `net.Listener` to set `SetNoDelay(true)` on every accepted `*net.TCPConn`. Confirmed locally: ~45ms → ~5-7ms for a POST with a JSON body over a reused connection.
 
 ## Stage 2: Database
 
@@ -176,6 +178,9 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Aggregation queries (`UpsertUserStatistics`/`UpsertDeckStatistics`)
 - [x] Real `GetUserStats`/`GetDeckStats`/`GetPlaygroupStats`
 - [x] Statistics UI on Android (`StatisticsScreen`/`StatisticsViewModel`, same 3 endpoints as the web)
+- [x] Head-to-head opponent stats (`GET /statistics/opponents`), per-playgroup game counts in one request (`GET /statistics/playgroups`, replaces the web client's old per-group `GetPlaygroupStats` loop), and a keyset-paginated finished-games history (`GET /statistics/games`) — all live-computed, no summary table (2026-08-05)
+- [x] Web `statistics.vue`: decks/games tabs, deck sorting (recent/win rate/games played), "most played group" and "archenemy" cards from the new endpoints
+- [x] Android: `FinishedGamesViewModel` + `StatisticsScreen` updated for the same finished-games history
 
 ## Stage 8: Moxfield Import
 

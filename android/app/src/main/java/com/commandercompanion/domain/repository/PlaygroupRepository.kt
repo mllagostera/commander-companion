@@ -5,7 +5,7 @@ import com.commandercompanion.data.remote.dto.PlaygroupDto
 
 /**
  * Access to the authenticated user's play groups (`playgroups`). Used by `PlayerSetupScreen`'s
- * Group mode: choosing a group, assigning its members to seats, and viewing a
+ * Group mode to choose a group, and by `PreGameScreen` to assign its members to seats and view a
  * teammate's decks for a proxy-join (see the backend's ADR-0013).
  */
 interface PlaygroupRepository {

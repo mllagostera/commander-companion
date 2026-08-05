@@ -62,6 +62,7 @@
     <string name="setup_seat_label">Seat</string>
     <string name="setup_pick_group_first">Pick a group above to be able to assign players.</string>
     <string name="setup_guest">Guest</string>
+    <string name="setup_group_seat_placeholder">Seat, color and deck are chosen when the game starts.</string>
 
     <!-- Join a game (from another device) -->
     <string name="join_game_title">Join a game</string>
@@ -79,9 +80,6 @@
     <string name="pregame_rotate_prompt">Rotate your device\nto pick seats</string>
     <string name="pregame_seat_label">Seat %1$d</string>
     <string name="pregame_mulligans">Mulligans</string>
-    <string name="pregame_starts">Starting: %1$s</string>
-    <string name="pregame_who_starts">Who goes first?</string>
-    <string name="pregame_shuffle">SHUFFLE</string>
     <string name="pregame_begin">START</string>
 
     <!-- Tracker de partida -->
@@ -147,7 +145,23 @@
     <string name="statistics_no_decks">You don\'t have any decks imported yet.</string>
     <string name="statistics_no_deck_stats">No games played with this deck yet.</string>
     <string name="statistics_deck_max_life">Max life</string>
-    <string name="statistics_per_group_heading">By group</string>
-    <string name="statistics_no_groups">You\'re not a member of any group yet.</string>
-    <string name="statistics_group_summary">%1$d games · %2$d members</string>
+    <string name="statistics_tab_by_deck">By deck</string>
+    <string name="statistics_tab_finished_games">Finished games</string>
+    <string name="statistics_sort_recent">Recent</string>
+    <string name="statistics_sort_win_rate">Win rate</string>
+    <string name="statistics_sort_games_played">Games played</string>
+    <string name="statistics_head_to_head_heading">Head-to-head</string>
+    <string name="statistics_most_played_opponent_label">Who you play the most</string>
+    <string name="statistics_archenemy_label">Archenemy</string>
+    <string name="statistics_no_head_to_head">You haven\'t played with other users yet.</string>
+    <string name="statistics_opponent_games_together">%1$d games together</string>
+    <string name="statistics_archenemy_summary">Eliminated you %1$d times</string>
+    <string name="statistics_most_played_group_label">Group you play the most in</string>
+    <string name="statistics_no_group_data">You haven\'t played a game in a group yet.</string>
+    <string name="statistics_group_games_played">%1$d games</string>
+    <string name="statistics_no_finished_games">You haven\'t finished a game yet.</string>
+    <string name="statistics_load_more">Load more</string>
+    <string name="statistics_game_result_won">Won</string>
+    <string name="statistics_game_result_lost">Lost</string>
+    <string name="statistics_game_no_playgroup">Game without a group</string>
 </resources>

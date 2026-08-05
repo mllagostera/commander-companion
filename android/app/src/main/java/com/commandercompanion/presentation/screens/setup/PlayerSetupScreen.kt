@@ -24,9 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.commandercompanion.R
-import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.PlaygroupDto
-import com.commandercompanion.data.remote.dto.PlaygroupMemberDto
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.GlassCard
 import com.commandercompanion.presentation.components.GradientButton
@@ -47,6 +45,13 @@ private const val MAX_PLAYERS = 6
 /** Casual: zero network, zero stats — the usual life tracker. Group: see [PlaygroupDto]. */
 private enum class SetupMode { CASUAL, GROUP }
 
+/**
+ * In Group mode, seats aren't assigned here: this screen only picks the playgroup and
+ * player count. Which member sits where, their deck, and mulligans are all chosen on
+ * [com.commandercompanion.presentation.screens.pregame.PreGameScreen] instead, matching
+ * the mockup ("Asiento, color y deck se eligen al empezar.") — Casual mode keeps
+ * everything here since it has no accounts/decks to assign.
+ */
 @Composable
 fun PlayerSetupScreen(
     onStartGame: (gameId: String, playersEncoded: String, playgroupId: String?) -> Unit,
@@ -63,123 +68,100 @@ fun PlayerSetupScreen(
     }
 
     var selectedPlaygroup by remember { mutableStateOf<PlaygroupDto?>(null) }
-    val assignedMembers = remember {
-        mutableStateListOf(*arrayOfNulls<PlaygroupMemberDto>(MAX_PLAYERS))
-    }
-    val selectedDeckIds = remember {
-        mutableStateListOf(*arrayOfNulls<String>(MAX_PLAYERS))
-    }
 
     AppScreenBackground {
-        Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-            Text(
-                stringResource(R.string.setup_title),
-                color = MaterialTheme.colorScheme.onBackground,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 20.sp
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            PillSegmentedControl(
-                options = listOf(
-                    SetupMode.CASUAL to stringResource(R.string.setup_mode_casual),
-                    SetupMode.GROUP to stringResource(R.string.setup_mode_group)
-                ),
-                selected = mode,
-                onSelected = { mode = it }
-            )
-            Text(
-                text = if (mode == SetupMode.CASUAL) {
-                    stringResource(R.string.setup_mode_casual_description)
-                } else {
-                    stringResource(R.string.setup_mode_group_description)
-                },
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 10.dp)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (mode == SetupMode.GROUP) {
-                PlaygroupPicker(
-                    playgroups = viewModel.playgroups,
-                    selected = selectedPlaygroup,
-                    onSelected = { playgroup ->
-                        selectedPlaygroup = playgroup
-                        assignedMembers.indices.forEach { assignedMembers[it] = null }
-                    }
+        // A single scrolling LazyColumn (header + player rows + the start button all as
+        // items) rather than a fixed header above a weighted list: in landscape there's
+        // much less height to work with, and a non-scrollable header could otherwise push
+        // the player list and the start button off-screen with no way to reach them.
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text(
+                    stringResource(R.string.setup_title),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-            }
 
-            SectionEyebrow(stringResource(R.string.setup_players_label))
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                (MIN_PLAYERS..MAX_PLAYERS).forEach { count ->
-                    SelectableCircle(
-                        label = count.toString(),
-                        selected = playerCount == count,
-                        onClick = { playerCount = count }
+                PillSegmentedControl(
+                    options = listOf(
+                        SetupMode.CASUAL to stringResource(R.string.setup_mode_casual),
+                        SetupMode.GROUP to stringResource(R.string.setup_mode_group)
+                    ),
+                    selected = mode,
+                    onSelected = { mode = it }
+                )
+                Text(
+                    text = if (mode == SetupMode.CASUAL) {
+                        stringResource(R.string.setup_mode_casual_description)
+                    } else {
+                        stringResource(R.string.setup_mode_group_description)
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 10.dp)
+                )
+
+                if (mode == SetupMode.GROUP) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    PlaygroupPicker(
+                        playgroups = viewModel.playgroups,
+                        selected = selectedPlaygroup,
+                        onSelected = { playgroup -> selectedPlaygroup = playgroup }
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(playerCount) { index ->
-                    val takenElsewhere = assignedMembers.filterIndexed { i, m -> i != index && m != null }
-                        .mapNotNull { it?.userId }
-                        .toSet()
-                    PlayerConfigRow(
-                        mode = mode,
-                        name = names[index],
-                        onNameChange = { names[index] = it },
-                        selectedColorKey = colorKeys[index],
-                        onColorSelected = { colorKeys[index] = it },
-                        playgroup = selectedPlaygroup,
-                        availableMembers = selectedPlaygroup?.members?.filter { it.userId !in takenElsewhere } ?: emptyList(),
-                        ownUsername = viewModel.ownUsername,
-                        assignedMember = assignedMembers[index],
-                        onMemberSelected = { member ->
-                            assignedMembers[index] = member
-                            selectedDeckIds[index] = null
-                            val playgroupId = selectedPlaygroup?.id
-                            if (member != null && playgroupId != null) {
-                                viewModel.loadMemberDecks(playgroupId, member.userId)
-                            }
-                        },
-                        memberDecks = assignedMembers[index]?.let { viewModel.decksFor(it.userId) } ?: emptyList(),
-                        selectedDeckId = selectedDeckIds[index],
-                        onDeckSelected = { selectedDeckIds[index] = it }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            GradientButton(
-                text = stringResource(R.string.setup_start_game),
-                onClick = {
-                    val configs = (0 until playerCount).map { index ->
-                        val member = if (mode == SetupMode.GROUP) assignedMembers[index] else null
-                        PlayerConfig(
-                            name = member?.username ?: names[index].ifBlank { defaultPlayerName.format(index + 1) },
-                            colorKey = colorKeys[index],
-                            assignedUserId = member?.userId,
-                            assignedUsername = member?.username,
-                            deckId = if (member != null) selectedDeckIds[index] else null
+                Spacer(modifier = Modifier.height(16.dp))
+                SectionEyebrow(stringResource(R.string.setup_players_label))
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    (MIN_PLAYERS..MAX_PLAYERS).forEach { count ->
+                        SelectableCircle(
+                            label = count.toString(),
+                            selected = playerCount == count,
+                            onClick = { playerCount = count }
                         )
                     }
-                    val playgroupId = if (mode == SetupMode.GROUP) selectedPlaygroup?.id else null
-                    onStartGame(UUID.randomUUID().toString(), encodePlayerConfigs(configs), playgroupId)
                 }
-            )
+            }
+
+            items(playerCount) { index ->
+                PlayerConfigRow(
+                    mode = mode,
+                    name = names[index],
+                    onNameChange = { names[index] = it },
+                    selectedColorKey = colorKeys[index],
+                    onColorSelected = { colorKeys[index] = it }
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                GradientButton(
+                    text = stringResource(R.string.setup_start_game),
+                    onClick = {
+                        val configs = (0 until playerCount).map { index ->
+                            PlayerConfig(
+                                name = if (mode == SetupMode.GROUP) {
+                                    defaultPlayerName.format(index + 1)
+                                } else {
+                                    names[index].ifBlank { defaultPlayerName.format(index + 1) }
+                                },
+                                colorKey = colorKeys[index]
+                            )
+                        }
+                        val playgroupId = if (mode == SetupMode.GROUP) selectedPlaygroup?.id else null
+                        onStartGame(UUID.randomUUID().toString(), encodePlayerConfigs(configs), playgroupId)
+                    }
+                )
+            }
         }
     }
 }
@@ -219,15 +201,7 @@ private fun PlayerConfigRow(
     name: String,
     onNameChange: (String) -> Unit,
     selectedColorKey: String,
-    onColorSelected: (String) -> Unit,
-    playgroup: PlaygroupDto?,
-    availableMembers: List<PlaygroupMemberDto>,
-    ownUsername: String?,
-    assignedMember: PlaygroupMemberDto?,
-    onMemberSelected: (PlaygroupMemberDto?) -> Unit,
-    memberDecks: List<DeckDto>,
-    selectedDeckId: String?,
-    onDeckSelected: (String) -> Unit
+    onColorSelected: (String) -> Unit
 ) {
     GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -244,87 +218,22 @@ private fun PlayerConfigRow(
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
-            } else {
-                MemberPicker(
-                    playgroup = playgroup,
-                    availableMembers = availableMembers,
-                    ownUsername = ownUsername,
-                    assignedMember = assignedMember,
-                    onMemberSelected = onMemberSelected
-                )
-            }
 
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PlayerColorPalette.forEach { (key, color) ->
-                    ColorSwatch(
-                        color = color,
-                        selected = key == selectedColorKey,
-                        onClick = { onColorSelected(key) }
-                    )
-                }
-            }
-
-            if (mode == SetupMode.GROUP && assignedMember != null) {
                 Spacer(modifier = Modifier.height(10.dp))
-                if (memberDecks.isEmpty()) {
-                    Text(
-                        stringResource(R.string.setup_member_no_decks, assignedMember.username),
-                        color = AppFaint,
-                        fontSize = 12.sp
-                    )
-                } else {
-                    Text(stringResource(R.string.setup_which_deck), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(memberDecks) { deck ->
-                            SelectableChip(
-                                label = deck.name,
-                                selected = deck.id == selectedDeckId,
-                                onClick = { onDeckSelected(deck.id) }
-                            )
-                        }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PlayerColorPalette.forEach { (key, color) ->
+                        ColorSwatch(
+                            color = color,
+                            selected = key == selectedColorKey,
+                            onClick = { onColorSelected(key) }
+                        )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MemberPicker(
-    playgroup: PlaygroupDto?,
-    availableMembers: List<PlaygroupMemberDto>,
-    ownUsername: String?,
-    assignedMember: PlaygroupMemberDto?,
-    onMemberSelected: (PlaygroupMemberDto?) -> Unit
-) {
-    Column {
-        Text(stringResource(R.string.setup_seat_label), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        Spacer(modifier = Modifier.height(6.dp))
-        if (playgroup == null) {
-            Text(
-                stringResource(R.string.setup_pick_group_first),
-                color = AppFaint,
-                fontSize = 12.sp
-            )
-            return@Column
-        }
-        val youSuffix = stringResource(R.string.common_you_suffix)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                SelectableChip(
-                    label = stringResource(R.string.setup_guest),
-                    selected = assignedMember == null,
-                    onClick = { onMemberSelected(null) }
-                )
-            }
-            items(availableMembers) { member ->
-                val label = if (member.username == ownUsername) "${member.username} $youSuffix" else member.username
-                SelectableChip(
-                    label = label,
-                    selected = member.userId == assignedMember?.userId,
-                    onClick = { onMemberSelected(member) }
+            } else {
+                Text(
+                    stringResource(R.string.setup_group_seat_placeholder),
+                    color = AppFaint,
+                    fontSize = 12.sp
                 )
             }
         }

@@ -95,7 +95,16 @@ class GameRepositoryImpl @Inject constructor(
 
     // ----------------------------------------------------------- remote (API)
 
-    override suspend fun listGames(): Result<List<GameDto>> = apiCall { api.listGames().items }
+    override suspend fun listGames(): Result<List<GameDto>> {
+        val all = mutableListOf<GameDto>()
+        var cursor: String? = null
+        do {
+            val page = apiCall { api.listGames(cursor) }.getOrElse { return Result.failure(it) }
+            all += page.items
+            cursor = page.nextCursor
+        } while (cursor != null)
+        return Result.success(all)
+    }
 
     override suspend fun listGamesForPlaygroup(playgroupId: String): Result<List<GameDto>> =
         apiCall { api.listGamesForPlaygroup(playgroupId).items }

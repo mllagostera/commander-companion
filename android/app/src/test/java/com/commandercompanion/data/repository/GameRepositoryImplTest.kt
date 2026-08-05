@@ -3,6 +3,7 @@ package com.commandercompanion.data.repository
 import com.commandercompanion.core.util.ApiError
 import com.commandercompanion.data.remote.dto.GameActionType
 import com.commandercompanion.data.remote.dto.GameStatus
+import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.domain.model.LocalSeat
 import com.commandercompanion.domain.model.LocalSeatResult
 import com.commandercompanion.domain.model.RemoteGameSession
@@ -205,5 +206,27 @@ class GameRepositoryImplTest {
         assertEquals(true, dao.updatedResults[0].won)
         assertEquals(12, dao.updatedResults[0].finalLife)
         assertEquals(false, dao.updatedResults[1].won)
+    }
+
+    // --------------------------------------------------------------- listGames
+
+    /**
+     * Regression test: `GET /games` (no `playgroup_id`) paginates at 20 items server-side, same
+     * as `GET /decks` — see [DeckRepositoryImplTest]'s equivalent test for the bug this guards
+     * against.
+     */
+    @Test
+    fun `listGames sigue next_cursor hasta la ultima pagina`() = runTest {
+        api.onListGames = { cursor ->
+            when (cursor) {
+                null -> PagedResponse(items = listOf(gameDto("game-a"), gameDto("game-b")), nextCursor = "page-2")
+                "page-2" -> PagedResponse(items = listOf(gameDto("game-c")), nextCursor = null)
+                else -> error("cursor inesperado: $cursor")
+            }
+        }
+
+        val result = repository.listGames()
+
+        assertEquals(listOf("game-a", "game-b", "game-c"), result.getOrThrow().map { it.id })
     }
 }

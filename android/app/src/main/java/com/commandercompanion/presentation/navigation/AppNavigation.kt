@@ -88,6 +88,7 @@ fun AppNavigation(
             val route = backStackEntry.toRoute<PreGameRoute>()
             PreGameScreen(
                 playersEncoded = route.playersEncoded,
+                playgroupId = route.playgroupId,
                 onContinue = { playersEncoded, startingPlayerSeat ->
                     navController.navigate(
                         GameTrackerRoute(route.gameId, playersEncoded, startingPlayerSeat, route.playgroupId)

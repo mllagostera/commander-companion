@@ -74,6 +74,9 @@ UPDATE users SET email_verified = true
 WHERE id = $1
 RETURNING *;
 
+-- name: UsernameExists :one
+SELECT EXISTS(SELECT 1 FROM users WHERE username = $1) AS exists;
+
 -- name: SearchUsersByUsername :many
 -- Partial, case-insensitive username search, to invite people to a playgroup without
 -- knowing their UUID (see internal/playgroups). Deliberately does NOT search by email

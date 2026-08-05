@@ -20,8 +20,39 @@ type Querier interface {
 	// web dashboard used to do (one request per deck): see internal/decks for
 	// the ordering/definition of "owned by the user".
 	ListDeckStatisticsForUser(ctx context.Context, userID pgtype.UUID) ([]ListDeckStatisticsForUserRow, error)
+	// Keyset pagination over (created_at, id) DESC, scoped to finished games where
+	// the authenticated user had a seat -- same shape as games.ListGamesPage, but
+	// owned here because GET /statistics/games needs the denormalized
+	// player/deck/username data GET /games deliberately doesn't carry (that one is
+	// shared with the dashboard/join-game flow, kept lean on purpose).
+	ListFinishedGamesPage(ctx context.Context, arg ListFinishedGamesPageParams) ([]ListFinishedGamesPageRow, error)
+	// For each game in game_ids: how many turns were played (every TurnStart belongs to
+	// one player's turn, so the count across the whole game is the turn count) and the
+	// single biggest hit (CombatDamage or CommanderDamage) dealt in it, with who dealt it --
+	// powers the finished-games card's "turns" and "biggest hit" stats without the client
+	// re-deriving them from the full action log. Left-joined from game_ids (not game_actions)
+	// so a game with no actions logged still gets a row (zero turns, no biggest hit).
+	ListGameActionSummaryForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListGameActionSummaryForGamesRow, error)
 	ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error)
 	ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
+	// Head-to-head aggregation across every finished game the user has played:
+	// for each other user they've shared a seat with, how many games together and
+	// how many times each side eliminated the other. Live-computed (no summary
+	// table), same choice as ListPlaygroupMemberGameStats above -- read once, on
+	// the statistics screen, not on every request like user_statistics_summary.
+	ListOpponentStats(ctx context.Context, userID pgtype.UUID) ([]ListOpponentStatsRow, error)
+	// Batched fetch of every seat across a page of games (see ListFinishedGamesPage),
+	// enriched with username, deck name/commander/image, and a `won` flag -- one
+	// round trip for the whole page instead of one per game. The winner subquery
+	// (only non-eliminated seat, if there's exactly one) mirrors the identical
+	// pattern already used in ListPlaygroupMemberGameStats above -- same rule,
+	// same SQL shape, not reinvented.
+	ListPlayersForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListPlayersForGamesRow, error)
+	// Every playgroup the user belongs to, with how many finished games they've
+	// played within it -- single query replacing the per-group GetPlaygroupStats
+	// loop the statistics screens used to do (same "every owned/joined X" shape
+	// as ListDeckStatisticsForUser above).
+	ListPlaygroupGameCountsForUser(ctx context.Context, userID pgtype.UUID) ([]ListPlaygroupGameCountsForUserRow, error)
 	ListPlaygroupMemberGameStats(ctx context.Context, playgroupID pgtype.UUID) ([]ListPlaygroupMemberGameStatsRow, error)
 	UpsertDeckStatistics(ctx context.Context, arg UpsertDeckStatisticsParams) error
 	UpsertUserStatistics(ctx context.Context, arg UpsertUserStatisticsParams) error

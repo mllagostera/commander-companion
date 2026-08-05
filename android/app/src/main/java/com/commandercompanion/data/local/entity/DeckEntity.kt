@@ -13,5 +13,6 @@ data class DeckEntity(
     val userId: String,
     val name: String,
     val commander: String,
-    val moxfieldId: String? = null
+    val moxfieldId: String? = null,
+    val imageUrl: String? = null
 )

@@ -29,3 +29,4 @@ GEMINI.md
 # --- Entornos ---
 .env
 *.env.local
+.env.demo

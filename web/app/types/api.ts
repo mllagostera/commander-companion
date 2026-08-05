@@ -145,3 +145,50 @@ export interface PlaygroupStats {
   games_played: number
   members: PlaygroupMemberStats[]
 }
+
+/** One entry of `GET /statistics/playgroups` -- replaces one PlaygroupStats call per group. */
+export interface PlaygroupGameCount {
+  playgroup_id: string
+  playgroup_name: string
+  games_played: number
+}
+
+/** One entry of `GET /statistics/opponents` -- the head-to-head record against one opponent. */
+export interface OpponentStats {
+  user_id: string
+  username: string
+  games_together: number
+  times_you_eliminated_them: number
+  times_eliminated_by_opponent: number
+}
+
+/** One seat within a FinishedGame, already enriched server-side (no client-side lookup needed). */
+export interface FinishedGamePlayer {
+  user_id: string
+  username: string
+  deck_id: string
+  deck_name: string
+  deck_commander: string
+  deck_image_url: string | null
+  won: boolean
+}
+
+/** The single largest CombatDamage/CommanderDamage hit dealt within a FinishedGame. */
+export interface BiggestHit {
+  amount: number
+  username: string
+}
+
+/** One item of `GET /statistics/games` (paginated via PaginatedResponse). */
+export interface FinishedGame {
+  id: string
+  playgroup_id: string | null
+  playgroup_name: string | null
+  started_at: string | null
+  finished_at: string | null
+  players: FinishedGamePlayer[]
+  /** Total turns played (every TurnStart action belongs to one player's turn). */
+  turn_count: number
+  /** Null if the game has no CombatDamage/CommanderDamage actions logged. */
+  biggest_hit: BiggestHit | null
+}

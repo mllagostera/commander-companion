@@ -118,6 +118,10 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
 
+    // Coil: deck art thumbnails (commander card art from the backend's image_url)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+
     testImplementation(libs.junit)
     // runTest + Dispatchers.setMain to test ViewModels and repositories with coroutines.
     testImplementation(libs.kotlinx.coroutines.test)

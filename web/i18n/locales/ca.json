@@ -52,6 +52,11 @@
     "submitting": "Creant el compte…",
     "haveAccount": "Ja tens compte?",
     "loginLink": "Inicia sessió",
+    "username": {
+      "checking": "Comprovant disponibilitat…",
+      "available": "Nom d'usuari disponible",
+      "taken": "Aquest nom d'usuari ja està en ús"
+    },
     "checkEmail": {
       "title": "Revisa el teu correu",
       "bodyIntro": "T'hem enviat un enllaç de confirmació a",
@@ -60,6 +65,7 @@
     },
     "errors": {
       "passwordMismatch": "Les contrasenyes no coincideixen.",
+      "usernameTaken": "Aquest nom d'usuari ja està en ús.",
       "registerFailed": "No s'ha pogut crear el compte."
     }
   },
@@ -179,6 +185,23 @@
       "commanderDamage": "Dany de comandant",
       "eliminations": "Eliminacions"
     },
+    "headToHead": {
+      "heading": "Cara a cara",
+      "empty": "Encara no has jugat cap partida amb altres usuaris.",
+      "mostPlayed": "Contra qui més jugues",
+      "archenemy": "Arxienemic",
+      "gamesTogether": "{count} partides juntes",
+      "eliminatedYou": "T'ha eliminat {count} vegades"
+    },
+    "mostPlayedGroup": {
+      "heading": "Grup en el qual més jugues",
+      "empty": "Encara no has jugat cap partida en un grup.",
+      "summary": "{count} partides"
+    },
+    "tabs": {
+      "byDeck": "Per deck",
+      "finishedGames": "Partides finalitzades"
+    },
     "perDeck": {
       "heading": "Per deck",
       "noDecksIntro": "Encara no tens cap deck.",
@@ -188,12 +211,25 @@
       "games": "Partides",
       "wins": "Victòries",
       "maxLife": "Vida màxima",
-      "commanderDamage": "Dany de comandant"
+      "commanderDamage": "Dany de comandant",
+      "sort": {
+        "recent": "Recents",
+        "winRate": "% victòries",
+        "gamesPlayed": "Partides jugades"
+      }
     },
-    "perGroup": {
-      "heading": "Per grup de joc",
-      "empty": "Encara no ets membre de cap grup.",
-      "summary": "{games} partides · {members} membres"
+    "finishedGames": {
+      "loading": "Carregant partides...",
+      "loadingMore": "Carregant...",
+      "empty": "Encara no has acabat cap partida.",
+      "noGroup": "Partida sense grup",
+      "won": "Ha guanyat",
+      "lost": "Ha perdut",
+      "winner": "Guanyador",
+      "duration": "Durada",
+      "turns": "Torns",
+      "biggestHit": "Cop més fort",
+      "loadMore": "Carrega'n més"
     }
   },
   "settings": {

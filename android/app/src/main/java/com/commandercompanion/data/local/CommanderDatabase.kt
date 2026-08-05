@@ -10,7 +10,7 @@ import com.commandercompanion.data.local.entity.PlayerResultEntity
 
 @Database(
     entities = [GameEntity::class, PlayerResultEntity::class, DeckEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class CommanderDatabase : RoomDatabase() {

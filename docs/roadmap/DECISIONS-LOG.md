@@ -25,6 +25,44 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-05 — Statistics: opponent head-to-head, per-playgroup counts,
+finished-games history; username availability check; TCP_NODELAY fix.**
+Three independent pieces of work landed in this session:
+
+- *Statistics.* Three new live-computed queries (`internal/statistics`,
+  `query.sql`/`service.go`): `ListOpponentStats` (head-to-head record —
+  games together, times each side eliminated the other — against every
+  opponent the user has shared a finished game with),
+  `ListPlaygroupGameCountsForUser` (every playgroup the user belongs to with
+  its finished-games count in one query, replacing the web client's old
+  per-group loop over `GetPlaygroupStats`), and `ListFinishedGamesPage`
+  (keyset pagination over `(created_at, id) DESC`, same shape as
+  `games.ListGamesPage` but owned separately in `statistics` because it
+  needs denormalized player/deck/username data the shared `GET /games`
+  deliberately doesn't carry). Exposed as `GET /statistics/opponents`,
+  `GET /statistics/playgroups`, `GET /statistics/games`
+  (`docs/api/openapi.yaml` updated). Web `statistics.vue` gained a
+  decks/games tab split, deck sorting (recent/win rate/games played), and
+  "most played group"/"archenemy" summary cards built from the new
+  endpoints. Android got a matching `FinishedGamesViewModel` plus
+  `StatisticsScreen`/`StatisticsViewModel` updates.
+- *Username availability.* `GET /users/username-available?username=`
+  (`internal/users`): public, unauthenticated, rate-limited alongside the
+  other auth endpoints (an easy enumeration target otherwise), exact
+  case-sensitive match against the same constraint `UpdateUsername` writes
+  under. Wired into the web registration form (debounced check as the user
+  types, submit blocked client-side if the name is already taken — the
+  server-side check on actual submission is still the real guard).
+- *Perf: TCP_NODELAY.* Found while investigating request latency: fasthttp
+  (Fiber's engine) never disables Nagle's algorithm on accepted connections,
+  so a keep-alive connection reused across requests stalled ~40ms per
+  request (Nagle plus the peer's delayed ACK) waiting to see a header/body
+  write split across two TCP segments — confirmed locally, ~45ms vs. ~5-7ms
+  for the same POST over a fresh connection. Fixed with a small
+  `net.Listener` wrapper (`cmd/api/listener.go`) that sets
+  `SetNoDelay(true)` on every accepted `*net.TCPConn`, plugged into
+  `main.go` via `app.Listener(...)` instead of `app.Listen(...)`.
+
 **2026-08-01 — Documentation restructuring.** Explicit user request, after a
 full project review that also flagged two code issues (see the Stage 1
 entries on `payload.amount` validation and the `FinishGame` double-counting

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon foreground: the app's brand mark (see AppLogoMark in AppComponents.kt and
+     the mockup favicon) — a slightly rotated MTG-card shape, dark violet shell around a
+     lavender inset holding the violet-to-purple accent gradient. Artwork sits in the centered
+     64x64 safe zone of the 108x108 canvas so it isn't clipped by any adaptive-icon mask shape. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="22"
+        android:translateY="22">
+        <group
+            android:pivotX="32"
+            android:pivotY="32"
+            android:rotation="-6">
+            <path
+                android:pathData="M17,4 H47 A7,7 0 0 1 54,11 V55 A7,7 0 0 1 47,62 H17 A7,7 0 0 1 10,55 V11 A7,7 0 0 1 17,4 Z"
+                android:fillColor="#2F2159" />
+            <path android:pathData="M20,11 H44 A3,3 0 0 1 47,14 V38 A3,3 0 0 1 44,41 H20 A3,3 0 0 1 17,38 V14 A3,3 0 0 1 20,11 Z">
+                <aapt:attr name="android:fillColor">
+                    <gradient
+                        android:type="linear"
+                        android:startX="17"
+                        android:startY="11"
+                        android:endX="47"
+                        android:endY="41"
+                        android:startColor="#FF8B5CF6"
+                        android:endColor="#FFA855F7" />
+                </aapt:attr>
+            </path>
+        </group>
+    </group>
+</vector>

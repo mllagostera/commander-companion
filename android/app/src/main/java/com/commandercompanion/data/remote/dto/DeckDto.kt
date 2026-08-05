@@ -14,7 +14,8 @@ data class DeckDto(
     @SerialName("user_id") val userId: String,
     val name: String,
     val commander: String,
-    @SerialName("moxfield_id") val moxfieldId: String? = null
+    @SerialName("moxfield_id") val moxfieldId: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null
 )
 
 @Serializable

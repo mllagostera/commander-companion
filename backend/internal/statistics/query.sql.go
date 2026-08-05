@@ -132,6 +132,145 @@ func (q *Queries) ListDeckStatisticsForUser(ctx context.Context, userID pgtype.U
 	return items, nil
 }
 
+const listFinishedGamesPage = `-- name: ListFinishedGamesPage :many
+SELECT
+  games.id, games.playgroup_id, games.started_at, games.finished_at, games.created_at,
+  pg.name AS playgroup_name
+FROM games
+LEFT JOIN playgroups pg ON pg.id = games.playgroup_id
+WHERE games.status = 'finished'
+  AND EXISTS (
+    SELECT 1 FROM game_players gp
+    WHERE gp.game_id = games.id AND gp.user_id = $1::uuid
+  )
+  AND (
+    $2::timestamp IS NULL
+    OR (games.created_at, games.id) < ($2::timestamp, $3::uuid)
+  )
+ORDER BY games.created_at DESC, games.id DESC
+LIMIT $4
+`
+
+type ListFinishedGamesPageParams struct {
+	UserID          pgtype.UUID      `json:"user_id"`
+	CursorCreatedAt pgtype.Timestamp `json:"cursor_created_at"`
+	CursorID        pgtype.UUID      `json:"cursor_id"`
+	PageLimit       int32            `json:"page_limit"`
+}
+
+type ListFinishedGamesPageRow struct {
+	ID            pgtype.UUID      `json:"id"`
+	PlaygroupID   pgtype.UUID      `json:"playgroup_id"`
+	StartedAt     pgtype.Timestamp `json:"started_at"`
+	FinishedAt    pgtype.Timestamp `json:"finished_at"`
+	CreatedAt     pgtype.Timestamp `json:"created_at"`
+	PlaygroupName pgtype.Text      `json:"playgroup_name"`
+}
+
+// Keyset pagination over (created_at, id) DESC, scoped to finished games where
+// the authenticated user had a seat -- same shape as games.ListGamesPage, but
+// owned here because GET /statistics/games needs the denormalized
+// player/deck/username data GET /games deliberately doesn't carry (that one is
+// shared with the dashboard/join-game flow, kept lean on purpose).
+func (q *Queries) ListFinishedGamesPage(ctx context.Context, arg ListFinishedGamesPageParams) ([]ListFinishedGamesPageRow, error) {
+	rows, err := q.db.Query(ctx, listFinishedGamesPage,
+		arg.UserID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFinishedGamesPageRow
+	for rows.Next() {
+		var i ListFinishedGamesPageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PlaygroupID,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.CreatedAt,
+			&i.PlaygroupName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGameActionSummaryForGames = `-- name: ListGameActionSummaryForGames :many
+WITH turns AS (
+  SELECT game_id, COUNT(*)::int AS turn_count
+  FROM game_actions
+  WHERE game_id = ANY($1::uuid[]) AND action_type = 'TurnStart'
+  GROUP BY game_id
+),
+hits AS (
+  SELECT DISTINCT ON (game_id)
+    game_id,
+    actor_id,
+    (payload->>'amount')::int AS amount
+  FROM game_actions
+  WHERE game_id = ANY($1::uuid[])
+    AND action_type IN ('CombatDamage', 'CommanderDamage')
+  ORDER BY game_id, (payload->>'amount')::int DESC
+)
+SELECT
+  ids.game_id::uuid AS game_id,
+  COALESCE(t.turn_count, 0)::int AS turn_count,
+  h.amount AS biggest_hit_amount,
+  u.username AS biggest_hit_username
+FROM unnest($1::uuid[]) AS ids(game_id)
+LEFT JOIN turns t ON t.game_id = ids.game_id
+LEFT JOIN hits h ON h.game_id = ids.game_id
+LEFT JOIN game_players gp ON gp.id = h.actor_id
+LEFT JOIN users u ON u.id = gp.user_id
+`
+
+type ListGameActionSummaryForGamesRow struct {
+	GameID             pgtype.UUID `json:"game_id"`
+	TurnCount          int32       `json:"turn_count"`
+	BiggestHitAmount   pgtype.Int4 `json:"biggest_hit_amount"`
+	BiggestHitUsername pgtype.Text `json:"biggest_hit_username"`
+}
+
+// For each game in game_ids: how many turns were played (every TurnStart belongs to
+// one player's turn, so the count across the whole game is the turn count) and the
+// single biggest hit (CombatDamage or CommanderDamage) dealt in it, with who dealt it --
+// powers the finished-games card's "turns" and "biggest hit" stats without the client
+// re-deriving them from the full action log. Left-joined from game_ids (not game_actions)
+// so a game with no actions logged still gets a row (zero turns, no biggest hit).
+func (q *Queries) ListGameActionSummaryForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListGameActionSummaryForGamesRow, error) {
+	rows, err := q.db.Query(ctx, listGameActionSummaryForGames, gameIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGameActionSummaryForGamesRow
+	for rows.Next() {
+		var i ListGameActionSummaryForGamesRow
+		if err := rows.Scan(
+			&i.GameID,
+			&i.TurnCount,
+			&i.BiggestHitAmount,
+			&i.BiggestHitUsername,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGameActionsForGame = `-- name: ListGameActionsForGame :many
 SELECT id, game_id, actor_id, target_id, action_type, payload, created_at FROM game_actions WHERE game_id = $1 ORDER BY created_at ASC
 `
@@ -189,6 +328,179 @@ func (q *Queries) ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID
 			&i.IsEliminated,
 			&i.AddedBy,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpponentStats = `-- name: ListOpponentStats :many
+SELECT
+  other.user_id AS opponent_id,
+  u.username AS opponent_username,
+  COUNT(DISTINCT other.game_id)::int AS games_together,
+  COUNT(DISTINCT you_eliminated.id)::int AS times_you_eliminated_them,
+  COUNT(DISTINCT they_eliminated.id)::int AS times_eliminated_by_opponent
+FROM game_players me
+JOIN games g ON g.id = me.game_id AND g.status = 'finished'
+JOIN game_players other ON other.game_id = me.game_id AND other.user_id != me.user_id
+JOIN users u ON u.id = other.user_id
+LEFT JOIN game_actions you_eliminated
+  ON you_eliminated.game_id = me.game_id AND you_eliminated.action_type = 'Elimination'
+  AND you_eliminated.actor_id = me.id AND you_eliminated.target_id = other.id
+LEFT JOIN game_actions they_eliminated
+  ON they_eliminated.game_id = me.game_id AND they_eliminated.action_type = 'Elimination'
+  AND they_eliminated.actor_id = other.id AND they_eliminated.target_id = me.id
+WHERE me.user_id = $1
+GROUP BY other.user_id, u.username
+`
+
+type ListOpponentStatsRow struct {
+	OpponentID                pgtype.UUID `json:"opponent_id"`
+	OpponentUsername          string      `json:"opponent_username"`
+	GamesTogether             int32       `json:"games_together"`
+	TimesYouEliminatedThem    int32       `json:"times_you_eliminated_them"`
+	TimesEliminatedByOpponent int32       `json:"times_eliminated_by_opponent"`
+}
+
+// Head-to-head aggregation across every finished game the user has played:
+// for each other user they've shared a seat with, how many games together and
+// how many times each side eliminated the other. Live-computed (no summary
+// table), same choice as ListPlaygroupMemberGameStats above -- read once, on
+// the statistics screen, not on every request like user_statistics_summary.
+func (q *Queries) ListOpponentStats(ctx context.Context, userID pgtype.UUID) ([]ListOpponentStatsRow, error) {
+	rows, err := q.db.Query(ctx, listOpponentStats, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOpponentStatsRow
+	for rows.Next() {
+		var i ListOpponentStatsRow
+		if err := rows.Scan(
+			&i.OpponentID,
+			&i.OpponentUsername,
+			&i.GamesTogether,
+			&i.TimesYouEliminatedThem,
+			&i.TimesEliminatedByOpponent,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlayersForGames = `-- name: ListPlayersForGames :many
+SELECT
+  gp.game_id, gp.user_id, u.username, gp.deck_id, d.name AS deck_name,
+  d.commander AS deck_commander, d.image_url AS deck_image_url,
+  (winner.id IS NOT NULL)::boolean AS won
+FROM game_players gp
+JOIN users u ON u.id = gp.user_id
+JOIN decks d ON d.id = gp.deck_id
+LEFT JOIN (
+  SELECT id, game_id
+  FROM (
+    SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count
+    FROM game_players
+    WHERE NOT is_eliminated
+  ) alive
+  WHERE alive_count = 1
+) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
+WHERE gp.game_id = ANY($1::uuid[])
+`
+
+type ListPlayersForGamesRow struct {
+	GameID        pgtype.UUID `json:"game_id"`
+	UserID        pgtype.UUID `json:"user_id"`
+	Username      string      `json:"username"`
+	DeckID        pgtype.UUID `json:"deck_id"`
+	DeckName      string      `json:"deck_name"`
+	DeckCommander string      `json:"deck_commander"`
+	DeckImageUrl  pgtype.Text `json:"deck_image_url"`
+	Won           bool        `json:"won"`
+}
+
+// Batched fetch of every seat across a page of games (see ListFinishedGamesPage),
+// enriched with username, deck name/commander/image, and a `won` flag -- one
+// round trip for the whole page instead of one per game. The winner subquery
+// (only non-eliminated seat, if there's exactly one) mirrors the identical
+// pattern already used in ListPlaygroupMemberGameStats above -- same rule,
+// same SQL shape, not reinvented.
+func (q *Queries) ListPlayersForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListPlayersForGamesRow, error) {
+	rows, err := q.db.Query(ctx, listPlayersForGames, gameIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPlayersForGamesRow
+	for rows.Next() {
+		var i ListPlayersForGamesRow
+		if err := rows.Scan(
+			&i.GameID,
+			&i.UserID,
+			&i.Username,
+			&i.DeckID,
+			&i.DeckName,
+			&i.DeckCommander,
+			&i.DeckImageUrl,
+			&i.Won,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlaygroupGameCountsForUser = `-- name: ListPlaygroupGameCountsForUser :many
+SELECT
+  pg.id AS playgroup_id,
+  pg.name AS playgroup_name,
+  COUNT(DISTINCT gp.game_id)::int AS games_played
+FROM playgroup_members pm
+JOIN playgroups pg ON pg.id = pm.playgroup_id
+LEFT JOIN game_players gp
+  ON gp.user_id = pm.user_id
+  AND EXISTS (
+    SELECT 1 FROM games g
+    WHERE g.id = gp.game_id AND g.playgroup_id = pg.id AND g.status = 'finished'
+  )
+WHERE pm.user_id = $1
+GROUP BY pg.id, pg.name
+`
+
+type ListPlaygroupGameCountsForUserRow struct {
+	PlaygroupID   pgtype.UUID `json:"playgroup_id"`
+	PlaygroupName string      `json:"playgroup_name"`
+	GamesPlayed   int32       `json:"games_played"`
+}
+
+// Every playgroup the user belongs to, with how many finished games they've
+// played within it -- single query replacing the per-group GetPlaygroupStats
+// loop the statistics screens used to do (same "every owned/joined X" shape
+// as ListDeckStatisticsForUser above).
+func (q *Queries) ListPlaygroupGameCountsForUser(ctx context.Context, userID pgtype.UUID) ([]ListPlaygroupGameCountsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listPlaygroupGameCountsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPlaygroupGameCountsForUserRow
+	for rows.Next() {
+		var i ListPlaygroupGameCountsForUserRow
+		if err := rows.Scan(&i.PlaygroupID, &i.PlaygroupName, &i.GamesPlayed); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

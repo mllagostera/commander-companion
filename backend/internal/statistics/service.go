@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -52,6 +53,17 @@ type Service interface {
 	// GetPlaygroupStats returns the aggregated statistics for a playgroup, if
 	// userID is a member of it.
 	GetPlaygroupStats(ctx context.Context, playgroupID, userID string) (*PlaygroupStatsResponse, error)
+	// ListOpponentStats returns the head-to-head record (games together, eliminations
+	// each way) against every other user the caller has shared a finished game with.
+	ListOpponentStats(ctx context.Context, userID string) ([]OpponentStatsResponse, error)
+	// ListPlaygroupGameCounts returns, for every playgroup the user belongs to, how
+	// many finished games they've played within it -- in one query, instead of one
+	// GetPlaygroupStats call per group.
+	ListPlaygroupGameCounts(ctx context.Context, userID string) ([]PlaygroupGameCountResponse, error)
+	// ListFinishedGames returns a page of the user's finished-games history,
+	// enriched with each seat's username/deck (unlike games.ListGames, which is
+	// intentionally lean).
+	ListFinishedGames(ctx context.Context, page common.PageRequest, userID string) (*FinishedGameListResponse, error)
 	// RecalculateForGame recalculates the aggregated user and deck statistics from
 	// the result and actions of an already-finished game.
 	RecalculateForGame(ctx context.Context, gameID string) error
@@ -183,6 +195,225 @@ func (s *service) GetPlaygroupStats(ctx context.Context, playgroupID, userID str
 		})
 	}
 	return res, nil
+}
+
+// ListOpponentStats returns the head-to-head record against every other user
+// the caller has shared a finished game with, live-computed like
+// GetPlaygroupStats above -- read once, on the statistics screen, not on
+// every request like the precalculated summaries.
+func (s *service) ListOpponentStats(ctx context.Context, userID string) ([]OpponentStatsResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+
+	rows, err := s.repo.ListOpponentStats(ctx, uid)
+	if err != nil {
+		return nil, fmt.Errorf("listing opponent statistics: %w", err)
+	}
+
+	res := make([]OpponentStatsResponse, 0, len(rows))
+	for i := range rows {
+		res = append(res, OpponentStatsResponse{
+			UserID:                    rows[i].OpponentID.String(),
+			Username:                  rows[i].OpponentUsername,
+			GamesTogether:             rows[i].GamesTogether,
+			TimesYouEliminatedThem:    rows[i].TimesYouEliminatedThem,
+			TimesEliminatedByOpponent: rows[i].TimesEliminatedByOpponent,
+		})
+	}
+	return res, nil
+}
+
+// ListPlaygroupGameCounts returns, for every playgroup the user belongs to,
+// how many finished games they've played within it, in a single query.
+func (s *service) ListPlaygroupGameCounts(ctx context.Context, userID string) ([]PlaygroupGameCountResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+
+	rows, err := s.repo.ListPlaygroupGameCountsForUser(ctx, uid)
+	if err != nil {
+		return nil, fmt.Errorf("listing playgroup game counts: %w", err)
+	}
+
+	res := make([]PlaygroupGameCountResponse, 0, len(rows))
+	for i := range rows {
+		res = append(res, PlaygroupGameCountResponse{
+			PlaygroupID:   rows[i].PlaygroupID.String(),
+			PlaygroupName: rows[i].PlaygroupName,
+			GamesPlayed:   rows[i].GamesPlayed,
+		})
+	}
+	return res, nil
+}
+
+// ListFinishedGames returns a page of the user's finished-games history. Unlike
+// games.ListGames (kept lean for the dashboard/join-game flow), each entry
+// carries every seat's username and deck name/commander/image, resolved here
+// in one batched round trip (ListPlayersForGames) instead of per-game.
+func (s *service) ListFinishedGames(
+	ctx context.Context, page common.PageRequest, userID string,
+) (*FinishedGameListResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+
+	rows, nextCursor, err := s.fetchFinishedGamesPage(ctx, page, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	items, err := s.enrichFinishedGames(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FinishedGameListResponse{Items: items, NextCursor: nextCursor}, nil
+}
+
+// fetchFinishedGamesPage resolves the cursor (if any), fetches the page, and
+// works out whether there's a next one -- same "limit+1" trick as
+// games.ListGames, avoiding a separate COUNT(*).
+func (s *service) fetchFinishedGamesPage(
+	ctx context.Context, page common.PageRequest, uid pgtype.UUID,
+) ([]ListFinishedGamesPageRow, *string, error) {
+	params := ListFinishedGamesPageParams{UserID: uid, PageLimit: page.Limit + 1}
+	if page.Cursor != "" {
+		cursorCreatedAt, cursorID, cursorErr := decodeCursor(page.Cursor)
+		if cursorErr != nil {
+			return nil, nil, cursorErr
+		}
+		params.CursorCreatedAt = cursorCreatedAt
+		params.CursorID = cursorID
+	}
+
+	rows, err := s.repo.ListFinishedGamesPage(ctx, params)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listing finished games: %w", err)
+	}
+
+	var nextCursor *string
+	if len(rows) > int(page.Limit) {
+		rows = rows[:page.Limit]
+		last := rows[len(rows)-1]
+		encoded := common.EncodeCursor(common.Cursor{CreatedAt: last.CreatedAt.Time, ID: last.ID.String()})
+		nextCursor = &encoded
+	}
+	return rows, nextCursor, nil
+}
+
+// enrichFinishedGames batches ListPlayersForGames for the whole page (one
+// round trip) instead of one query per game.
+func (s *service) enrichFinishedGames(
+	ctx context.Context, games []ListFinishedGamesPageRow,
+) ([]FinishedGameResponse, error) {
+	items := make([]FinishedGameResponse, 0, len(games))
+	if len(games) == 0 {
+		return items, nil
+	}
+
+	gameIDs := make([]pgtype.UUID, len(games))
+	for i := range games {
+		gameIDs[i] = games[i].ID
+	}
+	playerRows, err := s.repo.ListPlayersForGames(ctx, gameIDs)
+	if err != nil {
+		return nil, fmt.Errorf("listing players for finished games: %w", err)
+	}
+	playersByGame := make(map[pgtype.UUID][]ListPlayersForGamesRow, len(games))
+	for i := range playerRows {
+		gid := playerRows[i].GameID
+		playersByGame[gid] = append(playersByGame[gid], playerRows[i])
+	}
+
+	summaryRows, err := s.repo.ListGameActionSummaryForGames(ctx, gameIDs)
+	if err != nil {
+		return nil, fmt.Errorf("listing action summaries for finished games: %w", err)
+	}
+	summaryByGame := make(map[pgtype.UUID]ListGameActionSummaryForGamesRow, len(summaryRows))
+	for i := range summaryRows {
+		summaryByGame[summaryRows[i].GameID] = summaryRows[i]
+	}
+
+	for i := range games {
+		gid := games[i].ID
+		res := toFinishedGameResponse(&games[i], playersByGame[gid])
+		if summary, ok := summaryByGame[gid]; ok {
+			applyActionSummary(res, &summary)
+		}
+		items = append(items, *res)
+	}
+	return items, nil
+}
+
+// applyActionSummary fills in a FinishedGameResponse's turn count and biggest hit from
+// its ListGameActionSummaryForGames row. BiggestHitAmount/BiggestHitUsername are both
+// NULL together (LEFT JOIN, no CombatDamage/CommanderDamage action in the game) or both set.
+func applyActionSummary(res *FinishedGameResponse, summary *ListGameActionSummaryForGamesRow) {
+	res.TurnCount = summary.TurnCount
+	if summary.BiggestHitAmount.Valid && summary.BiggestHitUsername.Valid {
+		res.BiggestHit = &BiggestHitResponse{
+			Amount:   summary.BiggestHitAmount.Int32,
+			Username: summary.BiggestHitUsername.String,
+		}
+	}
+}
+
+// decodeCursor mirrors games.decodeCursor: same opaque cursor format
+// (common.EncodeCursor/DecodeCursor), decoded here because statistics owns
+// its own pagination over a different query (ListFinishedGamesPage).
+func decodeCursor(encoded string) (pgtype.Timestamp, pgtype.UUID, error) {
+	cursor, err := common.DecodeCursor(encoded)
+	if err != nil {
+		return pgtype.Timestamp{}, pgtype.UUID{}, err
+	}
+	cursorID, err := common.ParseUUID(cursor.ID)
+	if err != nil {
+		return pgtype.Timestamp{}, pgtype.UUID{}, common.ErrInvalidCursor
+	}
+	return pgtype.Timestamp{Time: cursor.CreatedAt, Valid: true}, cursorID, nil
+}
+
+func toFinishedGameResponse(g *ListFinishedGamesPageRow, players []ListPlayersForGamesRow) *FinishedGameResponse {
+	res := &FinishedGameResponse{ID: g.ID.String()}
+	if g.PlaygroupID.Valid {
+		pid := g.PlaygroupID.String()
+		res.PlaygroupID = &pid
+	}
+	if g.PlaygroupName.Valid {
+		name := g.PlaygroupName.String
+		res.PlaygroupName = &name
+	}
+	if g.StartedAt.Valid {
+		t := g.StartedAt.Time.Format(time.RFC3339)
+		res.StartedAt = &t
+	}
+	if g.FinishedAt.Valid {
+		t := g.FinishedAt.Time.Format(time.RFC3339)
+		res.FinishedAt = &t
+	}
+
+	res.Players = make([]FinishedGamePlayerResponse, 0, len(players))
+	for i := range players {
+		p := &players[i]
+		player := FinishedGamePlayerResponse{
+			UserID:        p.UserID.String(),
+			Username:      p.Username,
+			DeckID:        p.DeckID.String(),
+			DeckName:      p.DeckName,
+			DeckCommander: p.DeckCommander,
+			Won:           p.Won,
+		}
+		if p.DeckImageUrl.Valid {
+			url := p.DeckImageUrl.String
+			player.DeckImageURL = &url
+		}
+		res.Players = append(res.Players, player)
+	}
+	return res
 }
 
 // RecalculateForGame walks the players and actions of an already-finished

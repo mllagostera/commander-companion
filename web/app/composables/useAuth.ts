@@ -73,6 +73,18 @@ export function useAuth() {
     })
   }
 
+  /**
+   * Checks whether a username is free to register. Public (no session needed),
+   * used by the registration form on the field's `change` event, before submitting.
+   */
+  async function checkUsernameAvailable(username: string) {
+    return (
+      await nitroFetch<{ available: boolean }>('/api/auth/username-available', {
+        query: { username },
+      })
+    ).available
+  }
+
   async function verifyEmail(token: string) {
     await nitroFetch('/api/auth/verify-email', {
       method: 'POST',
@@ -123,6 +135,7 @@ export function useAuth() {
     isAuthenticated,
     login,
     register,
+    checkUsernameAvailable,
     verifyEmail,
     resendVerification,
     loginWithGoogle,

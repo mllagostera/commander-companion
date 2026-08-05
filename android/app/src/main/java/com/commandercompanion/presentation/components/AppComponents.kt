@@ -33,15 +33,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.commandercompanion.presentation.theme.AccentGradient
 import com.commandercompanion.presentation.theme.AccentSoft
 import com.commandercompanion.presentation.theme.AppBackground
@@ -243,6 +246,127 @@ fun SelectableChip(
             fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp
         )
+    }
+}
+
+/**
+ * Selectable deck card for the pregame deck picker: shows the commander's art crop
+ * ([com.commandercompanion.data.remote.dto.DeckDto.imageUrl], populated for Moxfield-imported
+ * decks) with the deck name captioned over a bottom scrim, matching the mockup's deck thumbnails.
+ * Manually-created decks have no art yet, so this falls back to a plain [SelectableChip]-style
+ * card with just the name.
+ *
+ * [width]/[height] default to a comfortable size; pass smaller values (e.g. in a cramped
+ * pregame seat tile) to fit tighter layouts — same visual, just scaled down.
+ */
+@Composable
+fun DeckArtChip(
+    name: String,
+    imageUrl: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    width: Dp = 108.dp,
+    height: Dp = 72.dp
+) {
+    val shape = RoundedCornerShape(14.dp)
+    val background = when {
+        imageUrl != null -> SolidColor(Color.Black)
+        selected -> AccentGradient
+        else -> SolidColor(Color.White.copy(alpha = 0.05f))
+    }
+    Box(
+        modifier = modifier
+            .size(width = width, height = height)
+            .clip(shape)
+            .background(background)
+            .border(if (selected) 2.dp else 1.dp, if (selected) AccentSoft else AppOutline, shape)
+            .clickable(onClick = onClick)
+    ) {
+        if (imageUrl != null) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
+            )
+            Text(
+                text = name,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            )
+        } else {
+            Text(
+                text = name,
+                color = if (selected) AppBackgroundDeep else AppOnBackground,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center).padding(8.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Plain (non-interactive) square deck thumbnail — commander art crop when [imageUrl] is set,
+ * else a gradient tile with the commander's first letter. Mirrors web's `DeckArt.vue`. Unlike
+ * [DeckArtChip], carries no selection border/click/name-overlay, so it fits compact rows like
+ * a statistics card.
+ */
+@Composable
+fun DeckThumbnail(
+    commander: String,
+    imageUrl: String?,
+    modifier: Modifier = Modifier,
+    size: Dp = 64.dp
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .border(1.dp, AppOutline, shape)
+    ) {
+        if (imageUrl != null) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = commander,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(AccentSoft.copy(alpha = 0.35f), AccentSoft.copy(alpha = 0.15f))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = commander.firstOrNull()?.uppercase() ?: "?",
+                    color = AppFaint,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+            }
+        }
     }
 }
 

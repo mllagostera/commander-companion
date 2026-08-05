@@ -69,6 +69,11 @@ components:
       description: >-
         Unlike User, deliberately without email: this is shown for results
         about OTHER users (see GET /users/search).
+    UsernameAvailabilityResponse:
+      type: object
+      properties:
+        available:
+          type: boolean
     RegisterRequest:
       type: object
       required: [username, email, password]
@@ -507,6 +512,89 @@ components:
           type: integer
         games_won:
           type: integer
+    PlaygroupGameCountResponse:
+      type: object
+      properties:
+        playgroup_id:
+          type: string
+          format: uuid
+        playgroup_name:
+          type: string
+        games_played:
+          type: integer
+          description: Finished games the authenticated user has played within this playgroup.
+    OpponentStatsResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: The opponent's ID.
+        username:
+          type: string
+        games_together:
+          type: integer
+        times_you_eliminated_them:
+          type: integer
+        times_eliminated_by_opponent:
+          type: integer
+    FinishedGameListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinishedGameResponse'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Cursor to pass as the `cursor` query param to request the next page. It is null on the last page.
+    FinishedGameResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        playgroup_id:
+          type: string
+          format: uuid
+          nullable: true
+        playgroup_name:
+          type: string
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinishedGamePlayerResponse'
+    FinishedGamePlayerResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        deck_id:
+          type: string
+          format: uuid
+        deck_name:
+          type: string
+        deck_commander:
+          type: string
+        deck_image_url:
+          type: string
+          nullable: true
+        won:
+          type: boolean
     ErrorResponse:
       type: object
       properties:
@@ -544,6 +632,40 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Username or email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many authentication requests from this IP (rate limit per IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /users/username-available:
+    get:
+      summary: Check whether a username is free to register (or to rename to)
+      description: >-
+        Public/unauthenticated, unlike GET /users/search: used by the registration
+        form to validate the username before submitting. Exact, case-sensitive match
+        against the same uniqueness constraint the database enforces on username.
+        Shares the same per-IP rate limit as the other public auth endpoints.
+      security: []
+      parameters:
+        - in: query
+          name: username
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Whether the username is available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsernameAvailabilityResponse'
+        '400':
+          description: Missing or blank username
           content:
             application/json:
               schema:
@@ -1475,6 +1597,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PlaygroupStatsResponse'
+  /statistics/playgroups:
+    get:
+      summary: Get how many finished games the authenticated user has played in each of their playgroups
+      description: >-
+        Every playgroup the user belongs to, with its games_played count, in
+        a single call -- replaces doing one GET /statistics/playgroup/{id}
+        per group just to find the one played the most.
+      responses:
+        '200':
+          description: One entry per playgroup the user belongs to (games_played is 0 for one never played)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlaygroupGameCountResponse'
+  /statistics/opponents:
+    get:
+      summary: Get the authenticated user's head-to-head record against every opponent they've played
+      description: >-
+        Calculated live over every finished game the user has shared a seat
+        in (there is no precalculated summary table), grouped by opponent.
+        Feeds both "most played against" (max games_together) and "archenemy"
+        (max times_eliminated_by_opponent) on the statistics screen.
+      responses:
+        '200':
+          description: One entry per opponent the user has shared a finished game with, empty array if none yet
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpponentStatsResponse'
+  /statistics/games:
+    get:
+      summary: Get a page of the authenticated user's finished-games history
+      description: >-
+        Unlike GET /games (kept lean for the dashboard/join-game flow), each
+        entry is enriched with every seat's username and deck name/commander/
+        image, resolved server-side in one batched round trip per page.
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: A page of finished games, most recent first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinishedGameListResponse'
 
   /sync/moxfield:
     post:

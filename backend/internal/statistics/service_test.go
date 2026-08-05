@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
@@ -152,6 +153,25 @@ func mustRecordCombatDamage(
 	if err != nil {
 		t.Fatalf("RecordAction(CombatDamage) error = %v", err)
 	}
+}
+
+func mustRecordElimination(t *testing.T, svc gameactions.Service, gameID, callerID, actorID, targetID string) {
+	t.Helper()
+	_, err := svc.RecordAction(context.Background(), gameID, callerID, gameactions.CreateActionRequest{
+		ActorID: actorID, TargetID: targetID, ActionType: "Elimination",
+	})
+	if err != nil {
+		t.Fatalf("RecordAction(Elimination) error = %v", err)
+	}
+}
+
+func mustJoinReturningPlayerID(t *testing.T, svc games.Service, gameID, userID, deckID string) string {
+	t.Helper()
+	p, err := svc.JoinGame(context.Background(), gameID, userID, games.JoinGameRequest{DeckID: deckID})
+	if err != nil {
+		t.Fatalf("JoinGame(%s) error = %v", userID, err)
+	}
+	return p.ID
 }
 
 func mustGetUserStats(t *testing.T, svc statistics.Service, userID string) *statistics.UserStatsResponse {
@@ -443,6 +463,158 @@ func TestGetPlaygroupStats_NotAMember_ReturnsNotFound(t *testing.T) {
 	_, err = svc.GetPlaygroupStats(ctx, playgroup.ID, outsider.ID)
 	if !errors.Is(err, statistics.ErrPlaygroupNotFound) {
 		t.Fatalf("GetPlaygroupStats() for a non-member: error = %v, want ErrPlaygroupNotFound", err)
+	}
+}
+
+func TestListOpponentStats_NoSharedGames_ReturnsEmpty(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+
+	usersSvc := testutil.NewUsersService(pool)
+	user, err := usersSvc.RegisterUser(context.Background(), users.RegisterRequest{
+		Username: "lone-user", Email: "lone-user@example.com", Password: testPassword,
+	})
+	if err != nil {
+		t.Fatalf("registering user: %v", err)
+	}
+
+	res, err := statistics.NewService(pool, playgroups.NewService(pool)).ListOpponentStats(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("ListOpponentStats() error = %v, want nil", err)
+	}
+	if len(res) != 0 {
+		t.Fatalf("ListOpponentStats() for a user with no games = %+v, want empty", res)
+	}
+}
+
+// TestListOpponentStats_AggregatesAcrossGames plays 2 finished games between
+// the same 2 users (player1 eliminates player2 both times) and checks the
+// head-to-head record accumulates correctly for both sides.
+func TestListOpponentStats_AggregatesAcrossGames(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+
+	g1 := setupTwoPlayerGame(t, pool, "irrelevant", "")
+	mustRecordElimination(t, g1.actions, g1.gameID, g1.user1.ID, g1.player1ID, g1.player2ID)
+	mustFinishGame(t, g1.games, g1.gameID, g1.user1.ID)
+
+	// Second game, same 2 users (setupTwoPlayerGame always creates fresh users,
+	// so this one is built by hand reusing g1's).
+	game2 := mustCreateGame(t, g1.games, "irrelevant", "")
+	player1ID := mustJoinReturningPlayerID(t, g1.games, game2.ID, g1.user1.ID, g1.deck1ID)
+	player2ID := mustJoinReturningPlayerID(t, g1.games, game2.ID, g1.user2.ID, g1.deck2ID)
+	mustStartGame(t, g1.games, game2.ID, g1.user1.ID)
+	mustRecordElimination(t, g1.actions, game2.ID, g1.user1.ID, player1ID, player2ID)
+	mustFinishGame(t, g1.games, game2.ID, g1.user1.ID)
+
+	assertOpponentStats(t, g1.stats, g1.user1.ID, g1.user2.ID, 2, 2, 0)
+	assertOpponentStats(t, g1.stats, g1.user2.ID, g1.user1.ID, 2, 0, 2)
+}
+
+func assertOpponentStats(
+	t *testing.T, svc statistics.Service, viewerID, opponentID string,
+	wantGames, wantYouEliminated, wantEliminatedBy int32,
+) {
+	t.Helper()
+	res, err := svc.ListOpponentStats(context.Background(), viewerID)
+	if err != nil {
+		t.Fatalf("ListOpponentStats(%s) error = %v, want nil", viewerID, err)
+	}
+	if len(res) != 1 || res[0].UserID != opponentID {
+		t.Fatalf("ListOpponentStats(%s) = %+v, want exactly opponent %s", viewerID, res, opponentID)
+	}
+	got := res[0]
+	if got.GamesTogether != wantGames || got.TimesYouEliminatedThem != wantYouEliminated ||
+		got.TimesEliminatedByOpponent != wantEliminatedBy {
+		t.Fatalf(
+			"ListOpponentStats(%s)[0] = %+v, want games_together=%d you_eliminated=%d eliminated_by=%d",
+			viewerID, got, wantGames, wantYouEliminated, wantEliminatedBy,
+		)
+	}
+}
+
+func TestListPlaygroupGameCounts_IncludesGroupsWithZeroFinishedGames(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+	ctx := context.Background()
+
+	playgroupsSvc := playgroups.NewService(pool)
+	founder := createFounder(t, pool)
+	played, err := playgroupsSvc.CreatePlaygroup(ctx, founder.ID, playgroups.CreatePlaygroupRequest{Name: "Played"})
+	if err != nil {
+		t.Fatalf("CreatePlaygroup(played) error = %v", err)
+	}
+	empty, err := playgroupsSvc.CreatePlaygroup(ctx, founder.ID, playgroups.CreatePlaygroupRequest{Name: "Empty"})
+	if err != nil {
+		t.Fatalf("CreatePlaygroup(empty) error = %v", err)
+	}
+
+	g := setupTwoPlayerGame(t, pool, founder.ID, played.ID)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
+	_, err = playgroupsSvc.AddMember(ctx, played.ID, founder.ID, playgroups.AddMemberRequest{UserID: g.user1.ID})
+	if err != nil {
+		t.Fatalf("AddMember(played) error = %v", err)
+	}
+	_, err = playgroupsSvc.AddMember(ctx, empty.ID, founder.ID, playgroups.AddMemberRequest{UserID: g.user1.ID})
+	if err != nil {
+		t.Fatalf("AddMember(empty) error = %v", err)
+	}
+
+	res, err := g.stats.ListPlaygroupGameCounts(ctx, g.user1.ID)
+	if err != nil {
+		t.Fatalf("ListPlaygroupGameCounts() error = %v, want nil", err)
+	}
+	countsByGroup := make(map[string]int32, len(res))
+	for _, r := range res {
+		countsByGroup[r.PlaygroupID] = r.GamesPlayed
+	}
+	if countsByGroup[played.ID] != 1 {
+		t.Fatalf("ListPlaygroupGameCounts()[played] = %d, want 1", countsByGroup[played.ID])
+	}
+	if got, ok := countsByGroup[empty.ID]; !ok || got != 0 {
+		t.Fatalf("ListPlaygroupGameCounts()[empty] = (%d, present=%v), want (0, true)", got, ok)
+	}
+}
+
+func TestListFinishedGames_ReturnsPlayersWithWinFlag(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+
+	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
+	mustRecordElimination(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
+
+	page, err := g.stats.ListFinishedGames(context.Background(), common.PageRequest{Limit: 10}, g.user1.ID)
+	if err != nil {
+		t.Fatalf("ListFinishedGames() error = %v, want nil", err)
+	}
+	if len(page.Items) != 1 || page.NextCursor != nil {
+		t.Fatalf(
+			"ListFinishedGames() = %d items, next_cursor=%v, want 1 item and nil cursor",
+			len(page.Items), page.NextCursor,
+		)
+	}
+
+	item := page.Items[0]
+	if item.ID != g.gameID || len(item.Players) != 2 {
+		t.Fatalf("ListFinishedGames()[0] = %+v, want id=%s and 2 players", item, g.gameID)
+	}
+	assertFinishedGamePlayers(t, item.Players, g.user1.ID, g.user2.ID)
+}
+
+func assertFinishedGamePlayers(
+	t *testing.T, players []statistics.FinishedGamePlayerResponse, winnerUserID, loserUserID string,
+) {
+	t.Helper()
+	wonByUser := make(map[string]bool, len(players))
+	for _, p := range players {
+		if p.Username == "" || p.DeckName == "" {
+			t.Fatalf("player %+v missing username/deck_name enrichment", p)
+		}
+		wonByUser[p.UserID] = p.Won
+	}
+	if !wonByUser[winnerUserID] || wonByUser[loserUserID] {
+		t.Fatalf("ListFinishedGames() won flags = %+v, want %s=true %s=false", wonByUser, winnerUserID, loserUserID)
 	}
 }
 

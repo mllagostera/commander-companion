@@ -14,8 +14,9 @@ import javax.inject.Inject
  * [DeckRepository] implementation.
  *
  * [listDecks] is network-first with a Room cache as a fallback (see [DeckDao]): every successful
- * fetch fully replaces the cache (`GET /decks` doesn't say what to prune otherwise, and this repo
- * only ever asks for "all of them," never a filtered subset), and a failed fetch falls back to
+ * fetch follows `next_cursor` until exhausted (`GET /decks` only returns 20 at a time — stopping
+ * at the first page silently hid decks past it, e.g. for a user with a large bulk Moxfield
+ * import) and fully replaces the cache with the complete list, and a failed fetch falls back to
  * whatever was cached last instead of leaving `JoinGameScreen`'s deck picker or the statistics
  * screen's per-deck list empty just because of a network blip. An empty cache still propagates the
  * original error — there's nothing useful to show either way.
@@ -26,7 +27,7 @@ class DeckRepositoryImpl @Inject constructor(
 ) : DeckRepository {
 
     override suspend fun listDecks(): Result<List<DeckDto>> {
-        val networkResult = apiCall { api.listDecks().items }
+        val networkResult = fetchAllPages()
         return networkResult.fold(
             onSuccess = { decks ->
                 deckDao.clear()
@@ -38,6 +39,17 @@ class DeckRepositoryImpl @Inject constructor(
                 if (cached.isNotEmpty()) Result.success(cached) else Result.failure(error)
             }
         )
+    }
+
+    private suspend fun fetchAllPages(): Result<List<DeckDto>> {
+        val all = mutableListOf<DeckDto>()
+        var cursor: String? = null
+        do {
+            val page = apiCall { api.listDecks(cursor) }.getOrElse { return Result.failure(it) }
+            all += page.items
+            cursor = page.nextCursor
+        } while (cursor != null)
+        return Result.success(all)
     }
 
     override suspend fun getDeck(deckId: String): Result<DeckDto> = apiCall { api.getDeck(deckId) }
@@ -58,6 +70,6 @@ class DeckRepositoryImpl @Inject constructor(
         apiCall { api.deleteDeck(deckId) }.onSuccess { deckDao.deleteById(deckId) }
 }
 
-private fun DeckDto.toEntity() = DeckEntity(id = id, userId = userId, name = name, commander = commander, moxfieldId = moxfieldId)
+private fun DeckDto.toEntity() = DeckEntity(id = id, userId = userId, name = name, commander = commander, moxfieldId = moxfieldId, imageUrl = imageUrl)
 
-private fun DeckEntity.toDto() = DeckDto(id = id, userId = userId, name = name, commander = commander, moxfieldId = moxfieldId)
+private fun DeckEntity.toDto() = DeckDto(id = id, userId = userId, name = name, commander = commander, moxfieldId = moxfieldId, imageUrl = imageUrl)

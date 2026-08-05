@@ -106,6 +106,12 @@ type Service interface {
 	// query.sql for why it's not partial). Excludes the requesterID itself and never
 	// exposes the email in the result (see UserSearchResult).
 	SearchUsers(ctx context.Context, requesterID, query string) ([]UserSearchResult, error)
+	// IsUsernameAvailable reports whether username is free to register (or to move to,
+	// via UpdateUsername) — an exact, case-sensitive match against the same uniqueness
+	// constraint the database enforces. Public/unauthenticated, unlike SearchUsers: it
+	// doesn't reveal anything the register form's own submission wouldn't already (see
+	// ErrUserAlreadyExists), just earlier and for one specific name.
+	IsUsernameAvailable(ctx context.Context, username string) (bool, error)
 }
 
 type service struct {
@@ -494,6 +500,22 @@ func (s *service) SearchUsers(ctx context.Context, requesterID, query string) ([
 	}
 
 	return results, nil
+}
+
+// IsUsernameAvailable reports whether username is free, trimmed the same way
+// UpdateUsername trims it before writing (so a check against "  foo  " agrees
+// with what registering/renaming to "  foo  " would actually collide with).
+func (s *service) IsUsernameAvailable(ctx context.Context, username string) (bool, error) {
+	trimmed := strings.TrimSpace(username)
+	if trimmed == "" {
+		return false, ErrUsernameEmpty
+	}
+
+	exists, err := s.repo.UsernameExists(ctx, trimmed)
+	if err != nil {
+		return false, fmt.Errorf("checking username existence: %w", err)
+	}
+	return !exists, nil
 }
 
 func toUserResponse(user *User) *UserResponse {

@@ -304,6 +304,28 @@ class GameViewModelTest {
     }
 
     @Test
+    fun `el turno inicial coincide con el jugador inicial sorteado en la pregame`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(1, vm.state.value.currentTurnPlayerId)
+    }
+
+    @Test
+    fun `pasar turno avanza al siguiente asiento y envuelve al llegar al ultimo`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.nextTurn()
+        assertEquals(2, vm.state.value.currentTurnPlayerId)
+        assertEquals(2, vm.state.value.currentTurn)
+
+        vm.nextTurn()
+        assertEquals(1, vm.state.value.currentTurnPlayerId)
+        assertEquals(3, vm.state.value.currentTurn)
+    }
+
+    @Test
     fun `no se llama a finish remoto si la partida nunca llego a activa`() = runTest(dispatcher) {
         api.onStartGame = { throw httpException(409) }
 

@@ -62,6 +62,7 @@
     <string name="setup_seat_label">Seient</string>
     <string name="setup_pick_group_first">Tria un grup a dalt per poder assignar jugadors.</string>
     <string name="setup_guest">Convidat</string>
+    <string name="setup_group_seat_placeholder">El seient, el color i el deck es trien en començar la partida.</string>
 
     <!-- Unir-se a una partida (d'un altre dispositiu) -->
     <string name="join_game_title">Unir-se a una partida</string>
@@ -79,9 +80,6 @@
     <string name="pregame_rotate_prompt">Gira el teu dispositiu\nper triar seients</string>
     <string name="pregame_seat_label">Seient %1$d</string>
     <string name="pregame_mulligans">Mulligans</string>
-    <string name="pregame_starts">Comença: %1$s</string>
-    <string name="pregame_who_starts">Qui comença?</string>
-    <string name="pregame_shuffle">SORTEIG</string>
     <string name="pregame_begin">COMENÇA</string>
 
     <!-- Tracker de partida -->
@@ -147,7 +145,23 @@
     <string name="statistics_no_decks">Encara no tens cap deck importat.</string>
     <string name="statistics_no_deck_stats">Encara no hi ha partides jugades amb aquest deck.</string>
     <string name="statistics_deck_max_life">Vida màx.</string>
-    <string name="statistics_per_group_heading">Per grup</string>
-    <string name="statistics_no_groups">Encara no ets membre de cap grup.</string>
-    <string name="statistics_group_summary">%1$d partides · %2$d membres</string>
+    <string name="statistics_tab_by_deck">Per deck</string>
+    <string name="statistics_tab_finished_games">Partides finalitzades</string>
+    <string name="statistics_sort_recent">Recents</string>
+    <string name="statistics_sort_win_rate">% victòries</string>
+    <string name="statistics_sort_games_played">Partides jugades</string>
+    <string name="statistics_head_to_head_heading">Cara a cara</string>
+    <string name="statistics_most_played_opponent_label">Contra qui més jugues</string>
+    <string name="statistics_archenemy_label">Arxienemic</string>
+    <string name="statistics_no_head_to_head">Encara no has jugat cap partida amb altres usuaris.</string>
+    <string name="statistics_opponent_games_together">%1$d partides juntes</string>
+    <string name="statistics_archenemy_summary">T\'ha eliminat %1$d vegades</string>
+    <string name="statistics_most_played_group_label">Grup en el qual més jugues</string>
+    <string name="statistics_no_group_data">Encara no has jugat cap partida en un grup.</string>
+    <string name="statistics_group_games_played">%1$d partides</string>
+    <string name="statistics_no_finished_games">Encara no has acabat cap partida.</string>
+    <string name="statistics_load_more">Carrega\'n més</string>
+    <string name="statistics_game_result_won">Ha guanyat</string>
+    <string name="statistics_game_result_lost">Ha perdut</string>
+    <string name="statistics_game_no_playgroup">Partida sense grup</string>
 </resources>
