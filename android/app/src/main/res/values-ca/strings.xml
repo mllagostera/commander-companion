@@ -62,6 +62,7 @@
     <string name="setup_seat_label">Seient</string>
     <string name="setup_pick_group_first">Tria un grup a dalt per poder assignar jugadors.</string>
     <string name="setup_guest">Convidat</string>
+    <string name="setup_group_seat_placeholder">El seient, el color i el deck es trien en començar la partida.</string>
 
     <!-- Unir-se a una partida (d'un altre dispositiu) -->
     <string name="join_game_title">Unir-se a una partida</string>
