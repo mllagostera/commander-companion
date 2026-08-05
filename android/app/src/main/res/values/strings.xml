@@ -148,7 +148,23 @@
     <string name="statistics_no_decks">Todavía no tienes decks importados.</string>
     <string name="statistics_no_deck_stats">Sin partidas jugadas con este deck todavía.</string>
     <string name="statistics_deck_max_life">Vida máx.</string>
-    <string name="statistics_per_group_heading">Por grupo</string>
-    <string name="statistics_no_groups">Todavía no eres miembro de ningún grupo.</string>
-    <string name="statistics_group_summary">%1$d partidas · %2$d miembros</string>
+    <string name="statistics_tab_by_deck">Por deck</string>
+    <string name="statistics_tab_finished_games">Partidas finalizadas</string>
+    <string name="statistics_sort_recent">Recientes</string>
+    <string name="statistics_sort_win_rate">% victorias</string>
+    <string name="statistics_sort_games_played">Partidas jugadas</string>
+    <string name="statistics_head_to_head_heading">Cara a cara</string>
+    <string name="statistics_most_played_opponent_label">Contra quién más juegas</string>
+    <string name="statistics_archenemy_label">Archienemigo</string>
+    <string name="statistics_no_head_to_head">Todavía no has jugado ninguna partida con otros usuarios.</string>
+    <string name="statistics_opponent_games_together">%1$d partidas juntos</string>
+    <string name="statistics_archenemy_summary">Te ha eliminado %1$d veces</string>
+    <string name="statistics_most_played_group_label">Grupo en el que más juegas</string>
+    <string name="statistics_no_group_data">Todavía no has jugado ninguna partida en un grupo.</string>
+    <string name="statistics_group_games_played">%1$d partidas</string>
+    <string name="statistics_no_finished_games">Todavía no has terminado ninguna partida.</string>
+    <string name="statistics_load_more">Cargar más</string>
+    <string name="statistics_game_result_won">Ganó</string>
+    <string name="statistics_game_result_lost">Perdió</string>
+    <string name="statistics_game_no_playgroup">Partida sin grupo</string>
 </resources>

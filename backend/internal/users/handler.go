@@ -26,6 +26,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {
 	router.Post("/auth/register", rateLimit, h.Register)
 	router.Post("/auth/verify-email", rateLimit, h.VerifyEmail)
 	router.Post("/auth/resend-verification", rateLimit, h.ResendVerification)
+	router.Get("/users/username-available", rateLimit, h.CheckUsernameAvailable)
 }
 
 // RegisterProtectedRoutes registers the user endpoints that require a session.
@@ -48,6 +49,18 @@ func (h *Handler) SearchUsers(c *fiber.Ctx) error {
 		return common.MapError(err)
 	}
 	return c.JSON(res)
+}
+
+// CheckUsernameAvailable reports whether the given username is free to register (or to
+// rename to). Public, unauthenticated — used by the registration form to validate the
+// username before submitting, and share the same rate limit as the other public auth
+// endpoints since it's an easy target for enumeration otherwise.
+func (h *Handler) CheckUsernameAvailable(c *fiber.Ctx) error {
+	available, err := h.svc.IsUsernameAvailable(c.Context(), c.Query("username"))
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(UsernameAvailabilityResponse{Available: available})
 }
 
 // Register handles the registration request.

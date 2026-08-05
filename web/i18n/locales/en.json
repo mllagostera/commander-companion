@@ -52,6 +52,11 @@
     "submitting": "Creating account…",
     "haveAccount": "Already have an account?",
     "loginLink": "Log in",
+    "username": {
+      "checking": "Checking availability…",
+      "available": "Username available",
+      "taken": "That username is already taken"
+    },
     "checkEmail": {
       "title": "Check your email",
       "bodyIntro": "We sent a confirmation link to",
@@ -60,6 +65,7 @@
     },
     "errors": {
       "passwordMismatch": "Passwords don't match.",
+      "usernameTaken": "That username is already taken.",
       "registerFailed": "Couldn't create the account."
     }
   },
@@ -179,6 +185,23 @@
       "commanderDamage": "Commander damage",
       "eliminations": "Eliminations"
     },
+    "headToHead": {
+      "heading": "Head-to-head",
+      "empty": "You haven't played with other users yet.",
+      "mostPlayed": "Who you play the most",
+      "archenemy": "Archenemy",
+      "gamesTogether": "{count} games together",
+      "eliminatedYou": "Eliminated you {count} times"
+    },
+    "mostPlayedGroup": {
+      "heading": "Group you play the most in",
+      "empty": "You haven't played a game in a group yet.",
+      "summary": "{count} games"
+    },
+    "tabs": {
+      "byDeck": "By deck",
+      "finishedGames": "Finished games"
+    },
     "perDeck": {
       "heading": "By deck",
       "noDecksIntro": "You don't have any decks yet.",
@@ -188,12 +211,25 @@
       "games": "Games",
       "wins": "Wins",
       "maxLife": "Highest life",
-      "commanderDamage": "Commander damage"
+      "commanderDamage": "Commander damage",
+      "sort": {
+        "recent": "Recent",
+        "winRate": "Win rate",
+        "gamesPlayed": "Games played"
+      }
     },
-    "perGroup": {
-      "heading": "By game group",
-      "empty": "You're not a member of any group yet.",
-      "summary": "{games} games · {members} members"
+    "finishedGames": {
+      "loading": "Loading games...",
+      "loadingMore": "Loading...",
+      "empty": "You haven't finished a game yet.",
+      "noGroup": "Game without a group",
+      "won": "Won",
+      "lost": "Lost",
+      "winner": "Winner",
+      "duration": "Duration",
+      "turns": "Turns",
+      "biggestHit": "Biggest hit",
+      "loadMore": "Load more"
     }
   },
   "settings": {

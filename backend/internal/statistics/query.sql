@@ -82,3 +82,130 @@ LEFT JOIN (
 ) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
 WHERE g.playgroup_id = $1 AND g.status = 'finished'
 GROUP BY gp.user_id;
+
+-- name: ListOpponentStats :many
+-- Head-to-head aggregation across every finished game the user has played:
+-- for each other user they've shared a seat with, how many games together and
+-- how many times each side eliminated the other. Live-computed (no summary
+-- table), same choice as ListPlaygroupMemberGameStats above -- read once, on
+-- the statistics screen, not on every request like user_statistics_summary.
+SELECT
+  other.user_id AS opponent_id,
+  u.username AS opponent_username,
+  COUNT(DISTINCT other.game_id)::int AS games_together,
+  COUNT(DISTINCT you_eliminated.id)::int AS times_you_eliminated_them,
+  COUNT(DISTINCT they_eliminated.id)::int AS times_eliminated_by_opponent
+FROM game_players me
+JOIN games g ON g.id = me.game_id AND g.status = 'finished'
+JOIN game_players other ON other.game_id = me.game_id AND other.user_id != me.user_id
+JOIN users u ON u.id = other.user_id
+LEFT JOIN game_actions you_eliminated
+  ON you_eliminated.game_id = me.game_id AND you_eliminated.action_type = 'Elimination'
+  AND you_eliminated.actor_id = me.id AND you_eliminated.target_id = other.id
+LEFT JOIN game_actions they_eliminated
+  ON they_eliminated.game_id = me.game_id AND they_eliminated.action_type = 'Elimination'
+  AND they_eliminated.actor_id = other.id AND they_eliminated.target_id = me.id
+WHERE me.user_id = $1
+GROUP BY other.user_id, u.username;
+
+-- name: ListPlaygroupGameCountsForUser :many
+-- Every playgroup the user belongs to, with how many finished games they've
+-- played within it -- single query replacing the per-group GetPlaygroupStats
+-- loop the statistics screens used to do (same "every owned/joined X" shape
+-- as ListDeckStatisticsForUser above).
+SELECT
+  pg.id AS playgroup_id,
+  pg.name AS playgroup_name,
+  COUNT(DISTINCT gp.game_id)::int AS games_played
+FROM playgroup_members pm
+JOIN playgroups pg ON pg.id = pm.playgroup_id
+LEFT JOIN game_players gp
+  ON gp.user_id = pm.user_id
+  AND EXISTS (
+    SELECT 1 FROM games g
+    WHERE g.id = gp.game_id AND g.playgroup_id = pg.id AND g.status = 'finished'
+  )
+WHERE pm.user_id = $1
+GROUP BY pg.id, pg.name;
+
+-- name: ListFinishedGamesPage :many
+-- Keyset pagination over (created_at, id) DESC, scoped to finished games where
+-- the authenticated user had a seat -- same shape as games.ListGamesPage, but
+-- owned here because GET /statistics/games needs the denormalized
+-- player/deck/username data GET /games deliberately doesn't carry (that one is
+-- shared with the dashboard/join-game flow, kept lean on purpose).
+SELECT
+  games.id, games.playgroup_id, games.started_at, games.finished_at, games.created_at,
+  pg.name AS playgroup_name
+FROM games
+LEFT JOIN playgroups pg ON pg.id = games.playgroup_id
+WHERE games.status = 'finished'
+  AND EXISTS (
+    SELECT 1 FROM game_players gp
+    WHERE gp.game_id = games.id AND gp.user_id = sqlc.arg('user_id')::uuid
+  )
+  AND (
+    sqlc.narg('cursor_created_at')::timestamp IS NULL
+    OR (games.created_at, games.id) < (sqlc.narg('cursor_created_at')::timestamp, sqlc.narg('cursor_id')::uuid)
+  )
+ORDER BY games.created_at DESC, games.id DESC
+LIMIT sqlc.arg('page_limit');
+
+-- name: ListGameActionSummaryForGames :many
+-- For each game in game_ids: how many turns were played (every TurnStart belongs to
+-- one player's turn, so the count across the whole game is the turn count) and the
+-- single biggest hit (CombatDamage or CommanderDamage) dealt in it, with who dealt it --
+-- powers the finished-games card's "turns" and "biggest hit" stats without the client
+-- re-deriving them from the full action log. Left-joined from game_ids (not game_actions)
+-- so a game with no actions logged still gets a row (zero turns, no biggest hit).
+WITH turns AS (
+  SELECT game_id, COUNT(*)::int AS turn_count
+  FROM game_actions
+  WHERE game_id = ANY(sqlc.arg('game_ids')::uuid[]) AND action_type = 'TurnStart'
+  GROUP BY game_id
+),
+hits AS (
+  SELECT DISTINCT ON (game_id)
+    game_id,
+    actor_id,
+    (payload->>'amount')::int AS amount
+  FROM game_actions
+  WHERE game_id = ANY(sqlc.arg('game_ids')::uuid[])
+    AND action_type IN ('CombatDamage', 'CommanderDamage')
+  ORDER BY game_id, (payload->>'amount')::int DESC
+)
+SELECT
+  ids.game_id::uuid AS game_id,
+  COALESCE(t.turn_count, 0)::int AS turn_count,
+  h.amount AS biggest_hit_amount,
+  u.username AS biggest_hit_username
+FROM unnest(sqlc.arg('game_ids')::uuid[]) AS ids(game_id)
+LEFT JOIN turns t ON t.game_id = ids.game_id
+LEFT JOIN hits h ON h.game_id = ids.game_id
+LEFT JOIN game_players gp ON gp.id = h.actor_id
+LEFT JOIN users u ON u.id = gp.user_id;
+
+-- name: ListPlayersForGames :many
+-- Batched fetch of every seat across a page of games (see ListFinishedGamesPage),
+-- enriched with username, deck name/commander/image, and a `won` flag -- one
+-- round trip for the whole page instead of one per game. The winner subquery
+-- (only non-eliminated seat, if there's exactly one) mirrors the identical
+-- pattern already used in ListPlaygroupMemberGameStats above -- same rule,
+-- same SQL shape, not reinvented.
+SELECT
+  gp.game_id, gp.user_id, u.username, gp.deck_id, d.name AS deck_name,
+  d.commander AS deck_commander, d.image_url AS deck_image_url,
+  (winner.id IS NOT NULL)::boolean AS won
+FROM game_players gp
+JOIN users u ON u.id = gp.user_id
+JOIN decks d ON d.id = gp.deck_id
+LEFT JOIN (
+  SELECT id, game_id
+  FROM (
+    SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count
+    FROM game_players
+    WHERE NOT is_eliminated
+  ) alive
+  WHERE alive_count = 1
+) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
+WHERE gp.game_id = ANY(sqlc.arg('game_ids')::uuid[]);

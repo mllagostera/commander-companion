@@ -3,6 +3,10 @@ package com.commandercompanion.data.repository
 import com.commandercompanion.core.util.apiCall
 import com.commandercompanion.data.remote.api.CommanderApi
 import com.commandercompanion.data.remote.dto.DeckStatsDto
+import com.commandercompanion.data.remote.dto.FinishedGameDto
+import com.commandercompanion.data.remote.dto.OpponentStatsDto
+import com.commandercompanion.data.remote.dto.PagedResponse
+import com.commandercompanion.data.remote.dto.PlaygroupGameCountDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import com.commandercompanion.domain.repository.StatisticsRepository
@@ -19,4 +23,12 @@ class StatisticsRepositoryImpl @Inject constructor(
 
     override suspend fun playgroupStats(playgroupId: String): Result<PlaygroupStatsDto> =
         apiCall { api.getPlaygroupStats(playgroupId) }
+
+    override suspend fun playgroupGameCounts(): Result<List<PlaygroupGameCountDto>> =
+        apiCall { api.listPlaygroupGameCounts() }
+
+    override suspend fun opponentStats(): Result<List<OpponentStatsDto>> = apiCall { api.getOpponentStats() }
+
+    override suspend fun listFinishedGames(cursor: String?): Result<PagedResponse<FinishedGameDto>> =
+        apiCall { api.listFinishedGames(cursor) }
 }

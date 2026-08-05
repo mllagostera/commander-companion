@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: false })
 
-const { register } = useAuth()
+const { register, checkUsernameAvailable } = useAuth()
 const { t } = useI18n()
 
 const username = ref('')
@@ -15,8 +15,38 @@ const isSubmitting = ref(false)
 // this screen within the form itself.
 const registeredEmail = ref('')
 
+type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken'
+const usernameStatus = ref<UsernameStatus>('idle')
+// Guards against a stale response landing after the user has already changed
+// the field again (e.g. checked "foo", edited to "foobar" before "foo" resolved).
+let usernameCheckToken = 0
+
+async function handleUsernameChange() {
+  const value = username.value.trim()
+  if (!value) {
+    usernameStatus.value = 'idle'
+    return
+  }
+
+  const token = ++usernameCheckToken
+  usernameStatus.value = 'checking'
+  try {
+    const available = await checkUsernameAvailable(value)
+    if (token !== usernameCheckToken) return
+    usernameStatus.value = available ? 'available' : 'taken'
+  } catch {
+    // Best-effort: the real check still happens server-side on submit.
+    if (token === usernameCheckToken) usernameStatus.value = 'idle'
+  }
+}
+
 async function handleSubmit() {
   errorMessage.value = ''
+
+  if (usernameStatus.value === 'taken') {
+    errorMessage.value = t('register.errors.usernameTaken')
+    return
+  }
 
   if (password.value !== passwordConfirm.value) {
     errorMessage.value = t('register.errors.passwordMismatch')
@@ -87,8 +117,23 @@ async function handleSubmit() {
               required
               :placeholder="$t('register.usernamePlaceholder')"
               class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
-              style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
+              :style="{
+                background: 'var(--input-bg)',
+                borderColor: usernameStatus === 'taken' ? 'var(--lose)' : 'var(--input-border)',
+                color: 'var(--text)',
+              }"
+              @input="usernameStatus = 'idle'"
+              @change="handleUsernameChange"
             >
+            <span v-if="usernameStatus === 'checking'" class="mt-1 block text-xs" style="color: var(--text-dim);">
+              {{ $t('register.username.checking') }}
+            </span>
+            <span v-else-if="usernameStatus === 'available'" class="mt-1 block text-xs" style="color: var(--win);">
+              {{ $t('register.username.available') }}
+            </span>
+            <span v-else-if="usernameStatus === 'taken'" class="mt-1 block text-xs" style="color: var(--lose);">
+              {{ $t('register.username.taken') }}
+            </span>
           </label>
           <label class="text-xs" style="color: var(--text-dim);">
             {{ $t('register.emailLabel') }}

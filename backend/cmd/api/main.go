@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -94,7 +95,11 @@ func run() error {
 
 	// 4. Start Server
 	log.Printf("Iniciando servidor en el puerto %s...", cfg.Port)
-	if err := app.Listen(":" + cfg.Port); err != nil {
+	ln, err := net.Listen("tcp", ":"+cfg.Port)
+	if err != nil {
+		return fmt.Errorf("error al abrir el listener: %w", err)
+	}
+	if err := app.Listener(&noDelayListener{ln}); err != nil {
 		return fmt.Errorf("error al arrancar el servidor: %w", err)
 	}
 	return nil

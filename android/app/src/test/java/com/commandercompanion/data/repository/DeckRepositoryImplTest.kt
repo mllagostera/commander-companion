@@ -1,6 +1,7 @@
 package com.commandercompanion.data.repository
 
 import com.commandercompanion.core.util.ApiError
+import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeDeckDao
 import com.commandercompanion.testing.deckDto
@@ -19,11 +20,32 @@ class DeckRepositoryImplTest {
 
     @Test
     fun `listDecks devuelve los decks del backend`() = runTest {
-        api.onListDecks = { listOf(deckDto("deck-a"), deckDto("deck-b")) }
+        api.onListDecks = { PagedResponse(items = listOf(deckDto("deck-a"), deckDto("deck-b"))) }
 
         val result = repository.listDecks()
 
         assertEquals(listOf("deck-a", "deck-b"), result.getOrThrow().map { it.id })
+    }
+
+    /**
+     * Regression test: `GET /decks` paginates at 20 items server-side. Before this fix,
+     * [DeckRepositoryImpl.listDecks] only read the first page and silently dropped the rest —
+     * a user with more than 20 decks (e.g. after a bulk Moxfield import) would see an
+     * incomplete list in the deck picker and per-deck statistics.
+     */
+    @Test
+    fun `listDecks sigue next_cursor hasta la ultima pagina`() = runTest {
+        api.onListDecks = { cursor ->
+            when (cursor) {
+                null -> PagedResponse(items = listOf(deckDto("deck-a"), deckDto("deck-b")), nextCursor = "page-2")
+                "page-2" -> PagedResponse(items = listOf(deckDto("deck-c")), nextCursor = null)
+                else -> error("cursor inesperado: $cursor")
+            }
+        }
+
+        val result = repository.listDecks()
+
+        assertEquals(listOf("deck-a", "deck-b", "deck-c"), result.getOrThrow().map { it.id })
     }
 
     @Test
@@ -38,7 +60,7 @@ class DeckRepositoryImplTest {
     /** Offline-first: a previous successful fetch left the Room cache populated for next time. */
     @Test
     fun `listDecks devuelve lo cacheado si el backend no responde`() = runTest {
-        api.onListDecks = { listOf(deckDto("deck-a"), deckDto("deck-b")) }
+        api.onListDecks = { PagedResponse(items = listOf(deckDto("deck-a"), deckDto("deck-b"))) }
         repository.listDecks() // populates the cache
 
         api.onListDecks = { throw IOException("sin red") }

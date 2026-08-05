@@ -7,9 +7,10 @@ import kotlinx.serialization.Serializable
  * Cursor-based pagination wrapper for `GET /decks` and `GET /games`
  * (`DeckListResponse`/`GameListResponse` in `docs/api/openapi.yaml`).
  *
- * [nextCursor] is `null` on the last page. No consumer in this repo paginates yet —
- * [items] is always read in full, as if the whole list fit on one page — so fetching
- * the next page is left for when a UI that needs it exists.
+ * [nextCursor] is `null` on the last page. [com.commandercompanion.data.repository.DeckRepositoryImpl.listDecks]
+ * and [com.commandercompanion.data.repository.GameRepositoryImpl.listGames] both follow it until
+ * exhausted. `listGamesForPlaygroup` never needs to: the backend returns that group's full,
+ * unpaginated history in one response (`next_cursor` always null) when `playgroup_id` is given.
  */
 @Serializable
 data class PagedResponse<T>(

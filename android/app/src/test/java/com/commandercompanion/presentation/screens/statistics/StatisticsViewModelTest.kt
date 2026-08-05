@@ -1,17 +1,18 @@
 package com.commandercompanion.presentation.screens.statistics
 
 import com.commandercompanion.data.remote.dto.DeckStatsDto
-import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
+import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import com.commandercompanion.data.repository.DeckRepositoryImpl
-import com.commandercompanion.data.repository.PlaygroupRepositoryImpl
 import com.commandercompanion.data.repository.StatisticsRepositoryImpl
+import com.commandercompanion.domain.model.DeckWithStats
 import com.commandercompanion.domain.usecase.LoadStatisticsUseCase
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeDeckDao
 import com.commandercompanion.testing.deckDto
 import com.commandercompanion.testing.httpException
-import com.commandercompanion.testing.playgroupDto
+import com.commandercompanion.testing.opponentStatsDto
+import com.commandercompanion.testing.playgroupGameCountDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -46,18 +47,17 @@ class StatisticsViewModelTest {
     private fun viewModel(): StatisticsViewModel {
         val statisticsRepository = StatisticsRepositoryImpl(api)
         val deckRepository = DeckRepositoryImpl(api, FakeDeckDao())
-        val playgroupRepository = PlaygroupRepositoryImpl(api)
-        val loadStatisticsUseCase = LoadStatisticsUseCase(statisticsRepository, deckRepository, playgroupRepository)
+        val loadStatisticsUseCase = LoadStatisticsUseCase(statisticsRepository, deckRepository)
         return StatisticsViewModel(loadStatisticsUseCase)
     }
 
     @Test
     fun `carga las estadisticas globales, por deck y por grupo`() = runTest {
         api.onGetUserStats = { UserStatsDto(userId = "user-1", gamesPlayed = 10, gamesWon = 4) }
-        api.onListDecks = { listOf(deckDto("deck-a"), deckDto("deck-b")) }
+        api.onListDecks = { PagedResponse(items = listOf(deckDto("deck-a"), deckDto("deck-b"))) }
         api.onGetDeckStats = { id -> DeckStatsDto(deckId = id, gamesPlayed = 5, gamesWon = 2) }
-        api.onListPlaygroups = { listOf(playgroupDto(id = "group-1")) }
-        api.onGetPlaygroupStats = { id -> PlaygroupStatsDto(playgroupId = id, gamesPlayed = 3) }
+        api.onListPlaygroupGameCounts = { listOf(playgroupGameCountDto(playgroupId = "group-1", gamesPlayed = 3)) }
+        api.onGetOpponentStats = { listOf(opponentStatsDto(userId = "user-2", gamesTogether = 2)) }
 
         val viewModel = viewModel()
         advanceUntilIdle()
@@ -69,14 +69,14 @@ class StatisticsViewModelTest {
         assertEquals(4, state.userStats?.gamesWon)
         assertEquals(listOf("deck-a", "deck-b"), state.deckStats.map { it.deck.id })
         assertEquals(listOf(5, 5), state.deckStats.map { it.stats?.gamesPlayed })
-        assertEquals("group-1", state.playgroupSummaries.single().playgroup.id)
-        assertEquals(3, state.playgroupSummaries.single().gamesPlayed)
+        assertEquals("group-1", state.playgroupGameCounts.single().playgroupId)
+        assertEquals(3, state.playgroupGameCounts.single().gamesPlayed)
+        assertEquals("user-2", state.opponentStats.single().userId)
     }
 
     @Test
     fun `un grupo sin partidas jugadas cuenta como cero, no como error`() = runTest {
-        api.onListPlaygroups = { listOf(playgroupDto(id = "group-1")) }
-        api.onGetPlaygroupStats = { throw httpException(404) }
+        api.onListPlaygroupGameCounts = { throw httpException(500) }
 
         val viewModel = viewModel()
         advanceUntilIdle()
@@ -84,12 +84,12 @@ class StatisticsViewModelTest {
 
         assertFalse(state.isLoading)
         assertFalse(state.loadError)
-        assertEquals(0, state.playgroupSummaries.single().gamesPlayed)
+        assertTrue(state.playgroupGameCounts.isEmpty())
     }
 
     @Test
     fun `un deck sin estadisticas todavia no rompe la carga del resto`() = runTest {
-        api.onListDecks = { listOf(deckDto("deck-a")) }
+        api.onListDecks = { PagedResponse(items = listOf(deckDto("deck-a"))) }
         api.onGetDeckStats = { throw httpException(404) }
 
         val viewModel = viewModel()
@@ -112,5 +112,62 @@ class StatisticsViewModelTest {
         assertFalse(state.isLoading)
         assertTrue(state.loadError)
         assertNull(state.userStats)
+    }
+
+    @Test
+    fun `mostPlayedOpponent elige el rival con mas partidas juntos`() {
+        val state = StatisticsUiState(
+            opponentStats = listOf(
+                opponentStatsDto(userId = "user-2", gamesTogether = 2),
+                opponentStatsDto(userId = "user-3", gamesTogether = 5)
+            )
+        )
+
+        assertEquals("user-3", state.mostPlayedOpponent?.userId)
+    }
+
+    @Test
+    fun `archenemy ignora rivales que nunca te han eliminado`() {
+        val state = StatisticsUiState(
+            opponentStats = listOf(
+                opponentStatsDto(userId = "user-2", timesEliminatedByOpponent = 0),
+                opponentStatsDto(userId = "user-3", timesEliminatedByOpponent = 3)
+            )
+        )
+
+        assertEquals("user-3", state.archenemy?.userId)
+    }
+
+    @Test
+    fun `archenemy es null si ningun rival te ha eliminado nunca`() {
+        val state = StatisticsUiState(
+            opponentStats = listOf(opponentStatsDto(userId = "user-2", timesEliminatedByOpponent = 0))
+        )
+
+        assertNull(state.archenemy)
+    }
+
+    @Test
+    fun `sortedDeckStats ordena por porcentaje de victorias`() {
+        val lowWinRate = DeckWithStats(deckDto("deck-a"), DeckStatsDto(deckId = "deck-a", gamesPlayed = 10, gamesWon = 2))
+        val highWinRate = DeckWithStats(deckDto("deck-b"), DeckStatsDto(deckId = "deck-b", gamesPlayed = 4, gamesWon = 3))
+        val state = StatisticsUiState(
+            deckStats = listOf(lowWinRate, highWinRate),
+            deckSortOrder = DeckSortOrder.WIN_RATE
+        )
+
+        assertEquals(listOf("deck-b", "deck-a"), state.sortedDeckStats.map { it.deck.id })
+    }
+
+    @Test
+    fun `mostPlayedPlaygroup ignora grupos sin partidas jugadas`() {
+        val state = StatisticsUiState(
+            playgroupGameCounts = listOf(
+                playgroupGameCountDto(playgroupId = "group-1", gamesPlayed = 0),
+                playgroupGameCountDto(playgroupId = "group-2", gamesPlayed = 4)
+            )
+        )
+
+        assertEquals("group-2", state.mostPlayedPlaygroup?.playgroupId)
     }
 }

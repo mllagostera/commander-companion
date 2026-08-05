@@ -6,14 +6,17 @@ import com.commandercompanion.data.remote.dto.CreateDeckRequest
 import com.commandercompanion.data.remote.dto.CreateGameRequest
 import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.DeckStatsDto
+import com.commandercompanion.data.remote.dto.FinishedGameDto
 import com.commandercompanion.data.remote.dto.GameActionDto
 import com.commandercompanion.data.remote.dto.GameDto
 import com.commandercompanion.data.remote.dto.GamePlayerDto
 import com.commandercompanion.data.remote.dto.HealthDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
 import com.commandercompanion.data.remote.dto.JoinGameRequest
+import com.commandercompanion.data.remote.dto.OpponentStatsDto
 import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.remote.dto.PlaygroupDto
+import com.commandercompanion.data.remote.dto.PlaygroupGameCountDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.UpdateProfileRequest
 import com.commandercompanion.data.remote.dto.UserDto
@@ -45,9 +48,13 @@ interface CommanderApi {
 
     // ---------------------------------------------------------------- decks
 
-    /** Server-side cursor-based pagination; always requests the first page (default 20 items). */
+    /**
+     * Server-side cursor-based pagination (default 20 items/page). Pass the previous page's
+     * `next_cursor` to get the next one; omit it for the first page. [DeckRepositoryImpl.listDecks]
+     * follows it until exhausted — this raw call only fetches one page.
+     */
     @GET("api/v1/decks")
-    suspend fun listDecks(): PagedResponse<DeckDto>
+    suspend fun listDecks(@Query("cursor") cursor: String? = null): PagedResponse<DeckDto>
 
     @POST("api/v1/decks")
     suspend fun createDeck(@Body request: CreateDeckRequest): DeckDto
@@ -63,9 +70,15 @@ interface CommanderApi {
 
     // ---------------------------------------------------------------- games
 
-    /** Server-side cursor-based pagination; always requests the first page (default 20 items). */
+    /**
+     * Server-side cursor-based pagination (default 20 items/page), same shape as [listDecks].
+     * [GameRepositoryImpl.listGames] follows [PagedResponse.nextCursor] until exhausted — this
+     * raw call only fetches one page. Currently unused by any screen (`HistoryScreen` reads
+     * local Room history instead, see `HistoryViewModel`), kept correct for whenever a
+     * cross-playgroup history view needs it.
+     */
     @GET("api/v1/games")
-    suspend fun listGames(): PagedResponse<GameDto>
+    suspend fun listGames(@Query("cursor") cursor: String? = null): PagedResponse<GameDto>
 
     /**
      * Full (unpaginated) history of a group's games — same `games` list endpoint, but scoped to a
@@ -137,6 +150,18 @@ interface CommanderApi {
 
     @GET("api/v1/statistics/playgroup/{id}")
     suspend fun getPlaygroupStats(@Path("id") playgroupId: String): PlaygroupStatsDto
+
+    /** Every playgroup the user belongs to, with its games_played count -- replaces one [getPlaygroupStats] call per group. */
+    @GET("api/v1/statistics/playgroups")
+    suspend fun listPlaygroupGameCounts(): List<PlaygroupGameCountDto>
+
+    /** Head-to-head record against every opponent the user has shared a finished game with. */
+    @GET("api/v1/statistics/opponents")
+    suspend fun getOpponentStats(): List<OpponentStatsDto>
+
+    /** Same cursor-pagination shape as [listGames], enriched per player (see [FinishedGameDto]). */
+    @GET("api/v1/statistics/games")
+    suspend fun listFinishedGames(@Query("cursor") cursor: String? = null): PagedResponse<FinishedGameDto>
 
     // ----------------------------------------------------------------- users
 

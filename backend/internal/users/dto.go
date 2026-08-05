@@ -48,6 +48,11 @@ type UserResponse struct {
 	HasPassword bool `json:"has_password"`
 }
 
+// UsernameAvailabilityResponse is the DTO of GET /users/username-available.
+type UsernameAvailabilityResponse struct {
+	Available bool `json:"available"`
+}
+
 // UserSearchResult is the DTO of GET /users/search — deliberately without email: unlike
 // UserResponse (one's own profile), this is shown over results for OTHER users, and the
 // email is the only piece of data the searcher doesn't necessarily already know.

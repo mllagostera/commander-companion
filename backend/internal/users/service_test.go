@@ -631,6 +631,56 @@ func TestUpdateUsername_UnknownUser_ReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestIsUsernameAvailable_Free(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	available, err := svc.IsUsernameAvailable(context.Background(), "nunca-usado")
+	if err != nil {
+		t.Fatalf("IsUsernameAvailable() error = %v, want nil", err)
+	}
+	if !available {
+		t.Fatal("IsUsernameAvailable() = false, want true (username never registered)")
+	}
+}
+
+func TestIsUsernameAvailable_Taken(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "availability-taken@example.com")
+
+	available, err := svc.IsUsernameAvailable(context.Background(), user.Username)
+	if err != nil {
+		t.Fatalf("IsUsernameAvailable() error = %v, want nil", err)
+	}
+	if available {
+		t.Fatal("IsUsernameAvailable() = true, want false (username already registered)")
+	}
+}
+
+func TestIsUsernameAvailable_TrimsWhitespace(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+	user := registerUser(t, svc, "availability-trim@example.com")
+
+	available, err := svc.IsUsernameAvailable(context.Background(), "  "+user.Username+"  ")
+	if err != nil {
+		t.Fatalf("IsUsernameAvailable() error = %v, want nil", err)
+	}
+	if available {
+		t.Fatal("IsUsernameAvailable() with surrounding whitespace = true, want false (same collision as UpdateUsername)")
+	}
+}
+
+func TestIsUsernameAvailable_Empty_ReturnsInvalidInput(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	_, err := svc.IsUsernameAvailable(context.Background(), "   ")
+	if !errors.Is(err, users.ErrUsernameEmpty) {
+		t.Fatalf("IsUsernameAvailable(\"   \") error = %v, want ErrUsernameEmpty", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("IsUsernameAvailable(\"   \") code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
 func TestChangePassword_Success(t *testing.T) {
 	svc, _ := newUsersSvcVerificationOff(t)
 	user := registerUser(t, svc, "change-password-ok@example.com")

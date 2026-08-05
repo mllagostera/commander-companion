@@ -321,6 +321,55 @@ fun DeckArtChip(
     }
 }
 
+/**
+ * Plain (non-interactive) square deck thumbnail — commander art crop when [imageUrl] is set,
+ * else a gradient tile with the commander's first letter. Mirrors web's `DeckArt.vue`. Unlike
+ * [DeckArtChip], carries no selection border/click/name-overlay, so it fits compact rows like
+ * a statistics card.
+ */
+@Composable
+fun DeckThumbnail(
+    commander: String,
+    imageUrl: String?,
+    modifier: Modifier = Modifier,
+    size: Dp = 64.dp
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .border(1.dp, AppOutline, shape)
+    ) {
+        if (imageUrl != null) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = commander,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(AccentSoft.copy(alpha = 0.35f), AccentSoft.copy(alpha = 0.15f))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = commander.firstOrNull()?.uppercase() ?: "?",
+                    color = AppFaint,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+            }
+        }
+    }
+}
+
 /** Circular number/index picker, e.g. player-count selector. */
 @Composable
 fun SelectableCircle(
