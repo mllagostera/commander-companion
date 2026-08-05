@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -95,7 +96,7 @@ func run() error {
 
 	// 4. Start Server
 	log.Printf("Iniciando servidor en el puerto %s...", cfg.Port)
-	ln, err := net.Listen("tcp", ":"+cfg.Port)
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", ":"+cfg.Port)
 	if err != nil {
 		return fmt.Errorf("error al abrir el listener: %w", err)
 	}
