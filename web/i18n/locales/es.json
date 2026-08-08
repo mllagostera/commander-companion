@@ -336,7 +336,12 @@
       "starterBanner": "{name} empieza",
       "fullscreen": "Pantalla completa",
       "exitFullscreen": "Salir de pantalla completa",
-      "rotatePrompt": "Gira tu dispositivo\npara jugar"
+      "rotatePrompt": "Gira tu dispositivo\npara jugar",
+      "passTurn": "Pasar turno",
+      "pause": "Pausar partida",
+      "paused": "Partida pausada",
+      "resume": "Reanudar",
+      "resetLives": "Reiniciar vidas"
     },
     "summary": {
       "heading": "Partida finalizada",

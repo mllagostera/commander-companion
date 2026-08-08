@@ -334,7 +334,14 @@
       "commanderDamage": "Commander damage",
       "startRandom": "Pick who starts",
       "starterBanner": "{name} starts",
-      "rotatePrompt": "Rotate your device\nto play"
+      "fullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen",
+      "rotatePrompt": "Rotate your device\nto play",
+      "passTurn": "Pass turn",
+      "pause": "Pause game",
+      "paused": "Game paused",
+      "resume": "Resume",
+      "resetLives": "Reset lives"
     },
     "summary": {
       "heading": "Game finished",

@@ -3,10 +3,13 @@ import type { LocalPlayer } from '~/composables/useLocalGame'
 
 definePageMeta({ layout: false })
 
+const { t } = useI18n()
+
 const {
-  players, turn, isFinished, winnerId, started, startingPlayerId,
+  players, turn, isFinished, winnerId, started, startingPlayerId, currentTurnPlayerId, paused,
   lotteryActive, lotteryHighlightId, showStarterBanner,
-  setup, startRandomPlayer, adjustLife, adjustPoison, adjustCommanderDamage, finishManually, reset,
+  setup, startRandomPlayer, adjustLife, adjustPoison, adjustCommanderDamage, passTurn, togglePause, resetLives,
+  finishManually, reset,
   isEliminated,
 } = useLocalGame()
 
@@ -41,6 +44,17 @@ const winner = computed<LocalPlayer | null>(() => players.value.find((p) => p.id
 
 const topRow = computed(() => players.value.slice(0, Math.ceil(players.value.length / 2)))
 const bottomRow = computed(() => players.value.slice(Math.ceil(players.value.length / 2)))
+
+/** Spells "Turno N" as a ring of characters orbiting the pause button (`cc-orbit-spin`
+ * in main.css spins the whole ring). */
+const orbitChars = computed(() => {
+  const label = t('play.tracker.turn', { n: turn.value })
+  const chars = label.split('')
+  const arc = Math.min(160, chars.length * 18)
+  const start = -arc / 2
+  const step = chars.length > 1 ? arc / (chars.length - 1) : 0
+  return chars.map((ch, i) => ({ ch, angle: start + i * step }))
+})
 
 function dealtBy(player: LocalPlayer): number {
   return players.value.reduce((sum, p) => sum + (p.commanderDamage[player.id] ?? 0), 0)
@@ -224,11 +238,13 @@ onUnmounted(() => {
                   :rotated="true"
                   :started="started"
                   :highlighted="lotteryHighlightId === player.id"
+                  :is-current-turn="started && currentTurnPlayerId === player.id"
                   :expanded-id="expandedPlayerId"
                   @toggle-expand="toggleExpand"
                   @adjust-life="adjustLife"
                   @adjust-poison="adjustPoison"
                   @adjust-commander-damage="adjustCommanderDamage"
+                  @pass-turn="passTurn"
                 />
               </div>
 
@@ -241,11 +257,13 @@ onUnmounted(() => {
                   :rotated="false"
                   :started="started"
                   :highlighted="lotteryHighlightId === player.id"
+                  :is-current-turn="started && currentTurnPlayerId === player.id"
                   :expanded-id="expandedPlayerId"
                   @toggle-expand="toggleExpand"
                   @adjust-life="adjustLife"
                   @adjust-poison="adjustPoison"
                   @adjust-commander-damage="adjustCommanderDamage"
+                  @pass-turn="passTurn"
                 />
               </div>
             </div>
@@ -254,6 +272,18 @@ onUnmounted(() => {
               class="pointer-events-none absolute inset-0 flex items-center justify-center text-[96px] font-extrabold"
               style="color: rgba(255,255,255,0.05);"
             >{{ turn }}</span>
+
+            <div v-if="started" class="pointer-events-none absolute left-1/2 top-1/2 z-[2] h-px w-px">
+              <div class="absolute left-1/2 top-1/2 h-px w-px animate-[cc-orbit-spin_9s_linear_infinite]">
+                <span
+                  v-for="(c, i) in orbitChars"
+                  :key="i"
+                  class="absolute left-0 top-0 flex items-center justify-center text-[9px] font-bold leading-none"
+                  style="width: 12px; height: 12px; margin-left: -6px; margin-top: -6px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.6);"
+                  :style="{ transform: `rotate(${c.angle}deg) translateY(-62px)` }"
+                >{{ c.ch }}</span>
+              </div>
+            </div>
 
             <button
               v-if="!started && !lotteryActive"
@@ -269,9 +299,36 @@ onUnmounted(() => {
               />
             </button>
 
+            <button
+              v-if="started"
+              type="button"
+              :title="$t('play.tracker.pause')"
+              class="absolute left-1/2 top-1/2 z-[3] flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-1 rounded-full border shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+              style="border-color: rgba(196,181,253,0.4); background: rgba(10,7,20,0.85);"
+              @click="togglePause"
+            >
+              <span class="h-4 w-1 rounded-sm" style="background: #fff;" />
+              <span class="h-4 w-1 rounded-sm" style="background: #fff;" />
+            </button>
+
             <div v-if="showStarterBanner" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3.5" style="background: rgba(5,3,8,0.94);">
               <span class="h-4 w-4 rounded-full" :style="{ background: starterColor, boxShadow: `0 0 20px ${starterColor}` }" />
               <p class="px-6 text-center font-extrabold" style="color: #ffffff; font-size: clamp(22px, 4vw, 34px);">{{ $t('play.tracker.starterBanner', { name: starterName }) }}</p>
+            </div>
+
+            <div v-if="paused" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3.5" style="background: rgba(5,3,8,0.92);">
+              <p class="text-base font-semibold" style="color: #f1f0f6;">{{ $t('play.tracker.paused') }}</p>
+              <button
+                type="button"
+                class="rounded-full px-[26px] py-3 text-[13px] font-bold"
+                style="background: linear-gradient(90deg, #8b5cf6, #a855f7); color: #0a0714;"
+                @click="togglePause"
+              >
+                {{ $t('play.tracker.resume') }}
+              </button>
+              <button type="button" class="border-none bg-transparent p-0 text-[13px]" style="color: #f87171;" @click="resetLives">
+                {{ $t('play.tracker.resetLives') }}
+              </button>
             </div>
 
             <button

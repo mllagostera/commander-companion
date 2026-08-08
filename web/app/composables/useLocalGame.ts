@@ -44,6 +44,12 @@ export function useLocalGame() {
    * before drawing who goes first (the central "Play" button in the tracker). */
   const started = ref(false)
   const startingPlayerId = ref<number | null>(null)
+  /** Seat whose turn it currently is, so the tracker UI can ring-highlight its quadrant.
+   * Mirrors `startingPlayerId` until `passTurn` advances it. */
+  const currentTurnPlayerId = ref<number | null>(null)
+  /** Purely local UI state (mirrors Android's `GameTrackerScreen`): freezes the overlay
+   * on top of the grid, no effect on the underlying counters. */
+  const paused = ref(false)
 
   /** Draw animation (roulette): highlights seats in sequence, slowing down, before
    * landing on the winner — replaces the previous instant draw. */
@@ -69,6 +75,8 @@ export function useLocalGame() {
     winnerId.value = null
     started.value = false
     startingPlayerId.value = null
+    currentTurnPlayerId.value = null
+    paused.value = false
     lotteryActive.value = false
     lotteryHighlightId.value = null
     showStarterBanner.value = false
@@ -94,6 +102,7 @@ export function useLocalGame() {
         lotteryActive.value = false
         lotteryHighlightId.value = null
         startingPlayerId.value = order[finalIndex]!
+        currentTurnPlayerId.value = order[finalIndex]!
         started.value = true
         showStarterBanner.value = true
         setTimeout(() => {
@@ -132,6 +141,32 @@ export function useLocalGame() {
     defender.commanderDamage[attackerId] = Math.max(0, current + amount)
     if (amount > 0) defender.life -= amount
     checkGameOver()
+  }
+
+  /** Advances the turn counter and hands the ring highlight to the next seat, wrapping
+   * around — same seat order Android's `GameViewModel.nextTurn()` uses. */
+  function passTurn() {
+    if (!started.value || isFinished.value) return
+    const ids = players.value.map((p) => p.id)
+    const idx = currentTurnPlayerId.value === null ? -1 : ids.indexOf(currentTurnPlayerId.value)
+    const nextId = idx === -1 ? ids[0]! : ids[(idx + 1) % ids.length]!
+    turn.value += 1
+    currentTurnPlayerId.value = nextId
+  }
+
+  function togglePause() {
+    paused.value = !paused.value
+  }
+
+  /** Resets life/poison/commander damage for the current seats without going back to
+   * setup — same players and starting seat, fresh counters. */
+  function resetLives() {
+    players.value = players.value.map((p) => ({ ...p, life: LOCAL_GAME_STARTING_LIFE, poison: 0, commanderDamage: {} }))
+    turn.value = 1
+    currentTurnPlayerId.value = startingPlayerId.value
+    paused.value = false
+    isFinished.value = false
+    winnerId.value = null
   }
 
   function alivePlayers(): LocalPlayer[] {
@@ -173,6 +208,8 @@ export function useLocalGame() {
     winnerId,
     started,
     startingPlayerId,
+    currentTurnPlayerId,
+    paused,
     lotteryActive,
     lotteryHighlightId,
     showStarterBanner,
@@ -181,6 +218,9 @@ export function useLocalGame() {
     adjustLife,
     adjustPoison,
     adjustCommanderDamage,
+    passTurn,
+    togglePause,
+    resetLives,
     finishManually,
     reset,
     isEliminated: isLocalPlayerEliminated,
