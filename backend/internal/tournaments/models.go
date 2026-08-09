@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.27.0
 
-package users
+package tournaments
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"

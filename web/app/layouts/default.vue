@@ -10,6 +10,7 @@ const links = computed(() => [
   { to: '/decks', label: t('nav.decks') },
   { to: '/statistics', label: t('nav.statistics') },
   { to: '/playgroups', label: t('nav.playgroups') },
+  { to: '/tournaments', label: t('nav.tournaments') },
 ])
 
 const route = useRoute()

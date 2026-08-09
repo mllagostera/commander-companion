@@ -27,6 +27,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/playgroups"
 	"github.com/usuario/commander-companion-backend/internal/statistics"
 	"github.com/usuario/commander-companion-backend/internal/sync"
+	"github.com/usuario/commander-companion-backend/internal/tournaments"
 	"github.com/usuario/commander-companion-backend/internal/users"
 	"github.com/usuario/commander-companion-backend/internal/websocket"
 )
@@ -241,4 +242,9 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	// with moxfield_id (unlike moxfieldimport, which brings in new decks by username).
 	deckResyncService := deckresync.NewService(db.Pool, decksService)
 	deckresync.NewHandler(deckResyncService).RegisterRoutes(protected)
+
+	// tournaments: standalone Swiss-format Commander tournaments (see
+	// internal/tournaments and ADR-0016), not tied to a playgroup.
+	tournamentsService := tournaments.NewService(db.Pool, decksService)
+	tournaments.NewHandler(tournamentsService).RegisterRoutes(protected)
 }
