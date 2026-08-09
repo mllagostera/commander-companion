@@ -41,9 +41,27 @@ func (h *Handler) CreatePlaygroup(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(res)
 }
 
-// ListPlaygroups returns the authenticated user's groups.
+// ListPlaygroups returns the authenticated user's groups. Backward compatible:
+// without `cursor`/`limit`, it keeps returning the full list with members
+// populated (same response shape existing clients already parse as a bare
+// array). With either query param present, it opts into a page instead (see
+// Service.ListPlaygroupsPage) — same "response shape depends on a query
+// param" pattern already used by games.Handler.ListGames for playgroup_id.
 func (h *Handler) ListPlaygroups(c *fiber.Ctx) error {
 	userID, _ := c.Locals(common.UserIDKey).(string)
+
+	if c.Query("cursor") != "" || c.Query("limit") != "" {
+		page, err := common.ParsePageRequest(c)
+		if err != nil {
+			return common.MapError(err)
+		}
+		res, err := h.svc.ListPlaygroupsPage(c.Context(), page, userID)
+		if err != nil {
+			return common.MapError(err)
+		}
+		return c.JSON(res)
+	}
+
 	res, err := h.svc.ListPlaygroups(c.Context(), userID)
 	if err != nil {
 		return common.MapError(err)

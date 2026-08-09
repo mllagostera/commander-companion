@@ -23,6 +23,11 @@ type Querier interface {
 	ListPlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) ([]ListPlaygroupMembersRow, error)
 	ListPlaygroups(ctx context.Context) ([]Playgroup, error)
 	ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID) ([]Playgroup, error)
+	// Keyset pagination over (created_at, id) DESC, scoped to playgroups the user is
+	// a member of (same shape as games.ListGamesPage). With cursor_created_at NULL
+	// it returns the first page; with a cursor, the rows strictly after it in list
+	// order. See internal/common/pagination.go.
+	ListPlaygroupsForUserPage(ctx context.Context, arg ListPlaygroupsForUserPageParams) ([]Playgroup, error)
 	UpdatePlaygroupName(ctx context.Context, arg UpdatePlaygroupNameParams) (Playgroup, error)
 }
 
