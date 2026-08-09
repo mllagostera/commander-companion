@@ -2,7 +2,8 @@
   "common": {
     "cancel": "Cancelar",
     "save": "Guardar",
-    "saving": "Guardando…"
+    "saving": "Guardando…",
+    "back": "Atrás"
   },
   "nav": {
     "home": "Inicio",
@@ -13,7 +14,8 @@
     "logout": "Salir",
     "darkTheme": "Tema oscuro",
     "toggleTheme": "Cambiar tema",
-    "language": "Idioma"
+    "language": "Idioma",
+    "tournaments": "Torneos"
   },
   "login": {
     "tagline": "Tus partidas y decks de Commander, en un solo lugar.",
@@ -367,7 +369,12 @@
     "groupCreated": "Grupo creado",
     "groupRenamed": "Grupo renombrado",
     "deckImported": "Deck importado",
-    "memberAdded": "{username} agregado al grupo"
+    "memberAdded": "{username} agregado al grupo",
+    "tournamentCreated": "Torneo creado",
+    "tournamentJoined": "Te has unido al torneo",
+    "guestAdded": "{name} añadido al torneo",
+    "tournamentStarted": "Torneo iniciado",
+    "roundAdvanced": "Ronda avanzada"
   },
   "gameStatus": {
     "pending": "Pendiente",
@@ -439,6 +446,116 @@
     },
     "googleIdentity": {
       "loadFailed": "No se pudo cargar Google Identity Services."
+    },
+    "tournaments": {
+      "create": {
+        "needName": "El torneo necesita un nombre.",
+        "generic": "No se pudo crear el torneo."
+      },
+      "join": {
+        "invalidCode": "Ese código no corresponde a ningún torneo.",
+        "alreadyJoinedOrClosed": "Ya estás registrado, o el torneo ya no admite inscripciones.",
+        "generic": "No se pudo unir al torneo."
+      },
+      "addGuest": {
+        "missingFields": "El invitado necesita un nombre y un comandante.",
+        "notOrganizer": "El torneo no existe o no eres su organizador.",
+        "closed": "El torneo ya no admite inscripciones.",
+        "generic": "No se pudo añadir al invitado."
+      },
+      "start": {
+        "invalidCount": "El número de participantes necesita una división válida en mesas de 3-4 (añade o quita uno).",
+        "notOrganizer": "El torneo no existe o no eres su organizador.",
+        "alreadyStarted": "El torneo ya ha empezado.",
+        "generic": "No se pudo iniciar el torneo."
+      },
+      "recordResult": {
+        "invalid": "El resultado no coincide con los asientos de esta mesa.",
+        "notInProgress": "El torneo no está en curso.",
+        "generic": "No se pudo registrar el resultado."
+      },
+      "advanceRound": {
+        "notComplete": "Todas las mesas necesitan un resultado registrado antes de avanzar.",
+        "generic": "No se pudo avanzar de ronda."
+      },
+      "lookup": {
+        "notFound": "Ese código no corresponde a ningún torneo.",
+        "generic": "No se pudo consultar el torneo."
+      }
+    }
+  },
+  "tournaments": {
+    "list": {
+      "title": "Torneos",
+      "subtitle": "Crea un torneo de Commander en formato suizo, o únete a uno con un código.",
+      "joinWithCode": "Unirse con un código",
+      "create": "Crear torneo",
+      "loadError": "No se pudieron cargar tus torneos.",
+      "empty": "Todavía no organizas ni participas en ningún torneo.",
+      "joinCode": "Código: {code}",
+      "roundProgress": "Ronda {current} de {total}",
+      "createModal": {
+        "title": "Nuevo torneo",
+        "namePlaceholder": "Nombre del torneo",
+        "targetPlayersPlaceholder": "Jugadores esperados (opcional)",
+        "submitting": "Creando…",
+        "submit": "Crear"
+      },
+      "joinModal": {
+        "title": "Unirse a un torneo",
+        "codePlaceholder": "CÓDIGO",
+        "looking": "Buscando…",
+        "next": "Siguiente",
+        "foundTournament": "Te unes a \"{name}\" — elige el mazo que llevarás.",
+        "pickDeck": "Elige un mazo",
+        "noDecks": "Todavía no tienes mazos guardados.",
+        "joining": "Uniéndote…",
+        "submit": "Unirse"
+      }
+    },
+    "status": {
+      "registration": "Inscripción abierta",
+      "in_progress": "En curso",
+      "finished": "Finalizado"
+    },
+    "detail": {
+      "back": "Volver a torneos",
+      "loadError": "No se pudo cargar este torneo.",
+      "roundProgress": "Ronda {current} de {total}",
+      "joinCodeLabel": "Código de acceso",
+      "copy": "Copiar",
+      "copied": "¡Copiado!",
+      "shareHint": "Comparte este código para que los jugadores se registren y, una vez empiece el torneo, consulten su mesa en cada ronda.",
+      "starting": "Iniciando…",
+      "start": "Iniciar torneo",
+      "participants": {
+        "heading": "{count} participante | {count} participantes",
+        "close": "Cerrar",
+        "addGuest": "Añadir invitado",
+        "guestNamePlaceholder": "Nombre del invitado",
+        "commanderPlaceholder": "Comandante",
+        "adding": "Añadiendo…",
+        "add": "Añadir",
+        "empty": "Todavía no se ha registrado nadie."
+      },
+      "round": {
+        "heading": "Ronda {number}",
+        "table": "Mesa {number}",
+        "finishedPosition": "#{n}",
+        "pickPosition": "Posición",
+        "recording": "Guardando…",
+        "recordResult": "Registrar resultado",
+        "advancing": "Avanzando…",
+        "advance": "Siguiente ronda"
+      },
+      "standings": {
+        "heading": "Clasificación",
+        "columns": {
+          "player": "Jugador",
+          "points": "Puntos"
+        },
+        "winner": "Ganador"
+      }
     }
   }
 }
