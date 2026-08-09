@@ -277,3 +277,75 @@ func TestGetJobStatus_OtherUsersJob_ReturnsNotFound(t *testing.T) {
 
 	waitForTerminalStatus(t, svc, owner.ID, job.ID)
 }
+
+// stuckResyncJob creates a job for user directly through the repo, already
+// 'in_progress' -- CreateResyncJob always inserts with that status (see the
+// package doc: the deck list is resolved synchronously before insert, so there's
+// no 'pending' state to go through), simulating one a previous process was still
+// running when it died.
+func stuckResyncJob(t *testing.T, pool *pgxpool.Pool, userID string, totalDecks int32) deckresync.DeckResyncJob {
+	t.Helper()
+	repo := deckresync.New(pool)
+
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		t.Fatalf("parsing test user id: %v", err)
+	}
+	job, err := repo.CreateResyncJob(context.Background(), deckresync.CreateResyncJobParams{
+		UserID: uid, TotalDecks: totalDecks,
+	})
+	if err != nil {
+		t.Fatalf("CreateResyncJob() error = %v", err)
+	}
+	return job
+}
+
+// assertFailedWithMessage checks a job reaped by ReapStaleJobs landed in the
+// expected terminal state: 'failed' with a non-empty, explanatory error_message.
+func assertFailedWithMessage(t *testing.T, status string, errorMessage *string) {
+	t.Helper()
+	if status != jobStatusFailed {
+		t.Fatalf("job.Status = %q, want %q", status, jobStatusFailed)
+	}
+	if errorMessage == nil || *errorMessage == "" {
+		t.Fatalf("ErrorMessage = %v, want a non-empty message", errorMessage)
+	}
+}
+
+// TestReapStaleJobs_MarksInProgressAsFailed is the regression test for the gap
+// documented in the package doc: a process restart used to leave a job stuck
+// in_progress forever, permanently blocking (via the active-job unique index) that
+// user from starting a new resync. ReapStaleJobs is what cmd/api/main.go now runs
+// once at startup to clear exactly that.
+func TestReapStaleJobs_MarksInProgressAsFailed(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateResyncTables(t, pool)
+	user := registerUser(t, pool, "resync-reaper@example.com")
+
+	stuck := stuckResyncJob(t, pool, user.ID, 2)
+
+	reaped, err := deckresync.ReapStaleJobs(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("ReapStaleJobs() error = %v", err)
+	}
+	if reaped != 1 {
+		t.Fatalf("ReapStaleJobs() reaped = %d, want 1", reaped)
+	}
+
+	svc := newTestSvc(pool, &fakeDeckLister{})
+	stuckStatus, err := svc.GetJobStatus(context.Background(), user.ID, stuck.ID.String())
+	if err != nil {
+		t.Fatalf("GetJobStatus() error = %v", err)
+	}
+	assertFailedWithMessage(t, stuckStatus.Status, stuckStatus.ErrorMessage)
+
+	// The active-job unique index must now be free: a new resync for the same
+	// user should succeed instead of 409ing against the reaped row.
+	lister := &fakeDeckLister{items: []decks.DeckResponse{{ID: "d1", MoxfieldID: testMoxfieldA}}}
+	newSvc := newTestSvc(pool, lister)
+	newJob, err := newSvc.StartResyncAll(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("StartResyncAll() after reap: error = %v, want nil (constraint should be freed)", err)
+	}
+	waitForTerminalStatus(t, newSvc, user.ID, newJob.ID)
+}

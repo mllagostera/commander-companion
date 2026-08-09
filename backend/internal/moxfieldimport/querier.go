@@ -15,6 +15,7 @@ type Querier interface {
 	FinishImportJob(ctx context.Context, arg FinishImportJobParams) (MoxfieldImportJob, error)
 	GetImportJob(ctx context.Context, id pgtype.UUID) (MoxfieldImportJob, error)
 	GetLatestImportJobByUser(ctx context.Context, userID pgtype.UUID) (MoxfieldImportJob, error)
+	ReapStaleImportJobs(ctx context.Context) ([]MoxfieldImportJob, error)
 	RecordImportJobDeckResult(ctx context.Context, arg RecordImportJobDeckResultParams) (MoxfieldImportJob, error)
 	SetImportJobInProgress(ctx context.Context, arg SetImportJobInProgressParams) (MoxfieldImportJob, error)
 }

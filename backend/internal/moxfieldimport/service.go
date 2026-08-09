@@ -28,8 +28,12 @@
 // request's lifecycle is needed. Explicit limitation, same as already
 // documented by the in-memory auth rate limiter (cmd/api/main.go): this only
 // works for today's single-instance deployment. A job started in one
-// process is invisible to another, and a restart mid-import leaves it
-// "in_progress" forever, with no retry. Accepted, not solved, in this pass.
+// process is invisible to another, so a restart mid-import used to leave it
+// "in_progress" forever, permanently blocking that user's next attempt via
+// the active-job unique index. ReapStaleJobs (called once at startup, see
+// cmd/api/main.go) now clears that: in a single-instance deployment, any job
+// still pending/in_progress when a fresh process starts can only belong to a
+// run that no longer exists, so it's safely marked 'failed'.
 package moxfieldimport
 
 import (
@@ -312,6 +316,26 @@ func (s *service) finishJob(ctx context.Context, jobID pgtype.UUID, status, errM
 	if _, err := s.repo.FinishImportJob(ctx, params); err != nil {
 		log.Printf("moxfieldimport: finalizando el job %s: %v", jobID, err)
 	}
+}
+
+// ReapStaleJobs marks as 'failed' any import job left 'pending'/'in_progress' by a
+// process that no longer exists. Meant to be called once at startup, before serving
+// traffic (see cmd/api/main.go): in this single-instance deployment, the process
+// that's starting is by definition the only one that could ever run these jobs, so
+// anything still pending/in_progress at that point cannot belong to it — it's a
+// leftover from a previous run that crashed or was restarted mid-import.
+// Without this, that row stays stuck forever and the active-job unique index
+// (moxfield_import_jobs_active_user_idx) keeps blocking that user from starting a
+// new import. Returns the number of jobs reaped, for the startup log. Would need to
+// change to a staleness-timeout check instead of this blanket sweep if the backend
+// is ever deployed with more than one replica (same caveat already documented for
+// the in-memory auth rate limiter).
+func ReapStaleJobs(ctx context.Context, db *pgxpool.Pool) (int, error) {
+	reaped, err := New(db).ReapStaleImportJobs(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("reaping stale moxfield import jobs: %w", err)
+	}
+	return len(reaped), nil
 }
 
 func toJobResponse(job *MoxfieldImportJob) *JobResponse {

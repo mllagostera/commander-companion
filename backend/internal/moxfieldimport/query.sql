@@ -28,3 +28,12 @@ UPDATE moxfield_import_jobs
 SET status = sqlc.arg(status), error_message = sqlc.narg(error_message), finished_at = now(), updated_at = now()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: ReapStaleImportJobs :many
+UPDATE moxfield_import_jobs
+SET status = 'failed',
+    error_message = 'Interrupted by a server restart before finishing; please retry the import.',
+    finished_at = now(),
+    updated_at = now()
+WHERE status IN ('pending', 'in_progress')
+RETURNING *;

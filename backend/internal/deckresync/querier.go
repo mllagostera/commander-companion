@@ -14,6 +14,7 @@ type Querier interface {
 	CreateResyncJob(ctx context.Context, arg CreateResyncJobParams) (DeckResyncJob, error)
 	FinishResyncJob(ctx context.Context, arg FinishResyncJobParams) (DeckResyncJob, error)
 	GetResyncJob(ctx context.Context, id pgtype.UUID) (DeckResyncJob, error)
+	ReapStaleResyncJobs(ctx context.Context) ([]DeckResyncJob, error)
 	RecordResyncJobDeckResult(ctx context.Context, arg RecordResyncJobDeckResultParams) (DeckResyncJob, error)
 }
 

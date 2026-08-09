@@ -19,3 +19,12 @@ UPDATE deck_resync_jobs
 SET status = sqlc.arg(status), error_message = sqlc.narg(error_message), finished_at = now(), updated_at = now()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: ReapStaleResyncJobs :many
+UPDATE deck_resync_jobs
+SET status = 'failed',
+    error_message = 'Interrupted by a server restart before finishing; please retry the resync.',
+    finished_at = now(),
+    updated_at = now()
+WHERE status IN ('pending', 'in_progress')
+RETURNING *;

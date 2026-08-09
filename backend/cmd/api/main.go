@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usuario/commander-companion-backend/internal/auth"
 	"github.com/usuario/commander-companion-backend/internal/common"
@@ -76,6 +77,15 @@ func run() error {
 	defer db.Close()
 	log.Println("Conectado a PostgreSQL exitosamente.")
 
+	// Reap moxfield_import_jobs/deck_resync_jobs left pending/in_progress by a
+	// previous process run (crash, redeploy, Render free tier sleeping the
+	// service) — see moxfieldimport.ReapStaleJobs and deckresync.ReapStaleJobs.
+	// Safe to run unconditionally here: in this single-instance deployment, a
+	// freshly starting process can't have any of these jobs actually in flight yet.
+	if reapErr := reapStaleBackgroundJobs(context.Background(), db.Pool); reapErr != nil {
+		return reapErr
+	}
+
 	// 2. Initialize Fiber
 	app := fiber.New(fiber.Config{
 		ErrorHandler: common.ErrorHandler,
@@ -103,6 +113,30 @@ func run() error {
 	if err := app.Listener(&noDelayListener{ln}); err != nil {
 		return fmt.Errorf("error al arrancar el servidor: %w", err)
 	}
+	return nil
+}
+
+// reapStaleBackgroundJobs clears out moxfield_import_jobs/deck_resync_jobs rows left
+// pending/in_progress by a previous process run, see moxfieldimport.ReapStaleJobs
+// and deckresync.ReapStaleJobs for why that's both necessary and safe to do
+// unconditionally at startup.
+func reapStaleBackgroundJobs(ctx context.Context, pool *pgxpool.Pool) error {
+	reapedImports, err := moxfieldimport.ReapStaleJobs(ctx, pool)
+	if err != nil {
+		return err
+	}
+	if reapedImports > 0 {
+		log.Printf("moxfieldimport: %d job(s) atascado(s) de una corrida anterior marcados como failed.", reapedImports)
+	}
+
+	reapedResyncs, err := deckresync.ReapStaleJobs(ctx, pool)
+	if err != nil {
+		return err
+	}
+	if reapedResyncs > 0 {
+		log.Printf("deckresync: %d job(s) atascado(s) de una corrida anterior marcados como failed.", reapedResyncs)
+	}
+
 	return nil
 }
 

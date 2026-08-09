@@ -93,6 +93,47 @@ func (q *Queries) GetResyncJob(ctx context.Context, id pgtype.UUID) (DeckResyncJ
 	return i, err
 }
 
+const reapStaleResyncJobs = `-- name: ReapStaleResyncJobs :many
+UPDATE deck_resync_jobs
+SET status = 'failed',
+    error_message = 'Interrupted by a server restart before finishing; please retry the resync.',
+    finished_at = now(),
+    updated_at = now()
+WHERE status IN ('pending', 'in_progress')
+RETURNING id, user_id, status, total_decks, updated_count, failed_count, error_message, created_at, updated_at, finished_at
+`
+
+func (q *Queries) ReapStaleResyncJobs(ctx context.Context) ([]DeckResyncJob, error) {
+	rows, err := q.db.Query(ctx, reapStaleResyncJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DeckResyncJob
+	for rows.Next() {
+		var i DeckResyncJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Status,
+			&i.TotalDecks,
+			&i.UpdatedCount,
+			&i.FailedCount,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordResyncJobDeckResult = `-- name: RecordResyncJobDeckResult :one
 UPDATE deck_resync_jobs
 SET updated_count = updated_count + $1::int,
