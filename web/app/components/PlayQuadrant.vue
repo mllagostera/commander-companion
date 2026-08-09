@@ -7,6 +7,7 @@ const props = defineProps<{
   rotated: boolean
   started: boolean
   highlighted: boolean
+  isCurrentTurn: boolean
   expandedId: number | null
 }>()
 
@@ -15,6 +16,7 @@ const emit = defineEmits<{
   adjustLife: [id: number, amount: number]
   adjustPoison: [id: number, amount: number]
   adjustCommanderDamage: [defenderId: number, attackerId: number, amount: number]
+  passTurn: []
 }>()
 
 const opponents = computed(() => props.allPlayers.filter((p) => p.id !== props.player.id))
@@ -27,9 +29,11 @@ const expandTop = computed(() => props.allPlayers.slice(0, gridMid.value))
 const expandBottom = computed(() => props.allPlayers.slice(gridMid.value))
 
 const transformStyle = computed(() => `rotate(${props.rotated ? 180 : 0}deg) scale(${props.highlighted ? 1.06 : 1})`)
-const ringStyle = computed(() => props.highlighted
-  ? '0 0 0 4px rgba(255,255,255,0.9) inset, 0 0 26px rgba(255,255,255,0.55)'
-  : 'none')
+const ringStyle = computed(() => {
+  if (props.highlighted) return '0 0 0 4px rgba(255,255,255,0.9) inset, 0 0 26px rgba(255,255,255,0.55)'
+  if (props.isCurrentTurn) return '0 0 0 4px #c4b5fd, 0 0 22px rgba(196,181,253,0.85)'
+  return 'none'
+})
 
 function toggleExpand() {
   if (!props.started) return
@@ -86,6 +90,15 @@ function toggleExpand() {
             </span>
           </div>
           <span v-if="poisonLabel" style="font-size: clamp(10px,1.4vw,13px); color: rgba(0,0,0,0.6);">{{ poisonLabel }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="pointer-events-auto rounded-full border font-semibold"
+          style="border-color: rgba(255,255,255,0.35); background: rgba(0,0,0,0.25); color: #fff; padding: clamp(4px,0.9vw,7px) clamp(10px,2vw,16px); font-size: clamp(9px,1.3vw,11px);"
+          @click.stop="emit('passTurn')"
+        >
+          {{ $t('play.tracker.passTurn') }}
         </button>
       </div>
     </template>

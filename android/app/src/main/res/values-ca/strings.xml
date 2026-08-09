@@ -86,12 +86,14 @@
     <string name="tracker_rotate_prompt">Gira el teu dispositiu\nper començar la partida</string>
     <string name="tracker_mulligans_suffix">%1$d mulligan(s)</string>
     <string name="tracker_pass_turn">Passa el torn</string>
+    <string name="tracker_turn_label">Torn %1$d</string>
     <string name="tracker_dead">MORT</string>
     <string name="tracker_commander_damage">Dany de comandant</string>
     <string name="tracker_poison">Verí</string>
     <string name="tracker_paused">Partida en pausa</string>
     <string name="tracker_paused_subtitle">El temps ha deixat de comptar.</string>
     <string name="tracker_resume">Reprèn</string>
+    <string name="tracker_reset_lives">Reinicia les vides</string>
     <string name="tracker_finish_game">Finalitza la partida</string>
     <string name="tracker_starter_banner">Comença\n%1$s!</string>
     <string name="tracker_connecting_to_server">Creant la partida al servidor…</string>

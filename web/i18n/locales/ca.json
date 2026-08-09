@@ -334,7 +334,14 @@
       "commanderDamage": "Dany de comandant",
       "startRandom": "Tria qui comença",
       "starterBanner": "Comença {name}",
-      "rotatePrompt": "Gira el teu dispositiu\nper jugar"
+      "fullscreen": "Pantalla completa",
+      "exitFullscreen": "Surt de pantalla completa",
+      "rotatePrompt": "Gira el teu dispositiu\nper jugar",
+      "passTurn": "Passa el torn",
+      "pause": "Posa en pausa la partida",
+      "paused": "Partida en pausa",
+      "resume": "Reprèn",
+      "resetLives": "Reinicia les vides"
     },
     "summary": {
       "heading": "Partida finalitzada",

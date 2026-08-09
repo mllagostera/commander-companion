@@ -78,6 +78,11 @@ body {
   50% { opacity: 0.85; }
 }
 
+@keyframes cc-orbit-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
 .cc-deck-shimmer {
   position: absolute;
   inset: 0;

@@ -5,11 +5,12 @@ import androidx.compose.ui.graphics.Color
 /** Commander elimination rules, shared by [GameViewModel] and the tracker UI. */
 const val COMMANDER_DAMAGE_LETHAL = 21
 const val POISON_LETHAL = 10
+const val STARTING_LIFE = 40
 
 data class PlayerState(
     val id: Int,
     val name: String,
-    val life: Int = 40,
+    val life: Int = STARTING_LIFE,
     val color: Color,
     val mulligans: Int = 0,
     val poison: Int = 0,

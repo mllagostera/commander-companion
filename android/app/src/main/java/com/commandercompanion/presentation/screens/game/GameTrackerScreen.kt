@@ -1,7 +1,11 @@
 package com.commandercompanion.presentation.screens.game
 
 import android.content.res.Configuration
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,10 +28,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -43,10 +50,17 @@ import com.commandercompanion.presentation.theme.AppOutline
 import com.commandercompanion.presentation.theme.StatusDanger
 import com.commandercompanion.presentation.theme.StatusPoison
 import kotlinx.coroutines.delay
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /** How long the starter-draw ring spins across the seats before landing, and how fast each step advances. */
 private const val RANDOMIZE_STEP_DELAY_MS = 130L
 private const val RANDOMIZE_STEPS = 10
+
+/** How long one full lap of the orbiting turn label takes around the pause button. */
+private const val ORBIT_SPIN_DURATION_MS = 9000
+private val ORBIT_RADIUS = 62.dp
 
 @Composable
 fun GameTrackerScreen(
@@ -111,6 +125,8 @@ fun GameTrackerScreen(
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 4.dp)
                 )
 
+                OrbitingTurnLabel(turn = state.currentTurn, modifier = Modifier.align(Alignment.Center))
+
                 PauseButton(
                     onClick = { paused = !paused },
                     modifier = Modifier.align(Alignment.Center)
@@ -124,6 +140,10 @@ fun GameTrackerScreen(
                 if (paused) {
                     PauseOverlay(
                         onResume = { paused = false },
+                        // Resetting the whole table only makes sense when this device is
+                        // authoritative for every seat (pass-and-play host mode) — in joined mode
+                        // it only owns its own seat, see [GameState.localSeatId].
+                        onResetLives = { viewModel.resetLives() }.takeIf { state.localSeatId == null },
                         onEnd = { viewModel.finishGame() },
                         modifier = Modifier.matchParentSize()
                     )
@@ -409,6 +429,38 @@ private fun MiniStepButton(label: String, onClick: () -> Unit) {
     }
 }
 
+/** Spells "Turno N" as a ring of characters slowly orbiting the pause button. */
+@Composable
+private fun OrbitingTurnLabel(turn: Int, modifier: Modifier = Modifier) {
+    val label = stringResource(R.string.tracker_turn_label, turn)
+    val infiniteTransition = rememberInfiniteTransition(label = "orbit")
+    val spinAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(ORBIT_SPIN_DURATION_MS, easing = LinearEasing)),
+        label = "orbit-angle"
+    )
+    val radiusPx = with(LocalDensity.current) { ORBIT_RADIUS.toPx() }
+    val arc = minOf(160f, label.length * 18f)
+    val start = -arc / 2f
+    val step = if (label.length > 1) arc / (label.length - 1) else 0f
+
+    Box(modifier = modifier.graphicsLayer { rotationZ = spinAngle }) {
+        label.forEachIndexed { i, ch ->
+            val angle = Math.toRadians((start + i * step).toDouble())
+            val x = (radiusPx * sin(angle)).roundToInt()
+            val y = (-radiusPx * cos(angle)).roundToInt()
+            Text(
+                text = ch.toString(),
+                color = Color.White.copy(alpha = 0.9f),
+                fontWeight = FontWeight.Bold,
+                fontSize = 9.sp,
+                modifier = Modifier.offset { IntOffset(x, y) }
+            )
+        }
+    }
+}
+
 @Composable
 private fun PauseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
@@ -467,12 +519,25 @@ private fun LoadingTable(remoteSync: RemoteSyncState, onBack: () -> Unit) {
 }
 
 @Composable
-private fun PauseOverlay(onResume: () -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
+private fun PauseOverlay(
+    onResume: () -> Unit,
+    onResetLives: (() -> Unit)?,
+    onEnd: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Box(modifier = modifier.background(Color(0xF7050308)), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(stringResource(R.string.tracker_paused), color = AppOnBackground, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Text(stringResource(R.string.tracker_paused_subtitle), color = AppFaint, fontSize = 12.sp)
             GradientButton(text = stringResource(R.string.tracker_resume), onClick = onResume, modifier = Modifier.width(180.dp))
+            if (onResetLives != null) {
+                Text(
+                    stringResource(R.string.tracker_reset_lives),
+                    color = StatusDanger,
+                    fontSize = 13.sp,
+                    modifier = Modifier.clickable(onClick = onResetLives)
+                )
+            }
             Text(
                 stringResource(R.string.tracker_finish_game),
                 color = StatusDanger,
