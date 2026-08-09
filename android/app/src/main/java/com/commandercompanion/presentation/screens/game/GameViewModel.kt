@@ -302,6 +302,30 @@ class GameViewModel @Inject constructor(
         _state.value = _state.value.copy(currentTurn = _state.value.currentTurn + 1, currentTurnPlayerId = nextPlayerId)
     }
 
+    /**
+     * Resets life/poison/commander damage for every current seat without ending the game — same
+     * seats and turn order, fresh counters. Mirrors each seat's delta the same way an individual
+     * edit would (see [mirrorLifeChange]/[mirrorPoisonChange]/[mirrorCommanderDamage]), so a
+     * remotely-observed game stays consistent; seats with no real `GamePlayer` just no-op there,
+     * same as any other local-only edit.
+     */
+    fun resetLives() {
+        if (_state.value.isFinished) return
+        val previous = _state.value.players
+        _state.value = _state.value.copy(
+            players = previous.map { it.copy(life = STARTING_LIFE, poison = 0, commanderDamage = emptyMap()) },
+            currentTurn = 1,
+            currentTurnPlayerId = _state.value.startingPlayerId
+        )
+        previous.forEach { player ->
+            if (player.life != STARTING_LIFE) mirrorLifeChange(player.id, STARTING_LIFE - player.life)
+            if (player.poison != 0) mirrorPoisonChange(player.id, -player.poison)
+            player.commanderDamage.forEach { (attackerId, amount) ->
+                if (amount != 0) mirrorCommanderDamage(attackerId, player.id, -amount)
+            }
+        }
+    }
+
     private fun checkForGameOver() {
         val winnerId = resolveGameOutcomeUseCase.automaticWinner(_state.value.players.toOutcomes()) ?: return
         finishGame(winnerId = winnerId)

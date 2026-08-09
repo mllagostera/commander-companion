@@ -326,6 +326,50 @@ class GameViewModelTest {
     }
 
     @Test
+    fun `reiniciar vidas restaura vida veneno y dano de comandante manteniendo asientos y turno inicial`() =
+        runTest(dispatcher) {
+            val vm = viewModel(
+                ana = PlayerConfig(name = "Ana", colorKey = "blue", assignedUserId = "user-1", deckId = "deck-1"),
+                beto = PlayerConfig(name = "Beto", colorKey = "red", assignedUserId = "user-2", deckId = "deck-2")
+            )
+            advanceUntilIdle()
+
+            vm.adjustLife(playerId = 1, amount = -10)
+            vm.adjustPoison(playerId = 1, amount = 3)
+            vm.adjustCommanderDamage(targetPlayerId = 1, attackerId = 2, amount = 5)
+            vm.nextTurn()
+            advanceUntilIdle()
+
+            vm.resetLives()
+            advanceUntilIdle()
+
+            val ana = vm.state.value.players.first { it.id == 1 }
+            assertEquals(STARTING_LIFE, ana.life)
+            assertEquals(0, ana.poison)
+            assertTrue(ana.commanderDamage.isEmpty())
+            assertEquals(1, vm.state.value.currentTurn)
+            assertEquals(vm.state.value.startingPlayerId, vm.state.value.currentTurnPlayerId)
+            assertEquals(listOf("Ana", "Beto"), vm.state.value.players.map { it.name })
+        }
+
+    @Test
+    fun `reiniciar vidas espeja los deltas de vuelta al backend para un asiento asignado`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.adjustLife(playerId = 1, amount = -10)
+        advanceUntilIdle()
+        api.recordedActions.clear()
+
+        vm.resetLives()
+        advanceUntilIdle()
+
+        val (_, request) = api.recordedActions.single()
+        assertEquals(GameActionType.LIFE_CHANGE, request.actionType)
+        assertEquals("gp-user-1", request.actorId)
+    }
+
+    @Test
     fun `no se llama a finish remoto si la partida nunca llego a activa`() = runTest(dispatcher) {
         api.onStartGame = { throw httpException(409) }
 
