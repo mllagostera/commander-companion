@@ -22,7 +22,7 @@ type PlaygroupResponse struct {
 // null on the last page — same shape as games.GameListResponse/decks.DeckListResponse.
 type PlaygroupListResponse struct {
 	Items      []PlaygroupResponse `json:"items"`
-	NextCursor *string              `json:"next_cursor"`
+	NextCursor *string             `json:"next_cursor"`
 }
 
 // AddMemberRequest is the payload for adding a member to a playgroup.
