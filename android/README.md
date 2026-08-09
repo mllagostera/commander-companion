@@ -14,7 +14,7 @@ and 5).
 
 ## Stack
 
-Kotlin 2.2 + Jetpack Compose (Material 3), Hilt (DI), Room (local
+Kotlin 2.4 + Jetpack Compose (Material 3), Hilt (DI), Room (local
 persistence), Retrofit + OkHttp + kotlinx.serialization (network), Navigation Compose,
 Credential Manager + Google Identity Services (Google Sign-In). AGP 9.3 /
 Gradle 9.5, requires **JDK 21** to build (see note below).

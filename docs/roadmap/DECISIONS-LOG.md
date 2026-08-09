@@ -53,17 +53,23 @@ With that resolved, closed out the punch list's remaining items:
   verified with a real `npm run build`, not just lint/typecheck — a
   meaningfully stronger check than the two used until now, since a
   production build catches issues that pass lint. Android via
-  `libs.versions.toml`, applied but **not verified** (no Gradle/Android
-  SDK in this sandbox) — the user explicitly chose "the whole set,
-  unverified" after being told the risk. The one point flagged for the
-  user to check first if `./gradlew build` fails locally: KSP's Gradle
-  plugin version was bumped from `2.2.10-2.0.2` to `2.3.11` to keep pace
-  with the Kotlin bump to `2.4.10`, but KSP dropped its old
-  `<kotlin-version>-<ksp-patch>` versioning scheme somewhere around its
-  own `2.3.0` release, and neither its GitHub release notes nor
-  kotlinlang.org's KSP docs state what Kotlin version range the new
-  numbering targets — checked both before proceeding, found no authoritative
-  answer, and said so rather than asserting confidence that isn't there.
+  `libs.versions.toml`, applied with the user explicitly choosing "the
+  whole set, unverified" after being told the risk — then, later the same
+  session, actually verified locally with a real `./gradlew build` (JDK 21
+  + Android SDK are present in this environment after all; the earlier
+  "no toolchain" belief was wrong). The one flagged risk — whether KSP
+  `2.3.11` supports Kotlin `2.4.10` given KSP dropped its old
+  `<kotlin>-<ksp>` versioning scheme — turned out to be a non-issue,
+  `kspDebugKotlin`/`kspReleaseKotlin` ran clean. Two unrelated real
+  breakages surfaced instead, both fixed and pushed (commit `d060709`):
+  AGP 9.3.1 hard-errors on the deprecated `kotlinOptions { jvmTarget = "1.8" }`
+  setter (migrated to the `compilerOptions` DSL), and `navigation-compose`
+  `2.9.8` removed `ExperimentalSafeArgsApi` entirely now that type-safe nav
+  is stable (dropped the dead `@OptIn` in `AppNavigation.kt`), which in turn
+  required raising the project's JVM target from 1.8 to 11 since several
+  bumped androidx/Compose libraries now ship JVM 11 bytecode (safe, `minSdk
+  26` desugars fine). `./gradlew build` now passes clean: compile, unit
+  tests, lint, `assembleDebug`, `assembleRelease`.
 
 **2026-08-05 — Statistics: opponent head-to-head, per-playgroup counts,
 finished-games history; username availability check; TCP_NODELAY fix.**
