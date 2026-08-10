@@ -13,6 +13,10 @@ Compose Preview. This document serves to understand *what* is on each
 screen and *how* its elements relate to each other, not *what it looks
 like* pixel by pixel.
 
+For the web client, [`screenshots.md`](screenshots.md) has real screenshots
+instead of ASCII wireframes — no Android emulator was available to capture
+this client's screens the same way (see `docs/roadmap/TASKS.md`).
+
 ---
 
 ## 1. `LoginScreen`

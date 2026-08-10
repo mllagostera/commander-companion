@@ -53,7 +53,7 @@ commander-companion/
 │   ├── api/               # openapi.yaml (source of truth for the REST contract)
 │   ├── decisions/        # ADRs 0001-0010 (technical decisions and their rationale)
 │   ├── diagrams/         # additional Mermaid diagrams (ER, state machine, Android navigation)
-│   └── ux/                # casos-de-uso.md, wireframes.md
+│   └── ux/                # casos-de-uso.md, wireframes.md, screenshots.md
 └── docker-compose.yml    # db + api + web, to try the full stack locally
 ```
 
@@ -156,6 +156,7 @@ for a new module), add it to this list too in the same change.
 
 - [docs/ux/casos-de-uso.md](docs/ux/casos-de-uso.md) — the product's 5 core operations, "Today" column (actual code) vs. "Target".
 - [docs/ux/wireframes.md](docs/ux/wireframes.md) — ASCII wireframes of the Android client's 6 actual screens.
+- [docs/ux/screenshots.md](docs/ux/screenshots.md) — real screenshots of every web client flow (auth, dashboard, decks, playgroups, tournaments, statistics, local life tracker, settings).
 
 **ADRs — technical decisions (`docs/decisions/`):**
 

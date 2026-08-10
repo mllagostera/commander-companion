@@ -21,6 +21,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Architecture and principles document (`docs/architecture/ARCHITECTURE.md`)
 - [x] Detailed use cases — [`docs/ux/casos-de-uso.md`](../ux/casos-de-uso.md)
 - [x] Android wireframes — [`docs/ux/wireframes.md`](../ux/wireframes.md)
+- [x] Web client screenshot gallery — [`docs/ux/screenshots.md`](../ux/screenshots.md) (2026-08-09; real screenshots of every flow, captured via Playwright against a local backend+DB, not mockups)
 - [x] Flow/state diagrams — [`docs/diagrams/game-state-machine.md`](../diagrams/game-state-machine.md), [`docs/diagrams/android-navigation-flow.md`](../diagrams/android-navigation-flow.md)
 - [x] Foundational ADRs (retroactive, inherited decisions): [0006](../decisions/0006-go-fiber-backend.md) Go+Fiber, [0007](../decisions/0007-postgresql.md) PostgreSQL, [0008](../decisions/0008-sqlc-goose.md) sqlc+goose, [0009](../decisions/0009-android-nativo-vs-crossplatform.md) native Android, [0010](../decisions/0010-monolito-modular-vs-microservicios.md) modular monolith
 - [x] Session ADRs: [0001](../decisions/0001-auth-jwt-refresh-token-strategy.md) auth strategy, [0002](../decisions/0002-google-sign-in.md) Google Sign-In, [0003](../decisions/0003-cors-permisivo-en-dev.md) CORS in dev, [0004](../decisions/0004-web-client-nuxt.md) web client, [0005](../decisions/0005-websocket-protocol.md) WebSocket protocol

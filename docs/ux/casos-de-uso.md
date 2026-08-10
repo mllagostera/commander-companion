@@ -26,6 +26,9 @@ Commander damage (other seats) and everything else remains purely local —
 see the detail of what is mirrored and what isn't in each use case below.
 See `docs/roadmap/TASKS.md`, Stage 4 and 5.
 
+For what each web screen actually looks like, see
+[`screenshots.md`](screenshots.md) — real screenshots, not mockups.
+
 ---
 
 ## 1. Create a game
