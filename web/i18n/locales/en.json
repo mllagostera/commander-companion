@@ -141,8 +141,9 @@
     "sort": {
       "played": "Most played",
       "won": "Most wins",
-      "winrate": "Best win rate",
-      "name": "Name (A-Z)"
+      "winRate": "Best win rate",
+      "name": "Name (A-Z)",
+      "ariaLabel": "Sort decks"
     },
     "loadError": "Couldn't load the decks.",
     "loadingMore": "Loading more decks…",
@@ -218,7 +219,8 @@
       "sort": {
         "recent": "Recent",
         "winRate": "Win rate",
-        "gamesPlayed": "Games played"
+        "gamesPlayed": "Games played",
+        "ariaLabel": "Sort decks"
       }
     },
     "finishedGames": {

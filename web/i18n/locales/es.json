@@ -141,8 +141,9 @@
     "sort": {
       "played": "Más jugados",
       "won": "Más victorias",
-      "winrate": "Mejor win rate",
-      "name": "Nombre (A-Z)"
+      "winRate": "Mejor win rate",
+      "name": "Nombre (A-Z)",
+      "ariaLabel": "Ordenar decks"
     },
     "loadError": "No se pudieron cargar los decks.",
     "loadingMore": "Cargando más decks…",
@@ -218,7 +219,8 @@
       "sort": {
         "recent": "Recientes",
         "winRate": "% victorias",
-        "gamesPlayed": "Partidas jugadas"
+        "gamesPlayed": "Partidas jugadas",
+        "ariaLabel": "Ordenar decks"
       }
     },
     "finishedGames": {
