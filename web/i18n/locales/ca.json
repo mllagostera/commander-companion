@@ -3,7 +3,8 @@
     "cancel": "Cancel·la",
     "save": "Desa",
     "saving": "Desant…",
-    "back": "Enrere"
+    "back": "Enrere",
+    "slowBackendHint": "El servidor estava adormit i s'està despertant, pot trigar uns segons…"
   },
   "nav": {
     "home": "Inici",

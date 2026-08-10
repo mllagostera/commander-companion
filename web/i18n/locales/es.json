@@ -3,7 +3,8 @@
     "cancel": "Cancelar",
     "save": "Guardar",
     "saving": "Guardando…",
-    "back": "Atrás"
+    "back": "Atrás",
+    "slowBackendHint": "El servidor estaba dormido y está despertando, puede tardar unos segundos…"
   },
   "nav": {
     "home": "Inicio",
