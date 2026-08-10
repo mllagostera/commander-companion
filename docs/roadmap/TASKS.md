@@ -19,7 +19,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 
 - [x] Roadmap (`docs/roadmap/ROADMAP.md`)
 - [x] Architecture and principles document (`docs/architecture/ARCHITECTURE.md`)
-- [x] Detailed use cases — [`docs/ux/casos-de-uso.md`](../ux/casos-de-uso.md)
+- [x] Detailed use cases — [`docs/ux/casos-de-uso.md`](../ux/casos-de-uso.md) (2026-08-10: extended past the original 5 game-loop use cases with 3 more — decks/Moxfield, playgroups, tournaments — that were missing entirely)
 - [x] Android wireframes — [`docs/ux/wireframes.md`](../ux/wireframes.md)
 - [x] Web client screenshot gallery — [`docs/ux/screenshots.md`](../ux/screenshots.md) (2026-08-09; real screenshots of every flow, captured via Playwright against a local backend+DB, not mockups)
 - [x] Flow/state diagrams — [`docs/diagrams/game-state-machine.md`](../diagrams/game-state-machine.md), [`docs/diagrams/android-navigation-flow.md`](../diagrams/android-navigation-flow.md)

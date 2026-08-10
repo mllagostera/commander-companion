@@ -1,8 +1,10 @@
 # Detailed use cases
 
-Step-by-step user flows for the five core operations of the product: create
-a game, join a game, track life during the game, finish a game, and view
-statistics.
+Step-by-step user flows for the product's core operations: create a game,
+join a game, track life during the game, finish a game, and view
+statistics (use cases 1-5) — plus the account/organization layer built on
+top: import and sync decks from Moxfield, manage playgroups, and run
+standalone Swiss-format tournaments (use cases 6-8).
 
 **How to read this document:** for each use case, two columns are
 described — **"Today"** (what the code does right now, verified by reading
@@ -25,6 +27,16 @@ the `GameTrackerScreen` banner (`RemoteSyncBanner`, `GameState.remoteSync`:
 Commander damage (other seats) and everything else remains purely local —
 see the detail of what is mirrored and what isn't in each use case below.
 See `docs/roadmap/TASKS.md`, Stage 4 and 5.
+
+Use cases 6-8 (decks, playgroups, tournaments) use a different "Today"/
+gap framing than 1-5: they aren't Android features with a backend target,
+they're **web + backend features with no Android UI at all** — the
+Android screens directory (`presentation/screens/`) has no `decks`,
+`playgroups`, or `tournaments` folder, only `dashboard, game, history,
+joingame, login, pregame, register, settings, setup, statistics`. Where
+Android already has *data-layer* plumbing for a feature (e.g.
+`DeckRepository`, `PlaygroupRepository`) but no screen calling it for that
+purpose, it's noted explicitly rather than assumed.
 
 For what each web screen actually looks like, see
 [`screenshots.md`](screenshots.md) — real screenshots, not mockups.
@@ -376,6 +388,220 @@ group, and Android already calls it for other purposes (games/game-actions),
 but there is still no screen or repository that consumes `/statistics/*` —
 pending in Stage 7, no longer blocked by Stage 5 (which in practice has
 already been partially resolved via the best-effort mirror).
+
+---
+
+## 6. Import and sync decks from Moxfield
+
+**Actor:** authenticated user, web client only.
+
+### Today (Web + Backend, `internal/decks`, `internal/moxfield`, `internal/moxfieldimport`, `internal/deckresync`)
+
+1. **Single import** (Decks page, "+ Agregar deck"): `POST
+   /decks/import/moxfield` with a Moxfield deck URL or bare deck ID —
+   `moxfield.ExtractPublicID` accepts either form. The backend calls
+   Moxfield's (undocumented, reverse-engineered) `v3/decks/all/{id}`
+   endpoint with a browser-like `User-Agent`/`Referer` to avoid being
+   blocked by Cloudflare. Validation order: malformed URL/ID → `400`; deck
+   not found **or private** (Moxfield 404s both identically, so they're
+   indistinguishable here) → `404 "moxfield deck not found"`; upstream
+   network/5xx/429 errors are retried up to 3 attempts with backoff before
+   surfacing `503`; a fetched deck with no commander (not a Commander-format
+   deck) → `400`; importing the same Moxfield deck twice for the same user
+   → `409 "this moxfield deck is already imported"`, enforced by a DB
+   unique index (`decks_user_id_moxfield_id_unique_idx`) — a fix
+   (migration `00015`) for a real bug where duplicates used to get created
+   silently. **Fields actually stored:** `Name`, `Commander` (every
+   commander card's name, `&`-joined and sorted — supports
+   partner/background pairs), `MoxfieldID`, `ImageURL`. **Nothing else** —
+   no colors, no card list, no price. Colors/card data aren't stored
+   anywhere in this app.
+2. **Sync one deck** ("Actualizar" on a deck card that has a
+   `moxfield_id`): `POST /sync/moxfield`, synchronous (not a background
+   job) — re-fetches from Moxfield and diffs `Name`/`Commander`/`ImageURL`
+   against what's stored, then updates unconditionally (even with zero
+   diff), so "last synced" always advances to now.
+3. **Resync all decks** ("Actualizar todos" button, `internal/deckresync`):
+   `POST /decks/resync-all` — a background job, one deck at a time with a
+   500ms delay between calls (same Cloudflare-avoidance reasoning as
+   above), polled via `GET /decks/resync-all/{jobId}`. If the account has
+   zero decks with a `moxfield_id`, returns `400` immediately with no job
+   created; only one resync job per user at a time (`409` otherwise).
+4. **Bulk import by username** (Settings page, "Importar mis decks en
+   segundo plano", `internal/moxfieldimport`): requires a saved Moxfield
+   username first (`400` otherwise). Lists **every public deck** under that
+   username (a separate, also-undocumented Moxfield search endpoint) and
+   imports them one by one with the same pacing. Re-importing a deck
+   already owned is treated as a **success**, not a failure — the whole
+   operation is safely re-runnable. Only one import job per user at a time.
+5. Both background job types (bulk import, resync-all) get reaped — any
+   leftover `pending`/`in_progress` job from a previous process run is
+   marked `failed` at API startup (`ReapStaleJobs`, `cmd/api/main.go`), a
+   single-instance-deployment assumption also used elsewhere (see the
+   `2026-08-09` entry in `DECISIONS-LOG.md`).
+
+### Android
+
+`DeckRepository`/`DeckRepositoryImpl` already exist in the data layer
+(network-first with a Room fallback) and expose `importFromMoxfield`,
+`listDecks`, `getDeck`, `deleteDeck` — but no screen calls
+`importFromMoxfield`. `PlayerSetupScreen` only **reads** the authenticated
+player's existing decks, to attach one to their seat when bootstrapping the
+remote mirror of a game (see use case 1) — Android can use a deck already
+imported via the web client, but can't import or sync one itself.
+
+**Key divergence:** every write path (import, sync, bulk import, resync)
+is web + backend only; Android is entirely read-only for decks, and only
+incidentally, as a side effect of setting up a game.
+
+---
+
+## 7. Manage a playgroup
+
+**Actor:** authenticated user, web client only. Most actions require
+already being a member of the group in question.
+
+### Today (Web + Backend, `internal/playgroups`)
+
+1. **Create** (`POST /playgroups`): empty/whitespace-only name → `400`.
+   The creator is automatically added as the group's first member — there
+   is no "empty group with no members" state.
+2. **List**: the playgroups page uses the non-paginated `GET /playgroups`
+   (every group the caller belongs to, each with its member list populated
+   via one query per group — an accepted N+1 since a user's own membership
+   count is small); a separate cursor-paginated `GET
+   /playgroups?cursor=...` variant exists (members *not* populated) for
+   cases that don't need them.
+3. **Add a member** (`POST /playgroups/{id}/members`, "+ Agregar miembro"
+   on the group page): validated in order — the **requester must already be
+   a member** (`404`, same response whether the group doesn't exist or the
+   requester just isn't in it — deliberate non-disclosure, same pattern as
+   `GetPlaygroup`); the target `user_id` must be a valid UUID (`400`); the
+   target user must exist (`404`); the target must not already be a member
+   (`409`). **So: any random authenticated user cannot add themselves or
+   anyone else to a group they're not already in** — membership is
+   organizer-less but closed (any *current* member can add anyone, not just
+   a designated admin).
+   - The search box behind this (`GET /users/search?q=`, `internal/users`)
+     combines two independent match strategies: **username** is
+     case-insensitive partial match (SQL `ILIKE '%...%'`, capped at 10
+     results), **email** is **exact match only** — deliberately, to
+     prevent enumerating other users' emails by prefix. Query must be ≥ 2
+     characters (`400` otherwise); the caller never sees themselves in
+     their own results.
+4. **Rename** ("Renombrar" next to the group name): same
+   membership-required gate as adding a member; empty name → `400`.
+5. **Ranking** (the win-rate table on the group page): `GET
+   /statistics/playgroup/{id}` is a **live query recomputed on every
+   request** (there's no summary table for this, unlike per-user/per-deck
+   stats) — requires the caller to be a member (`404` otherwise, same
+   non-disclosure pattern). The response has raw `games_played`/`games_won`
+   per member; the win-rate percentage shown in the UI is computed
+   client-side, not returned by the API.
+6. **What doesn't exist**: no way to remove a member, and no way to delete
+   a playgroup — once created, membership only ever grows and the group
+   never goes away, through the API as it stands today.
+
+### Android
+
+No `playgroups` screen exists, but the data layer isn't empty: a
+`PlaygroupRepository` is already wired into `GameViewModel`,
+`PlayerSetupViewModel`, `PreGameViewModel`, and `JoinGameViewModel` — used
+today only to support proxy-joining a game on someone else's behalf within
+a shared group (see
+[ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)),
+never to create, browse, or manage a playgroup as a first-class thing.
+
+**Key divergence:** creating, listing, renaming, and ranking a playgroup
+are web + backend only; the one piece of playgroup logic Android does use
+is a narrow membership check that powers a different feature entirely.
+
+---
+
+## 8. Create and run a tournament
+
+**Actor:** any authenticated user can organize one; participants can be
+registered app users (self-joining with one of their own decks) or guests
+with no account at all (name + commander only, added by the organizer).
+Web client only. See [ADR-0016](../decisions/0016-swiss-tournament-format.md)
+for the format/scoring decisions behind this use case.
+
+### Today (Web + Backend, `internal/tournaments`)
+
+1. **Create** (`POST /tournaments`): empty name → `400`. A 6-character join
+   code is generated from a charset that excludes ambiguous glyphs
+   (`0/O`, `1/I`), retried up to 5 times on a collision against the unique
+   index. `target_players` is accepted but purely a display hint — never
+   validated against the actual participant count.
+2. **Registration phase** — two ways to end up seated:
+   - **Organizer adds a guest** (`POST /tournaments/{id}/participants`):
+     organizer-only (`404` for anyone else, same "don't reveal" pattern as
+     playgroups); guest name and commander name both required (`400`);
+     only while `status = registration` (`409` otherwise).
+   - **A registered user self-joins by code** (`POST /tournaments/join`):
+     the code is normalized (trimmed, uppercased) before lookup — an
+     unresolvable code is `404`; joining only works while `status =
+     registration` (`409` otherwise); the chosen `deck_id` is
+     ownership-checked the same way `games.JoinGame` checks deck ownership
+     (see use case 2); joining twice is `409`.
+   - **Looking up a tournament by code** (`GET /tournaments/lookup?code=`)
+     is public-ish — any authenticated caller can resolve a code to the
+     tournament's public summary (name, organizer, status, participant
+     count) even before joining, which is what powers the web "join by
+     code" modal's preview step; a caller who's already a participant also
+     gets their own status back (which table/round once it starts).
+3. **Start** (`POST /tournaments/{id}/start`, organizer-only, `409` unless
+   `status = registration`): the participant count must admit a valid
+   split into tables of 3-4 seats. `tableSizes(n)` maximizes 4-seat tables
+   and only rejects **n < 3 and n = 5 exactly** — 5 is the one count with no
+   non-negative solution to `3a + 4b = n` (the Frobenius/Chicken-McNugget
+   gap for coprime 3 and 4); every other n ≥ 3 works. Starting also locks
+   in the round count for the whole tournament via a fixed staircase — n≤8
+   → 3 rounds, ≤16 → 4, ≤32 → 5, ≤64 → 6, else 7 — a deliberate
+   simplification, not derived from real Swiss-tournament theory (see
+   ADR-0016). Round 1's pairings are seeded with a `crypto/rand`
+   Fisher-Yates shuffle (not the predictable `math/rand`), since every
+   participant starts at 0 points.
+4. **Record a table's result** (`POST
+   /tournaments/{id}/tables/{tableId}/result`, organizer-only, `409` unless
+   `status = in_progress`): the submitted results must be **an exact
+   permutation of 1..seatCount covering exactly that table's seats** — no
+   gaps, no duplicate positions, no foreign participant IDs — or `400
+   ErrInvalidResults` with nothing recorded. Points awarded:
+   **1st = 2, 2nd = 1, 3rd and 4th = 0** (`pointsForPosition`,
+   `internal/tournaments/service.go`), added to each participant's running
+   total. **Caveat verified while building the screenshot gallery for this
+   doc**: submitting a non-permutation (e.g. two seats both tied for "1st")
+   fails validation silently from the UI's point of view — no error is
+   surfaced to reject it, the table just never shows as recorded.
+5. **Advance the round** (`POST /tournaments/{id}/rounds/next`,
+   organizer-only): requires every table in the current round to already
+   have a recorded result (`409 ErrRoundNotComplete` otherwise). Next
+   round's pairings re-rank participants by points (ties broken by
+   registration order) and re-seat tables with a greedy heuristic that
+   picks whichever open table would create the fewest repeat opponents for
+   each participant, falling back to a forced repeat only when every table
+   would cause one (documented as a pragmatic O(n²) heuristic, not a
+   provably-optimal Swiss pairer). Once `current_round` reaches the locked
+   `round_count`, this call finishes the tournament instead of generating
+   another round.
+6. **Finished**: standings are just the accumulated points table, sorted
+   descending; the top row is tagged as the winner. No tiebreakers beyond
+   points (e.g. no opponents'-win-percentage) — ties in final standing are
+   ordered only by registration order, for display determinism.
+
+### Android
+
+No Android UI at all — not even the read-only data-layer stub that exists
+for decks/playgroups. The join-code lookup endpoint is intentionally
+public-ish (see step 2 above) specifically so a future Android screen
+could resolve a code without needing the full tournament-management UI,
+but nothing calls it today.
+
+**Key divergence:** unlike use cases 1-5, there's no partial Android
+mirror to compare against here at all — tournaments are a self-contained
+feature that exists only on the web client, built directly against the
+full backend from the start.
 
 ---
 
