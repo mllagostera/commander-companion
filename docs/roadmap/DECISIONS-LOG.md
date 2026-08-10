@@ -215,7 +215,7 @@ was reviewed by hand against existing patterns instead; each needs a real
 Google Maven access before merging). Full detail under Stage 4/5/6/7 below.
 Also this day: `web/vercel.json` gained an `ignoreCommand` so an
 Android-only PR doesn't trigger a no-op Vercel preview deploy (see
-[ADR-0015](../decisions/0015-infraestructura-de-despliegue.md)); and
+[ADR-0015](../decisions/0015-deployment-infrastructure.md)); and
 housekeeping — confirmed `.github/modernize/java-upgrade` as scaffolding
 unrelated to this project's stack (removed where present) and trimmed
 duplicated "4 sources of truth"/layer-pattern narrative that
@@ -243,7 +243,7 @@ changes against TASKS.md, which mentioned none of them yet.
   idempotent but the runs aren't serialized with a lock) — harmless today,
   single-instance deployment.
 - **Web (#49)**: full internationalization with `@nuxtjs/i18n` — see
-  [ADR-0014](../decisions/0014-internacionalizacion-web.md) (single active
+  [ADR-0014](../decisions/0014-web-internationalization.md) (single active
   locale `es`, `strategy: 'no_prefix'`, ~200-250 keys, and along the way
   fixes the copy from Argentine "voseo" to Spain's "tuteo"). Same PR: the
   Google Sign-In button moves to `pill` shape with a theme-dependent style;
@@ -283,7 +283,7 @@ real bug along the way — no results returned JSON `null` instead of `[]`,
 breaking any JS/TS client that assumes an array. Backend gained
 `game_players.added_by` + proxy-join (`POST /games/{id}/join` with
 `user_id`, gated by shared playgroup membership) — see
-[ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md) —
+[ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md) —
 and closed, in the same change, a pre-existing gap where
 `POST /games/{id}/actions` never validated that `actor_id` belonged to the
 caller at all. Android's `PlayerSetupScreen` gained a Casual/Group
@@ -418,7 +418,7 @@ or a client retrying after a timeout.
 This directly contradicts `schema.dbml`'s own note on
 `user_statistics_summary`/`deck_statistics_summary`: "Pre-calculated
 statistics (recalculated if a historical game is modified)" — that's not
-actually possible today. See [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md),
+actually possible today. See [ADR-0011](../decisions/0011-migration-strategy-and-statistics-recalculation.md),
 which already flags "`RecalculateForGame` is incremental, not idempotent —
 each game must be processed exactly once" as an invariant to respect, but
 nothing currently enforces it.
@@ -449,7 +449,7 @@ still purely additive by design. That's now provably safe, since the guard
 above guarantees it's only ever invoked once per game's finish transition
 — but it still means there's no way to *re-derive* `user_statistics_summary`/
 `deck_statistics_summary` if the aggregation formula itself ever changes,
-which is exactly the gap [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md)
+which is exactly the gap [ADR-0011](../decisions/0011-migration-strategy-and-statistics-recalculation.md)
 already flagged and proposed a (never-implemented) `recalculate-stats`
 command for. Left as a separate, larger piece of future work.
 
@@ -582,7 +582,7 @@ allows only one active job per user then blocked starting a fresh one,
 with no way out short of a manual DB fix. This was an accepted, documented
 gap when both features were built ("Accepted, not solved, in this pass" in
 the original code comments), and was worth revisiting given
-[ADR-0015](../decisions/0015-infraestructura-de-despliegue.md) puts the
+[ADR-0015](../decisions/0015-deployment-infrastructure.md) puts the
 backend on Render's free tier, which sleeps the service between requests —
 exactly the kind of interruption this gap didn't handle.
 
@@ -824,7 +824,7 @@ covers the how/verification.
 ### Stage 1 — Playgroups: proxy-join and `GET /users/search`
 
 See the 2026-07-28 audit-history entries above for the full narrative —
-[ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)
+[ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md)
 covers the authorization design in detail. Worth calling out here: the
 `GET /users/search?q=` endpoint matches `username` by `ILIKE` (partial,
 case-insensitive) but `email` only by **exact** match, deliberately —

@@ -19,12 +19,12 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 
 - [x] Roadmap (`docs/roadmap/ROADMAP.md`)
 - [x] Architecture and principles document (`docs/architecture/ARCHITECTURE.md`)
-- [x] Detailed use cases — [`docs/ux/casos-de-uso.md`](../ux/casos-de-uso.md) (2026-08-10: extended past the original 5 game-loop use cases with 3 more — decks/Moxfield, playgroups, tournaments — that were missing entirely)
+- [x] Detailed use cases — [`docs/ux/use-cases.md`](../ux/use-cases.md) (2026-08-10: extended past the original 5 game-loop use cases with 3 more — decks/Moxfield, playgroups, tournaments — that were missing entirely)
 - [x] Android wireframes — [`docs/ux/wireframes.md`](../ux/wireframes.md)
 - [x] Web client screenshot gallery — [`docs/ux/screenshots.md`](../ux/screenshots.md) (2026-08-09; real screenshots of every flow, captured via Playwright against a local backend+DB, not mockups)
 - [x] Flow/state diagrams — [`docs/diagrams/game-state-machine.md`](../diagrams/game-state-machine.md), [`docs/diagrams/android-navigation-flow.md`](../diagrams/android-navigation-flow.md)
-- [x] Foundational ADRs (retroactive, inherited decisions): [0006](../decisions/0006-go-fiber-backend.md) Go+Fiber, [0007](../decisions/0007-postgresql.md) PostgreSQL, [0008](../decisions/0008-sqlc-goose.md) sqlc+goose, [0009](../decisions/0009-android-nativo-vs-crossplatform.md) native Android, [0010](../decisions/0010-monolito-modular-vs-microservicios.md) modular monolith
-- [x] Session ADRs: [0001](../decisions/0001-auth-jwt-refresh-token-strategy.md) auth strategy, [0002](../decisions/0002-google-sign-in.md) Google Sign-In, [0003](../decisions/0003-cors-permisivo-en-dev.md) CORS in dev, [0004](../decisions/0004-web-client-nuxt.md) web client, [0005](../decisions/0005-websocket-protocol.md) WebSocket protocol
+- [x] Foundational ADRs (retroactive, inherited decisions): [0006](../decisions/0006-go-fiber-backend.md) Go+Fiber, [0007](../decisions/0007-postgresql.md) PostgreSQL, [0008](../decisions/0008-sqlc-goose.md) sqlc+goose, [0009](../decisions/0009-android-native-vs-crossplatform.md) native Android, [0010](../decisions/0010-modular-monolith-vs-microservices.md) modular monolith
+- [x] Session ADRs: [0001](../decisions/0001-auth-jwt-refresh-token-strategy.md) auth strategy, [0002](../decisions/0002-google-sign-in.md) Google Sign-In, [0003](../decisions/0003-permissive-cors-in-dev.md) CORS in dev, [0004](../decisions/0004-web-client-nuxt.md) web client, [0005](../decisions/0005-websocket-protocol.md) WebSocket protocol
 
 ## Stage 1: Backend (project base)
 
@@ -49,7 +49,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Specific error handling: 401 invalid token, 400 unverified email, 501 not configured
 
 ### Auth — email verification
-- [x] ADR: block login until email confirmed, Resend with dashboard templates — [ADR-0012](../decisions/0012-verificacion-email-resend.md)
+- [x] ADR: block login until email confirmed, Resend with dashboard templates — [ADR-0012](../decisions/0012-email-verification-resend.md)
 - [x] Migration `00011_email_verification.sql`: `users.email_verified`, `email_verification_tokens`
 - [x] `RegisterUser` issues + persists the token (hashed, TTL 24h), sends the email (best-effort, doesn't roll back registration on send failure)
 - [x] `VerifyCredentials` returns `403` if the password is correct but the email isn't confirmed
@@ -63,7 +63,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 ### Games / game-actions — game engine
 - [x] `games` wired to real `Queries`: create/get/list/join/leave/start/finish
 - [x] `pending → active → finished` state machine enforced server-side (join/leave only pending, start needs ≥2 players, finish only active)
-- [x] `JoinGame`: self-join by default; `user_id` enables proxy-join, gated by shared playgroup membership — see [ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)
+- [x] `JoinGame`: self-join by default; `user_id` enables proxy-join, gated by shared playgroup membership — see [ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md)
 - [x] `GET /games?playgroup_id=`: full group history, membership-gated
 - [x] `game-actions` wired: validates `action_type` against the fixed vocabulary, resolves actor/target as `game_players`, only in `active` games
 - [x] Actions mutate real player state (life/poison/elimination); server-side auto-elimination at 0 life / 10 poison / 21 commander damage from one source
@@ -77,7 +77,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `playgroups` wired: auto-join creator, membership-scoped listing/detail
 - [x] `AddMember` validations (inviter is a member, target exists, not already a member)
 - [x] Integration tests
-- [x] Proxy-join via `game_players.added_by` + `RecordAction` actor-ownership authorization — see [ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)
+- [x] Proxy-join via `game_players.added_by` + `RecordAction` actor-ownership authorization — see [ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md)
 - [x] `GET /users/search?q=`: username partial + exact-email match, no email leak of others, rate-limited
 - [x] `PATCH /playgroups/{id}` rename; `GET /playgroups/{id}/members/{userId}/decks`
 - [x] `GET /users/username-available?username=`: public, rate-limited, exact case-sensitive match — used by the web/Android registration forms to validate before submitting (2026-08-05)
@@ -90,16 +90,16 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `GetPlaygroupStats` (live aggregation, no summary table)
 - [x] Integration tests (winner/no-winner, accumulation, ownership, aggregation)
 - [x] `openapi.yaml` updated
-- [x] **`FinishGame` had no `AND status = 'active'` guard, so concurrent calls double-counted statistics** (found and fixed 2026-08-01). `FinishGame`/`StartGame` now guard their `UPDATE` with the expected current status (`AND status = 'active'`/`'pending'`); a losing concurrent call now affects 0 rows and maps to the existing `409` error instead of silently succeeding twice. Regression test `TestFinishGame_Concurrent_OnlyOneSucceedsAndStatsAreNotDoubleCounted` (8 concurrent callers, real Postgres, `-race`) locks this in. `RecalculateForGame` itself is still purely additive (not a true from-scratch recompute) — that's now safe because the guard guarantees it only ever runs once per game, but a genuine `recalculate-stats` command remains unimplemented, see [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md). See DECISIONS-LOG.md for the full before/after.
+- [x] **`FinishGame` had no `AND status = 'active'` guard, so concurrent calls double-counted statistics** (found and fixed 2026-08-01). `FinishGame`/`StartGame` now guard their `UPDATE` with the expected current status (`AND status = 'active'`/`'pending'`); a losing concurrent call now affects 0 rows and maps to the existing `409` error instead of silently succeeding twice. Regression test `TestFinishGame_Concurrent_OnlyOneSucceedsAndStatsAreNotDoubleCounted` (8 concurrent callers, real Postgres, `-race`) locks this in. `RecalculateForGame` itself is still purely additive (not a true from-scratch recompute) — that's now safe because the guard guarantees it only ever runs once per game, but a genuine `recalculate-stats` command remains unimplemented, see [ADR-0011](../decisions/0011-migration-strategy-and-statistics-recalculation.md). See DECISIONS-LOG.md for the full before/after.
 
 ### Infra / configuration
 - [x] `internal/config`: centralized env var config, fails fast on missing `JWT_SECRET`/`CORS_ALLOWED_ORIGINS` when `APP_ENV=production`
 - [x] `.env.example` + `docker-compose.yml` aligned on the same variables
-- [x] CORS via `CORS_ALLOWED_ORIGINS` (open by default in dev) — see [ADR-0003](../decisions/0003-cors-permisivo-en-dev.md)
+- [x] CORS via `CORS_ALLOWED_ORIGINS` (open by default in dev) — see [ADR-0003](../decisions/0003-permissive-cors-in-dev.md)
 - [x] `docker-compose.yml` centralized at the repo root: `db` (healthcheck)/`api`/`web`
 - [x] PostgreSQL pinned to 18 everywhere (`docker-compose.yml`, `backend-ci.yml`)
 - [x] Goose migrations applied automatically on binary startup (`internal/common/migrate.go`, session-level advisory lock for multi-replica safety)
-- [x] Render deployment groundwork documented (`backend/README.md`) — see [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md)
+- [x] Render deployment groundwork documented (`backend/README.md`) — see [ADR-0015](../decisions/0015-deployment-infrastructure.md)
 - [x] **TCP_NODELAY on accepted connections** (`cmd/api/listener.go`, found and fixed 2026-08-05): fasthttp (Fiber's engine) doesn't disable Nagle's algorithm itself, so a keep-alive connection reused across requests stalled ~40ms per request (Nagle plus the peer's delayed ACK) before the server saw a split header/body write. `main.go` now wraps the raw `net.Listener` to set `SetNoDelay(true)` on every accepted `*net.TCPConn`. Confirmed locally: ~45ms → ~5-7ms for a POST with a JSON body over a reused connection.
 
 ## Stage 2: Database
@@ -109,7 +109,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `CHECK` constraints on `games.status`/`game_actions.action_type` (migration `00004`)
 - [x] `users.google_id`/nullable `password_hash` + `refresh_tokens` (migration `00002`) + DB-level CHECK
 - [x] Visual ER diagram (`docs/diagrams/er-diagram.md`, Mermaid, validated by rendering)
-- [x] Future migration strategy — [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md)
+- [x] Future migration strategy — [ADR-0011](../decisions/0011-migration-strategy-and-statistics-recalculation.md)
 - [x] **`schema.dbml` was out of date**: the `deck_resync_jobs` table (migration `00013_deck_resync_jobs.sql`) was entirely missing from `schema.dbml` — found in a 2026-08-01 review by compiling the DBML to SQL and diffing it against the real migrated schema. Found already fixed on `main` when revisited on 2026-08-09 (the table, its status CHECK, and its partial unique index are all correctly documented) — fixed in an earlier pass not captured by this checklist item at the time. The underlying gap this item also flagged — `docs-ci.yml`'s Spectral/`dbml2sql` checks only validate that the DBML is well-formed, not that it matches the migrations, so nothing currently catches this class of drift automatically — is still real and unaddressed; a CI check that applies goose and compiles the DBML and diffs `information_schema` (see README.md §3, "edit `schema.dbml` first") remains a good idea, just not done.
 
 ## Stage 3: API (OpenAPI contract)
@@ -128,7 +128,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `web-ci.yml`: eslint/typecheck/build + hadolint
 - [x] Playgroup screens (list, detail, rename, add member, history)
 - [x] Account Settings screen (password change, Moxfield username, bulk import trigger)
-- [x] Internationalization with `@nuxtjs/i18n` (es/en/ca) — see [ADR-0014](../decisions/0014-internacionalizacion-web.md)
+- [x] Internationalization with `@nuxtjs/i18n` (es/en/ca) — see [ADR-0014](../decisions/0014-web-internationalization.md)
 - [x] Custom Google Sign-In button styling; default `<title>`/`titleTemplate`
 - [x] UI fixes: header opacity on scroll, deck image layout + "view on Moxfield," editable username + hide password form on passwordless accounts
 - [x] Bulk Moxfield import button always shown in Settings (was gated behind `runtimeConfig.public.enableBulkMoxfieldImport`, removed 2026-08-03 once `ListDecksByUsername` was confirmed working end to end against the real Moxfield API from the actual Go client, see Stage 8)
@@ -219,7 +219,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Cleanup of empty/residual folders (`docker/`, `scripts/` never existed); `.github/dependabot.yml` (4 ecosystems, weekly)
 - [x] CI path filters fixed so a README-only change doesn't trigger the full backend/Android/web battery
 - [x] Documentation restructuring: split this file's narrative into [DECISIONS-LOG.md](DECISIONS-LOG.md), so a new session doesn't have to load the full project history just to check status (2026-08-01, see DECISIONS-LOG.md)
-- [x] Deployment infrastructure stack decided — [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md) (Render + Vercel + Supabase); `render.yaml`/a deploying CI workflow remain a future improvement, deployment is manual today
+- [x] Deployment infrastructure stack decided — [ADR-0015](../decisions/0015-deployment-infrastructure.md) (Render + Vercel + Supabase); `render.yaml`/a deploying CI workflow remain a future improvement, deployment is manual today
 
 ---
 

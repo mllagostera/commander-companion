@@ -157,6 +157,6 @@ of this one, not a detail to fold in silently.
 - `backend/internal/tournaments/` (`pairing.go`, `service.go`, `handler.go`)
 - `docs/api/openapi.yaml` (`/tournaments*` paths and schemas)
 - `web/app/pages/tournaments/`, `web/app/composables/useTournaments.ts`
-- [ADR-0013](0013-proxy-join-y-autorizacion-de-acciones.md) (the proxy-join
+- [ADR-0013](0013-proxy-join-and-action-authorization.md) (the proxy-join
   authorization model this ADR's Decision section explains why it doesn't
   cover a tournament organizer)

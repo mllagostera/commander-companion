@@ -509,7 +509,7 @@ No `playgroups` screen exists, but the data layer isn't empty: a
 `PlayerSetupViewModel`, `PreGameViewModel`, and `JoinGameViewModel` — used
 today only to support proxy-joining a game on someone else's behalf within
 a shared group (see
-[ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)),
+[ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md)),
 never to create, browse, or manage a playgroup as a first-class thing.
 
 **Key divergence:** creating, listing, renaming, and ranking a playgroup

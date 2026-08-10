@@ -238,7 +238,7 @@ Each `PlayerConfigRow` (private) is a `Column` with, depending on the mode:
   `playgroupId` (`null` in Casual mode) — this is what
   `GameRepository.bootstrapRemoteGame` uses to decide self-join vs.
   proxy-join per seat (see
-  [ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)).
+  [ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md)).
 
 ---
 
@@ -353,7 +353,7 @@ root `Column` →
    (silent case, everything went fine) or there is no message. With
    `Connecting`/`Disabled`/`WaitingForPlayers` it shows the message in
    `surfaceVariant`; with `Failed`, in `errorContainer` (red). See use case
-   1 in `docs/ux/casos-de-uso.md` for what triggers each state.
+   1 in `docs/ux/use-cases.md` for what triggers each state.
 3. `Column` (weight 1f) with rows (`Row`, weight 1f) of `PlayerCard`
    (weight 1f each).
 4. Each `PlayerCard` (clickable `Surface`, color = player's color) →

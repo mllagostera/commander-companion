@@ -76,7 +76,7 @@ sub-graph is no longer 100% local — `GameTrackerScreen` mirrors
 best-effort the authenticated user's seat against real
 `games`/`game-actions`
 (`GameRepository.bootstrapRemoteGame`/`recordLifeChange`/`finishGame`, see
-`docs/ux/casos-de-uso.md`), although there is still no route/screen
+`docs/ux/use-cases.md`), although there is still no route/screen
 *dedicated* to that integration (no visual indicator beyond the
 `RemoteSyncBanner` in the tracker itself, see `docs/ux/wireframes.md`).
 What's actually still missing:

@@ -2,7 +2,7 @@
 
 Native Android client (Kotlin + Jetpack Compose), designed to track life
 *during* the game with the app on the table — the priority is that any
-action takes less than two seconds. See [ADR-0009](../docs/decisions/0009-android-nativo-vs-crossplatform.md)
+action takes less than two seconds. See [ADR-0009](../docs/decisions/0009-android-native-vs-crossplatform.md)
 for the rationale behind native vs. cross-platform.
 
 Current status: complete local life tracker (2-6 players, commander

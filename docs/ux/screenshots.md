@@ -14,7 +14,7 @@ The script isn't part of the repo; it exists only to produce this gallery
 and gets re-run by hand whenever the UI changes enough to make these stale.
 See [`wireframes.md`](wireframes.md) for the Android screens (no emulator
 was available to capture those the same way — see `docs/roadmap/TASKS.md`)
-and [`casos-de-uso.md`](casos-de-uso.md) for the step-by-step flows behind
+and [`use-cases.md`](use-cases.md) for the step-by-step flows behind
 each screen.
 
 **Freshness note**: these are a point-in-time capture (2026-08-09). The web
@@ -209,7 +209,7 @@ statistics — those come from actual tracked games).
 
 Explicitly a **local-only, unsaved** pass-and-play tracker — it doesn't
 require login or record anything server-side, unlike the tournament/game
-flows above. See [`casos-de-uso.md`](casos-de-uso.md) for how this compares
+flows above. See [`use-cases.md`](use-cases.md) for how this compares
 to Android's tracker (which does mirror the authenticated player's seat to
 the backend, best-effort).
 

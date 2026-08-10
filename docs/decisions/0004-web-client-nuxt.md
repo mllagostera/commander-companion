@@ -22,7 +22,7 @@ visualization, also more comfortable on large screens).
   decisions in this ADR.
 - **100% decoupled from the backend**: it only consumes the REST API over
   HTTP (the same API Android uses), with no shared logic or deployment
-  coupling. This was already enabled by [ADR-0003](0003-cors-permisivo-en-dev.md)
+  coupling. This was already enabled by [ADR-0003](0003-permissive-cors-in-dev.md)
   (CORS) — without that, a frontend on another origin couldn't call the API
   from the browser.
 - Rendering mode: **SSR** (full Nuxt, with Nitro running as a Node process
@@ -96,4 +96,4 @@ visualization, also more comfortable on large screens).
 ## References
 
 - `docs/roadmap/TASKS.md`, "Stage 4b: Web Client (Nuxt)" section
-- [ADR-0003](0003-cors-permisivo-en-dev.md) (CORS, technical prerequisite)
+- [ADR-0003](0003-permissive-cors-in-dev.md) (CORS, technical prerequisite)
