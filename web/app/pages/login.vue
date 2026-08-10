@@ -21,24 +21,16 @@ const resendSent = ref(false)
 // first request. Without this notice the user has no way to know and
 // tends to retry the login thinking nothing happened.
 const isLoggingIn = ref(false)
-const showSlowHint = ref(false)
-let slowHintTimer: ReturnType<typeof setTimeout> | null = null
+const { active: showSlowHint, start: startSlowHint, stop: stopSlowHint } = useSlowRequestHint()
 
 function startLoginTimers() {
-  showSlowHint.value = false
   isLoggingIn.value = true
-  slowHintTimer = setTimeout(() => {
-    showSlowHint.value = true
-  }, 4000)
+  startSlowHint()
 }
 
 function stopLoginTimers() {
   isLoggingIn.value = false
-  showSlowHint.value = false
-  if (slowHintTimer) {
-    clearTimeout(slowHintTimer)
-    slowHintTimer = null
-  }
+  stopSlowHint()
 }
 
 async function handleSubmit() {
@@ -92,10 +84,6 @@ onMounted(() => {
       theme: theme.value === 'light' ? 'outline' : 'filled_black',
     })
   }
-})
-
-onUnmounted(() => {
-  if (slowHintTimer) clearTimeout(slowHintTimer)
 })
 </script>
 
