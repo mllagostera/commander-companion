@@ -19,11 +19,12 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 
 - [x] Roadmap (`docs/roadmap/ROADMAP.md`)
 - [x] Architecture and principles document (`docs/architecture/ARCHITECTURE.md`)
-- [x] Detailed use cases — [`docs/ux/casos-de-uso.md`](../ux/casos-de-uso.md)
+- [x] Detailed use cases — [`docs/ux/use-cases.md`](../ux/use-cases.md) (2026-08-10: extended past the original 5 game-loop use cases with 3 more — decks/Moxfield, playgroups, tournaments — that were missing entirely)
 - [x] Android wireframes — [`docs/ux/wireframes.md`](../ux/wireframes.md)
+- [x] Web client screenshot gallery — [`docs/ux/screenshots.md`](../ux/screenshots.md) (2026-08-09; real screenshots of every flow, captured via Playwright against a local backend+DB, not mockups)
 - [x] Flow/state diagrams — [`docs/diagrams/game-state-machine.md`](../diagrams/game-state-machine.md), [`docs/diagrams/android-navigation-flow.md`](../diagrams/android-navigation-flow.md)
-- [x] Foundational ADRs (retroactive, inherited decisions): [0006](../decisions/0006-go-fiber-backend.md) Go+Fiber, [0007](../decisions/0007-postgresql.md) PostgreSQL, [0008](../decisions/0008-sqlc-goose.md) sqlc+goose, [0009](../decisions/0009-android-nativo-vs-crossplatform.md) native Android, [0010](../decisions/0010-monolito-modular-vs-microservicios.md) modular monolith
-- [x] Session ADRs: [0001](../decisions/0001-auth-jwt-refresh-token-strategy.md) auth strategy, [0002](../decisions/0002-google-sign-in.md) Google Sign-In, [0003](../decisions/0003-cors-permisivo-en-dev.md) CORS in dev, [0004](../decisions/0004-web-client-nuxt.md) web client, [0005](../decisions/0005-websocket-protocol.md) WebSocket protocol
+- [x] Foundational ADRs (retroactive, inherited decisions): [0006](../decisions/0006-go-fiber-backend.md) Go+Fiber, [0007](../decisions/0007-postgresql.md) PostgreSQL, [0008](../decisions/0008-sqlc-goose.md) sqlc+goose, [0009](../decisions/0009-android-native-vs-crossplatform.md) native Android, [0010](../decisions/0010-modular-monolith-vs-microservices.md) modular monolith
+- [x] Session ADRs: [0001](../decisions/0001-auth-jwt-refresh-token-strategy.md) auth strategy, [0002](../decisions/0002-google-sign-in.md) Google Sign-In, [0003](../decisions/0003-permissive-cors-in-dev.md) CORS in dev, [0004](../decisions/0004-web-client-nuxt.md) web client, [0005](../decisions/0005-websocket-protocol.md) WebSocket protocol
 
 ## Stage 1: Backend (project base)
 
@@ -48,7 +49,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Specific error handling: 401 invalid token, 400 unverified email, 501 not configured
 
 ### Auth — email verification
-- [x] ADR: block login until email confirmed, Resend with dashboard templates — [ADR-0012](../decisions/0012-verificacion-email-resend.md)
+- [x] ADR: block login until email confirmed, Resend with dashboard templates — [ADR-0012](../decisions/0012-email-verification-resend.md)
 - [x] Migration `00011_email_verification.sql`: `users.email_verified`, `email_verification_tokens`
 - [x] `RegisterUser` issues + persists the token (hashed, TTL 24h), sends the email (best-effort, doesn't roll back registration on send failure)
 - [x] `VerifyCredentials` returns `403` if the password is correct but the email isn't confirmed
@@ -62,7 +63,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 ### Games / game-actions — game engine
 - [x] `games` wired to real `Queries`: create/get/list/join/leave/start/finish
 - [x] `pending → active → finished` state machine enforced server-side (join/leave only pending, start needs ≥2 players, finish only active)
-- [x] `JoinGame`: self-join by default; `user_id` enables proxy-join, gated by shared playgroup membership — see [ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)
+- [x] `JoinGame`: self-join by default; `user_id` enables proxy-join, gated by shared playgroup membership — see [ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md)
 - [x] `GET /games?playgroup_id=`: full group history, membership-gated
 - [x] `game-actions` wired: validates `action_type` against the fixed vocabulary, resolves actor/target as `game_players`, only in `active` games
 - [x] Actions mutate real player state (life/poison/elimination); server-side auto-elimination at 0 life / 10 poison / 21 commander damage from one source
@@ -76,7 +77,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `playgroups` wired: auto-join creator, membership-scoped listing/detail
 - [x] `AddMember` validations (inviter is a member, target exists, not already a member)
 - [x] Integration tests
-- [x] Proxy-join via `game_players.added_by` + `RecordAction` actor-ownership authorization — see [ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)
+- [x] Proxy-join via `game_players.added_by` + `RecordAction` actor-ownership authorization — see [ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md)
 - [x] `GET /users/search?q=`: username partial + exact-email match, no email leak of others, rate-limited
 - [x] `PATCH /playgroups/{id}` rename; `GET /playgroups/{id}/members/{userId}/decks`
 - [x] `GET /users/username-available?username=`: public, rate-limited, exact case-sensitive match — used by the web/Android registration forms to validate before submitting (2026-08-05)
@@ -89,16 +90,16 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `GetPlaygroupStats` (live aggregation, no summary table)
 - [x] Integration tests (winner/no-winner, accumulation, ownership, aggregation)
 - [x] `openapi.yaml` updated
-- [x] **`FinishGame` had no `AND status = 'active'` guard, so concurrent calls double-counted statistics** (found and fixed 2026-08-01). `FinishGame`/`StartGame` now guard their `UPDATE` with the expected current status (`AND status = 'active'`/`'pending'`); a losing concurrent call now affects 0 rows and maps to the existing `409` error instead of silently succeeding twice. Regression test `TestFinishGame_Concurrent_OnlyOneSucceedsAndStatsAreNotDoubleCounted` (8 concurrent callers, real Postgres, `-race`) locks this in. `RecalculateForGame` itself is still purely additive (not a true from-scratch recompute) — that's now safe because the guard guarantees it only ever runs once per game, but a genuine `recalculate-stats` command remains unimplemented, see [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md). See DECISIONS-LOG.md for the full before/after.
+- [x] **`FinishGame` had no `AND status = 'active'` guard, so concurrent calls double-counted statistics** (found and fixed 2026-08-01). `FinishGame`/`StartGame` now guard their `UPDATE` with the expected current status (`AND status = 'active'`/`'pending'`); a losing concurrent call now affects 0 rows and maps to the existing `409` error instead of silently succeeding twice. Regression test `TestFinishGame_Concurrent_OnlyOneSucceedsAndStatsAreNotDoubleCounted` (8 concurrent callers, real Postgres, `-race`) locks this in. `RecalculateForGame` itself is still purely additive (not a true from-scratch recompute) — that's now safe because the guard guarantees it only ever runs once per game, but a genuine `recalculate-stats` command remains unimplemented, see [ADR-0011](../decisions/0011-migration-strategy-and-statistics-recalculation.md). See DECISIONS-LOG.md for the full before/after.
 
 ### Infra / configuration
 - [x] `internal/config`: centralized env var config, fails fast on missing `JWT_SECRET`/`CORS_ALLOWED_ORIGINS` when `APP_ENV=production`
 - [x] `.env.example` + `docker-compose.yml` aligned on the same variables
-- [x] CORS via `CORS_ALLOWED_ORIGINS` (open by default in dev) — see [ADR-0003](../decisions/0003-cors-permisivo-en-dev.md)
+- [x] CORS via `CORS_ALLOWED_ORIGINS` (open by default in dev) — see [ADR-0003](../decisions/0003-permissive-cors-in-dev.md)
 - [x] `docker-compose.yml` centralized at the repo root: `db` (healthcheck)/`api`/`web`
 - [x] PostgreSQL pinned to 18 everywhere (`docker-compose.yml`, `backend-ci.yml`)
 - [x] Goose migrations applied automatically on binary startup (`internal/common/migrate.go`, session-level advisory lock for multi-replica safety)
-- [x] Render deployment groundwork documented (`backend/README.md`) — see [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md)
+- [x] Render deployment groundwork documented (`backend/README.md`) — see [ADR-0015](../decisions/0015-deployment-infrastructure.md)
 - [x] **TCP_NODELAY on accepted connections** (`cmd/api/listener.go`, found and fixed 2026-08-05): fasthttp (Fiber's engine) doesn't disable Nagle's algorithm itself, so a keep-alive connection reused across requests stalled ~40ms per request (Nagle plus the peer's delayed ACK) before the server saw a split header/body write. `main.go` now wraps the raw `net.Listener` to set `SetNoDelay(true)` on every accepted `*net.TCPConn`. Confirmed locally: ~45ms → ~5-7ms for a POST with a JSON body over a reused connection.
 
 ## Stage 2: Database
@@ -108,15 +109,15 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `CHECK` constraints on `games.status`/`game_actions.action_type` (migration `00004`)
 - [x] `users.google_id`/nullable `password_hash` + `refresh_tokens` (migration `00002`) + DB-level CHECK
 - [x] Visual ER diagram (`docs/diagrams/er-diagram.md`, Mermaid, validated by rendering)
-- [x] Future migration strategy — [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md)
-- [ ] **`schema.dbml` is out of date**: the `deck_resync_jobs` table (migration `00013_deck_resync_jobs.sql`) is entirely missing from `schema.dbml` — found in a 2026-08-01 review by compiling the DBML to SQL and diffing it against the real migrated schema. `docs-ci.yml`'s Spectral/`dbml2sql` checks only validate that the DBML is well-formed, not that it matches the migrations — nothing currently catches this class of drift. Fix: add the `deck_resync_jobs` table to `schema.dbml`, and consider a CI check that applies goose + compiles the DBML and diffs `information_schema` (see README.md §3, "edit `schema.dbml` first").
+- [x] Future migration strategy — [ADR-0011](../decisions/0011-migration-strategy-and-statistics-recalculation.md)
+- [x] **`schema.dbml` was out of date**: the `deck_resync_jobs` table (migration `00013_deck_resync_jobs.sql`) was entirely missing from `schema.dbml` — found in a 2026-08-01 review by compiling the DBML to SQL and diffing it against the real migrated schema. Found already fixed on `main` when revisited on 2026-08-09 (the table, its status CHECK, and its partial unique index are all correctly documented) — fixed in an earlier pass not captured by this checklist item at the time. The underlying gap this item also flagged — `docs-ci.yml`'s Spectral/`dbml2sql` checks only validate that the DBML is well-formed, not that it matches the migrations, so nothing currently catches this class of drift automatically — is still real and unaddressed; a CI check that applies goose and compiles the DBML and diffs `information_schema` (see README.md §3, "edit `schema.dbml` first") remains a good idea, just not done.
 
 ## Stage 3: API (OpenAPI contract)
 
 - [x] OpenAPI 3.1 skeleton with the main paths
 - [x] Complete `requestBody`/schemas for auth, decks, games, playgroups, statistics, and `POST /auth/google`
 - [x] `/statistics/playgroup/{id}` really implemented (previously hardcoded `501`)
-- [x] Cursor-based pagination on `/games`/`/decks` listings (`internal/common/pagination.go`); `GET /games/{id}/timeline` and playgroup listings remain unpaginated
+- [x] Cursor-based pagination on `/games`/`/decks`/`/playgroups` listings (`internal/common/pagination.go`; `/playgroups` added 2026-08-08, opt-in via `cursor`/`limit` so the unpaginated response shape existing clients (Android, web) already parse is unchanged when neither is given — see DECISIONS-LOG.md). `GET /games/{id}/timeline` deliberately left unpaginated: a single game's action count is bounded (unlike account-wide history), and `GameViewModel.replayCommanderDamageUseCase` on Android needs the *complete* timeline to reconstruct commander-damage state — a paginated fetch there risks silent data corruption (an incomplete replay) for a highly speculative benefit, so it wasn't worth the added client complexity.
 - [x] Spec linting with Spectral (`.spectral.yaml`, runs in `docs-ci.yml`) — 0 errors, ~100 pre-existing warnings (missing `operationId`/`tags`/`description`), non-blocking
 
 ## Stage 4b: Web Client (Nuxt)
@@ -127,7 +128,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `web-ci.yml`: eslint/typecheck/build + hadolint
 - [x] Playgroup screens (list, detail, rename, add member, history)
 - [x] Account Settings screen (password change, Moxfield username, bulk import trigger)
-- [x] Internationalization with `@nuxtjs/i18n` (es/en/ca) — see [ADR-0014](../decisions/0014-internacionalizacion-web.md)
+- [x] Internationalization with `@nuxtjs/i18n` (es/en/ca) — see [ADR-0014](../decisions/0014-web-internationalization.md)
 - [x] Custom Google Sign-In button styling; default `<title>`/`titleTemplate`
 - [x] UI fixes: header opacity on scroll, deck image layout + "view on Moxfield," editable username + hide password form on passwordless accounts
 - [x] Bulk Moxfield import button always shown in Settings (was gated behind `runtimeConfig.public.enableBulkMoxfieldImport`, removed 2026-08-03 once `ListDecksByUsername` was confirmed working end to end against the real Moxfield API from the actual Go client, see Stage 8)
@@ -195,14 +196,13 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] **`StartImport` used to resolve the Moxfield deck list synchronously before returning, tying the HTTP request (and the browser tab that made it) to however long Moxfield's search took** (found and fixed 2026-08-03, reported against the web client's re-enabled import button): `StartImport` now only creates the job (`pending`, `total_decks` null) and returns; `runImport`'s background goroutine does both the listing AND the per-deck import, marking the job `in_progress` (with `total_decks` known) once listing succeeds, or straight to `failed` with `error_message` set if it doesn't. Regression test `TestStartImport_ReturnsImmediately_DoesNotWaitForMoxfieldListing` (`internal/moxfieldimport/service_test.go`) locks in that `StartImport` returns before a slow (background) listing call finishes. `docs/api/openapi.yaml` and the web client (`settings.vue`, polls through `pending` too now) updated to match.
 - [x] **Neither the single-deck import nor the bulk import checked for an existing deck before inserting, so re-importing (retrying a bulk import, or importing the same Moxfield URL through both paths) created duplicate decks** (found and fixed 2026-08-03, reported after inspecting the real Supabase DB — 0 duplicates found there today, `moxfield_import_jobs` was empty, so this was a latent gap rather than already-corrupted data). Fix: partial unique index `decks_user_id_moxfield_id_unique_idx` on `(user_id, moxfield_id) WHERE moxfield_id IS NOT NULL` (migration `00015_decks_unique_moxfield_id_per_user.sql`; NOT globally unique on `moxfield_id` alone — the same public deck can legitimately be imported by different users). `ImportFromMoxfield` (`internal/decks/service.go`) now maps the constraint violation to `ErrDeckAlreadyImported` → `409`; the bulk import's `runImport` (`internal/moxfieldimport/service.go`) treats that specific error as a success (`imported_count`, not `failed_count`) since the desired end state — the deck being in the user's collection — already holds. `docs/api/openapi.yaml` and the web client's `moxfieldImportError` updated to match.
 - [x] Resync all already-imported decks, async (`internal/deckresync`, same pattern as the bulk import, but for decks the user already has)
-- [ ] **A crash/restart mid-import or mid-resync leaves the job stuck `in_progress` forever**, and the partial-unique-index (one active job per user) then blocks starting a new one — no retry, no reaper. Documented as an accepted gap when built; worth revisiting given ADR-0015's Render free tier sleeps the service between requests.
+- [x] **A crash/restart mid-import or mid-resync used to leave the job stuck `in_progress` forever**, and the partial-unique-index (one active job per user) then blocked starting a new one — no retry, no reaper (found 2026-08-01, fixed 2026-08-08). Fix: `moxfieldimport.ReapStaleJobs`/`deckresync.ReapStaleJobs` (`ReapStaleImportJobs`/`ReapStaleResyncJobs` sqlc queries) mark any job still `pending`/`in_progress` as `failed` with an explanatory `error_message`, called once at startup (`cmd/api/main.go: reapStaleBackgroundJobs`, right after the DB pool connects) — safe unconditionally in the current single-instance deployment, since a freshly starting process can't have any of these jobs actually in flight yet. Regression tests `TestReapStaleJobs_MarksPendingAndInProgressAsFailed`/`TestReapStaleJobs_MarksInProgressAsFailed` lock in that the reap both flips the stuck row to `failed` and frees the active-job constraint for a new attempt. Verified locally in Docker (no Go toolchain in this sandbox otherwise): `sqlc/sqlc:1.27.0` regenerated `query.sql.go`/`querier.go` byte-for-byte identical to what was hand-written, `golang:1.25-alpine` ran `go build`/`go vet`/`golangci-lint run` clean (only pre-existing repo-wide `gofmt` CRLF noise from this Windows checkout's `core.autocrlf=true`, unrelated to this change), and the full suite (`go test -race -cover -p 1 ./...`, against a throwaway `postgres:18-alpine` container with goose migrations applied) passed for every package.
 
 ## Stage 9: Social — friends, groups and tournaments
 
 - [ ] Friends system: send/accept/reject requests, friends list — distinct from `playgroups` (game groups, not friendship relations)
-- [ ] Groups beyond the existing `playgroups`, or extend them, depending on the tournament flow
-- [ ] Tournament creation: among friends, among groups, or open registration
-- [ ] Define tournament format (bracket, swiss, league, etc.) and its data model before implementing
+- [ ] Groups beyond the existing `playgroups`, or extend them — not needed for tournaments in the end (see below), still open for any future friends/groups work
+- [x] **Standalone Swiss-format Commander tournaments** (2026-08-09, pulled forward ahead of the rest of this stage — see [ADR-0016](../decisions/0016-swiss-tournament-format.md) for the full design and the alternatives ruled out): `backend/internal/tournaments` (migration `00016_tournaments.sql`, five new tables, none touching `games`/`game_players`), organizer creates a tournament and gets a join code, app users self-register with one of their own decks (`POST /tournaments/join`), the organizer adds guests with no account (`POST /tournaments/{id}/participants`), `POST /tournaments/{id}/start` locks the roster (valid 3-4 player table split required, min 3, max 4 per table) and seats round 1 via a greedy repeat-avoiding pairing heuristic (`pairing.go`), round count is computed automatically from the roster size, the organizer records each table's finish order (`POST /tournaments/{id}/tables/{tableId}/result`, scoring 2/1/0/0) and advances rounds (`POST /tournaments/{id}/rounds/next`) until the tournament finishes, and `GET /tournaments/lookup?code=` is the "enter the code" read-only lookup of a participant's current table. Deliberately **not** wired into the live `games`/`game_players`/WebSocket life tracker or into Android — both explicitly out of scope for this pass, see the ADR. Full test coverage (`pairing_internal_test.go` for the pairing math, `service_test.go` including a full 3-round tournament lifecycle test against real Postgres) and web UI (`web/app/pages/tournaments/`).
 
 ## Cross-cutting (quality, infrastructure, security)
 
@@ -214,11 +214,12 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Real wiring of every `service.go` to its sqlc `Queries` — no dummy modules left
 - [x] Consistent error handling (`internal/common/errors.go: DomainError`/`MapError`, no raw internal errors leaked to clients)
 - [x] Rate limiting on auth endpoints (20 req/min/IP, in-process memory — needs a shared `Storage` if ever deployed with >1 replica)
+- [x] **Dependency updates found in a 2026-08-08 audit, applied 2026-08-09** — Go backend was already fully current (no action needed). Web (`web/package.json`): `npm update` applied the pending minor/patch bumps (`nuxt` 4.5.1→4.5.2, `vue` 3.5.40→3.5.41, `@nuxtjs/i18n` 10.5.0→10.6.0, `@nuxt/eslint` 1.16.0→1.17.0, `eslint` 10.8.0→10.8.1, `vue-tsc` 3.3.8→3.3.9, `@types/node` 26.1.2→26.2.0) within their existing `^` ranges — TypeScript's major jump (`6.0.3`→`7.0.2`) deliberately still deferred (suspected incompatible with the current Vue 3/Nuxt toolchain, `npm update` leaves it alone on its own since it's outside the caret range anyway). **Verified with a real `npm run build`** (not just lint/typecheck), Docker/`node:22-alpine`, production bundle succeeded. Android (`android/gradle/libs.versions.toml`): `navigation-compose` moved off the old alpha (`2.8.0-alpha07` → `2.9.8` stable); also bumped `kotlinx-coroutines` (`1.7.3`→`1.11.0`), `androidx-credentials` (`1.3.0`→`1.6.0`), `androidx-lifecycle-runtime-ktx` (`2.7.0`→`2.11.0`), `androidx-core-ktx` (`1.13.1`→`1.19.0`), `androidx-activity-compose` (`1.9.0`→`1.13.0`), `kotlin` (`2.2.10`→`2.4.10`), `hilt-navigation-compose` (hardcoded `1.2.0`→`1.4.0`), `androidx-datastore-preferences` (`1.1.1`→`1.2.1`), `coil` (`3.4.0`→`3.5.0`), `googleid` (`1.1.1`→`1.2.0`), `appcompat` (`1.7.0`→`1.7.1`); `agp`/`hilt`/`room`/`retrofit`/`okhttp`/`compose-bom` were already current. The KSP Gradle plugin was also bumped (`2.2.10-2.0.2` → `2.3.11`, KSP's newest release) to keep pace with the Kotlin bump. **Verified 2026-08-09** with a real local `./gradlew build` (JDK 21 + Android SDK) — KSP `2.3.11`/Kotlin `2.4.10` turned out to be compatible, `kspDebugKotlin`/`kspReleaseKotlin` ran clean; that was a false alarm. Two real breakages did surface, both fixed on `session-0908` (commit `d060709`): (1) AGP 9.3.1 treats the legacy `android { kotlinOptions { jvmTarget = "1.8" } }` setter as a hard script-compilation error, not a warning — migrated to the `kotlin { compilerOptions { jvmTarget.set(...) } }` DSL; (2) `navigation-compose 2.9.8` graduated type-safe navigation out of experimental and removed `ExperimentalSafeArgsApi` entirely, so the `@OptIn` in `AppNavigation.kt` no longer resolved — removed it (feature works unconditionally now). Fixing (2) also required raising the project's own JVM target from 1.8 to 11 (`compileOptions`/`compilerOptions`), since several of the bumped androidx/Compose libraries now ship JVM 11 bytecode that can't be inlined into 1.8-target code — safe given `minSdk 26`. `./gradlew build` now passes clean end to end: compile (debug+release), unit tests, lint, `assembleDebug`, `assembleRelease`.
 - [ ] Record ADRs in `docs/decisions/` as new non-trivial technical decisions are made — ongoing practice, not a one-time task
 - [x] Cleanup of empty/residual folders (`docker/`, `scripts/` never existed); `.github/dependabot.yml` (4 ecosystems, weekly)
 - [x] CI path filters fixed so a README-only change doesn't trigger the full backend/Android/web battery
 - [x] Documentation restructuring: split this file's narrative into [DECISIONS-LOG.md](DECISIONS-LOG.md), so a new session doesn't have to load the full project history just to check status (2026-08-01, see DECISIONS-LOG.md)
-- [x] Deployment infrastructure stack decided — [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md) (Render + Vercel + Supabase); `render.yaml`/a deploying CI workflow remain a future improvement, deployment is manual today
+- [x] Deployment infrastructure stack decided — [ADR-0015](../decisions/0015-deployment-infrastructure.md) (Render + Vercel + Supabase); `render.yaml`/a deploying CI workflow remain a future improvement, deployment is manual today
 
 ---
 
@@ -228,7 +229,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 2. ~~Real auth (Stage 1): JWT + bcrypt + middleware~~ — done. Only the external manual step remains: Google Cloud OAuth credentials.
 3. ~~Connect services to the real database (Cross-cutting)~~ — done, backend 100% wired.
 4. ~~Real statistics (Stage 7): recalculation on game finish~~ — done, but see the Stage 1 caveat on double-counting under concurrent `FinishGame` calls.
-5. **Complete the OpenAPI contract** (Stage 3) — request/response wiring done; some listings remain unpaginated.
+5. ~~Complete the OpenAPI contract~~ (Stage 3) — done; `/games/{id}/timeline` is the one listing deliberately left unpaginated (see Stage 3 entry above for why).
 6. ~~Android: real auth (Stage 4-5)~~ — done. Pending the external Google Cloud Web Client ID to test the Google flow end to end.
 7. ~~WebSocket (Stage 6)~~ — server + Android client done; no heartbeat (see Stage 6 gap above).
 8. **Moxfield integration** (Stage 8) — single-deck import and resync work; bulk import by username still blocked on confirming the real Moxfield endpoint.

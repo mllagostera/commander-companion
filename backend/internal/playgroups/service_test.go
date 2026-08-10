@@ -3,6 +3,7 @@ package playgroups_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -166,6 +167,121 @@ func TestListPlaygroups_IncludesMembers(t *testing.T) {
 	}
 	if len(list) != 1 || len(list[0].Members) != 2 {
 		t.Fatalf("ListPlaygroups() members = %+v, want 2", list[0].Members)
+	}
+}
+
+// TestListPlaygroupsPage_OnlyReturnsMemberships mirrors
+// TestListPlaygroups_OnlyReturnsMemberships: the paginated listing must keep
+// the same membership scoping as the unpaginated one.
+func TestListPlaygroupsPage_OnlyReturnsMemberships(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	userA := createTestUser(t, pool, "page-list-a@example.com")
+	userB := createTestUser(t, pool, "page-list-b@example.com")
+
+	mustCreatePlaygroup(t, svc, userA.ID, "Grupo A")
+	mustCreatePlaygroup(t, svc, userB.ID, "Grupo B")
+
+	page, err := svc.ListPlaygroupsPage(context.Background(), common.PageRequest{Limit: common.DefaultPageLimit}, userA.ID)
+	if err != nil {
+		t.Fatalf("ListPlaygroupsPage(A) error = %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Name != "Grupo A" {
+		t.Fatalf("ListPlaygroupsPage(A) = %+v, want solo el grupo de A", page.Items)
+	}
+}
+
+// TestListPlaygroupsPage_DoesNotPopulateMembers documents the one behavioral
+// difference from ListPlaygroups: a paginated page is for browsing many
+// groups, not showing each one's roster up front.
+func TestListPlaygroupsPage_DoesNotPopulateMembers(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "page-no-members@example.com")
+	mustCreatePlaygroup(t, svc, owner.ID, "Grupo sin roster")
+
+	page, err := svc.ListPlaygroupsPage(context.Background(), common.PageRequest{Limit: common.DefaultPageLimit}, owner.ID)
+	if err != nil {
+		t.Fatalf("ListPlaygroupsPage() error = %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Members != nil {
+		t.Fatalf("ListPlaygroupsPage() Members = %+v, want nil (not populated on a page)", page.Items[0].Members)
+	}
+}
+
+// TestListPlaygroupsPage_PaginatesWithCursor mirrors decks.TestListDecks_PaginatesWithCursor:
+// the whole list is walked a few at a time, verifying keyset pagination
+// doesn't miss or repeat a playgroup across pages.
+func TestListPlaygroupsPage_PaginatesWithCursor(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "page-cursor@example.com")
+
+	const total = 5
+	for i := range total {
+		mustCreatePlaygroup(t, svc, owner.ID, fmt.Sprintf("Grupo %d", i))
+	}
+
+	seen := collectAllPlaygroupPages(t, svc, owner.ID, 2, total)
+	if len(seen) != total {
+		t.Fatalf("ListPlaygroupsPage() paginado devolvió %d grupos distintos, want %d", len(seen), total)
+	}
+}
+
+// collectAllPlaygroupPages walks /playgroups?cursor=... following next_cursor
+// and returns the seen IDs, failing if any repeats across pages or if
+// pagination never ends.
+func collectAllPlaygroupPages(
+	t *testing.T, svc playgroups.Service, userID string, limit, maxPages int,
+) map[string]bool {
+	t.Helper()
+
+	seen := make(map[string]bool, maxPages*limit)
+	//nolint:gosec // limit is a test constant, not external input
+	page := common.PageRequest{Limit: int32(limit)}
+
+	for pages := 0; pages <= maxPages; pages++ {
+		res, err := svc.ListPlaygroupsPage(context.Background(), page, userID)
+		if err != nil {
+			t.Fatalf("ListPlaygroupsPage() página %d: error = %v", pages, err)
+		}
+		if len(res.Items) > limit {
+			t.Fatalf("ListPlaygroupsPage() página %d devolvió %d grupos, want <= %d", pages, len(res.Items), limit)
+		}
+		for _, item := range res.Items {
+			if seen[item.ID] {
+				t.Fatalf("ListPlaygroupsPage() repitió el grupo %s entre páginas", item.ID)
+			}
+			seen[item.ID] = true
+		}
+
+		if res.NextCursor == nil {
+			return seen
+		}
+		page.Cursor = *res.NextCursor
+	}
+
+	t.Fatalf("la paginación no termina: más de %d páginas", maxPages)
+	return nil
+}
+
+func TestListPlaygroupsPage_InvalidCursor(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	owner := createTestUser(t, pool, "page-badcursor@example.com")
+	svc := playgroups.NewService(pool)
+
+	page := common.PageRequest{Limit: common.DefaultPageLimit, Cursor: "no-es-un-cursor"}
+	_, err := svc.ListPlaygroupsPage(context.Background(), page, owner.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("ListPlaygroupsPage() con cursor inválido: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
 	}
 }
 

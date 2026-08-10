@@ -47,7 +47,7 @@ Note: the Web client wasn't in the original roadmap — it was added later
 (see Stage 4b). "Background Workers"/"Statistics Engine" were the original
 aspiration; today statistics are recalculated in-process within the same
 monolith (`internal/statistics`), not as a separate worker — see
-[ADR-0010](../decisions/0010-monolito-modular-vs-microservicios.md).
+[ADR-0010](../decisions/0010-modular-monolith-vs-microservices.md).
 
 In later phases:
 
@@ -131,7 +131,7 @@ Main modules:
 
 # Deployment infrastructure
 
-Not in the original roadmap (added 2026-07-27). **Decision closed 2026-07-30**: [ADR-0015](../decisions/0015-infraestructura-de-despliegue.md) — backend on Render, frontend on Vercel, database on Supabase (under Option 1 below). The backend already has real preparation for this (goose migrations embedded at startup, specifically designed for Render's free tier; `backend/README.md` documents the env vars — see [TASKS.md](TASKS.md), "Infra / configuration" section of Stage 1). There's still no `render.yaml`/IaC or a CI workflow that deploys (both platforms are configured manually via dashboard, see the ADR).
+Not in the original roadmap (added 2026-07-27). **Decision closed 2026-07-30**: [ADR-0015](../decisions/0015-deployment-infrastructure.md) — backend on Render, frontend on Vercel, database on Supabase (under Option 1 below). The backend already has real preparation for this (goose migrations embedded at startup, specifically designed for Render's free tier; `backend/README.md` documents the env vars — see [TASKS.md](TASKS.md), "Infra / configuration" section of Stage 1). There's still no `render.yaml`/IaC or a CI workflow that deploys (both platforms are configured manually via dashboard, see the ADR).
 
 ### Option 1: Modern PaaS / Serverless (chosen)
 - **Frontend:** Vercel (decided) or Cloudflare Pages (static deployment, global CDN, automatic GitOps).

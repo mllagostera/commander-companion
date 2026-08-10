@@ -53,7 +53,7 @@ commander-companion/
 │   ├── api/               # openapi.yaml (source of truth for the REST contract)
 │   ├── decisions/        # ADRs 0001-0010 (technical decisions and their rationale)
 │   ├── diagrams/         # additional Mermaid diagrams (ER, state machine, Android navigation)
-│   └── ux/                # casos-de-uso.md, wireframes.md
+│   └── ux/                # use-cases.md, wireframes.md, screenshots.md
 └── docker-compose.yml    # db + api + web, to try the full stack locally
 ```
 
@@ -154,21 +154,22 @@ for a new module), add it to this list too in the same change.
 
 **Use cases and wireframes (`docs/ux/`):**
 
-- [docs/ux/casos-de-uso.md](docs/ux/casos-de-uso.md) — the product's 5 core operations, "Today" column (actual code) vs. "Target".
+- [docs/ux/use-cases.md](docs/ux/use-cases.md) — the game-loop's 5 core operations ("Today" column, actual code, vs. "Target") plus decks/playgroups/tournaments.
 - [docs/ux/wireframes.md](docs/ux/wireframes.md) — ASCII wireframes of the Android client's 6 actual screens.
+- [docs/ux/screenshots.md](docs/ux/screenshots.md) — real screenshots of every web client flow (auth, dashboard, decks, playgroups, tournaments, statistics, local life tracker, settings).
 
 **ADRs — technical decisions (`docs/decisions/`):**
 
 - [0001 — Authentication strategy (JWT + refresh token)](docs/decisions/0001-auth-jwt-refresh-token-strategy.md)
 - [0002 — Google Sign-In as an additional provider](docs/decisions/0002-google-sign-in.md)
-- [0003 — Permissive CORS in dev](docs/decisions/0003-cors-permisivo-en-dev.md)
+- [0003 — Permissive CORS in dev](docs/decisions/0003-permissive-cors-in-dev.md)
 - [0004 — Web client with Nuxt 4 + Tailwind](docs/decisions/0004-web-client-nuxt.md)
 - [0005 — Live sync protocol over WebSocket](docs/decisions/0005-websocket-protocol.md)
 - [0006 — Backend in Go with Fiber](docs/decisions/0006-go-fiber-backend.md)
 - [0007 — PostgreSQL as the primary database](docs/decisions/0007-postgresql.md)
 - [0008 — sqlc + goose (data access and migrations)](docs/decisions/0008-sqlc-goose.md)
-- [0009 — Native Android vs. cross-platform](docs/decisions/0009-android-nativo-vs-crossplatform.md)
-- [0010 — Modular monolith vs. microservices](docs/decisions/0010-monolito-modular-vs-microservicios.md)
+- [0009 — Native Android vs. cross-platform](docs/decisions/0009-android-native-vs-crossplatform.md)
+- [0010 — Modular monolith vs. microservices](docs/decisions/0010-modular-monolith-vs-microservices.md)
 
 **READMEs per module:**
 

@@ -126,6 +126,55 @@ type RefreshToken struct {
 	RevokedAt pgtype.Timestamp `json:"revoked_at"`
 }
 
+type Tournament struct {
+	ID            pgtype.UUID      `json:"id"`
+	OrganizerID   pgtype.UUID      `json:"organizer_id"`
+	Name          string           `json:"name"`
+	Format        string           `json:"format"`
+	TargetPlayers pgtype.Int4      `json:"target_players"`
+	Status        string           `json:"status"`
+	RoundCount    pgtype.Int4      `json:"round_count"`
+	CurrentRound  int32            `json:"current_round"`
+	JoinCode      string           `json:"join_code"`
+	CreatedAt     pgtype.Timestamp `json:"created_at"`
+	StartedAt     pgtype.Timestamp `json:"started_at"`
+	FinishedAt    pgtype.Timestamp `json:"finished_at"`
+}
+
+type TournamentParticipant struct {
+	ID            pgtype.UUID      `json:"id"`
+	TournamentID  pgtype.UUID      `json:"tournament_id"`
+	UserID        pgtype.UUID      `json:"user_id"`
+	GuestName     pgtype.Text      `json:"guest_name"`
+	DeckID        pgtype.UUID      `json:"deck_id"`
+	CommanderName pgtype.Text      `json:"commander_name"`
+	Points        int32            `json:"points"`
+	CreatedAt     pgtype.Timestamp `json:"created_at"`
+}
+
+type TournamentRound struct {
+	ID           pgtype.UUID      `json:"id"`
+	TournamentID pgtype.UUID      `json:"tournament_id"`
+	RoundNumber  int32            `json:"round_number"`
+	Status       string           `json:"status"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	FinishedAt   pgtype.Timestamp `json:"finished_at"`
+}
+
+type TournamentTable struct {
+	ID                pgtype.UUID `json:"id"`
+	TournamentRoundID pgtype.UUID `json:"tournament_round_id"`
+	TableNumber       int32       `json:"table_number"`
+}
+
+type TournamentTableSeat struct {
+	ID                      pgtype.UUID `json:"id"`
+	TournamentTableID       pgtype.UUID `json:"tournament_table_id"`
+	TournamentParticipantID pgtype.UUID `json:"tournament_participant_id"`
+	FinishPosition          pgtype.Int4 `json:"finish_position"`
+	PointsAwarded           int32       `json:"points_awarded"`
+}
+
 type User struct {
 	ID               pgtype.UUID      `json:"id"`
 	Username         string           `json:"username"`

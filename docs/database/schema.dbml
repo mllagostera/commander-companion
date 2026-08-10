@@ -203,3 +203,95 @@ Table deck_resync_jobs {
 
   Note: 'CHECK: status IN (\'pending\', \'in_progress\', \'completed\', \'failed\') (migration 00013_deck_resync_jobs.sql)'
 }
+
+// Standalone Swiss-format Commander tournament (not tied to a playgroup). Organizer
+// creates it, participants register via join_code, the organizer starts it once the
+// roster is ready (see internal/tournaments/pairing.go for round_count/table-size
+// rules) and records each table's result manually -- not wired into games/game_players,
+// see ADR-0016. Migration 00016_tournaments.sql.
+Table tournaments {
+  id uuid [primary key]
+  organizer_id uuid [ref: > users.id, not null]
+  name varchar [not null]
+  format varchar [not null, default: 'commander']
+  target_players int [null, note: 'Display-only planning target set at creation, not enforced']
+  status varchar [not null, default: 'registration', note: 'registration, in_progress, finished']
+  round_count int [null, note: 'Computed and locked in when the tournament starts']
+  current_round int [not null, default: 0]
+  join_code varchar [not null]
+  created_at timestamp [default: `now()`]
+  started_at timestamp
+  finished_at timestamp
+
+  indexes {
+    join_code [unique]
+    organizer_id
+  }
+
+  Note: 'CHECK: format = \'commander\'; status IN (\'registration\', \'in_progress\', \'finished\') (migration 00016_tournaments.sql)'
+}
+
+// Either an app user (user_id set, brings one of their own decks via deck_id) or a
+// guest with no account (guest_name set, commander_name free text -- a guest has no
+// decks row to point at).
+Table tournament_participants {
+  id uuid [primary key]
+  tournament_id uuid [ref: > tournaments.id, not null]
+  user_id uuid [ref: > users.id, null]
+  guest_name varchar [null]
+  deck_id uuid [ref: > decks.id, null]
+  commander_name varchar [null]
+  points int [not null, default: 0]
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (tournament_id, user_id) [unique, note: 'Partial WHERE user_id IS NOT NULL -- an app user can only register once per tournament; guests have no such cap']
+    tournament_id
+    deck_id
+  }
+
+  Note: 'CHECK: (user_id set XOR guest_name set); (deck_id IS NOT NULL OR commander_name IS NOT NULL) (migration 00016_tournaments.sql)'
+}
+
+Table tournament_rounds {
+  id uuid [primary key]
+  tournament_id uuid [ref: > tournaments.id, not null]
+  round_number int [not null]
+  status varchar [not null, default: 'pending', note: 'pending, finished']
+  created_at timestamp [default: `now()`]
+  finished_at timestamp
+
+  indexes {
+    (tournament_id, round_number) [unique]
+    tournament_id
+  }
+
+  Note: 'CHECK: status IN (\'pending\', \'finished\') (migration 00016_tournaments.sql)'
+}
+
+Table tournament_tables {
+  id uuid [primary key]
+  tournament_round_id uuid [ref: > tournament_rounds.id, not null]
+  table_number int [not null]
+
+  indexes {
+    (tournament_round_id, table_number) [unique]
+    tournament_round_id
+  }
+}
+
+Table tournament_table_seats {
+  id uuid [primary key]
+  tournament_table_id uuid [ref: > tournament_tables.id, not null]
+  tournament_participant_id uuid [ref: > tournament_participants.id, not null]
+  finish_position int [null, note: 'Null until the organizer records the table result; 1-4']
+  points_awarded int [not null, default: 0, note: '1st=2, 2nd=1, 3rd/4th=0']
+
+  indexes {
+    (tournament_table_id, tournament_participant_id) [unique]
+    tournament_table_id
+    tournament_participant_id
+  }
+
+  Note: 'CHECK: finish_position BETWEEN 1 AND 4 (migration 00016_tournaments.sql)'
+}

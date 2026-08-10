@@ -2,7 +2,8 @@
   "common": {
     "cancel": "Cancel",
     "save": "Save",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "back": "Back"
   },
   "nav": {
     "home": "Home",
@@ -13,7 +14,8 @@
     "logout": "Log out",
     "darkTheme": "Dark theme",
     "toggleTheme": "Toggle theme",
-    "language": "Language"
+    "language": "Language",
+    "tournaments": "Tournaments"
   },
   "login": {
     "tagline": "Your Commander games and decks, all in one place.",
@@ -367,7 +369,12 @@
     "groupCreated": "Group created",
     "groupRenamed": "Group renamed",
     "deckImported": "Deck imported",
-    "memberAdded": "{username} added to the group"
+    "memberAdded": "{username} added to the group",
+    "tournamentCreated": "Tournament created",
+    "tournamentJoined": "You joined the tournament",
+    "guestAdded": "{name} added to the tournament",
+    "tournamentStarted": "Tournament started",
+    "roundAdvanced": "Round advanced"
   },
   "gameStatus": {
     "pending": "Pending",
@@ -439,6 +446,116 @@
     },
     "googleIdentity": {
       "loadFailed": "Couldn't load Google Identity Services."
+    },
+    "tournaments": {
+      "create": {
+        "needName": "The tournament needs a name.",
+        "generic": "Couldn't create the tournament."
+      },
+      "join": {
+        "invalidCode": "That code doesn't match any tournament.",
+        "alreadyJoinedOrClosed": "You're already registered, or the tournament is no longer open for registration.",
+        "generic": "Couldn't join the tournament."
+      },
+      "addGuest": {
+        "missingFields": "The guest needs a name and a commander.",
+        "notOrganizer": "The tournament doesn't exist or you're not its organizer.",
+        "closed": "The tournament is no longer open for registration.",
+        "generic": "Couldn't add the guest."
+      },
+      "start": {
+        "invalidCount": "The number of participants needs a valid 3-4 player table split (add or remove one).",
+        "notOrganizer": "The tournament doesn't exist or you're not its organizer.",
+        "alreadyStarted": "The tournament has already started.",
+        "generic": "Couldn't start the tournament."
+      },
+      "recordResult": {
+        "invalid": "The result doesn't match this table's seats.",
+        "notInProgress": "The tournament is not in progress.",
+        "generic": "Couldn't record the result."
+      },
+      "advanceRound": {
+        "notComplete": "Every table needs a recorded result before advancing.",
+        "generic": "Couldn't advance the round."
+      },
+      "lookup": {
+        "notFound": "That code doesn't match any tournament.",
+        "generic": "Couldn't look up the tournament."
+      }
+    }
+  },
+  "tournaments": {
+    "list": {
+      "title": "Tournaments",
+      "subtitle": "Create a Swiss-format Commander tournament, or join one with a code.",
+      "joinWithCode": "Join with a code",
+      "create": "Create tournament",
+      "loadError": "Couldn't load your tournaments.",
+      "empty": "You're not organizing or playing in any tournament yet.",
+      "joinCode": "Code: {code}",
+      "roundProgress": "Round {current} of {total}",
+      "createModal": {
+        "title": "New tournament",
+        "namePlaceholder": "Tournament name",
+        "targetPlayersPlaceholder": "Expected players (optional)",
+        "submitting": "Creating…",
+        "submit": "Create"
+      },
+      "joinModal": {
+        "title": "Join a tournament",
+        "codePlaceholder": "CODE",
+        "looking": "Looking up…",
+        "next": "Next",
+        "foundTournament": "Joining \"{name}\" — pick the deck you're bringing.",
+        "pickDeck": "Pick a deck",
+        "noDecks": "You don't have any saved decks yet.",
+        "joining": "Joining…",
+        "submit": "Join"
+      }
+    },
+    "status": {
+      "registration": "Registration open",
+      "in_progress": "In progress",
+      "finished": "Finished"
+    },
+    "detail": {
+      "back": "Back to tournaments",
+      "loadError": "Couldn't load this tournament.",
+      "roundProgress": "Round {current} of {total}",
+      "joinCodeLabel": "Join code",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "shareHint": "Share this code so players can register themselves and, once the tournament starts, look up their table each round.",
+      "starting": "Starting…",
+      "start": "Start tournament",
+      "participants": {
+        "heading": "{count} participant | {count} participants",
+        "close": "Close",
+        "addGuest": "Add guest",
+        "guestNamePlaceholder": "Guest name",
+        "commanderPlaceholder": "Commander",
+        "adding": "Adding…",
+        "add": "Add",
+        "empty": "No one has registered yet."
+      },
+      "round": {
+        "heading": "Round {number}",
+        "table": "Table {number}",
+        "finishedPosition": "#{n}",
+        "pickPosition": "Position",
+        "recording": "Saving…",
+        "recordResult": "Record result",
+        "advancing": "Advancing…",
+        "advance": "Next round"
+      },
+      "standings": {
+        "heading": "Standings",
+        "columns": {
+          "player": "Player",
+          "points": "Points"
+        },
+        "winner": "Winner"
+      }
     }
   }
 }

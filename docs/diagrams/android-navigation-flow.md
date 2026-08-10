@@ -3,7 +3,10 @@
 Source of truth: `android/app/src/main/java/com/commandercompanion/
 presentation/navigation/AppNavigation.kt` (the real `NavHost` graph) and
 `Routes.kt` (definition of each route and its arguments, with
-`kotlinx.serialization` via `ExperimentalSafeArgsApi`/`toRoute`).
+`kotlinx.serialization` via `toRoute`). Type-safe navigation is stable as of
+`navigation-compose 2.9.8` — no `@OptIn` needed anymore (it was still
+experimental, gated by `ExperimentalSafeArgsApi`, at the time this diagram
+was first written against `2.8.0-alpha07`).
 
 ## Navigation graph
 
@@ -73,7 +76,7 @@ sub-graph is no longer 100% local — `GameTrackerScreen` mirrors
 best-effort the authenticated user's seat against real
 `games`/`game-actions`
 (`GameRepository.bootstrapRemoteGame`/`recordLifeChange`/`finishGame`, see
-`docs/ux/casos-de-uso.md`), although there is still no route/screen
+`docs/ux/use-cases.md`), although there is still no route/screen
 *dedicated* to that integration (no visual indicator beyond the
 `RemoteSyncBanner` in the tracker itself, see `docs/ux/wireframes.md`).
 What's actually still missing:

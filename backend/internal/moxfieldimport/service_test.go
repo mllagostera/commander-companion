@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
@@ -452,4 +453,82 @@ func TestGetLatestJobStatus_OtherUsersJob_NotVisible(t *testing.T) {
 	}
 
 	waitForTerminalStatus(t, svc, owner.ID, job.ID)
+}
+
+// stuckImportJob creates a job for user and forces it into 'in_progress' directly
+// through the repo, simulating one a previous process got as far as marking
+// in_progress before dying -- StartImport's own goroutine completes too fast
+// against a fake client to observe it in that state any other way.
+func stuckImportJob(
+	t *testing.T, pool *pgxpool.Pool, userID, moxfieldUsername string,
+) moxfieldimport.MoxfieldImportJob {
+	t.Helper()
+	repo := moxfieldimport.New(pool)
+
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		t.Fatalf("parsing test user id: %v", err)
+	}
+	job, err := repo.CreateImportJob(context.Background(), moxfieldimport.CreateImportJobParams{
+		UserID: uid, MoxfieldUsername: moxfieldUsername,
+	})
+	if err != nil {
+		t.Fatalf("CreateImportJob() error = %v", err)
+	}
+
+	_, err = repo.SetImportJobInProgress(context.Background(), moxfieldimport.SetImportJobInProgressParams{
+		ID: job.ID, TotalDecks: pgtype.Int4{Int32: 3, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("SetImportJobInProgress() error = %v", err)
+	}
+	return job
+}
+
+// assertFailedWithMessage checks a job reaped by ReapStaleJobs landed in the
+// expected terminal state: 'failed' with a non-empty, explanatory error_message.
+func assertFailedWithMessage(t *testing.T, status string, errorMessage *string) {
+	t.Helper()
+	if status != jobStatusFailed {
+		t.Fatalf("job.Status = %q, want %q", status, jobStatusFailed)
+	}
+	if errorMessage == nil || *errorMessage == "" {
+		t.Fatalf("ErrorMessage = %v, want a non-empty message", errorMessage)
+	}
+}
+
+// TestReapStaleJobs_MarksPendingAndInProgressAsFailed is the regression test for the
+// gap documented in the package doc: a process restart used to leave a job stuck
+// pending/in_progress forever, permanently blocking (via the active-job unique
+// index) that user from starting a new import. ReapStaleJobs is what cmd/api/main.go
+// now runs once at startup to clear exactly that.
+func TestReapStaleJobs_MarksPendingAndInProgressAsFailed(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateImportTables(t, pool)
+	user := registerUserWithMoxfieldUsername(t, pool, "reaper@example.com", "handle-reaper")
+
+	stuck := stuckImportJob(t, pool, user.ID, "handle-reaper")
+
+	reaped, err := moxfieldimport.ReapStaleJobs(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("ReapStaleJobs() error = %v", err)
+	}
+	if reaped != 1 {
+		t.Fatalf("ReapStaleJobs() reaped = %d, want 1", reaped)
+	}
+
+	svc := newTestSvc(pool, fakeMoxfieldClient{}, &fakeDeckImporter{})
+	stuckStatus, err := svc.GetJobStatus(context.Background(), user.ID, stuck.ID.String())
+	if err != nil {
+		t.Fatalf("GetJobStatus() error = %v", err)
+	}
+	assertFailedWithMessage(t, stuckStatus.Status, stuckStatus.ErrorMessage)
+
+	// The active-job unique index must now be free: a new import for the same
+	// user should succeed instead of 409ing against the reaped row.
+	newJob, err := svc.StartImport(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("StartImport() after reap: error = %v, want nil (constraint should be freed)", err)
+	}
+	waitForTerminalStatus(t, svc, user.ID, newJob.ID)
 }

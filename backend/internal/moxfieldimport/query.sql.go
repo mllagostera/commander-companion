@@ -119,6 +119,48 @@ func (q *Queries) GetLatestImportJobByUser(ctx context.Context, userID pgtype.UU
 	return i, err
 }
 
+const reapStaleImportJobs = `-- name: ReapStaleImportJobs :many
+UPDATE moxfield_import_jobs
+SET status = 'failed',
+    error_message = 'Interrupted by a server restart before finishing; please retry the import.',
+    finished_at = now(),
+    updated_at = now()
+WHERE status IN ('pending', 'in_progress')
+RETURNING id, user_id, moxfield_username, status, total_decks, imported_count, failed_count, error_message, created_at, updated_at, finished_at
+`
+
+func (q *Queries) ReapStaleImportJobs(ctx context.Context) ([]MoxfieldImportJob, error) {
+	rows, err := q.db.Query(ctx, reapStaleImportJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MoxfieldImportJob
+	for rows.Next() {
+		var i MoxfieldImportJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.MoxfieldUsername,
+			&i.Status,
+			&i.TotalDecks,
+			&i.ImportedCount,
+			&i.FailedCount,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordImportJobDeckResult = `-- name: RecordImportJobDeckResult :one
 UPDATE moxfield_import_jobs
 SET imported_count = imported_count + $1::int,

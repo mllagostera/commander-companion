@@ -25,6 +25,52 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-09 — Branch migration off an unrelated in-flight branch;
+dependency updates (Android + web, last item of the punch list).**
+Mid-session, `git branch --show-current` turned up something unexpected:
+the working checkout was on `claude/web-tracker-turn-pause`, not `main` —
+and that branch already carried 2 commits neither the user nor this
+session had made ("Add turn passing and pause/resume to the web life
+tracker", "Add reset-lives pause action and orbiting turn label to the
+Android tracker"), already pushed to `origin`. Flagged to the user
+immediately rather than silently committing on top of someone else's
+in-flight work. `origin/main` turned out to already have that same work
+merged (PR #80, squashed as `7bc69c3`), which simplified the fix: stashed
+every uncommitted change from this session (reaper, `/playgroups`
+pagination, tournaments — see the entries above), fast-forwarded `main` to
+`origin/main`, branched `session-0908` from there, and popped the stash —
+applied with **zero conflicts**, including in the three `web/i18n/locales/*.json`
+files both this session and PR #80 had independently touched. Verified
+clean on the new base: backend `go build`/`go vet`/`golangci-lint` (same
+pre-existing CRLF-only findings as before), and web `eslint`/`nuxt
+typecheck` both 0 issues.
+
+With that resolved, closed out the punch list's remaining items:
+- **`schema.dbml` drift** (open since 2026-08-01): found already fixed on
+  `main` — see the Stage 2 entry below.
+- **Dependency updates**: web via `npm update` (respects the existing `^`
+  ranges, so TypeScript's major jump stayed excluded automatically),
+  verified with a real `npm run build`, not just lint/typecheck — a
+  meaningfully stronger check than the two used until now, since a
+  production build catches issues that pass lint. Android via
+  `libs.versions.toml`, applied with the user explicitly choosing "the
+  whole set, unverified" after being told the risk — then, later the same
+  session, actually verified locally with a real `./gradlew build` (JDK 21
+  + Android SDK are present in this environment after all; the earlier
+  "no toolchain" belief was wrong). The one flagged risk — whether KSP
+  `2.3.11` supports Kotlin `2.4.10` given KSP dropped its old
+  `<kotlin>-<ksp>` versioning scheme — turned out to be a non-issue,
+  `kspDebugKotlin`/`kspReleaseKotlin` ran clean. Two unrelated real
+  breakages surfaced instead, both fixed and pushed (commit `d060709`):
+  AGP 9.3.1 hard-errors on the deprecated `kotlinOptions { jvmTarget = "1.8" }`
+  setter (migrated to the `compilerOptions` DSL), and `navigation-compose`
+  `2.9.8` removed `ExperimentalSafeArgsApi` entirely now that type-safe nav
+  is stable (dropped the dead `@OptIn` in `AppNavigation.kt`), which in turn
+  required raising the project's JVM target from 1.8 to 11 since several
+  bumped androidx/Compose libraries now ship JVM 11 bytecode (safe, `minSdk
+  26` desugars fine). `./gradlew build` now passes clean: compile, unit
+  tests, lint, `assembleDebug`, `assembleRelease`.
+
 **2026-08-05 — Statistics: opponent head-to-head, per-playgroup counts,
 finished-games history; username availability check; TCP_NODELAY fix.**
 Three independent pieces of work landed in this session:
@@ -169,7 +215,7 @@ was reviewed by hand against existing patterns instead; each needs a real
 Google Maven access before merging). Full detail under Stage 4/5/6/7 below.
 Also this day: `web/vercel.json` gained an `ignoreCommand` so an
 Android-only PR doesn't trigger a no-op Vercel preview deploy (see
-[ADR-0015](../decisions/0015-infraestructura-de-despliegue.md)); and
+[ADR-0015](../decisions/0015-deployment-infrastructure.md)); and
 housekeeping — confirmed `.github/modernize/java-upgrade` as scaffolding
 unrelated to this project's stack (removed where present) and trimmed
 duplicated "4 sources of truth"/layer-pattern narrative that
@@ -197,7 +243,7 @@ changes against TASKS.md, which mentioned none of them yet.
   idempotent but the runs aren't serialized with a lock) — harmless today,
   single-instance deployment.
 - **Web (#49)**: full internationalization with `@nuxtjs/i18n` — see
-  [ADR-0014](../decisions/0014-internacionalizacion-web.md) (single active
+  [ADR-0014](../decisions/0014-web-internationalization.md) (single active
   locale `es`, `strategy: 'no_prefix'`, ~200-250 keys, and along the way
   fixes the copy from Argentine "voseo" to Spain's "tuteo"). Same PR: the
   Google Sign-In button moves to `pill` shape with a theme-dependent style;
@@ -237,7 +283,7 @@ real bug along the way — no results returned JSON `null` instead of `[]`,
 breaking any JS/TS client that assumes an array. Backend gained
 `game_players.added_by` + proxy-join (`POST /games/{id}/join` with
 `user_id`, gated by shared playgroup membership) — see
-[ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md) —
+[ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md) —
 and closed, in the same change, a pre-existing gap where
 `POST /games/{id}/actions` never validated that `actor_id` belonged to the
 caller at all. Android's `PlayerSetupScreen` gained a Casual/Group
@@ -372,7 +418,7 @@ or a client retrying after a timeout.
 This directly contradicts `schema.dbml`'s own note on
 `user_statistics_summary`/`deck_statistics_summary`: "Pre-calculated
 statistics (recalculated if a historical game is modified)" — that's not
-actually possible today. See [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md),
+actually possible today. See [ADR-0011](../decisions/0011-migration-strategy-and-statistics-recalculation.md),
 which already flags "`RecalculateForGame` is incremental, not idempotent —
 each game must be processed exactly once" as an invariant to respect, but
 nothing currently enforces it.
@@ -403,7 +449,7 @@ still purely additive by design. That's now provably safe, since the guard
 above guarantees it's only ever invoked once per game's finish transition
 — but it still means there's no way to *re-derive* `user_statistics_summary`/
 `deck_statistics_summary` if the aggregation formula itself ever changes,
-which is exactly the gap [ADR-0011](../decisions/0011-estrategia-migraciones-y-recalculo-estadisticas.md)
+which is exactly the gap [ADR-0011](../decisions/0011-migration-strategy-and-statistics-recalculation.md)
 already flagged and proposed a (never-implemented) `recalculate-stats`
 command for. Left as a separate, larger piece of future work.
 
@@ -479,7 +525,7 @@ testDebugUnitTest` run in an environment with Google Maven access before
 merging, same as every other Android change in this log — this only
 closes the gap for the specific new logic, not for the full app.
 
-### Stage 2 — `schema.dbml` drift from real migrations (found 2026-08-01, not yet fixed)
+### Stage 2 — `schema.dbml` drift from real migrations (found 2026-08-01, found already fixed 2026-08-09)
 
 Verified by compiling `schema.dbml` to SQL (`dbml2sql`), loading it into a
 throwaway Postgres database, and diffing `information_schema.columns`
@@ -494,11 +540,19 @@ This matters beyond one missing table: `docs-ci.yml`'s `dbml-validate` job
 only checks that `schema.dbml` compiles to valid SQL, not that it matches
 the actual database — so a migration can land without its DBML counterpart
 and CI stays green indefinitely, in direct contradiction of README.md §3's
-rule to "edit `schema.dbml` first." **Not fixed in this pass** (out of
-scope for the documentation-restructuring session it was found in) — left
-as an open TASKS.md item: add the missing table, and ideally add a CI
-check that applies migrations + compiles the DBML + diffs
-`information_schema` so this class of drift gets caught automatically.
+rule to "edit `schema.dbml` first." Not fixed in the documentation-
+restructuring pass it was found in (out of scope that session) — left as
+an open TASKS.md item.
+
+**Revisited 2026-08-09** (working through the user's prioritized punch
+list): `schema.dbml` already had the complete, correct `deck_resync_jobs`
+table — status CHECK, partial unique index, everything — by the time this
+item came up again. Fixed in some pass between 2026-08-01 and now that
+didn't check this TASKS.md box off. TASKS.md updated to reflect reality
+instead of doing the (already-done) work over. The actual underlying gap
+this item flagged — no CI check catches DBML/migration drift
+automatically — is still real and still unaddressed; that part of the
+item stays open.
 
 ### Stage 6 — No WebSocket heartbeat (found 2026-08-01, not yet fixed)
 
@@ -517,25 +571,260 @@ initial protocol design, so this isn't an oversight relative to what was
 planned — but it's worth revisiting given how often the described
 disconnect actually happens in practice. **Not fixed in this pass.**
 
-### Stage 8 — Bulk Moxfield import and deck resync jobs can get stuck (documented when built, revisited 2026-08-01)
+### Stage 8 — Bulk Moxfield import and deck resync jobs can get stuck (documented when built, revisited 2026-08-01, fixed 2026-08-08)
 
 Both `internal/moxfieldimport` and `internal/deckresync` run their import
 loop in a bare goroutine with `context.Background()` (deliberate — the
 request's context is cancelled the moment the handler returns) and their
-own `recover()`. Neither has any mechanism to detect or retry a job left
+own `recover()`. Neither had any mechanism to detect or retry a job left
 `in_progress` by a process restart mid-run; the partial unique index that
-allows only one active job per user then blocks starting a fresh one,
+allows only one active job per user then blocked starting a fresh one,
 with no way out short of a manual DB fix. This was an accepted, documented
 gap when both features were built ("Accepted, not solved, in this pass" in
-the original code comments). It's worth revisiting now that
-[ADR-0015](../decisions/0015-infraestructura-de-despliegue.md) puts the
+the original code comments), and was worth revisiting given
+[ADR-0015](../decisions/0015-deployment-infrastructure.md) puts the
 backend on Render's free tier, which sleeps the service between requests —
-exactly the kind of interruption this gap doesn't handle.
+exactly the kind of interruption this gap didn't handle.
+
+**Fixed 2026-08-08** (prioritized first in a punch list the user asked for,
+ranked most-to-least important, dependency bumps deliberately last): added
+`ReapStaleJobs` to both packages (`moxfieldimport.ReapStaleJobs`,
+`deckresync.ReapStaleJobs`), backed by two new sqlc queries
+(`ReapStaleImportJobs`/`ReapStaleResyncJobs`) that `UPDATE ... SET status =
+'failed', error_message = '<explanatory message>', finished_at = now() WHERE
+status IN ('pending', 'in_progress')`. `cmd/api/main.go` calls both once at
+startup, right after the DB pool connects and before the Fiber app starts
+serving traffic (`reapStaleBackgroundJobs`), and logs how many rows each one
+reaped. This is deliberately a blanket startup sweep, not a
+staleness-timeout check on `updated_at`: in the current single-instance
+deployment (see ADR-0010), whichever process is starting up is by
+definition the only one that could ever have run these jobs, so anything
+still `pending`/`in_progress` at that point cannot belong to it — it's
+necessarily a leftover from a previous run that crashed or was restarted
+mid-import/resync. Same caveat as the in-memory auth rate limiter: this
+specific approach would need to change (to a real staleness timeout) if the
+backend is ever deployed with more than one replica, since a job actually
+in flight on a sibling replica would otherwise get reaped out from under it.
+Regression tests `TestReapStaleJobs_MarksPendingAndInProgressAsFailed`
+(`internal/moxfieldimport/service_test.go`) and
+`TestReapStaleJobs_MarksInProgressAsFailed`
+(`internal/deckresync/service_test.go`) create a job, force it into the
+stuck status directly via the repo (bypassing the normal `StartImport`/
+`StartResyncAll` flow, since those complete too fast to observe as stuck),
+call `ReapStaleJobs`, and assert both that the row flips to `failed` with a
+non-empty `error_message` and that the active-job unique index is freed —
+a fresh `StartImport`/`StartResyncAll` for the same user succeeds
+afterwards instead of 409ing.
+
+This sandbox has no Go toolchain at all (not even `go version` resolves), so
+`internal/moxfieldimport/query.sql.go`/`querier.go` and
+`internal/deckresync/query.sql.go`/`querier.go` were initially hand-edited to
+match sqlc's generated style instead of running `sqlc generate` directly.
+Verified afterwards using the team's local Docker instead (per the user's
+"usa el docker del equipo local"):
+- `docker run ... sqlc/sqlc:1.27.0 generate` regenerated both packages'
+  `query.sql.go`/`querier.go` — byte-for-byte identical to the hand-written
+  version (confirmed via `git diff --numstat`), and also touched
+  `internal/statistics` and `internal/users` with zero real content changes
+  (pure CRLF/LF normalization noise from `core.autocrlf=true` on this
+  Windows checkout, no `.gitattributes` pinning Go files to LF).
+- `docker run ... golang:1.25-alpine sh -c "go build ./... && go vet ./..."`
+  — both clean.
+- `docker run ... golangci/golangci-lint:v2.12.2 golangci-lint run
+  --timeout=5m` (same version pinned by `backend-ci.yml`) first caught three
+  real issues from this change: `TestReapStaleJobs_MarksPendingAndInProgressAsFailed`
+  exceeded the cyclomatic-complexity limit (`cyclop`, 11 > 10), and two
+  `govet` `err`-shadowing warnings in `cmd/api/main.go` and the same test.
+  Fixed by extracting `stuckImportJob`/`stuckResyncJob` and
+  `assertFailedWithMessage` test helpers (bringing both tests' complexity
+  well under the limit) and renaming the shadowed startup-error variable to
+  `reapErr` (matching the existing `migrateErr` convention already used a
+  few lines above it in `main.go`) and switching a `:=` to `=` in the test.
+  A follow-up `lll` (line too long) hit on the extracted helper's signature
+  was fixed by wrapping it. Re-running after fixes: 0 new issues — the only
+  remaining lint output is the same 68 pre-existing `gofmt`/CRLF findings
+  across the *entire* repo (every `.go` file, including ones untouched by
+  this change), confirming that's a checkout artifact, not something this
+  change introduced.
+- A throwaway `postgres:18-alpine` container (own Docker network, not the
+  project's `docker-compose.yml`) had `goose -dir migrations postgres ...
+  up` applied against it, then `docker run ... golang:1.25-alpine sh -c "go
+  test -race -cover -p 1 ./..."` (same flags as `backend-ci.yml`'s
+  `build-test-migrate` job) passed for all 16 packages, including
+  `internal/moxfieldimport` (75.8% coverage) and `internal/deckresync`
+  (76.2% coverage). All throwaway containers/network/volumes were torn down
+  afterwards.
+
+### Stage 3 — Cursor pagination on `/playgroups`; `/games/{id}/timeline` deliberately left unpaginated (2026-08-08)
+
+Second item of the same user-prioritized punch list as the Stage 8 reaper
+above (paginate the remaining unpaginated listings, third on the list after
+the timeline/resync reaper — WebSocket heartbeat and the alpha-exit email
+verification flag were explicitly dropped from the list per the user's
+follow-up instructions).
+
+Before touching either endpoint, checked how the existing clients actually
+consume them: Android's `CommanderApi.kt` declares both `getTimeline()` and
+`listPlaygroups()` as returning a bare `List<...>` via Retrofit — switching
+either response to `{items, next_cursor}` unconditionally would break
+deserialization for every existing client build. Worse for the timeline
+specifically: `GameViewModel.replayCommanderDamageUseCase` fetches the
+*complete* timeline to reconstruct the per-seat commander-damage map for an
+active game; a paginated fetch that only walked one page would silently
+under-count damage instead of erroring, and a single game's action count is
+bounded in a way that account-wide game/deck history isn't — there's no
+real growth problem pagination is solving there. Given that risk/benefit,
+this was raised with the user directly rather than assumed; they chose to
+leave `/games/{id}/timeline` unpaginated entirely and only paginate
+`/playgroups`.
+
+**`GET /playgroups`** gained cursor pagination the same way `GET /games`
+already handles `playgroup_id` — response shape branches on a query param
+instead of changing unconditionally:
+- New `Service.ListPlaygroupsPage(ctx, page, userID)` (`internal/playgroups/service.go`),
+  backed by a new keyset query `ListPlaygroupsForUserPage` (`(created_at, id)
+  DESC`, same shape as `games.ListGamesPage`/`decks.ListDecksPage`) — added
+  to `query.sql`, with the generated `query.sql.go`/`querier.go` additions
+  initially hand-written to match sqlc's style, then actually regenerated
+  via `sqlc generate` in Docker (see the Stage 8 entry above for why this
+  sandbox needs Docker for that) — which caught a real (if harmless) gap in
+  the hand-written version: it was missing the `::uuid` cast on the
+  `user_id` param that the `.sql` source's `sqlc.arg('user_id')::uuid`
+  implies, unlike the moxfieldimport/deckresync reaper queries from the
+  prior pass, which came out byte-identical. A reminder that "hand-write to
+  match sqlc's style" is a stopgap for a sandbox without the toolchain, not
+  a substitute for running the real generator before trusting the result.
+- `Handler.ListPlaygroups` (`internal/playgroups/handler.go`) now checks for
+  `cursor`/`limit` in the query string: neither present → unchanged
+  behavior, the full membership list with `members` populated per group,
+  exactly what existing clients already parse. Either present → a
+  `PlaygroupListResponse` page (`{items, next_cursor}`), deliberately
+  *without* `members` populated (a paginated listing is for browsing many
+  groups, not showing every one's roster up front — fetch the detail via
+  `GET /playgroups/{id}` for that).
+- `docs/api/openapi.yaml`: `GET /playgroups` documents both response shapes
+  via `oneOf` (array vs. `PlaygroupListResponse`), plus the new
+  `PlaygroupListResponse` schema and the shared `CursorParam`/`LimitParam`.
+  Verified with `docker run ... node:22-alpine npx @stoplight/spectral-cli
+  lint docs/api/openapi.yaml --ruleset .spectral.yaml`: 0 errors, the same
+  ~116 pre-existing warnings (missing `operationId`/`tags`/`description`
+  across the whole spec, already documented as non-blocking) — the new
+  `/playgroups` `oneOf` schema didn't add any new warnings.
+- Regression tests in `internal/playgroups/service_test.go`:
+  `TestListPlaygroupsPage_OnlyReturnsMemberships` (same membership scoping
+  as the unpaginated `ListPlaygroups`), `TestListPlaygroupsPage_DoesNotPopulateMembers`
+  (documents the one behavioral difference), `TestListPlaygroupsPage_PaginatesWithCursor`
+  (walks 5 playgroups 2 at a time via `next_cursor`, same shape as
+  `decks.TestListDecks_PaginatesWithCursor`, asserting no group is missed or
+  repeated across pages), and `TestListPlaygroupsPage_InvalidCursor`.
+- Verified the same way as the Stage 8 fix: `sqlc generate` (caught the
+  missing `::uuid` cast noted above), `go build`/`go vet` clean,
+  `golangci-lint run --timeout=5m` clean (only the same pre-existing
+  repo-wide `gofmt`/CRLF noise), and `go test -race -cover -p 1 ./...`
+  against a fresh throwaway `postgres:18-alpine` container passed for all
+  packages, `internal/playgroups` coverage going from 47.6% to 51.8%.
+
+### Stage 9 — Standalone Swiss-format Commander tournaments (2026-08-09)
+
+The user asked directly for web-created tournaments (player count, 3-4
+seats/table, Swiss format, 2/1/0/0 scoring, a join code usable in-app to
+find your table) — pulling Stage 9 forward ahead of friends/groups, which
+stay undesigned. Given the size (new domain model, a pairing algorithm,
+backend + web across ~15 new files) this went through `EnterPlanMode`
+first: two research agents (backend `games`/`decks`/playgroups schema and
+patterns; web composable/page/i18n conventions) fed a written plan the user
+approved before any code was touched. Mid-plan, one more question was put
+to the user directly — whether "entering the match" via the code should
+land the player in the *existing* live life-tracker (`games`/`game_players`)
+or just show a read-only table assignment — because the honest answer
+required checking two real constraints first (guest seats have no home in
+`game_players.user_id`; ADR-0013's proxy-join only authorizes seating
+someone if organizer and participant share a `playgroup_id`, which usually
+isn't true for a stranger who joined by code). The user picked the
+read-only lookup. Full design and every alternative considered is in
+[ADR-0016](../decisions/0016-swiss-tournament-format.md) — this entry only
+covers the how/verification.
+
+- **Schema**: migration `00016_tournaments.sql`, five tables
+  (`tournaments`, `tournament_participants`, `tournament_rounds`,
+  `tournament_tables`, `tournament_table_seats`), fully self-contained (no
+  FK to/from `games`/`game_players`). RLS enabled on all five (deny-all,
+  same as every other table since the 2026-08-01 audit found
+  `deck_resync_jobs` missing it — see the Stage 2 entry below) — added
+  proactively this time instead of waiting for the Supabase advisor to
+  flag it. `docs/database/schema.dbml` updated in the same pass, not left
+  to drift (the Stage 2 entry below is exactly the failure mode this
+  avoids).
+- **Backend** (`backend/internal/tournaments`): scaffolded with real
+  `sqlc generate` in Docker from the start this time (query.sql written,
+  then generated for real, not hand-written-then-checked like the Stage 8
+  pass) — `db.go`/`models.go`/`querier.go`/`query.sql.go` are genuine sqlc
+  output. `pairing.go` holds the Swiss heuristic (table-size distribution,
+  round-count staircase, greedy repeat-avoiding pairing, join-code
+  generation) as pure, DB-free logic — see the ADR for exactly what it
+  does and doesn't guarantee. `service.go` orchestrates registration,
+  starting (transactional: lock roster + seat round 1), recording a
+  table's result (transactional: validate the permutation, update seats,
+  add points), and advancing a round (transactional: finish the round,
+  either seat the next one or finish the tournament).
+- **API**: 9 new endpoints under `/tournaments*`
+  (`docs/api/openapi.yaml` updated with full schemas and paths). Verified
+  with the same Dockerized Spectral lint used for the Stage 3 pagination
+  work: 0 new errors, warnings went from 116 to 134 (18 = 9 new operations
+  × the same missing-`operationId`/`tags` warnings every other endpoint in
+  the spec already has — not a regression, the established baseline).
+- **Web**: `types/api.ts` additions, `composables/useTournaments.ts`
+  (mirrors `usePlaygroups.ts`'s shape exactly — one function per endpoint
+  plus a matching `*Error(err)` helper per fallible call), two pages
+  (`pages/tournaments/index.vue` list + create + join-by-code modals,
+  `pages/tournaments/[id].vue` phase-driven detail: registration/
+  in_progress/finished), a nav link, and `common.back` added as a new
+  shared key (didn't exist before — every other back-link had its own
+  page-scoped translation). i18n added programmatically: a one-off Node
+  script parsed and rewrote `es.json`/`en.json`/`ca.json` (preserving
+  their existing 2-space/CRLF formatting) rather than hand-editing ~150
+  new keys across three files by hand — deleted after running.
+- **Tests**: `pairing_internal_test.go` (package-internal, pure logic, no
+  DB) locks in the two mathematically interesting pairing cases found by
+  hand-tracing the greedy algorithm: 9 players in three 3-tables *can*
+  reach a fully repeat-free round 2 (a 3×3 Latin-square shape) and the
+  heuristic finds it; 8 players in two 4-tables *cannot* (each new
+  4-table can fit at most one "safe" pick from each of the two original
+  groups — 2 safe seats, short of 4) and the heuristic still produces a
+  complete, valid pairing instead of erroring. `service_test.go` covers
+  creation, self-service join (including the deck-ownership check
+  reusing `internal/decks`), guest registration, authorization
+  ("don't reveal" 404s for non-organizers), invalid roster counts (2, and
+  5 — the one gap above the 3-player minimum), and a full 3-round,
+  3-participant tournament lifecycle test that plays every round to
+  completion and asserts the tournament reaches `finished` with the
+  correct total points awarded.
+- **Lint**: this pass produced real `golangci-lint` findings beyond the
+  Stage 8 pass's few — `cyclop` (2 functions in `service.go` over the
+  complexity limit, fixed by extracting helpers: `resolveTableResult`/
+  `applyTableResult` out of `RecordTableResult`, `findParticipant`/
+  `findCurrentTable` out of `LookupByCode`), `mnd` (named constants added
+  for the round-count staircase and point values), `err113` (two
+  `fmt.Errorf` calls building dynamic errors inline, fixed with static
+  wrapped sentinels), several `govet` shadow warnings in both `service.go`
+  and the tests (renamed or switched `:=` to `=`), and `goconst`/
+  `gocritic`/`prealloc`/`staticcheck` nits in the tests. All fixed;
+  `internal/tournaments` alone lints at 0 issues, full repo unchanged at
+  the 68 pre-existing `gofmt`/CRLF findings.
+- **Full verification**: `docker run ... sqlc/sqlc:1.27.0 generate`,
+  `golang:1.25-alpine` build/vet, `golangci-lint:v2.12.2`, a throwaway
+  `postgres:18-alpine` + migrations + `go test -race -cover -p 1 ./...`
+  (all 17 packages green, `internal/tournaments` at 65.7% coverage), the
+  Spectral OpenAPI lint, and `node:22-alpine` running the web app's real
+  `npm run lint`/`npm run typecheck` (via an isolated Docker volume for
+  `node_modules` so the container's Linux install never touched the
+  Windows host's `web/node_modules`) — one real typecheck error caught
+  (`SeatResultInput` imported from the wrong module) and fixed.
 
 ### Stage 1 — Playgroups: proxy-join and `GET /users/search`
 
 See the 2026-07-28 audit-history entries above for the full narrative —
-[ADR-0013](../decisions/0013-proxy-join-y-autorizacion-de-acciones.md)
+[ADR-0013](../decisions/0013-proxy-join-and-action-authorization.md)
 covers the authorization design in detail. Worth calling out here: the
 `GET /users/search?q=` endpoint matches `username` by `ILIKE` (partial,
 case-insensitive) but `email` only by **exact** match, deliberately —

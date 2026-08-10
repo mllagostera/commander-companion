@@ -3,7 +3,6 @@ package com.commandercompanion.presentation.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.ExperimentalSafeArgsApi
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,7 +19,6 @@ import com.commandercompanion.presentation.screens.settings.SettingsScreen
 import com.commandercompanion.presentation.screens.setup.PlayerSetupScreen
 import com.commandercompanion.presentation.screens.statistics.StatisticsScreen
 
-@OptIn(ExperimentalSafeArgsApi::class)
 @Composable
 fun AppNavigation(
     navController: NavHostController = rememberNavController(),

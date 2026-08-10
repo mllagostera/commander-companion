@@ -236,6 +236,59 @@ func (q *Queries) ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID)
 	return items, nil
 }
 
+const listPlaygroupsForUserPage = `-- name: ListPlaygroupsForUserPage :many
+SELECT p.id, p.name, p.created_at, p.updated_at FROM playgroups p
+JOIN playgroup_members pm ON pm.playgroup_id = p.id
+WHERE pm.user_id = $1::uuid
+  AND (
+    $2::timestamp IS NULL
+    OR (p.created_at, p.id) < ($2::timestamp, $3::uuid)
+  )
+ORDER BY p.created_at DESC, p.id DESC
+LIMIT $4
+`
+
+type ListPlaygroupsForUserPageParams struct {
+	UserID          pgtype.UUID      `json:"user_id"`
+	CursorCreatedAt pgtype.Timestamp `json:"cursor_created_at"`
+	CursorID        pgtype.UUID      `json:"cursor_id"`
+	PageLimit       int32            `json:"page_limit"`
+}
+
+// Keyset pagination over (created_at, id) DESC, scoped to playgroups the user is
+// a member of (same shape as games.ListGamesPage). With cursor_created_at NULL
+// it returns the first page; with a cursor, the rows strictly after it in list
+// order. See internal/common/pagination.go.
+func (q *Queries) ListPlaygroupsForUserPage(ctx context.Context, arg ListPlaygroupsForUserPageParams) ([]Playgroup, error) {
+	rows, err := q.db.Query(ctx, listPlaygroupsForUserPage,
+		arg.UserID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Playgroup
+	for rows.Next() {
+		var i Playgroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updatePlaygroupName = `-- name: UpdatePlaygroupName :one
 UPDATE playgroups SET name = $2
 WHERE id = $1

@@ -12,8 +12,11 @@
 //
 // Same background mechanism and same explicit limitation as moxfieldimport: a
 // simple goroutine (not a real queue), valid only for today's single-instance
-// deployment — a job started in one process is invisible to another, and a
-// restart mid-resync leaves it "in_progress" forever, with no retry.
+// deployment — a job started in one process is invisible to another, so a
+// restart mid-resync used to leave it "in_progress" forever, permanently
+// blocking that user's next attempt via the active-job unique index.
+// ReapStaleJobs (called once at startup, see cmd/api/main.go) now clears
+// that — same fix and same reasoning as moxfieldimport.ReapStaleJobs.
 package deckresync
 
 import (
@@ -221,6 +224,18 @@ func (s *service) finishJob(ctx context.Context, jobID pgtype.UUID, status, errM
 	if _, err := s.repo.FinishResyncJob(ctx, params); err != nil {
 		log.Printf("deckresync: finalizando el job %s: %v", jobID, err)
 	}
+}
+
+// ReapStaleJobs marks as 'failed' any resync job left 'pending'/'in_progress' by a
+// process that no longer exists. Same reasoning, same call site (once at startup,
+// see cmd/api/main.go), and same >1-replica caveat as moxfieldimport.ReapStaleJobs.
+// Returns the number of jobs reaped, for the startup log.
+func ReapStaleJobs(ctx context.Context, db *pgxpool.Pool) (int, error) {
+	reaped, err := New(db).ReapStaleResyncJobs(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("reaping stale deck resync jobs: %w", err)
+	}
+	return len(reaped), nil
 }
 
 func toJobResponse(job *DeckResyncJob) *JobResponse {

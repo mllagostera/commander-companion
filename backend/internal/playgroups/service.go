@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
@@ -30,6 +31,10 @@ type Service interface {
 	CreatePlaygroup(ctx context.Context, userID string, req CreatePlaygroupRequest) (*PlaygroupResponse, error)
 	GetPlaygroup(ctx context.Context, userID, id string) (*PlaygroupResponse, error)
 	ListPlaygroups(ctx context.Context, userID string) ([]PlaygroupResponse, error)
+	// ListPlaygroupsPage is the cursor-paginated counterpart of ListPlaygroups (see
+	// internal/common/pagination.go), opt-in via the `cursor`/`limit` query params
+	// so as not to change ListPlaygroups' response shape for existing clients.
+	ListPlaygroupsPage(ctx context.Context, page common.PageRequest, userID string) (*PlaygroupListResponse, error)
 	AddMember(ctx context.Context, playgroupID, requesterID string, req AddMemberRequest) (*PlaygroupMemberResponse, error)
 	// UpdatePlaygroup renames a group. Only an existing member can do it.
 	UpdatePlaygroup(
@@ -120,6 +125,63 @@ func (s *service) ListPlaygroups(ctx context.Context, userID string) ([]Playgrou
 		result = append(result, *toPlaygroupResponse(&list[i], members))
 	}
 	return result, nil
+}
+
+// ListPlaygroupsPage returns a page of the given user's playgroups, from most
+// recently created to oldest, WITHOUT members populated (unlike ListPlaygroups --
+// a paginated listing is for browsing many groups, not showing each one's roster
+// up front; fetch the detail via GetPlaygroup for that). See
+// internal/common/pagination.go for the cursor scheme.
+func (s *service) ListPlaygroupsPage(
+	ctx context.Context, page common.PageRequest, userID string,
+) (*PlaygroupListResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+
+	// One row more than the limit is requested: if it comes back, there's a
+	// next page. Avoids a separate COUNT(*) just to know whether to keep paginating.
+	params := ListPlaygroupsForUserPageParams{UserID: uid, PageLimit: page.Limit + 1}
+	if page.Cursor != "" {
+		cursorCreatedAt, cursorID, cursorErr := decodeCursor(page.Cursor)
+		if cursorErr != nil {
+			return nil, cursorErr
+		}
+		params.CursorCreatedAt = cursorCreatedAt
+		params.CursorID = cursorID
+	}
+
+	rows, err := s.repo.ListPlaygroupsForUserPage(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("listing playgroups page: %w", err)
+	}
+
+	var nextCursor *string
+	if len(rows) > int(page.Limit) {
+		rows = rows[:page.Limit]
+		last := rows[len(rows)-1]
+		encoded := common.EncodeCursor(common.Cursor{CreatedAt: last.CreatedAt.Time, ID: last.ID.String()})
+		nextCursor = &encoded
+	}
+
+	items := make([]PlaygroupResponse, 0, len(rows))
+	for i := range rows {
+		items = append(items, *toPlaygroupResponse(&rows[i], nil))
+	}
+	return &PlaygroupListResponse{Items: items, NextCursor: nextCursor}, nil
+}
+
+func decodeCursor(encoded string) (pgtype.Timestamp, pgtype.UUID, error) {
+	cursor, err := common.DecodeCursor(encoded)
+	if err != nil {
+		return pgtype.Timestamp{}, pgtype.UUID{}, err
+	}
+	cursorID, err := common.ParseUUID(cursor.ID)
+	if err != nil {
+		return pgtype.Timestamp{}, pgtype.UUID{}, common.ErrInvalidCursor
+	}
+	return pgtype.Timestamp{Time: cursor.CreatedAt, Valid: true}, cursorID, nil
 }
 
 // AddMember adds a user to a playgroup. Only an existing member can

@@ -17,6 +17,14 @@ type PlaygroupResponse struct {
 	Members []PlaygroupMemberResponse `json:"members,omitempty"`
 }
 
+// PlaygroupListResponse is a page of the authenticated user's playgroups (see
+// ListPlaygroupsPage). NextCursor is the opaque cursor for the next page,
+// null on the last page — same shape as games.GameListResponse/decks.DeckListResponse.
+type PlaygroupListResponse struct {
+	Items      []PlaygroupResponse `json:"items"`
+	NextCursor *string             `json:"next_cursor"`
+}
+
 // AddMemberRequest is the payload for adding a member to a playgroup.
 type AddMemberRequest struct {
 	UserID string `json:"user_id"`

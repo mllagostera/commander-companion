@@ -428,6 +428,24 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PlaygroupMember'
+    PlaygroupListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Playgroup'
+          description: >-
+            Unlike the unpaginated listing (no cursor/limit given), items here
+            don't include `members` — fetch a group's detail via GET
+            /playgroups/{id} for its roster.
+        next_cursor:
+          type: string
+          nullable: true
+          description: >-
+            Cursor to pass as the `cursor` query param to request the next
+            page. It is null on the last page.
     PlaygroupMember:
       type: object
       properties:
@@ -595,6 +613,211 @@ components:
           nullable: true
         won:
           type: boolean
+    Tournament:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizer_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        format:
+          type: string
+          enum: [commander]
+        target_players:
+          type: integer
+          nullable: true
+          description: Display-only planning target set at creation, not enforced.
+        status:
+          type: string
+          enum: [registration, in_progress, finished]
+        round_count:
+          type: integer
+          nullable: true
+          description: Computed and locked in once the tournament starts (`POST /tournaments/{id}/start`).
+        current_round:
+          type: integer
+        join_code:
+          type: string
+          description: Share this with participants -- used to self-register (`POST /tournaments/join`) and to look up a table assignment (`GET /tournaments/lookup`).
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+    TournamentListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tournament'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Cursor to pass as the `cursor` query param to request the next page. It is null on the last page.
+    TournamentParticipant:
+      type: object
+      description: Exactly one of user_id/guest_name is set.
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        guest_name:
+          type: string
+          nullable: true
+        deck_id:
+          type: string
+          format: uuid
+          nullable: true
+        deck_name:
+          type: string
+          nullable: true
+        commander_name:
+          type: string
+          description: The linked deck's commander if deck_id is set, otherwise the free-text commander a guest (or deckless user) entered.
+        points:
+          type: integer
+    TournamentSeat:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        participant_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        guest_name:
+          type: string
+          nullable: true
+        commander_name:
+          type: string
+        finish_position:
+          type: integer
+          nullable: true
+          description: Null until the organizer records the table's result via `POST /tournaments/{id}/tables/{tableId}/result`.
+        points_awarded:
+          type: integer
+    TournamentTable:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        table_number:
+          type: integer
+        seats:
+          type: array
+          items:
+            $ref: '#/components/schemas/TournamentSeat'
+    TournamentRound:
+      type: object
+      properties:
+        round_number:
+          type: integer
+        status:
+          type: string
+          enum: [pending, finished]
+        tables:
+          type: array
+          items:
+            $ref: '#/components/schemas/TournamentTable'
+    TournamentDetail:
+      type: object
+      properties:
+        tournament:
+          $ref: '#/components/schemas/Tournament'
+        participants:
+          type: array
+          description: Standings order (most points first).
+          items:
+            $ref: '#/components/schemas/TournamentParticipant'
+        rounds:
+          type: array
+          description: Every round played so far. Absent while status is `registration`.
+          items:
+            $ref: '#/components/schemas/TournamentRound'
+    TournamentLookupResponse:
+      type: object
+      properties:
+        tournament:
+          $ref: '#/components/schemas/Tournament'
+        participant:
+          allOf:
+            - $ref: '#/components/schemas/TournamentParticipant'
+          nullable: true
+          description: The caller's own participant record. Absent if they haven't joined.
+        current_table:
+          allOf:
+            - $ref: '#/components/schemas/TournamentTable'
+          nullable: true
+          description: The caller's table assignment for the tournament's current round. Only set once in_progress and they have a seat in it.
+    CreateTournamentRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        target_players:
+          type: integer
+    JoinTournamentRequest:
+      type: object
+      required: [join_code, deck_id]
+      properties:
+        join_code:
+          type: string
+        deck_id:
+          type: string
+          format: uuid
+          description: Must belong to the authenticated user.
+    AddGuestParticipantRequest:
+      type: object
+      required: [guest_name, commander_name]
+      properties:
+        guest_name:
+          type: string
+        commander_name:
+          type: string
+    RecordTableResultRequest:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          description: Must cover exactly the table's seats, one entry each, with finish_position forming a permutation of 1..N.
+          items:
+            type: object
+            required: [participant_id, finish_position]
+            properties:
+              participant_id:
+                type: string
+                format: uuid
+              finish_position:
+                type: integer
     ErrorResponse:
       type: object
       properties:
@@ -957,15 +1180,34 @@ paths:
   /playgroups:
     get:
       summary: List the authenticated user's playgroups
+      description: >-
+        Without `cursor`/`limit`, returns the full list (with `members`
+        populated on each group). With either query param present, opts into
+        a cursor-paginated page instead (keyset over created_at + id, same
+        scheme as GET /games/GET /decks) — `members` isn't populated on a
+        paginated page, see PlaygroupListResponse.
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
       responses:
         '200':
-          description: Playgroups the authenticated user is a member of
+          description: >-
+            Playgroups the authenticated user is a member of: the full list,
+            or a page of PlaygroupListResponse if cursor/limit was given.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Playgroup'
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/Playgroup'
+                  - $ref: '#/components/schemas/PlaygroupListResponse'
+        '400':
+          description: Invalid cursor or limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create playgroup (the creator becomes its first member)
       requestBody:
@@ -1846,6 +2088,298 @@ paths:
                 $ref: '#/components/schemas/DeckResyncJob'
         '404':
           description: The job does not exist or does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tournaments:
+    get:
+      summary: List tournaments the authenticated user organizes or participates in
+      description: Cursor-paginated, from most recently created to oldest. See internal/common/pagination.go for the cursor scheme.
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Page of tournaments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentListResponse'
+        '400':
+          description: Invalid cursor or limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a standalone Swiss-format Commander tournament
+      description: The caller becomes its organizer. Always format=commander for now. A join_code is generated for participants to self-register with (POST /tournaments/join) and later look up their table (GET /tournaments/lookup).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTournamentRequest'
+      responses:
+        '201':
+          description: Tournament created (status=registration)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '400':
+          description: Missing name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tournaments/lookup:
+    get:
+      summary: "\"Enter the code\": resolve a tournament by its join code"
+      description: >-
+        Returns the tournament's public summary and, if the authenticated
+        caller is already a registered participant, their own status: while
+        `registration`, confirmation and their chosen deck; while
+        `in_progress`, their current round's table assignment
+        (`current_table`, seatmates and commanders); once `finished`, their
+        final participant record (points).
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tournament summary, plus the caller's own status if they're a participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentLookupResponse'
+        '404':
+          description: No tournament has this join code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tournaments/join:
+    post:
+      summary: Self-register for a tournament with one of the caller's own decks
+      description: Only while the tournament is in `registration`. To add a participant with no account, see POST /tournaments/{id}/participants (organizer-only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinTournamentRequest'
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentParticipant'
+        '404':
+          description: No tournament has this join code, or deck_id does not belong to the caller
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Already registered, or the tournament is no longer open for registration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tournaments/{id}:
+    get:
+      summary: Get tournament detail
+      description: Standings and, once the tournament has left registration, every round played so far. Visible to its organizer and to any registered participant.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tournament detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDetail'
+        '404':
+          description: Does not exist, or the authenticated user is neither its organizer nor a participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tournaments/{id}/participants:
+    post:
+      summary: Add a participant with no account (organizer-only)
+      description: Guests can't self-register via POST /tournaments/join since they can't authenticate. Only while the tournament is in `registration`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddGuestParticipantRequest'
+      responses:
+        '201':
+          description: Guest registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentParticipant'
+        '400':
+          description: Missing guest_name or commander_name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Does not exist, or the authenticated user is not its organizer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The tournament is no longer open for registration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tournaments/{id}/start:
+    post:
+      summary: Lock the roster and seat round 1 (organizer-only)
+      description: >-
+        Requires a participant count with a valid 3-4 player table split
+        (every count works except 1, 2, and 5). Computes round_count from the
+        final roster size and generates round 1's pairings, randomized since
+        everyone starts at 0 points.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tournament started, round 1 seated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDetail'
+        '400':
+          description: The participant count has no valid 3-4 player table split (add or remove one)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Does not exist, or the authenticated user is not its organizer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The tournament has already started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tournaments/{id}/tables/{tableId}/result:
+    post:
+      summary: Record a table's finish order (organizer-only)
+      description: Adds the corresponding points (1st=2, 2nd=1, 3rd/4th=0) to each seated participant's running total.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: tableId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordTableResultRequest'
+      responses:
+        '200':
+          description: Result recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentTable'
+        '400':
+          description: results does not cover exactly this table's seats with a valid finish-position permutation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tournament or table does not exist, does not belong to each other, or the authenticated user is not the tournament's organizer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The tournament is not in_progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tournaments/{id}/rounds/next:
+    post:
+      summary: Finish the current round and seat the next one, or finish the tournament (organizer-only)
+      description: Requires every table in the current round to have a recorded result. If the current round was the last one (round_count), finishes the tournament instead of seating another.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Next round seated, or the tournament finished if that was the last round
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDetail'
+        '404':
+          description: Does not exist, or the authenticated user is not its organizer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Not every table in the current round has a recorded result yet, or the tournament is not in_progress
           content:
             application/json:
               schema:

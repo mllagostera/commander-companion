@@ -2,7 +2,8 @@
   "common": {
     "cancel": "Cancel·la",
     "save": "Desa",
-    "saving": "Desant…"
+    "saving": "Desant…",
+    "back": "Enrere"
   },
   "nav": {
     "home": "Inici",
@@ -13,7 +14,8 @@
     "logout": "Surt",
     "darkTheme": "Tema fosc",
     "toggleTheme": "Canvia el tema",
-    "language": "Idioma"
+    "language": "Idioma",
+    "tournaments": "Tornejos"
   },
   "login": {
     "tagline": "Les teves partides i decks de Commander, en un sol lloc.",
@@ -367,7 +369,12 @@
     "groupCreated": "Grup creat",
     "groupRenamed": "Grup reanomenat",
     "deckImported": "Deck importat",
-    "memberAdded": "{username} afegit al grup"
+    "memberAdded": "{username} afegit al grup",
+    "tournamentCreated": "Torneig creat",
+    "tournamentJoined": "T'has unit al torneig",
+    "guestAdded": "{name} afegit al torneig",
+    "tournamentStarted": "Torneig iniciat",
+    "roundAdvanced": "Ronda avançada"
   },
   "gameStatus": {
     "pending": "Pendent",
@@ -439,6 +446,116 @@
     },
     "googleIdentity": {
       "loadFailed": "No s'ha pogut carregar Google Identity Services."
+    },
+    "tournaments": {
+      "create": {
+        "needName": "El torneig necessita un nom.",
+        "generic": "No s'ha pogut crear el torneig."
+      },
+      "join": {
+        "invalidCode": "Aquest codi no correspon a cap torneig.",
+        "alreadyJoinedOrClosed": "Ja estàs registrat, o el torneig ja no admet inscripcions.",
+        "generic": "No s'ha pogut unir al torneig."
+      },
+      "addGuest": {
+        "missingFields": "El convidat necessita un nom i un comandant.",
+        "notOrganizer": "El torneig no existeix o no n'ets l'organitzador.",
+        "closed": "El torneig ja no admet inscripcions.",
+        "generic": "No s'ha pogut afegir el convidat."
+      },
+      "start": {
+        "invalidCount": "El nombre de participants necessita una divisió vàlida en taules de 3-4 (afegeix o treu-ne un).",
+        "notOrganizer": "El torneig no existeix o no n'ets l'organitzador.",
+        "alreadyStarted": "El torneig ja ha començat.",
+        "generic": "No s'ha pogut iniciar el torneig."
+      },
+      "recordResult": {
+        "invalid": "El resultat no coincideix amb els seients d'aquesta taula.",
+        "notInProgress": "El torneig no està en curs.",
+        "generic": "No s'ha pogut registrar el resultat."
+      },
+      "advanceRound": {
+        "notComplete": "Totes les taules necessiten un resultat registrat abans d'avançar.",
+        "generic": "No s'ha pogut avançar de ronda."
+      },
+      "lookup": {
+        "notFound": "Aquest codi no correspon a cap torneig.",
+        "generic": "No s'ha pogut consultar el torneig."
+      }
+    }
+  },
+  "tournaments": {
+    "list": {
+      "title": "Tornejos",
+      "subtitle": "Crea un torneig de Commander en format suís, o uneix-te a un amb un codi.",
+      "joinWithCode": "Unir-se amb un codi",
+      "create": "Crear torneig",
+      "loadError": "No s'han pogut carregar els teus tornejos.",
+      "empty": "Encara no organitzes ni participes en cap torneig.",
+      "joinCode": "Codi: {code}",
+      "roundProgress": "Ronda {current} de {total}",
+      "createModal": {
+        "title": "Nou torneig",
+        "namePlaceholder": "Nom del torneig",
+        "targetPlayersPlaceholder": "Jugadors esperats (opcional)",
+        "submitting": "Creant…",
+        "submit": "Crear"
+      },
+      "joinModal": {
+        "title": "Unir-se a un torneig",
+        "codePlaceholder": "CODI",
+        "looking": "Cercant…",
+        "next": "Següent",
+        "foundTournament": "T'unixes a \"{name}\" — tria el mazo que portaràs.",
+        "pickDeck": "Tria un mazo",
+        "noDecks": "Encara no tens mazos desats.",
+        "joining": "Unint-te…",
+        "submit": "Unir-se"
+      }
+    },
+    "status": {
+      "registration": "Inscripció oberta",
+      "in_progress": "En curs",
+      "finished": "Finalitzat"
+    },
+    "detail": {
+      "back": "Tornar a tornejos",
+      "loadError": "No s'ha pogut carregar aquest torneig.",
+      "roundProgress": "Ronda {current} de {total}",
+      "joinCodeLabel": "Codi d'accés",
+      "copy": "Copiar",
+      "copied": "Copiat!",
+      "shareHint": "Comparteix aquest codi perquè els jugadors es registrin i, quan comenci el torneig, consultin la seva taula a cada ronda.",
+      "starting": "Iniciant…",
+      "start": "Iniciar torneig",
+      "participants": {
+        "heading": "{count} participant | {count} participants",
+        "close": "Tancar",
+        "addGuest": "Afegir convidat",
+        "guestNamePlaceholder": "Nom del convidat",
+        "commanderPlaceholder": "Comandant",
+        "adding": "Afegint…",
+        "add": "Afegir",
+        "empty": "Encara no s'ha registrat ningú."
+      },
+      "round": {
+        "heading": "Ronda {number}",
+        "table": "Taula {number}",
+        "finishedPosition": "#{n}",
+        "pickPosition": "Posició",
+        "recording": "Desant…",
+        "recordResult": "Registrar resultat",
+        "advancing": "Avançant…",
+        "advance": "Següent ronda"
+      },
+      "standings": {
+        "heading": "Classificació",
+        "columns": {
+          "player": "Jugador",
+          "points": "Punts"
+        },
+        "winner": "Guanyador"
+      }
     }
   }
 }

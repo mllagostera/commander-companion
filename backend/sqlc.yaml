@@ -98,3 +98,14 @@ sql:
         sql_package: "pgx/v5"
         emit_json_tags: true
         emit_interface: true
+
+  - engine: "postgresql"
+    queries: "internal/tournaments/query.sql"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "tournaments"
+        out: "internal/tournaments"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true

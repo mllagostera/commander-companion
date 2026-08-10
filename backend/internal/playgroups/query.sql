@@ -31,6 +31,21 @@ JOIN playgroup_members pm ON pm.playgroup_id = p.id
 WHERE pm.user_id = $1
 ORDER BY p.created_at DESC;
 
+-- name: ListPlaygroupsForUserPage :many
+-- Keyset pagination over (created_at, id) DESC, scoped to playgroups the user is
+-- a member of (same shape as games.ListGamesPage). With cursor_created_at NULL
+-- it returns the first page; with a cursor, the rows strictly after it in list
+-- order. See internal/common/pagination.go.
+SELECT p.* FROM playgroups p
+JOIN playgroup_members pm ON pm.playgroup_id = p.id
+WHERE pm.user_id = sqlc.arg('user_id')::uuid
+  AND (
+    sqlc.narg('cursor_created_at')::timestamp IS NULL
+    OR (p.created_at, p.id) < (sqlc.narg('cursor_created_at')::timestamp, sqlc.narg('cursor_id')::uuid)
+  )
+ORDER BY p.created_at DESC, p.id DESC
+LIMIT sqlc.arg('page_limit');
+
 -- name: GetPlaygroupMember :one
 SELECT * FROM playgroup_members WHERE playgroup_id = $1 AND user_id = $2 LIMIT 1;
 
