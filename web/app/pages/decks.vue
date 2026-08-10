@@ -47,13 +47,33 @@ async function loadAllRemaining() {
   }
 }
 
+// Guards against concurrent loadAllRemaining() calls. Without this, every
+// caller starts its own `while (nextCursor.value)` loop over the same
+// nextCursor/isLoadingMore state; only one of them ever does real work
+// (the isLoadingMore check inside loadMore short-circuits the rest), but
+// the others don't wait for it either -- they just busy-spin re-checking
+// isLoadingMore as fast as microtasks allow until it clears. With enough
+// decks (many pages) and more than one trigger in flight (e.g. a few
+// keystrokes before the debounce below fires, or a search overlapping a
+// post-import refresh), that spin pegs the tab and the page looks frozen.
+// Sharing one in-flight promise means extra callers just await it instead.
+let loadAllRemainingPromise: Promise<void> | null = null
+function loadAllRemainingOnce(): Promise<void> {
+  if (!loadAllRemainingPromise) {
+    loadAllRemainingPromise = loadAllRemaining().finally(() => {
+      loadAllRemainingPromise = null
+    })
+  }
+  return loadAllRemainingPromise
+}
+
 // Doesn't rely on the `watch` above to have already synced `decks`/`nextCursor`
 // by the time this continues (its flush timing isn't guaranteed relative to
 // this function resuming after the `await`) -- syncs explicitly instead.
 async function refresh() {
   await Promise.all([refreshFirstPage(), refreshStats()])
   syncFromFirstPage(firstPage.value)
-  if (deckSearch.value.trim()) await loadAllRemaining()
+  if (deckSearch.value.trim()) await loadAllRemainingOnce()
 }
 
 const scrollSentinel = ref<HTMLElement | null>(null)
@@ -186,11 +206,19 @@ const deckSearch = ref('')
 const deckSort = ref<SortKey>('played')
 
 // A search has to match against every deck, not just the ones already
-// scrolled into view: as soon as there's a query, fetch whatever pages are
-// still missing instead of relying on scroll to bring them in eventually.
+// scrolled into view: once the user pauses typing, fetch whatever pages
+// are still missing instead of relying on scroll to bring them in
+// eventually. Debounced the same way as the playgroup member search
+// (playgroups/[id].vue) so typing doesn't fire one loadAllRemaining per
+// keystroke.
+let searchDebounce: ReturnType<typeof setTimeout> | undefined
 watch(deckSearch, (q) => {
-  if (q.trim()) loadAllRemaining()
+  clearTimeout(searchDebounce)
+  if (!q.trim()) return
+  searchDebounce = setTimeout(() => loadAllRemainingOnce(), 300)
 })
+
+onUnmounted(() => clearTimeout(searchDebounce))
 
 function statsFor(deck: Deck): DeckStats | null {
   return statsByDeckId.value.get(deck.id) ?? null
