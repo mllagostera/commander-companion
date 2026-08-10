@@ -81,9 +81,12 @@ func handleConnection(hub *Hub, jwtSecret []byte, membership MembershipChecker, 
 	defer func() {
 		hub.Unregister(gameID, client)
 		client.Close()
+		// Wait for writePump to actually exit before this function returns and
+		// gofiber recycles conn back to its pool — see Client.wg's doc.
+		client.wait()
 	}()
 
-	go client.writePump()
+	client.startWritePump()
 	client.Send(connectedEnvelope(gameID))
 
 	client.readLoop()

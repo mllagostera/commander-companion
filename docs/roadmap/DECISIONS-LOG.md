@@ -554,22 +554,70 @@ this item flagged — no CI check catches DBML/migration drift
 automatically — is still real and still unaddressed; that part of the
 item stays open.
 
-### Stage 6 — No WebSocket heartbeat (found 2026-08-01, not yet fixed)
+### Stage 6 — No WebSocket heartbeat (found 2026-08-01, fixed 2026-08-10)
 
-`internal/websocket/handler.go` sets a read deadline only for the initial
-auth handshake (`authMessageTimeout`, 10s), then clears it entirely
+`internal/websocket/handler.go` set a read deadline only for the initial
+auth handshake (`authMessageTimeout`, 10s), then cleared it entirely
 (`SetReadDeadline(time.Time{})`) once authenticated. `client.go`'s
-`readLoop` is then an unbounded `ReadMessage()` loop with no ping/pong
+`readLoop` was then an unbounded `ReadMessage()` loop with no ping/pong
 anywhere in the package. A client that disappears from the network without
 a clean TCP close — the ordinary way a phone loses connectivity, not an
 edge case for this app's primary use case (a life tracker meant to sit on
-a table during a game) — leaves its `Hub` room entry and both of the
+a table during a game) — left its `Hub` room entry and both of the
 client's goroutines (`readLoop`, `writePump`) running until something else
-tears down the whole game's room. [ADR-0005](../decisions/0005-websocket-protocol.md)
-explicitly lists "application-level heartbeat" as out of scope for the
-initial protocol design, so this isn't an oversight relative to what was
-planned — but it's worth revisiting given how often the described
-disconnect actually happens in practice. **Not fixed in this pass.**
+tore down the whole game's room. [ADR-0005](../decisions/0005-websocket-protocol.md)
+explicitly listed "application-level heartbeat" as out of scope for the
+initial protocol design, so this wasn't an oversight relative to what was
+planned — but it was worth revisiting given how often the described
+disconnect actually happens in practice.
+
+**Fixed 2026-08-10** (`internal/websocket/client.go`): `writePump` now
+sends a WebSocket ping frame every `pingPeriod` (54s, via
+`conn.WriteControl(fiberws.PingMessage, ...)`); `readLoop` sets an initial
+`pongWait` (60s) read deadline and installs a pong handler that refreshes
+it on every pong. If no pong arrives within `pongWait`, `ReadMessage`
+returns a deadline-exceeded error, `readLoop` returns like any other read
+failure, and `handleConnection`'s existing cleanup (`hub.Unregister` +
+`client.Close()`) runs — same teardown path as a clean disconnect, just
+now bounded in time instead of unbounded. `pongWait`/`pingPeriod`/`writeWait`
+are per-`Client` fields (copied from package constants in `newClient`) so
+tests can shrink them instead of waiting 60s real-time.
+
+Chasing this down with `go test -race` also surfaced an unrelated
+pre-existing race, fixed in the same pass: `writePump` used to be launched
+as a bare `go client.writePump()` with nothing joining it. gofiber recycles
+the `*fiberws.Conn` back to its `sync.Pool` the moment the connection
+handler function (`handleConnection`) returns — but `writePump` runs in
+its own goroutine and closing its channel only *signals* it to stop, it
+doesn't block until it actually has. `handleConnection` could therefore
+return (releasing `conn` to the pool for reuse by an unrelated future
+connection) while `writePump` was still mid-`WriteMessage`/`WriteControl`
+on that same `*Conn` — a real data race, not a theoretical one, caught
+directly by `go test -race` once the new ping ticker made the race window
+wide enough to hit reliably in a fast test loop. Fixed by adding
+`Client.startWritePump()`/`Client.wait()` (backed by a `sync.WaitGroup`):
+`handleConnection`'s deferred cleanup now calls `client.wait()` after
+`client.Close()`, blocking until `writePump` has actually returned before
+the handler function itself returns and gofiber reclaims `conn`.
+
+**Verified**, all via Docker (no local Go toolchain in this sandbox):
+`golang:1.25-alpine` ran `go build ./...`/`go vet ./...` clean across the
+whole backend; `golangci-lint:v2.12.2` clean on `internal/websocket`
+(zero new issues — the `mnd`/`noctx` findings the first draft introduced
+were fixed by expressing `pingPeriod` as a plain duration literal instead
+of a computed `pongWait * 9 / 10`, and by using `net.ListenConfig.Listen`
+instead of the context-less `net.Listen` in the test helper; the
+repo-wide `gofmt` CRLF noise from this Windows checkout is pre-existing
+and unrelated). New regression tests in
+`internal/websocket/client_internal_test.go` (package `websocket`, real
+`*fiberws.Conn` over a loopback `net.Listener`, no fakes — `writePump`/
+`readLoop` take the concrete type, not the `Hub`'s `Conn` interface, so a
+fake wouldn't exercise the real code path): one client that connects and
+never reads again (simulating the exact "phone loses signal" scenario)
+must be reaped once the shrunk `pongWait` elapses; one client that keeps
+its own read pump running (so it auto-answers pings with pongs, like any
+real client) must **not** be disconnected across several ping periods.
+Both run clean under `go test -race -count=10`.
 
 ### Stage 8 — Bulk Moxfield import and deck resync jobs can get stuck (documented when built, revisited 2026-08-01, fixed 2026-08-08)
 
