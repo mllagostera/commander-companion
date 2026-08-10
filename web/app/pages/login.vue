@@ -178,7 +178,7 @@ onMounted(() => {
         style="background: rgba(5, 3, 8, 0.72); backdrop-filter: blur(6px);"
       >
         <AppLogo size="lg" pulse />
-        <div class="flex flex-col items-center gap-2">
+        <div class="flex flex-col items-center gap-2" role="status" aria-live="polite">
           <span class="text-sm font-medium" style="color: var(--text);">{{ $t('login.loading.title') }}</span>
           <Transition name="cc-fade">
             <span v-if="showSlowHint" class="max-w-[280px] text-xs" style="color: var(--text-muted);">

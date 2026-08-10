@@ -63,6 +63,27 @@ body {
   color: var(--text);
 }
 
+/*
+ * Visible keyboard focus ring. Tailwind's `outline-none` (used across form
+ * inputs) sets `outline: 2px solid transparent` rather than removing it, so
+ * an element+pseudo-class selector here (higher specificity than a bare
+ * class) is enough to override the color without touching those templates.
+ * `:focus-visible` only matches keyboard/programmatic focus, never a mouse
+ * click, so this never changes how anything looks outside of keyboard use.
+ * Negative offset draws the ring just inside the element's own edge instead
+ * of outside it, so it isn't clipped by ancestors with `overflow: hidden`
+ * (e.g. the full-bleed life-adjust buttons in PlayQuadrant.vue).
+ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-link);
+  outline-offset: -2px;
+}
+
 @keyframes cc-pulse {
   0%, 100% { transform: scale(1) rotate(-6deg); opacity: 1; }
   50% { transform: scale(1.08) rotate(-6deg); opacity: 0.7; }

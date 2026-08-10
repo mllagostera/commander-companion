@@ -176,7 +176,7 @@ function gameDate(game: Game): string {
                   {{ $t('dashboard.groups.summary', { members: g.memberCount, games: g.gamesPlayed }) }}
                 </span>
               </span>
-              <span class="text-[13px]" style="color: var(--accent-link);">→</span>
+              <span aria-hidden="true" class="text-[13px]" style="color: var(--accent-link);">→</span>
             </NuxtLink>
           </div>
         </div>

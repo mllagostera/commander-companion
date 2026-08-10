@@ -53,8 +53,18 @@ function toggleExpand() {
     </div>
 
     <template v-else>
-      <button type="button" class="absolute left-0 top-0 z-[1] h-full w-1/2" @click="emit('adjustLife', player.id, -1)" />
-      <button type="button" class="absolute right-0 top-0 z-[1] h-full w-1/2" @click="emit('adjustLife', player.id, 1)" />
+      <button
+        type="button"
+        :aria-label="$t('play.tracker.decreaseLife', { name: player.name })"
+        class="absolute left-0 top-0 z-[1] h-full w-1/2"
+        @click="emit('adjustLife', player.id, -1)"
+      />
+      <button
+        type="button"
+        :aria-label="$t('play.tracker.increaseLife', { name: player.name })"
+        class="absolute right-0 top-0 z-[1] h-full w-1/2"
+        @click="emit('adjustLife', player.id, 1)"
+      />
       <span
         class="pointer-events-none absolute top-1/2 -translate-y-1/2 font-light leading-none"
         style="left: clamp(10px, 4%, 22px); font-size: clamp(36px, 7vw, 64px); color: rgba(0,0,0,0.4);"
@@ -89,7 +99,11 @@ function toggleExpand() {
               {{ player.commanderDamage[opponent.id] ?? 0 }}
             </span>
           </div>
-          <span v-if="poisonLabel" style="font-size: clamp(10px,1.4vw,13px); color: rgba(0,0,0,0.6);">{{ poisonLabel }}</span>
+          <span
+            v-if="poisonLabel"
+            :aria-label="`${$t('play.tracker.poison')}: ${player.poison}`"
+            style="font-size: clamp(10px,1.4vw,13px); color: rgba(0,0,0,0.6);"
+          ><span aria-hidden="true">{{ poisonLabel }}</span></span>
         </button>
 
         <button
@@ -164,7 +178,7 @@ function toggleExpand() {
     <div v-if="eliminated" class="absolute inset-0 z-[3]" style="background: rgba(10,0,0,0.72);">
       <div class="absolute inset-0 animate-[cc-elim-flash_1.6s_ease-in-out_infinite]" style="background: radial-gradient(circle, transparent 38%, rgba(220,20,20,0.55) 100%);" />
       <div class="relative flex h-full flex-col items-center justify-center gap-1">
-        <span class="leading-none" style="font-size: clamp(48px,8vw,72px); filter: drop-shadow(0 3px 0 #000);">💀</span>
+        <span aria-hidden="true" class="leading-none" style="font-size: clamp(48px,8vw,72px); filter: drop-shadow(0 3px 0 #000);">💀</span>
         <span
           class="font-extrabold"
           style="font-size: clamp(18px,2.6vw,26px); letter-spacing: 2px; color: #fff; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000; transform: rotate(-2deg);"

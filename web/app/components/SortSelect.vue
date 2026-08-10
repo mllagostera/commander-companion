@@ -15,6 +15,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const isOpen = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
+const triggerRef = ref<HTMLButtonElement | null>(null)
 const optionRefs = ref<HTMLButtonElement[]>([])
 
 const selectedLabel = computed(() => props.options.find((o) => o.value === props.modelValue)?.label ?? '')
@@ -23,9 +24,18 @@ function close() {
   isOpen.value = false
 }
 
+// Used when the listbox closes without another element taking focus (picking
+// an option, pressing Escape) so keyboard focus doesn't fall through to
+// <body>. Not used for outside clicks — there, whatever the user clicked
+// already has focus and pulling it back to the trigger would fight that.
+function closeAndRefocus() {
+  isOpen.value = false
+  triggerRef.value?.focus()
+}
+
 function select(value: string) {
   emit('update:modelValue', value)
-  close()
+  closeAndRefocus()
 }
 
 function handleDocumentClick(event: MouseEvent) {
@@ -55,7 +65,7 @@ function handleListKeydown(event: KeyboardEvent) {
     focusOption(currentIndex - 1)
   } else if (event.key === 'Escape') {
     event.preventDefault()
-    close()
+    closeAndRefocus()
   }
 }
 
@@ -73,6 +83,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
 <template>
   <div ref="rootRef" class="relative">
     <button
+      ref="triggerRef"
       type="button"
       :aria-label="selectLabel"
       aria-haspopup="listbox"
@@ -84,6 +95,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
     >
       {{ selectedLabel }}
       <span
+        aria-hidden="true"
         class="text-[10px] transition-transform"
         :style="{ color: 'var(--text-muted)', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }"
       >▾</span>

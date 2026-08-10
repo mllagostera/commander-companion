@@ -4,6 +4,8 @@
     "save": "Desa",
     "saving": "Desant…",
     "back": "Enrere",
+    "close": "Tanca",
+    "skipToContent": "Salta al contingut",
     "slowBackendHint": "El servidor estava adormit i s'està despertant, pot trigar uns segons…"
   },
   "nav": {
@@ -16,7 +18,8 @@
     "darkTheme": "Tema fosc",
     "toggleTheme": "Canvia el tema",
     "language": "Idioma",
-    "tournaments": "Tornejos"
+    "tournaments": "Tornejos",
+    "userMenu": "Menú d'usuari"
   },
   "login": {
     "tagline": "Les teves partides i decks de Commander, en un sol lloc.",
@@ -343,10 +346,13 @@
       "exitFullscreen": "Surt de pantalla completa",
       "rotatePrompt": "Gira el teu dispositiu\nper jugar",
       "passTurn": "Passa el torn",
+      "decreaseLife": "Resta 1 de vida a {name}",
+      "increaseLife": "Suma 1 de vida a {name}",
       "pause": "Posa en pausa la partida",
       "paused": "Partida en pausa",
       "resume": "Reprèn",
-      "resetLives": "Reinicia les vides"
+      "resetLives": "Reinicia les vides",
+      "exit": "Surt de la partida"
     },
     "summary": {
       "heading": "Partida finalitzada",

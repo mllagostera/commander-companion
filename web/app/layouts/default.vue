@@ -48,6 +48,14 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
 
 <template>
   <div class="relative min-h-screen overflow-hidden" style="background: var(--bg-gradient); color: var(--text);">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:px-5 focus:py-2.5 focus:text-[13px] focus:font-semibold"
+      style="background: var(--accent-link); color: var(--page-solid);"
+    >
+      {{ $t('common.skipToContent') }}
+    </a>
+
     <div class="cc-blob top-[-160px] right-[-140px] h-[460px] w-[460px] rounded-[63%_37%_54%_46%/48%_42%_58%_52%]" style="background: radial-gradient(circle, rgba(167,139,250,0.35), rgba(167,139,250,0) 70%);" />
     <div class="cc-blob bottom-[-200px] left-[-160px] h-[520px] w-[520px] rounded-[42%_58%_65%_35%/55%_45%_55%_45%]" style="background: radial-gradient(circle, rgba(168,85,247,0.22), rgba(168,85,247,0) 70%);" />
     <div class="cc-blob top-[40%] left-1/2 h-[380px] w-[380px] rounded-full" style="background: radial-gradient(circle, rgba(196,181,253,0.14), rgba(196,181,253,0) 70%);" />
@@ -76,6 +84,9 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
 
         <div ref="userMenuRef" class="relative ml-auto">
           <button
+            :aria-label="$t('nav.userMenu')"
+            aria-haspopup="true"
+            :aria-expanded="isUserMenuOpen"
             class="flex items-center gap-2 rounded-full py-[5px] pl-[5px] pr-2.5 transition-colors hover:bg-[var(--card-bg-strong)]"
             @click="toggleUserMenu"
           >
@@ -85,6 +96,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
             >{{ userInitial }}</span>
             <span class="hidden text-sm sm:inline" style="color: var(--text);">{{ user?.username ?? '…' }}</span>
             <span
+              aria-hidden="true"
               class="inline-block text-[10px] transition-transform"
               :style="{ color: 'var(--text-muted)', transform: isUserMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }"
             >▾</span>
@@ -149,7 +161,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
       </div>
     </header>
 
-    <main class="relative z-[1] mx-auto max-w-[1080px] px-4 pb-[100px] pt-9 sm:px-6">
+    <main id="main-content" class="relative z-[1] mx-auto max-w-[1080px] px-4 pb-[100px] pt-9 sm:px-6">
       <slot />
     </main>
   </div>

@@ -93,7 +93,9 @@ const isAdding = ref(false)
 
 // ------------------------------------------------------- user search
 const memberQuery = ref('')
+const memberQueryRef = ref<HTMLInputElement | null>(null)
 const searchResults = ref<UserSearchResult[]>([])
+const searchResultRefs = ref<HTMLButtonElement[]>([])
 const isSearching = ref(false)
 const searchError = ref('')
 const selectedUser = ref<UserSearchResult | null>(null)
@@ -128,6 +130,41 @@ function selectUser(user: UserSearchResult) {
   selectedUser.value = user
   memberQuery.value = user.username
   searchResults.value = []
+  memberQueryRef.value?.focus()
+}
+
+// Keyboard support for the suggestion list below the input, mirroring the
+// listbox pattern already used in SortSelect.vue.
+function focusResult(index: number) {
+  const count = searchResultRefs.value.length
+  if (!count) return
+  searchResultRefs.value[(index + count) % count]?.focus()
+}
+
+function handleQueryKeydown(event: KeyboardEvent) {
+  if (event.key === 'ArrowDown' && searchResults.value.length) {
+    event.preventDefault()
+    focusResult(0)
+  }
+}
+
+function handleResultKeydown(event: KeyboardEvent) {
+  const currentIndex = searchResultRefs.value.findIndex((el) => el === document.activeElement)
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    focusResult(currentIndex + 1)
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    if (currentIndex <= 0) {
+      memberQueryRef.value?.focus()
+    } else {
+      focusResult(currentIndex - 1)
+    }
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    searchResults.value = []
+    memberQueryRef.value?.focus()
+  }
 }
 
 function toggleAddMember() {
@@ -177,6 +214,7 @@ async function handleAddMember() {
             type="text"
             required
             autofocus
+            :aria-label="$t('playgroups.list.modal.placeholder')"
             class="min-w-[220px] flex-1 rounded-full border px-4 py-2 text-sm outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
@@ -231,27 +269,40 @@ async function handleAddMember() {
         >
           <div class="relative">
             <input
+              ref="memberQueryRef"
               v-model="memberQuery"
               type="text"
               required
               autofocus
               autocomplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              :aria-expanded="searchResults.length > 0"
+              aria-controls="member-search-listbox"
               :placeholder="$t('playgroups.detail.ranking.searchPlaceholder')"
+              :aria-label="$t('playgroups.detail.ranking.searchPlaceholder')"
               class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
               style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
               @input="onQueryInput"
+              @keydown="handleQueryKeydown"
             >
             <ul
               v-if="searchResults.length"
+              id="member-search-listbox"
+              role="listbox"
               class="absolute z-10 mt-1 w-full space-y-1 rounded-2xl border p-1 shadow-lg"
               style="border-color: var(--card-border); background: var(--page-solid);"
             >
-              <li v-for="user in searchResults" :key="user.id">
+              <li v-for="user in searchResults" :key="user.id" role="presentation">
                 <button
+                  ref="searchResultRefs"
                   type="button"
+                  role="option"
+                  aria-selected="false"
                   class="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-white/5"
                   style="color: var(--text);"
                   @click="selectUser(user)"
+                  @keydown="handleResultKeydown"
                 >
                   {{ user.username }}
                 </button>
