@@ -105,6 +105,7 @@ const moxfieldInput = ref('')
 const importError = ref('')
 const importedDeck = ref<Deck | null>(null)
 const isImporting = ref(false)
+const importModalRef = ref<HTMLElement | null>(null)
 
 function openImportModal() {
   moxfieldInput.value = ''
@@ -116,6 +117,8 @@ function openImportModal() {
 function closeImportModal() {
   isImportModalOpen.value = false
 }
+
+useModalA11y(isImportModalOpen, importModalRef, closeImportModal)
 
 async function handleImport() {
   importError.value = ''
@@ -297,6 +300,7 @@ const filteredDecks = computed(() => {
         v-model="deckSearch"
         type="text"
         :placeholder="$t('decks.searchPlaceholder')"
+        :aria-label="$t('decks.searchPlaceholder')"
         class="min-w-[200px] flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
         style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
       >
@@ -369,16 +373,24 @@ const filteredDecks = computed(() => {
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       @click.self="closeImportModal"
     >
-      <div class="w-full max-w-sm rounded-[24px] border p-6" style="border-color: var(--card-border); background: var(--page-solid);">
+      <div
+        ref="importModalRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="decks-import-title"
+        class="w-full max-w-sm rounded-[24px] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
         <div class="flex items-center justify-between">
-          <h2 class="text-[15px] font-medium">{{ $t('decks.import.title') }}</h2>
+          <h2 id="decks-import-title" class="text-[15px] font-medium">{{ $t('decks.import.title') }}</h2>
           <button
             type="button"
+            :aria-label="$t('common.close')"
             class="p-0 text-sm"
             style="color: var(--text-dim);"
             @click="closeImportModal"
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
 
@@ -389,6 +401,7 @@ const filteredDecks = computed(() => {
             required
             autofocus
             :placeholder="$t('decks.import.placeholder')"
+            :aria-label="$t('decks.import.placeholder')"
             class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >

@@ -32,6 +32,7 @@ const isCreateModalOpen = ref(false)
 const newName = ref('')
 const createError = ref('')
 const isCreating = ref(false)
+const createModalRef = ref<HTMLElement | null>(null)
 
 function openCreateModal() {
   newName.value = ''
@@ -42,6 +43,8 @@ function openCreateModal() {
 function closeCreateModal() {
   isCreateModalOpen.value = false
 }
+
+useModalA11y(isCreateModalOpen, createModalRef, closeCreateModal)
 
 async function handleCreate() {
   createError.value = ''
@@ -115,8 +118,15 @@ async function handleCreate() {
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       @click.self="closeCreateModal"
     >
-      <div class="w-full max-w-sm rounded-[24px] border p-6" style="border-color: var(--card-border); background: var(--page-solid);">
-        <h2 class="text-[15px] font-medium">{{ $t('playgroups.list.modal.title') }}</h2>
+      <div
+        ref="createModalRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="playgroups-create-title"
+        class="w-full max-w-sm rounded-[24px] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
+        <h2 id="playgroups-create-title" class="text-[15px] font-medium">{{ $t('playgroups.list.modal.title') }}</h2>
 
         <form class="mt-4 space-y-3" @submit.prevent="handleCreate">
           <input
@@ -125,6 +135,7 @@ async function handleCreate() {
             required
             autofocus
             :placeholder="$t('playgroups.list.modal.placeholder')"
+            :aria-label="$t('playgroups.list.modal.placeholder')"
             class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >

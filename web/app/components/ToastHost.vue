@@ -11,17 +11,21 @@ const { message, dismissToast } = useToast()
   >
     <div
       v-if="message"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       class="fixed bottom-6 right-6 z-20 flex items-center gap-3 rounded-full border border-white/10 px-[18px] py-[13px] text-sm shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl"
       style="background: var(--toast-bg); color: var(--text);"
     >
       {{ message }}
       <button
         type="button"
+        :aria-label="$t('common.close')"
         class="p-0 text-[13px]"
         style="color: var(--text-dim);"
         @click="dismissToast"
       >
-        ✕
+        <span aria-hidden="true">✕</span>
       </button>
     </div>
   </Transition>

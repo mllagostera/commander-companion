@@ -18,6 +18,7 @@ const newName = ref('')
 const newTargetPlayers = ref<number | null>(null)
 const createError = ref('')
 const isCreating = ref(false)
+const createModalRef = ref<HTMLElement | null>(null)
 
 function openCreateModal() {
   newName.value = ''
@@ -29,6 +30,8 @@ function openCreateModal() {
 function closeCreateModal() {
   isCreateModalOpen.value = false
 }
+
+useModalA11y(isCreateModalOpen, createModalRef, closeCreateModal)
 
 async function handleCreate() {
   createError.value = ''
@@ -56,6 +59,7 @@ const joinDecks = ref<Deck[]>([])
 const selectedDeckId = ref('')
 const joinError = ref('')
 const isJoining = ref(false)
+const joinModalRef = ref<HTMLElement | null>(null)
 
 function openJoinModal() {
   joinCode.value = ''
@@ -70,6 +74,8 @@ function openJoinModal() {
 function closeJoinModal() {
   isJoinModalOpen.value = false
 }
+
+useModalA11y(isJoinModalOpen, joinModalRef, closeJoinModal)
 
 async function handleLookup() {
   joinLookupError.value = ''
@@ -179,8 +185,15 @@ function statusColor(status: Tournament['status']): string {
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       @click.self="closeCreateModal"
     >
-      <div class="w-full max-w-sm rounded-[24px] border p-6" style="border-color: var(--card-border); background: var(--page-solid);">
-        <h2 class="text-[15px] font-medium">{{ $t('tournaments.list.createModal.title') }}</h2>
+      <div
+        ref="createModalRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tournaments-create-title"
+        class="w-full max-w-sm rounded-[24px] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
+        <h2 id="tournaments-create-title" class="text-[15px] font-medium">{{ $t('tournaments.list.createModal.title') }}</h2>
 
         <form class="mt-4 space-y-3" @submit.prevent="handleCreate">
           <input
@@ -189,6 +202,7 @@ function statusColor(status: Tournament['status']): string {
             required
             autofocus
             :placeholder="$t('tournaments.list.createModal.namePlaceholder')"
+            :aria-label="$t('tournaments.list.createModal.namePlaceholder')"
             class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
@@ -197,6 +211,7 @@ function statusColor(status: Tournament['status']): string {
             type="number"
             min="3"
             :placeholder="$t('tournaments.list.createModal.targetPlayersPlaceholder')"
+            :aria-label="$t('tournaments.list.createModal.targetPlayersPlaceholder')"
             class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
@@ -231,8 +246,15 @@ function statusColor(status: Tournament['status']): string {
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       @click.self="closeJoinModal"
     >
-      <div class="w-full max-w-sm rounded-[24px] border p-6" style="border-color: var(--card-border); background: var(--page-solid);">
-        <h2 class="text-[15px] font-medium">{{ $t('tournaments.list.joinModal.title') }}</h2>
+      <div
+        ref="joinModalRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tournaments-join-title"
+        class="w-full max-w-sm rounded-[24px] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
+        <h2 id="tournaments-join-title" class="text-[15px] font-medium">{{ $t('tournaments.list.joinModal.title') }}</h2>
 
         <form v-if="joinStep === 'code'" class="mt-4 space-y-3" @submit.prevent="handleLookup">
           <input
@@ -242,6 +264,7 @@ function statusColor(status: Tournament['status']): string {
             autofocus
             autocomplete="off"
             :placeholder="$t('tournaments.list.joinModal.codePlaceholder')"
+            :aria-label="$t('tournaments.list.joinModal.codePlaceholder')"
             class="w-full rounded-full border px-4 py-2.5 text-center text-[13px] uppercase tracking-widest outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >

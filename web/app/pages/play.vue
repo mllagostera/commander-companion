@@ -74,8 +74,14 @@ function statusKey(player: LocalPlayer): string {
 const starterName = computed(() => players.value.find((p) => p.id === startingPlayerId.value)?.name ?? '')
 const starterColor = computed(() => players.value.find((p) => p.id === startingPlayerId.value)?.color ?? '#8b5cf6')
 
-// El tracker solo tiene sentido en horizontal (igual que Android, que fuerza landscape con
-// RotateDevicePrompt) — se detecta con matchMedia en vez de un timer simulado.
+// The tracker only makes sense in landscape (same as Android, which forces landscape via
+// RotateDevicePrompt) — detected with matchMedia instead of a simulated timer.
+//
+// WCAG 1.3.4 (Orientation) exception: portrait is intentionally blocked rather than offered
+// as a degraded alternative layout. A life-total grid for 2-6 players needs the width; a
+// portrait fallback would mean maintaining a second, cramped tracker layout for a game screen
+// people already play holding their device landscape. This is the documented "essential"
+// exception the criterion allows, not an oversight.
 const isPortrait = ref(false)
 let orientationQuery: MediaQueryList | null = null
 function updateOrientation() {
@@ -141,6 +147,7 @@ onUnmounted(() => {
                 v-model="playerNames[i - 1]"
                 type="text"
                 :placeholder="$t('play.setup.playerPlaceholder', { n: i })"
+                :aria-label="$t('play.setup.playerPlaceholder', { n: i })"
                 class="flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
                 style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
               >
@@ -168,7 +175,7 @@ onUnmounted(() => {
     <ClientOnly>
       <div v-if="phase === 'tracker'" class="fixed inset-0 overflow-hidden" style="background: #0a0714;">
         <div v-if="isPortrait" class="flex h-full w-full flex-col items-center justify-center gap-3 px-8 text-center">
-          <span class="text-4xl">📱</span>
+          <span aria-hidden="true" class="text-4xl">📱</span>
           <p class="whitespace-pre-line text-sm font-medium" style="color: #f1f0f6;">{{ $t('play.tracker.rotatePrompt') }}</p>
         </div>
 
@@ -289,6 +296,7 @@ onUnmounted(() => {
               v-if="!started && !lotteryActive"
               type="button"
               :title="$t('play.tracker.startRandom')"
+              :aria-label="$t('play.tracker.startRandom')"
               class="absolute left-1/2 top-1/2 flex h-[72px] w-[72px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full shadow-[0_10px_30px_rgba(139,92,246,0.45)]"
               style="background: linear-gradient(135deg, #8b5cf6, #a855f7);"
               @click="startRandomPlayer"
@@ -303,6 +311,7 @@ onUnmounted(() => {
               v-if="started"
               type="button"
               :title="$t('play.tracker.pause')"
+              :aria-label="$t('play.tracker.pause')"
               class="absolute left-1/2 top-1/2 z-[3] flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-1 rounded-full border shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
               style="border-color: rgba(196,181,253,0.4); background: rgba(10,7,20,0.85);"
               @click="togglePause"
@@ -333,22 +342,24 @@ onUnmounted(() => {
 
             <button
               type="button"
+              :aria-label="$t('play.tracker.exit')"
               class="absolute z-[5] flex items-center justify-center rounded-full border"
               style="left: clamp(8px,1.5vw,16px); top: clamp(8px,1.5vw,16px); width: clamp(36px,5vw,48px); height: clamp(36px,5vw,48px); background: rgba(20,16,38,0.96); border-color: rgba(255,255,255,0.15); color: #f1f0f6; font-size: clamp(14px,1.8vw,18px);"
               @click="backToSetup"
             >
-              ✕
+              <span aria-hidden="true">✕</span>
             </button>
 
             <button
               v-if="isFullscreenSupported"
               type="button"
               :title="$t(isFullscreen ? 'play.tracker.exitFullscreen' : 'play.tracker.fullscreen')"
+              :aria-label="$t(isFullscreen ? 'play.tracker.exitFullscreen' : 'play.tracker.fullscreen')"
               class="absolute z-[5] flex items-center justify-center rounded-full border"
               style="left: clamp(52px,7.5vw,72px); top: clamp(8px,1.5vw,16px); width: clamp(36px,5vw,48px); height: clamp(36px,5vw,48px); background: rgba(20,16,38,0.96); border-color: rgba(255,255,255,0.15); color: #f1f0f6; font-size: clamp(14px,1.8vw,18px);"
               @click="toggleFullscreen"
             >
-              ⛶
+              <span aria-hidden="true">⛶</span>
             </button>
 
             <button

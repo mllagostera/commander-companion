@@ -204,6 +204,7 @@ async function handleAdvance() {
                 type="text"
                 required
                 :placeholder="$t('tournaments.detail.participants.guestNamePlaceholder')"
+                :aria-label="$t('tournaments.detail.participants.guestNamePlaceholder')"
                 class="min-w-[160px] flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
                 style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
               >
@@ -212,6 +213,7 @@ async function handleAdvance() {
                 type="text"
                 required
                 :placeholder="$t('tournaments.detail.participants.commanderPlaceholder')"
+                :aria-label="$t('tournaments.detail.participants.commanderPlaceholder')"
                 class="min-w-[160px] flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
                 style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
               >

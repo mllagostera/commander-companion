@@ -4,6 +4,8 @@
     "save": "Save",
     "saving": "Saving…",
     "back": "Back",
+    "close": "Close",
+    "skipToContent": "Skip to content",
     "slowBackendHint": "The server was asleep and is waking up, this can take a few seconds…"
   },
   "nav": {
@@ -16,7 +18,8 @@
     "darkTheme": "Dark theme",
     "toggleTheme": "Toggle theme",
     "language": "Language",
-    "tournaments": "Tournaments"
+    "tournaments": "Tournaments",
+    "userMenu": "User menu"
   },
   "login": {
     "tagline": "Your Commander games and decks, all in one place.",
@@ -343,10 +346,13 @@
       "exitFullscreen": "Exit fullscreen",
       "rotatePrompt": "Rotate your device\nto play",
       "passTurn": "Pass turn",
+      "decreaseLife": "Decrease {name}'s life by 1",
+      "increaseLife": "Increase {name}'s life by 1",
       "pause": "Pause game",
       "paused": "Game paused",
       "resume": "Resume",
-      "resetLives": "Reset lives"
+      "resetLives": "Reset lives",
+      "exit": "Exit game"
     },
     "summary": {
       "heading": "Game finished",

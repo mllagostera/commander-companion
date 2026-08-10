@@ -16,6 +16,8 @@ if (import.meta.client) {
   <Transition name="cc-fade">
     <div v-if="active" class="fixed inset-x-0 top-0 z-40 flex justify-center p-3">
       <span
+        role="status"
+        aria-live="polite"
         class="rounded-full border px-4 py-2 text-xs shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl"
         style="background: var(--toast-bg); border-color: var(--card-border); color: var(--text);"
       >

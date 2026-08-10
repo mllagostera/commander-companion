@@ -51,6 +51,18 @@ const mostPlayedGroup = computed(() => {
 // -------------------------------------------------------------------------- tabs + deck sorting
 
 const activeTab = ref<'decks' | 'games'>('decks')
+
+// Left/right arrow switches tabs, per the APG tabs pattern — with only two
+// tabs, "switch" and "wrap to the other end" are the same operation.
+function handleTabKeydown(event: KeyboardEvent) {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+  event.preventDefault()
+  activeTab.value = activeTab.value === 'decks' ? 'games' : 'decks'
+  nextTick(() => {
+    document.getElementById(activeTab.value === 'decks' ? 'statistics-tab-decks' : 'statistics-tab-games')?.focus()
+  })
+}
+
 const deckSort = ref<DeckSortOrder>('recent')
 const deckSortOptions = computed(() => [
   { value: 'recent', label: t('statistics.perDeck.sort.recent') },
@@ -216,11 +228,14 @@ function formatDuration(game: FinishedGame): string {
       </section>
 
       <section>
-        <div role="tablist" class="mb-3.5 flex gap-2.5">
+        <div role="tablist" class="mb-3.5 flex gap-2.5" @keydown="handleTabKeydown">
           <button
+            id="statistics-tab-decks"
             type="button"
             role="tab"
             :aria-selected="activeTab === 'decks'"
+            :tabindex="activeTab === 'decks' ? 0 : -1"
+            aria-controls="statistics-panel-decks"
             class="rounded-full px-5 py-2.5 text-[13px] font-medium transition-colors"
             :style="activeTab === 'decks'
               ? 'background: linear-gradient(90deg, #8b5cf6, #a855f7); color: #0a0714;'
@@ -230,9 +245,12 @@ function formatDuration(game: FinishedGame): string {
             {{ $t('statistics.tabs.byDeck') }}
           </button>
           <button
+            id="statistics-tab-games"
             type="button"
             role="tab"
             :aria-selected="activeTab === 'games'"
+            :tabindex="activeTab === 'games' ? 0 : -1"
+            aria-controls="statistics-panel-games"
             class="rounded-full px-5 py-2.5 text-[13px] font-medium transition-colors"
             :style="activeTab === 'games'
               ? 'background: linear-gradient(90deg, #8b5cf6, #a855f7); color: #0a0714;'
@@ -243,7 +261,7 @@ function formatDuration(game: FinishedGame): string {
           </button>
         </div>
 
-        <div v-if="activeTab === 'decks'" role="tabpanel">
+        <div v-if="activeTab === 'decks'" id="statistics-panel-decks" role="tabpanel" aria-labelledby="statistics-tab-decks" tabindex="0">
           <p v-if="!data.perDeck.length" class="text-sm" style="color: var(--text-muted);">
             {{ $t('statistics.perDeck.noDecksIntro') }}
             <NuxtLink to="/decks" style="color: var(--accent-link);">{{ $t('statistics.perDeck.importLink') }}</NuxtLink>
@@ -301,7 +319,7 @@ function formatDuration(game: FinishedGame): string {
           </template>
         </div>
 
-        <div v-else role="tabpanel">
+        <div v-else id="statistics-panel-games" role="tabpanel" aria-labelledby="statistics-tab-games" tabindex="0">
           <p v-if="finishedGamesLoading && !finishedGames.length" class="text-sm" style="color: var(--text-muted);">
             {{ $t('statistics.finishedGames.loading') }}
           </p>
@@ -338,11 +356,12 @@ function formatDuration(game: FinishedGame): string {
                       />
                       <span
                         v-if="player.won"
+                        :title="$t('statistics.finishedGames.winner')"
+                        :aria-label="$t('statistics.finishedGames.winner')"
                         class="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full text-[11px]"
                         style="background: var(--win); color: #05261c;"
-                        :title="$t('statistics.finishedGames.winner')"
                       >
-                        🏆
+                        <span aria-hidden="true">🏆</span>
                       </span>
                       <p
                         class="w-full truncate text-[11px]"
