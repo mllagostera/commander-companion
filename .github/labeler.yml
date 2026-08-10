@@ -1,0 +1,15 @@
+backend:
+  - changed-files:
+      - any-glob-to-any-file: 'backend/**'
+
+web:
+  - changed-files:
+      - any-glob-to-any-file: 'web/**'
+
+android:
+  - changed-files:
+      - any-glob-to-any-file: 'android/**'
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: 'docs/**'
