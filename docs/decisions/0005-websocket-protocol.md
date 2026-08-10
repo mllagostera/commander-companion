@@ -266,14 +266,27 @@ Explicitly documented so "not implemented" isn't confused with "forgotten":
   doing so would force duplicating all of
   `game-actions.RecordAction`'s validation/authorization in the socket
   handler.
-- **Heartbeat / application-level ping-pong**: no explicit ping/pong ticker
-  is implemented. Detection of dead connections depends on the next read
-  or write on the TCP socket failing (which, depending on the OS, can take
-  considerably longer than an explicit ping/pong in the face of a
-  "silent" network outage, e.g. the client loses connectivity without a
-  clean close). Documented as a known limitation, not a final decision —
-  it's the first candidate to add if, in practice, rooms are seen
-  accumulating ghost connections.
+- **Heartbeat / application-level ping-pong**: ~~no explicit ping/pong
+  ticker is implemented~~ **implemented 2026-08-10** (`internal/websocket/client.go`):
+  `writePump` sends a WebSocket ping frame every `pingPeriod` (54s);
+  `readLoop` sets a `pongWait` (60s) read deadline, refreshed by the
+  standard pong (an explicit pong, or any other frame the client's read
+  pump processes). If no pong arrives within `pongWait`, `ReadMessage`
+  returns a deadline-exceeded error and the connection is torn down like
+  any other read failure — closing the room entry, freeing the `Hub`
+  memory, and unblocking `writePump` in turn. This replaces the previous
+  "depends on the next read/write failing" behavior for the specific
+  failure mode this bullet used to flag: a client that goes silent without
+  a clean TCP close (e.g. a phone losing signal) is now reaped within
+  `pongWait`, not left running forever. Fixing this also surfaced and fixed
+  an unrelated pre-existing race: `writePump` used to run in a detached
+  goroutine, so gofiber's `*Conn` could be recycled back to its
+  `sync.Pool` (as soon as the connection handler function returned) while
+  `writePump` was still using it; `Client.startWritePump`/`wait` now make
+  the handler block until `writePump` has actually exited before
+  returning. Covered by `internal/websocket/client_internal_test.go`
+  (real WebSocket connections over a loopback listener, run with
+  `-race`), not just reasoned about.
 
 ## Alternatives considered (general architecture)
 
