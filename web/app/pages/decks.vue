@@ -201,9 +201,15 @@ async function handleResyncAll() {
 onUnmounted(stopResyncPolling)
 
 // ------------------------------------------------------- search and sort
-type SortKey = 'played' | 'won' | 'winrate' | 'name'
+type SortKey = 'played' | 'won' | 'winRate' | 'name'
 const deckSearch = ref('')
 const deckSort = ref<SortKey>('played')
+const deckSortOptions = computed(() => [
+  { value: 'played', label: t('decks.sort.played') },
+  { value: 'won', label: t('decks.sort.won') },
+  { value: 'winRate', label: t('decks.sort.winRate') },
+  { value: 'name', label: t('decks.sort.name') },
+])
 
 // A search has to match against every deck, not just the ones already
 // scrolled into view: once the user pauses typing, fetch whatever pages
@@ -234,10 +240,11 @@ const filteredDecks = computed(() => {
     const sa = statsFor(a)
     const sb = statsFor(b)
     if (deckSort.value === 'won') return (sb?.games_won ?? 0) - (sa?.games_won ?? 0)
-    if (deckSort.value === 'winrate') {
+    if (deckSort.value === 'winRate') {
       const ra = sa?.games_played ? sa.games_won / sa.games_played : 0
       const rb = sb?.games_played ? sb.games_won / sb.games_played : 0
-      return rb - ra
+      const diff = rb - ra
+      return diff !== 0 ? diff : (sb?.games_played ?? 0) - (sa?.games_played ?? 0)
     }
     return (sb?.games_played ?? 0) - (sa?.games_played ?? 0)
   })
@@ -293,16 +300,12 @@ const filteredDecks = computed(() => {
         class="min-w-[200px] flex-1 rounded-full border px-4 py-2.5 text-[13px] outline-none"
         style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
       >
-      <select
-        v-model="deckSort"
-        class="rounded-full border px-4 py-2.5 text-[13px]"
-        style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
-      >
-        <option value="played">{{ $t('decks.sort.played') }}</option>
-        <option value="won">{{ $t('decks.sort.won') }}</option>
-        <option value="winrate">{{ $t('decks.sort.winrate') }}</option>
-        <option value="name">{{ $t('decks.sort.name') }}</option>
-      </select>
+      <SortSelect
+        :model-value="deckSort"
+        :options="deckSortOptions"
+        :select-label="$t('decks.sort.ariaLabel')"
+        @update:model-value="(v) => (deckSort = v as SortKey)"
+      />
     </section>
 
     <p v-if="listError" class="text-sm" style="color: var(--lose);">{{ $t('decks.loadError') }}</p>

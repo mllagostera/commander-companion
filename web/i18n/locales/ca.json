@@ -141,8 +141,9 @@
     "sort": {
       "played": "Més jugats",
       "won": "Més victòries",
-      "winrate": "Millor win rate",
-      "name": "Nom (A-Z)"
+      "winRate": "Millor win rate",
+      "name": "Nom (A-Z)",
+      "ariaLabel": "Ordena els decks"
     },
     "loadError": "No s'han pogut carregar els decks.",
     "loadingMore": "Carregant més decks…",
@@ -218,7 +219,8 @@
       "sort": {
         "recent": "Recents",
         "winRate": "% victòries",
-        "gamesPlayed": "Partides jugades"
+        "gamesPlayed": "Partides jugades",
+        "ariaLabel": "Ordena els decks"
       }
     },
     "finishedGames": {

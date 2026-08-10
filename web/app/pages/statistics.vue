@@ -3,7 +3,7 @@ import type { Deck, DeckStats, FinishedGame, FinishedGamePlayer, OpponentStats, 
 
 const { userStats, allDeckStats, playgroupGameCounts, opponentStats, listFinishedGames } = useStatistics()
 const { listAllDecks } = useDecks()
-const { d } = useI18n()
+const { d, t } = useI18n()
 
 interface DeckWithStats {
   deck: Deck
@@ -52,6 +52,11 @@ const mostPlayedGroup = computed(() => {
 
 const activeTab = ref<'decks' | 'games'>('decks')
 const deckSort = ref<DeckSortOrder>('recent')
+const deckSortOptions = computed(() => [
+  { value: 'recent', label: t('statistics.perDeck.sort.recent') },
+  { value: 'winRate', label: t('statistics.perDeck.sort.winRate') },
+  { value: 'gamesPlayed', label: t('statistics.perDeck.sort.gamesPlayed') },
+])
 
 function winRateOf(stats: DeckStats | null): number {
   return stats?.games_played ? stats.games_won / stats.games_played : -1
@@ -246,15 +251,13 @@ function formatDuration(game: FinishedGame): string {
           </p>
 
           <template v-else>
-            <select
-              v-model="deckSort"
-              class="mb-3.5 rounded-full border px-4 py-2.5 text-[13px]"
-              style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
-            >
-              <option value="recent">{{ $t('statistics.perDeck.sort.recent') }}</option>
-              <option value="winRate">{{ $t('statistics.perDeck.sort.winRate') }}</option>
-              <option value="gamesPlayed">{{ $t('statistics.perDeck.sort.gamesPlayed') }}</option>
-            </select>
+            <SortSelect
+              :model-value="deckSort"
+              :options="deckSortOptions"
+              :select-label="$t('statistics.perDeck.sort.ariaLabel')"
+              class="mb-3.5"
+              @update:model-value="(v) => (deckSort = v as DeckSortOrder)"
+            />
 
             <div class="flex flex-col gap-3.5">
               <article
