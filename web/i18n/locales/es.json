@@ -92,49 +92,59 @@
     }
   },
   "dashboard": {
-    "sessionAs": "Sesión iniciada como",
     "greeting": "Hola, {username}",
     "newGame": "+ Nueva partida",
     "loadError": "No se pudo cargar el resumen.",
     "stats": {
       "games": "Partidas",
-      "wins": "Victorias",
-      "winRate": "Win rate",
-      "decks": "Decks"
+      "winRate": "Win rate"
     },
     "winLoss": {
       "heading": "Victorias / derrotas",
       "won": "{count} ganadas",
       "lost": "{count} perdidas"
     },
+    "performance": {
+      "totals": "{games} partidas · {decks} decks · {groups} grupos"
+    },
     "bestDeck": {
       "heading": "Tu mejor deck",
-      "summary": "{winRate} de win rate · {games} partidas",
-      "empty": "Todavía no hay partidas registradas."
+      "emptyTitle": "Todavía no hay un deck destacado",
+      "emptyBody": "Importa tus decks desde Moxfield y juega una partida: aquí aparecerá con el que más ganas.",
+      "emptyCta": "Importar un deck"
     },
     "streak": {
       "heading": "Racha actual",
       "wins": "{count} victorias seguidas",
       "losses": "{count} derrotas seguidas",
-      "sinceLast": "Contando desde tu última partida.",
       "empty": "Sin partidas finalizadas todavía."
     },
     "groups": {
       "heading": "Tus grupos",
       "viewAll": "Ver todos",
-      "empty": "Todavía no eres miembro de ningún grupo.",
-      "summary": "{members} miembros · {games} partidas"
+      "summary": "{members} miembros · {games} partidas",
+      "emptyTitle": "Todavía no estás en ningún grupo",
+      "emptyBody": "Los grupos son las mesas con las que juegas habitualmente: mantienen juntos el historial y las estadísticas de cada partida.",
+      "emptyCta": "Crear un grupo"
     },
     "decksSection": {
       "heading": "Tus decks",
       "viewStats": "Ver estadísticas",
-      "empty": "Todavía no tienes decks."
+      "gamesPlayed": "{count} partida | {count} partidas",
+      "emptyTitle": "Todavía no tienes decks",
+      "emptyBody": "Impórtalos desde Moxfield para seguir cómo rinde cada uno.",
+      "emptyCta": "Importar un deck"
     },
     "recentGames": {
       "heading": "Últimas partidas",
-      "empty": "Todavía no se registró ninguna partida finalizada.",
+      "viewAll": "Ver todas",
       "won": "Ganada",
-      "lost": "Perdida"
+      "lost": "Perdida",
+      "versus": "vs {opponents}",
+      "unknownDeck": "Deck sin registrar",
+      "emptyTitle": "Todavía no hay partidas registradas",
+      "emptyBody": "Termina una partida y aparecerá aquí con el deck que jugaste y a quién ganaste.",
+      "emptyCta": "Empezar una partida"
     }
   },
   "decks": {

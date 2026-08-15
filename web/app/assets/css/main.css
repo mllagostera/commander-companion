@@ -57,6 +57,26 @@
   --lose-bg: rgba(185, 28, 28, 0.1);
 }
 
+/*
+ * Corner-radius scale. Not theme-dependent (so it lives outside the two
+ * [data-theme] blocks above), but it belongs with the other design tokens:
+ * before this existed, radii were written inline per element and had drifted
+ * to 18/20/22/24/26/28px with no rule — three cards sitting side by side in
+ * the dashboard's own grid used 24, 20 and 26. Four steps is enough for
+ * every surface this app draws:
+ *   xl → page-level cards and hero surfaces
+ *   lg → standard cards inside a section
+ *   md → list rows and inner blocks
+ *   sm → thumbnails and chips
+ * Pages still on hardcoded values are fine to migrate opportunistically.
+ */
+:root {
+  --radius-xl: 28px;
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 10px;
+}
+
 body {
   margin: 0;
   background: var(--page-solid);

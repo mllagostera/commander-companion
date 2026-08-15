@@ -25,6 +25,58 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-15 — Dashboard rebuilt (structure, density and empty states).**
+The user asked whether the main dashboard could be improved visually. Judging
+it fairly needed data: the gallery's own `dashboard-with-activity.png` was
+captured on an account with a single empty playgroup, so it showed the same
+"nothing yet" text as the empty-state shot. A throwaway account was seeded
+directly in the local Postgres (14 finished games across 2 playgroups, 5
+decks with stats summaries) to see the screen as a real user would. Four
+concrete problems came out of that, and all four drove the redesign:
+
+- **Radii had drifted with no scale** — 18/20/22/24/26/28px, including three
+  cards sitting side by side in the same grid at 24, 20 and 26. Fixed by
+  adding a four-step `--radius-{sm,md,lg,xl}` scale to `main.css` alongside
+  the existing colour tokens (deliberately outside the `[data-theme]` blocks:
+  radii don't vary by theme). The dashboard uses it throughout; other pages
+  can adopt it opportunistically, which is why the tokens were introduced as
+  a scale rather than as a repo-wide rename in this pass.
+- **The second row restated the first** — a KPI strip said win rate / wins /
+  games, and the card immediately below repeated all three around the ring.
+  Resolved by dropping the KPI strip and letting a single "performance" card
+  own win rate (ring), wins-losses, streak, and a totals footer.
+- **`Recent games` wasted its width** — each row was `date · group` and a
+  result badge with ~1000px of nothing between them, despite the payload
+  already carrying each game's players and `deck_id`. Rows now show the deck
+  played (with its art) and the opponents' usernames; no new endpoint was
+  needed, since the usernames come from the playgroup members already
+  fetched for the groups section (`Game.players` only carries `user_id`).
+- **Empty states were five grey sentences with nothing to click** — the
+  literal first impression of the app. Replaced with a shared `EmptyState`
+  component (dashed border, title, body, action) so each section points at
+  what to do next: import a deck, start a game, create a group.
+
+The best deck became the page's visual anchor: a spotlight card rendering its
+own art full-bleed behind the text. That needed a `fill` mode on `DeckArt`,
+and produced the one real bug of the session — passing `absolute` from the
+parent did nothing, because `DeckArt`'s root already carried `relative` and
+Tailwind emits `.relative` *after* `.absolute`, so on equal specificity the
+component's own class won regardless of the order they appear in the class
+attribute. Caught by inspecting the live DOM (the art was rendering as a
+91px-tall strip) rather than by eyeballing the screenshot; `fill` now sets
+the positioning itself instead of relying on the caller.
+
+Verified against the running stack (local Postgres + `go run ./cmd/api` +
+`nuxt dev`) with real browser captures at 1440px and at a 390px phone
+viewport, in both themes, and in both the populated and brand-new-account
+states — the phone pass caught deck names truncating to "Atraxa Su…" in
+`Recent games`, fixed by dropping the group name from that column below
+`sm`. `eslint` / `nuxt typecheck` / a real `nuxt build` all clean, i18n keys
+re-checked for parity across the three locales (427 each) with no orphaned
+or missing dashboard keys. `docs/ux/screenshots.md`'s two Dashboard captures
+were regenerated (in `es`, 1440×900, matching the rest of the gallery) since
+the README asks for that after a significant UI change.
+
 **2026-08-15 — Friends system, phase 2 of 3 (QR generation in `settings.vue`).**
 Follow-up to phase 1 (below), same session. Added a "My QR code" card to
 `settings.vue` that renders a QR of the user's own `id` using the `qrcode`

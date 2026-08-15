@@ -92,49 +92,59 @@
     }
   },
   "dashboard": {
-    "sessionAs": "Signed in as",
     "greeting": "Hi, {username}",
     "newGame": "+ New game",
     "loadError": "Couldn't load the summary.",
     "stats": {
       "games": "Games",
-      "wins": "Wins",
-      "winRate": "Win rate",
-      "decks": "Decks"
+      "winRate": "Win rate"
     },
     "winLoss": {
       "heading": "Wins / losses",
       "won": "{count} won",
       "lost": "{count} lost"
     },
+    "performance": {
+      "totals": "{games} games · {decks} decks · {groups} groups"
+    },
     "bestDeck": {
       "heading": "Your best deck",
-      "summary": "{winRate} win rate · {games} games",
-      "empty": "No games recorded yet."
+      "emptyTitle": "No standout deck yet",
+      "emptyBody": "Import your decks from Moxfield and play a game — the one you win the most with shows up here.",
+      "emptyCta": "Import a deck"
     },
     "streak": {
       "heading": "Current streak",
       "wins": "{count} wins in a row",
       "losses": "{count} losses in a row",
-      "sinceLast": "Counting from your last game.",
       "empty": "No finished games yet."
     },
     "groups": {
       "heading": "Your groups",
       "viewAll": "View all",
-      "empty": "You're not a member of any group yet.",
-      "summary": "{members} members · {games} games"
+      "summary": "{members} members · {games} games",
+      "emptyTitle": "You're not in any group yet",
+      "emptyBody": "Groups are the tables you play with regularly — they keep every game's history and stats together.",
+      "emptyCta": "Create a group"
     },
     "decksSection": {
       "heading": "Your decks",
       "viewStats": "View statistics",
-      "empty": "You don't have any decks yet."
+      "gamesPlayed": "{count} game | {count} games",
+      "emptyTitle": "No decks yet",
+      "emptyBody": "Import them from Moxfield to track how each one performs.",
+      "emptyCta": "Import a deck"
     },
     "recentGames": {
       "heading": "Recent games",
-      "empty": "No finished game has been recorded yet.",
+      "viewAll": "View all",
       "won": "Won",
-      "lost": "Lost"
+      "lost": "Lost",
+      "versus": "vs {opponents}",
+      "unknownDeck": "Unrecorded deck",
+      "emptyTitle": "No games recorded yet",
+      "emptyBody": "Finish a game and it shows up here with the deck you played and who you beat.",
+      "emptyCta": "Start a game"
     }
   },
   "decks": {

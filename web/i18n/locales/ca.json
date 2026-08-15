@@ -92,49 +92,59 @@
     }
   },
   "dashboard": {
-    "sessionAs": "Sessió iniciada com a",
     "greeting": "Hola, {username}",
     "newGame": "+ Nova partida",
     "loadError": "No s'ha pogut carregar el resum.",
     "stats": {
       "games": "Partides",
-      "wins": "Victòries",
-      "winRate": "Win rate",
-      "decks": "Decks"
+      "winRate": "Win rate"
     },
     "winLoss": {
       "heading": "Victòries / derrotes",
       "won": "{count} guanyades",
       "lost": "{count} perdudes"
     },
+    "performance": {
+      "totals": "{games} partides · {decks} decks · {groups} grups"
+    },
     "bestDeck": {
       "heading": "El teu millor deck",
-      "summary": "{winRate} de win rate · {games} partides",
-      "empty": "Encara no hi ha partides registrades."
+      "emptyTitle": "Encara no hi ha cap deck destacat",
+      "emptyBody": "Importa els teus decks des de Moxfield i juga una partida: aquí hi apareixerà amb el que més guanyes.",
+      "emptyCta": "Importar un deck"
     },
     "streak": {
       "heading": "Ratxa actual",
       "wins": "{count} victòries seguides",
       "losses": "{count} derrotes seguides",
-      "sinceLast": "Comptant des de la teva última partida.",
       "empty": "Encara no hi ha partides finalitzades."
     },
     "groups": {
       "heading": "Els teus grups",
       "viewAll": "Veure'ls tots",
-      "empty": "Encara no ets membre de cap grup.",
-      "summary": "{members} membres · {games} partides"
+      "summary": "{members} membres · {games} partides",
+      "emptyTitle": "Encara no ets a cap grup",
+      "emptyBody": "Els grups són les taules amb què jugues habitualment: mantenen juntes la història i les estadístiques de cada partida.",
+      "emptyCta": "Crear un grup"
     },
     "decksSection": {
       "heading": "Els teus decks",
       "viewStats": "Veure estadístiques",
-      "empty": "Encara no tens cap deck."
+      "gamesPlayed": "{count} partida | {count} partides",
+      "emptyTitle": "Encara no tens cap deck",
+      "emptyBody": "Importa'ls des de Moxfield per seguir com rendeix cadascun.",
+      "emptyCta": "Importar un deck"
     },
     "recentGames": {
       "heading": "Últimes partides",
-      "empty": "Encara no s'ha registrat cap partida finalitzada.",
+      "viewAll": "Veure-les totes",
       "won": "Guanyada",
-      "lost": "Perduda"
+      "lost": "Perduda",
+      "versus": "vs {opponents}",
+      "unknownDeck": "Deck sense registrar",
+      "emptyTitle": "Encara no hi ha partides registrades",
+      "emptyBody": "Acaba una partida i apareixerà aquí amb el deck que has jugat i a qui has guanyat.",
+      "emptyCta": "Començar una partida"
     }
   },
   "decks": {
