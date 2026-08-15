@@ -71,7 +71,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
           <span class="cc-gradient-text text-[15px] font-semibold tracking-wide">Commander Companion</span>
         </NuxtLink>
 
-        <nav class="flex flex-wrap gap-2.5 text-[13px] sm:gap-5 sm:text-sm">
+        <nav class="hidden gap-5 text-sm sm:flex">
           <NuxtLink
             v-for="link in links"
             :key="link.to"
@@ -109,6 +109,18 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
               class="absolute right-0 top-[calc(100%+10px)] z-30 flex min-w-[210px] flex-col gap-0.5 rounded-[18px] border p-2.5 shadow-[0_16px_36px_rgba(0,0,0,0.3)] backdrop-blur-xl"
               style="background: var(--menu-bg); border-color: var(--card-border);"
             >
+              <nav class="flex flex-col gap-0.5 border-b pb-1.5 sm:hidden" style="border-color: var(--card-border);">
+                <NuxtLink
+                  v-for="link in links"
+                  :key="link.to"
+                  :to="link.to"
+                  class="rounded-[10px] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
+                  :style="{ color: isActive(link.to) ? 'var(--accent-link)' : 'var(--text)' }"
+                  @click="closeUserMenu"
+                >
+                  {{ link.label }}
+                </NuxtLink>
+              </nav>
               <div class="flex items-center justify-between px-2.5 py-2">
                 <span class="text-[13px]" style="color: var(--text);">{{ $t('nav.darkTheme') }}</span>
                 <button
