@@ -19,6 +19,7 @@
     "toggleTheme": "Cambiar tema",
     "language": "Idioma",
     "tournaments": "Torneos",
+    "friends": "Amigos",
     "userMenu": "Menú de usuario"
   },
   "login": {
@@ -324,6 +325,32 @@
       }
     }
   },
+  "friends": {
+    "title": "Amigos",
+    "subtitle": "Agrega amigos por username y gestiona tus solicitudes.",
+    "add": {
+      "heading": "Agregar un amigo",
+      "searchPlaceholder": "Buscar por username",
+      "searching": "Buscando…",
+      "send": "Enviar solicitud"
+    },
+    "incoming": {
+      "heading": "Solicitudes de amistad",
+      "accept": "Aceptar",
+      "reject": "Rechazar"
+    },
+    "outgoing": {
+      "heading": "Solicitudes enviadas",
+      "pending": "Pendiente",
+      "cancel": "Cancelar"
+    },
+    "list": {
+      "heading": "Tus amigos",
+      "empty": "Todavía no agregaste ningún amigo.",
+      "since": "Amigos desde {date}",
+      "remove": "Quitar"
+    }
+  },
   "play": {
     "setup": {
       "title": "Nueva partida",
@@ -383,7 +410,9 @@
     "tournamentJoined": "Te has unido al torneo",
     "guestAdded": "{name} añadido al torneo",
     "tournamentStarted": "Torneo iniciado",
-    "roundAdvanced": "Ronda avanzada"
+    "roundAdvanced": "Ronda avanzada",
+    "friendRequestSent": "Solicitud de amistad enviada a {username}",
+    "friendAdded": "Ahora tú y {username} son amigos"
   },
   "gameStatus": {
     "pending": "Pendiente",
@@ -490,6 +519,22 @@
       "lookup": {
         "notFound": "Ese código no corresponde a ningún torneo.",
         "generic": "No se pudo consultar el torneo."
+      }
+    },
+    "friends": {
+      "send": {
+        "invalid": "No puedes enviarte una solicitud de amistad a ti mismo.",
+        "userNotFound": "No hay ningún usuario con ese ID.",
+        "conflict": "Ya son amigos, o ya hay una solicitud pendiente.",
+        "generic": "No se pudo enviar la solicitud de amistad."
+      },
+      "respond": {
+        "notFound": "Esa solicitud no existe o no es tuya.",
+        "notPending": "Esa solicitud ya fue respondida.",
+        "generic": "No se pudo actualizar la solicitud de amistad."
+      },
+      "list": {
+        "generic": "No se pudieron cargar tus amigos."
       }
     }
   },
