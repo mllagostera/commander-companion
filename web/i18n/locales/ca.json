@@ -249,6 +249,10 @@
       "label": "Nom d'usuari",
       "placeholder": "El teu nom d'usuari"
     },
+    "qr": {
+      "heading": "El meu codi QR",
+      "description": "Comparteix-lo perquè un amic et pugui afegir escanejant-lo. L'escaneig de QR arribarà properament a l'app d'Android."
+    },
     "moxfield": {
       "heading": "Moxfield",
       "description": "Vincula el teu usuari de Moxfield per poder importar tots els teus decks públics en segon pla.",

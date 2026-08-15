@@ -1,6 +1,6 @@
-# ADR-0017: Friend requests (send/accept/reject, no QR yet)
+# ADR-0017: Friend requests (send/accept/reject) and profile QR generation
 
-**Status:** Accepted (2026-08-15) — phase 1 of a multi-phase plan; phases 2-3 (QR generation on web, QR generation + scanning on Android) are follow-up work, see Consequences.
+**Status:** Accepted (2026-08-15) — phases 1-2 of a 3-phase plan implemented (backend + web request lifecycle, web QR generation); phase 3 (Android profile screen, QR generation + camera scanning) is follow-up work, see Consequences.
 
 ## Context
 
@@ -26,8 +26,8 @@ screen that doesn't exist yet), the work was split into a 3-phase plan,
 agreed with the user up front via plan mode: (1) backend + web, request
 lifecycle via username search only, no QR; (2) web QR *generation* only
 (`settings.vue`, showing your own code); (3) Android — a new profile screen,
-QR generation, and QR *scanning*. This ADR covers phase 1, the only one
-implemented so far.
+QR generation, and QR *scanning*. This ADR covers phases 1 and 2; phase 3 is
+still unbuilt.
 
 ## Decision
 
@@ -81,6 +81,21 @@ cancelling one when the caller isn't its requester) returns
 resource exists to someone who isn't a party to it" criteria already used by
 `playgroups.getMemberPlaygroup` for a non-member's `GetPlaygroup`.
 
+### QR generated as an inline SVG string, not a canvas/PNG
+
+`settings.vue` generates the QR with the `qrcode` npm package's
+`QRCode.toString(id, { type: 'svg' })`, rendered via `v-html` into a fixed
+white box (regardless of the app's light/dark theme, since a QR needs
+reliable black-on-white contrast to scan, not to match the page's palette).
+This was chosen over `toDataURL`/canvas-based generation because
+`toString('svg')` is pure string generation — no `<canvas>`/`document`
+access — so it runs identically during SSR and in the browser, and the QR is
+already present in the initial server-rendered HTML instead of popping in
+after a client-side effect. No new backend endpoint was needed: the client
+already has its own `id` from the session (`useAuth().user.id`), matching
+the "no new endpoint for QR generation" consequence already called out in
+the Decision section above.
+
 ## Alternatives considered
 
 - **`friend_code` rotable column, QR encodes that instead of `id`**: rejected
@@ -99,14 +114,18 @@ resource exists to someone who isn't a party to it" criteria already used by
 
 ## Consequences
 
-- Phase 1 (this ADR) ships a fully usable friends feature through
-  `web/app/pages/friends.vue`: search by username, send/accept/reject/cancel,
-  friends list, unfriend. No QR yet anywhere.
-- Phases 2 (web QR generation in `settings.vue`) and 3 (Android profile
-  screen + QR generation/scanning, new `zxing`/CameraX-or-ML-Kit
-  dependencies) are unbuilt follow-ups — `docs/roadmap/TASKS.md` tracks them
-  as separate sub-items under Stage 9 rather than marking the whole friends
-  item done.
+- Phases 1-2 (this ADR) ship a fully usable friends feature through
+  `web/app/pages/friends.vue` (search by username,
+  send/accept/reject/cancel, friends list, unfriend) plus a QR of your own
+  `id` shown in `web/app/pages/settings.vue`. **Nothing can scan it yet** —
+  the QR is real and correct (verified end-to-end, see the 2026-08-15
+  DECISIONS-LOG entries), but there is no scanner anywhere in the app until
+  phase 3 ships. It's only useful today if decoded by some other QR reader
+  and the resulting id pasted somewhere — not a real flow for an end user.
+- Phase 3 (Android profile screen + QR generation/scanning, new
+  `zxing`/CameraX-or-ML-Kit dependencies) is the remaining unbuilt
+  follow-up — `docs/roadmap/TASKS.md` tracks it as a separate sub-item under
+  Stage 9 rather than marking the whole friends item done.
 - Android has no profile screen today at all (confirmed against
   `docs/ux/wireframes.md` during the investigation for this feature) — phase
   3 is what will introduce the first one, driven by this feature's need to
@@ -122,6 +141,7 @@ resource exists to someone who isn't a party to it" criteria already used by
 - `backend/internal/friends/` (`service.go`, `handler.go`, `query.sql`)
 - `docs/api/openapi.yaml` (`/friends*` paths and schemas)
 - `web/app/pages/friends.vue`, `web/app/composables/useFriends.ts`
+- `web/app/pages/settings.vue` (QR generation), `qrcode` npm package
 - [ADR-0016](0016-swiss-tournament-format.md) (`join_code`, the precedent
   this ADR's Decision section explains why it wasn't reused as-is)
 - [ADR-0013](0013-proxy-join-and-action-authorization.md) (the

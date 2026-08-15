@@ -249,6 +249,10 @@
       "label": "Username",
       "placeholder": "Your username"
     },
+    "qr": {
+      "heading": "My QR code",
+      "description": "Share it so a friend can add you by scanning it — QR scanning is coming to the Android app."
+    },
     "moxfield": {
       "heading": "Moxfield",
       "description": "Link your Moxfield username to import all your public decks in the background.",

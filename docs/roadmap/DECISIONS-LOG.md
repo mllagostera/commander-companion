@@ -25,6 +25,33 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-15 — Friends system, phase 2 of 3 (QR generation in `settings.vue`).**
+Follow-up to phase 1 (below), same session. Added a "My QR code" card to
+`settings.vue` that renders a QR of the user's own `id` using the `qrcode`
+npm package's `toString(id, { type: 'svg' })` — string-only SVG generation
+(no canvas/`document` access), chosen specifically so it works identically
+during SSR and renders in the initial server payload rather than popping in
+after hydration. No backend change needed: the id was already available
+client-side from the session. See ADR-0017's new "QR generated as an inline
+SVG string" subsection for the full rationale, including why `v-html` here
+doesn't carry the XSS risk the lint rule normally flags (the SVG is
+generated locally from the account's own UUID, never from anything
+user-controllable) — a scoped `eslint-disable-next-line` with that
+justification was added rather than suppressing the rule globally.
+
+Verification went beyond visual: rather than trust the rendered QR "looks
+right," the actual `<path>` `d` attribute in the live DOM (the data that
+encodes the QR's module grid) was extracted via Playwright and compared
+byte-for-byte against an SVG independently regenerated server-side with the
+same library/options for that session's real user id — an exact match,
+proving the page encodes the correct id rather than merely rendering *a*
+QR-shaped image. `npm run lint`/`typecheck`/`build` all clean; i18n keys
+(`settings.qr.*`) added to all three locales with parity re-checked (419
+keys each). The QR is real but currently unscannable by anything in the
+app — phase 3 (Android) is what adds a scanner; this is called out
+explicitly in ADR-0017's Consequences so it isn't mistaken for a working
+end-to-end flow.
+
 **2026-08-15 — Friends system, phase 1 of 3 (backend + web, no QR yet).**
 The user asked for a friends feature: add someone by username, or by
 scanning a QR shown on their profile. Stage 9's friends item

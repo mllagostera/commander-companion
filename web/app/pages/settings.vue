@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import QRCode from 'qrcode'
 import type { MoxfieldImportJob } from '~/types/api'
 
 const { t, d } = useI18n()
@@ -15,6 +16,24 @@ const { showToast } = useToast()
 
 const userInitial = computed(() => user.value?.username?.[0]?.toUpperCase() ?? '?')
 const memberSince = computed(() => (user.value ? d(new Date(user.value.created_at), 'short') : ''))
+
+// ------------------------------------------------------------------- QR
+// The QR encodes the user's own id directly (no separate rotable code, see
+// ADR-0017): scanning it (Android, future work) feeds that id into the same
+// POST /friends/requests a username search already uses. SVG generation
+// runs fine in pure Node (no canvas needed), so it also renders in the
+// initial SSR payload.
+const friendQrSvg = ref('')
+
+watch(
+  () => user.value?.id,
+  async (id) => {
+    friendQrSvg.value = id
+      ? await QRCode.toString(id, { type: 'svg', margin: 1, color: { dark: '#0a0714', light: '#ffffff' } })
+      : ''
+  },
+  { immediate: true },
+)
 
 // -------------------------------------------------------------- username
 const username = ref(user.value?.username ?? '')
@@ -192,6 +211,13 @@ onUnmounted(stopPolling)
         </button>
       </form>
       <p v-if="usernameError" class="text-sm" style="color: var(--lose);">{{ usernameError }}</p>
+    </section>
+
+    <section class="flex flex-col items-center gap-3 rounded-[28px] border p-[22px] text-center" style="border-color: var(--card-border); background: var(--card-bg);">
+      <h2 class="text-[15px] font-medium">{{ $t('settings.qr.heading') }}</h2>
+      <p class="max-w-[380px] text-[13px]" style="color: var(--text-muted);">{{ $t('settings.qr.description') }}</p>
+      <!-- eslint-disable-next-line vue/no-v-html -- friendQrSvg is generated locally by the `qrcode` lib from the user's own id (a UUID), never from user-controllable input -->
+      <div v-if="friendQrSvg" class="w-[180px] rounded-2xl bg-white p-3" v-html="friendQrSvg" />
     </section>
 
     <section class="flex flex-col gap-3.5 rounded-[28px] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
