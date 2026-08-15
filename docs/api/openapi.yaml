@@ -818,6 +818,77 @@ components:
                 format: uuid
               finish_position:
                 type: integer
+    SendFriendRequestRequest:
+      type: object
+      required: [addressee_id]
+      properties:
+        addressee_id:
+          type: string
+          format: uuid
+          description: >-
+            Resolved client-side beforehand, either via GET /users/search
+            (typing a username) or by decoding the target's profile QR
+            (which encodes their id) -- both entry points call this same endpoint.
+    FriendRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        addressee_id:
+          type: string
+          format: uuid
+        addressee_username:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted]
+          description: >-
+            "accepted" instead of "pending" when this call auto-accepted a
+            pre-existing request in the opposite direction.
+        created_at:
+          type: string
+          format: date-time
+    IncomingFriendRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        requester_id:
+          type: string
+          format: uuid
+        requester_username:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    OutgoingFriendRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        addressee_id:
+          type: string
+          format: uuid
+        addressee_username:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    Friend:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The friend's user id (resolved to whichever side of the request wasn't the caller).
+        username:
+          type: string
+        friends_since:
+          type: string
+          format: date-time
     ErrorResponse:
       type: object
       properties:
@@ -2380,6 +2451,174 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Not every table in the current round has a recorded result yet, or the tournament is not in_progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /friends/requests:
+    post:
+      summary: Send a friend request
+      description: >-
+        If the addressee already has a pending request TO the authenticated
+        user, auto-accepts that existing request instead of creating a
+        second one (response's `status` is "accepted" in that case).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendFriendRequestRequest'
+      responses:
+        '201':
+          description: Request created (or auto-accepted, see description)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequest'
+        '400':
+          description: addressee_id is missing/invalid, or equals the authenticated user's own id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: addressee_id does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Already friends, or a request in the same direction is already pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: List the authenticated user's pending friend requests
+      parameters:
+        - in: query
+          name: direction
+          schema:
+            type: string
+            enum: [incoming, outgoing]
+            default: incoming
+      responses:
+        '200':
+          description: Pending requests in the given direction
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - $ref: '#/components/schemas/IncomingFriendRequest'
+                    - $ref: '#/components/schemas/OutgoingFriendRequest'
+  /friends/requests/{id}/accept:
+    post:
+      summary: Accept a pending friend request (only its addressee may accept it)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Request accepted; the new friend
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Friend'
+        '404':
+          description: Does not exist, or the authenticated user is not its addressee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The request is no longer pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /friends/requests/{id}/reject:
+    post:
+      summary: Reject a pending friend request (only its addressee may reject it)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Request rejected
+        '404':
+          description: Does not exist, or the authenticated user is not its addressee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The request is no longer pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /friends/requests/{id}:
+    delete:
+      summary: Cancel an outgoing pending friend request (only its original requester may cancel it)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Request cancelled
+        '404':
+          description: Does not exist, or the authenticated user is not its requester
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The request is no longer pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /friends:
+    get:
+      summary: List the authenticated user's accepted friendships
+      responses:
+        '200':
+          description: The authenticated user's friends
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Friend'
+  /friends/{userId}:
+    delete:
+      summary: Remove a friendship (unfriend)
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Friendship removed
+        '404':
+          description: The authenticated user and userId are not friends
           content:
             application/json:
               schema:

@@ -280,6 +280,26 @@ Table tournament_tables {
   }
 }
 
+// Friend requests between two app users (Stage 9, "Social"). Distinct from
+// playgroups (game groups): a playgroup member add takes effect immediately,
+// a friend request needs the addressee's accept. Migration 00017_friend_requests.sql.
+Table friend_requests {
+  id uuid [primary key]
+  requester_id uuid [ref: > users.id, not null]
+  addressee_id uuid [ref: > users.id, not null]
+  status varchar [not null, default: 'pending', note: 'pending, accepted, rejected, cancelled']
+  created_at timestamp [default: `now()`]
+  responded_at timestamp [null, note: 'Set when the request is accepted, rejected or cancelled']
+
+  indexes {
+    (requester_id, addressee_id) [unique, note: 'Partial UNIQUE WHERE status = pending -- prevents a duplicate pending request in the same direction']
+    addressee_id [note: 'FK coverage + hot path: list incoming requests']
+    requester_id [note: 'FK coverage + hot path: list outgoing requests']
+  }
+
+  Note: 'CHECK: requester_id <> addressee_id; status IN (pending, accepted, rejected, cancelled) (migration 00017_friend_requests.sql). An accepted row IS the friendship -- no separate friends table; query WHERE (requester_id=X OR addressee_id=X) AND status=accepted. The reverse-direction race (both users request each other before either responds) is auto-accepted by the service instead of inserting a second row, not a DB constraint.'
+}
+
 Table tournament_table_seats {
   id uuid [primary key]
   tournament_table_id uuid [ref: > tournament_tables.id, not null]

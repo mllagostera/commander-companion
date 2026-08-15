@@ -57,6 +57,15 @@ type EmailVerificationToken struct {
 	UsedAt    pgtype.Timestamp `json:"used_at"`
 }
 
+type FriendRequest struct {
+	ID          pgtype.UUID      `json:"id"`
+	RequesterID pgtype.UUID      `json:"requester_id"`
+	AddresseeID pgtype.UUID      `json:"addressee_id"`
+	Status      string           `json:"status"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	RespondedAt pgtype.Timestamp `json:"responded_at"`
+}
+
 type Game struct {
 	ID                  pgtype.UUID      `json:"id"`
 	PlaygroupID         pgtype.UUID      `json:"playgroup_id"`

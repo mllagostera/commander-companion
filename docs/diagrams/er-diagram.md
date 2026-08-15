@@ -22,6 +22,8 @@ erDiagram
     game_players |o--o{ game_actions : "target of (optional)"
     users ||--o| user_statistics_summary : "summary of"
     decks ||--o| deck_statistics_summary : "summary of"
+    users ||--o{ friend_requests : "sent (requester_id)"
+    users ||--o{ friend_requests : "received (addressee_id)"
 
     users {
         uuid id PK
@@ -116,6 +118,15 @@ erDiagram
         int total_commander_damage_dealt "default 0"
         timestamp last_recalculated_at
     }
+
+    friend_requests {
+        uuid id PK
+        uuid requester_id FK "users.id"
+        uuid addressee_id FK "users.id"
+        varchar status "CHECK (00017): pending | accepted | rejected | cancelled"
+        timestamp created_at
+        timestamp responded_at "nullable: set on accept/reject/cancel"
+    }
 ```
 
 ## Notes
@@ -140,3 +151,9 @@ erDiagram
   `https://assets.moxfield.net/cards/card-{id}-art_crop.jpg`, the same art
   crop Moxfield uses as its own `og:image`) — it is not an arbitrary URL
   from the client. See `docs/api/openapi.yaml` (`Deck.image_url`).
+- `friend_requests` (`00017_friend_requests.sql`, see ADR-0017) has no
+  separate `friends` table: an `accepted` row IS the friendship, resolved to
+  "the other user" regardless of which side was `requester_id`. This diagram
+  predates the tournaments tables (`00016`) and the async job tables
+  (`moxfield_import_jobs`/`deck_resync_jobs`, `00010`/`00013`) — see
+  `docs/database/schema.dbml` for the always-current full schema.

@@ -25,6 +25,93 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-15 — Friends system, phase 2 of 3 (QR generation in `settings.vue`).**
+Follow-up to phase 1 (below), same session. Added a "My QR code" card to
+`settings.vue` that renders a QR of the user's own `id` using the `qrcode`
+npm package's `toString(id, { type: 'svg' })` — string-only SVG generation
+(no canvas/`document` access), chosen specifically so it works identically
+during SSR and renders in the initial server payload rather than popping in
+after hydration. No backend change needed: the id was already available
+client-side from the session. See ADR-0017's new "QR generated as an inline
+SVG string" subsection for the full rationale, including why `v-html` here
+doesn't carry the XSS risk the lint rule normally flags (the SVG is
+generated locally from the account's own UUID, never from anything
+user-controllable) — a scoped `eslint-disable-next-line` with that
+justification was added rather than suppressing the rule globally.
+
+Verification went beyond visual: rather than trust the rendered QR "looks
+right," the actual `<path>` `d` attribute in the live DOM (the data that
+encodes the QR's module grid) was extracted via Playwright and compared
+byte-for-byte against an SVG independently regenerated server-side with the
+same library/options for that session's real user id — an exact match,
+proving the page encodes the correct id rather than merely rendering *a*
+QR-shaped image. `npm run lint`/`typecheck`/`build` all clean; i18n keys
+(`settings.qr.*`) added to all three locales with parity re-checked (419
+keys each). The QR is real but currently unscannable by anything in the
+app — phase 3 (Android) is what adds a scanner; this is called out
+explicitly in ADR-0017's Consequences so it isn't mistaken for a working
+end-to-end flow.
+
+**2026-08-15 — Friends system, phase 1 of 3 (backend + web, no QR yet).**
+The user asked for a friends feature: add someone by username, or by
+scanning a QR shown on their profile. Stage 9's friends item
+(`docs/roadmap/TASKS.md`) had been undesigned since tournaments (ADR-0016)
+was pulled forward ahead of it. Given the size (backend + web + a brand-new
+Android profile screen for the QR-scanning half), this went through
+`EnterPlanMode` first: two research agents (current `users`/`playgroups`
+schema and DTO shapes; existing invite/QR precedent — `playgroups`' username
+search, `tournaments.join_code`, and confirming no QR library exists
+anywhere in the repo yet) fed a written plan, approved before any code was
+touched. The plan split the work into 3 phases and only phase 1 (backend +
+web, request lifecycle via username search) was built this session; phases
+2 (web QR generation) and 3 (Android profile screen + QR generation/scanning)
+are follow-up work. Full design — most notably, why the QR encodes the
+user's own `id` directly instead of a new rotable `friend_code` — is in
+[ADR-0017](../decisions/0017-friends-system.md); this entry covers the
+how/verification.
+
+- **Schema**: migration `00017_friend_requests.sql`, one table
+  (`friend_requests`, `requester_id`/`addressee_id`/`status`), RLS enabled
+  (deny-all, same as every table since the 2026-08-01 audit). No separate
+  `friends` table — an `accepted` row *is* the friendship.
+  `docs/database/schema.dbml` updated in the same pass; `dbml2sql` and
+  Spectral (`openapi.yaml`) both run locally to confirm the sources of
+  truth stay valid (0 errors; the openapi lint's 154 warnings are all
+  pre-existing `operationId`/`tags`/`description` gaps across the *entire*
+  file, present before this change too, confirmed by diffing).
+- **Backend**: new module `internal/friends` (handler/service/query.sql,
+  same layout as `internal/playgroups`), wired in `cmd/api/main.go`. Reuses
+  `GET /users/search` unchanged for the username-search entry point. Handles
+  the crossed-request race (A and B request each other before either
+  responds) by auto-accepting the existing reverse row instead of erroring
+  or double-inserting — see ADR-0017's Decision section.
+- **Verification, unusually thorough for this sandbox**: neither Docker nor
+  a live Postgres was assumed available, so both were set up from scratch —
+  `sqlc` v1.27.0 (pinned, matching CI, after an initial `@latest` install
+  produced a version-string-only diff that was reverted) generated via a
+  real `go install`, and a local `postgresql-16` package (already installed
+  in the image but not running) started, password set, `pg_hba.conf`
+  switched to `md5`, and `commander`/`commander_test` databases created by
+  hand. `goose ... up` applied all 17 migrations cleanly against
+  `commander_test`, then `go test -race -p 1 ./...` ran the **entire**
+  backend suite (not just the new package) against it — every existing
+  package still green, confirming nothing was broken. Beyond that: the
+  actual API was run (`go run ./cmd/api`) alongside a real `nuxt dev` web
+  client pointed at it, and a Playwright script (installed standalone in
+  the scratchpad, pointed at the sandbox's pre-fetched Chromium binary since
+  the web project itself has no Playwright dependency) drove two real
+  browser sessions through the full UI: register both users, search-and-send
+  from A, accept from B, and confirm both ended up seeing each other in
+  `/friends` with the pending entries cleared — screenshots captured at each
+  step. `npm run lint`/`typecheck`/`build` (real `nuxt build`, not just
+  typecheck) all clean; the one lint finding (`apiFetch<void>` invalid as a
+  generic argument on the DELETE/reject calls) was fixed to `apiFetch<null>`,
+  matching `useSettings.ts`'s existing convention for a 204-with-no-body call.
+- **i18n**: `friends.*`/`toast.friend*`/`errors.friends.*` keys added to all
+  three locales (`en`/`es`/`ca`), not just `en` — key-parity checked
+  programmatically (417 keys in each file, zero missing on either side)
+  rather than assumed.
+
 **2026-08-09 — Branch migration off an unrelated in-flight branch;
 dependency updates (Android + web, last item of the punch list).**
 Mid-session, `git branch --show-current` turned up something unexpected:

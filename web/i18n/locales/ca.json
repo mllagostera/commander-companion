@@ -19,6 +19,7 @@
     "toggleTheme": "Canvia el tema",
     "language": "Idioma",
     "tournaments": "Tornejos",
+    "friends": "Amics",
     "userMenu": "Menú d'usuari"
   },
   "login": {
@@ -248,6 +249,10 @@
       "label": "Nom d'usuari",
       "placeholder": "El teu nom d'usuari"
     },
+    "qr": {
+      "heading": "El meu codi QR",
+      "description": "Comparteix-lo perquè un amic et pugui afegir escanejant-lo. L'escaneig de QR arribarà properament a l'app d'Android."
+    },
     "moxfield": {
       "heading": "Moxfield",
       "description": "Vincula el teu usuari de Moxfield per poder importar tots els teus decks públics en segon pla.",
@@ -324,6 +329,32 @@
       }
     }
   },
+  "friends": {
+    "title": "Amics",
+    "subtitle": "Afegeix amics per username i gestiona les teves sol·licituds.",
+    "add": {
+      "heading": "Afegir un amic",
+      "searchPlaceholder": "Cerca per username",
+      "searching": "Cercant…",
+      "send": "Envia sol·licitud"
+    },
+    "incoming": {
+      "heading": "Sol·licituds d'amistat",
+      "accept": "Accepta",
+      "reject": "Rebutja"
+    },
+    "outgoing": {
+      "heading": "Sol·licituds enviades",
+      "pending": "Pendent",
+      "cancel": "Cancel·la"
+    },
+    "list": {
+      "heading": "Els teus amics",
+      "empty": "Encara no has afegit cap amic.",
+      "since": "Amics des de {date}",
+      "remove": "Elimina"
+    }
+  },
   "play": {
     "setup": {
       "title": "Nova partida",
@@ -383,7 +414,9 @@
     "tournamentJoined": "T'has unit al torneig",
     "guestAdded": "{name} afegit al torneig",
     "tournamentStarted": "Torneig iniciat",
-    "roundAdvanced": "Ronda avançada"
+    "roundAdvanced": "Ronda avançada",
+    "friendRequestSent": "Sol·licitud d'amistat enviada a {username}",
+    "friendAdded": "Ara tu i {username} sou amics"
   },
   "gameStatus": {
     "pending": "Pendent",
@@ -490,6 +523,22 @@
       "lookup": {
         "notFound": "Aquest codi no correspon a cap torneig.",
         "generic": "No s'ha pogut consultar el torneig."
+      }
+    },
+    "friends": {
+      "send": {
+        "invalid": "No et pots enviar una sol·licitud d'amistat a tu mateix.",
+        "userNotFound": "No hi ha cap usuari amb aquest ID.",
+        "conflict": "Ja sou amics, o ja hi ha una sol·licitud pendent.",
+        "generic": "No s'ha pogut enviar la sol·licitud d'amistat."
+      },
+      "respond": {
+        "notFound": "Aquesta sol·licitud no existeix o no és teva.",
+        "notPending": "Aquesta sol·licitud ja s'ha respost.",
+        "generic": "No s'ha pogut actualitzar la sol·licitud d'amistat."
+      },
+      "list": {
+        "generic": "No s'han pogut carregar els teus amics."
       }
     }
   },

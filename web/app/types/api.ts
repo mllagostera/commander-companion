@@ -106,6 +106,42 @@ export interface UserSearchResult {
   username: string
 }
 
+/**
+ * Result of `POST /friends/requests`. `status` is "accepted" instead of
+ * "pending" when it auto-accepted a pre-existing request in the opposite
+ * direction (see internal/friends' service).
+ */
+export interface FriendRequestResult {
+  id: string
+  addressee_id: string
+  addressee_username: string
+  status: 'pending' | 'accepted'
+  created_at: string
+}
+
+/** A pending request addressed to the authenticated user (`GET /friends/requests?direction=incoming`). */
+export interface IncomingFriendRequest {
+  id: string
+  requester_id: string
+  requester_username: string
+  created_at: string
+}
+
+/** A pending request sent by the authenticated user (`GET /friends/requests?direction=outgoing`). */
+export interface OutgoingFriendRequest {
+  id: string
+  addressee_id: string
+  addressee_username: string
+  created_at: string
+}
+
+/** An accepted friendship (`GET /friends`), resolved to the other user regardless of who sent the request. */
+export interface Friend {
+  id: string
+  username: string
+  friends_since: string
+}
+
 /** State of a player within a game (`GameResponse.players`). */
 export interface GamePlayer {
   id: string

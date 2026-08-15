@@ -19,6 +19,7 @@
     "toggleTheme": "Toggle theme",
     "language": "Language",
     "tournaments": "Tournaments",
+    "friends": "Friends",
     "userMenu": "User menu"
   },
   "login": {
@@ -248,6 +249,10 @@
       "label": "Username",
       "placeholder": "Your username"
     },
+    "qr": {
+      "heading": "My QR code",
+      "description": "Share it so a friend can add you by scanning it — QR scanning is coming to the Android app."
+    },
     "moxfield": {
       "heading": "Moxfield",
       "description": "Link your Moxfield username to import all your public decks in the background.",
@@ -324,6 +329,32 @@
       }
     }
   },
+  "friends": {
+    "title": "Friends",
+    "subtitle": "Add friends by username, and manage your requests.",
+    "add": {
+      "heading": "Add a friend",
+      "searchPlaceholder": "Search by username",
+      "searching": "Searching…",
+      "send": "Send request"
+    },
+    "incoming": {
+      "heading": "Friend requests",
+      "accept": "Accept",
+      "reject": "Reject"
+    },
+    "outgoing": {
+      "heading": "Sent requests",
+      "pending": "Pending",
+      "cancel": "Cancel"
+    },
+    "list": {
+      "heading": "Your friends",
+      "empty": "You haven't added any friends yet.",
+      "since": "Friends since {date}",
+      "remove": "Remove"
+    }
+  },
   "play": {
     "setup": {
       "title": "New game",
@@ -383,7 +414,9 @@
     "tournamentJoined": "You joined the tournament",
     "guestAdded": "{name} added to the tournament",
     "tournamentStarted": "Tournament started",
-    "roundAdvanced": "Round advanced"
+    "roundAdvanced": "Round advanced",
+    "friendRequestSent": "Friend request sent to {username}",
+    "friendAdded": "You and {username} are now friends"
   },
   "gameStatus": {
     "pending": "Pending",
@@ -490,6 +523,22 @@
       "lookup": {
         "notFound": "That code doesn't match any tournament.",
         "generic": "Couldn't look up the tournament."
+      }
+    },
+    "friends": {
+      "send": {
+        "invalid": "You can't send a friend request to yourself.",
+        "userNotFound": "There's no user with that ID.",
+        "conflict": "You're already friends, or a request is already pending.",
+        "generic": "Couldn't send the friend request."
+      },
+      "respond": {
+        "notFound": "That request doesn't exist or isn't yours.",
+        "notPending": "That request was already responded to.",
+        "generic": "Couldn't update the friend request."
+      },
+      "list": {
+        "generic": "Couldn't load your friends."
       }
     }
   },

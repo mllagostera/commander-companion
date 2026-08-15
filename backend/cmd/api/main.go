@@ -20,6 +20,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/deckresync"
 	"github.com/usuario/commander-companion-backend/internal/decks"
 	"github.com/usuario/commander-companion-backend/internal/email"
+	"github.com/usuario/commander-companion-backend/internal/friends"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
@@ -247,4 +248,9 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	// internal/tournaments and ADR-0016), not tied to a playgroup.
 	tournamentsService := tournaments.NewService(db.Pool, decksService)
 	tournaments.NewHandler(tournamentsService).RegisterRoutes(protected)
+
+	// friends: friend requests between app users (see internal/friends and
+	// ADR-0017), distinct from playgroups (game groups, not friendship relations).
+	friendsService := friends.NewService(db.Pool)
+	friends.NewHandler(friendsService).RegisterRoutes(protected)
 }

@@ -11,7 +11,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - Keep each line short (status + what + a pointer to the file/module). Put narrative, rationale, and verification detail in DECISIONS-LOG.md instead, dated, under the matching stage — don't let it accumulate here again.
 - Update the "Last reviewed" date every time the real state of the code is audited, and add the corresponding entry to DECISIONS-LOG.md.
 
-**Last reviewed:** 2026-08-05 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
+**Last reviewed:** 2026-08-15 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
 
 ---
 
@@ -201,7 +201,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 
 ## Stage 9: Social — friends, groups and tournaments
 
-- [ ] Friends system: send/accept/reject requests, friends list — distinct from `playgroups` (game groups, not friendship relations)
+- [ ] Friends system: send/accept/reject requests, friends list — distinct from `playgroups` (game groups, not friendship relations) (**phases 1-2 of 3 done**, 2026-08-15, see [ADR-0017](../decisions/0017-friends-system.md)): backend (`internal/friends`, migration `00017_friend_requests.sql`) + web (`friends.vue`, add by username search; QR shown in `settings.vue`, generated client/server-side with the `qrcode` npm package, encodes the user's own `id`). Still missing: phase 3 (Android profile screen, new — Android has none today — plus QR generation and camera scanning), which is the actual "scan to add" flow the feature was requested for. Web has no camera scanning by design (see ADR-0017).
 - [ ] Groups beyond the existing `playgroups`, or extend them — not needed for tournaments in the end (see below), still open for any future friends/groups work
 - [x] **Standalone Swiss-format Commander tournaments** (2026-08-09, pulled forward ahead of the rest of this stage — see [ADR-0016](../decisions/0016-swiss-tournament-format.md) for the full design and the alternatives ruled out): `backend/internal/tournaments` (migration `00016_tournaments.sql`, five new tables, none touching `games`/`game_players`), organizer creates a tournament and gets a join code, app users self-register with one of their own decks (`POST /tournaments/join`), the organizer adds guests with no account (`POST /tournaments/{id}/participants`), `POST /tournaments/{id}/start` locks the roster (valid 3-4 player table split required, min 3, max 4 per table) and seats round 1 via a greedy repeat-avoiding pairing heuristic (`pairing.go`), round count is computed automatically from the roster size, the organizer records each table's finish order (`POST /tournaments/{id}/tables/{tableId}/result`, scoring 2/1/0/0) and advances rounds (`POST /tournaments/{id}/rounds/next`) until the tournament finishes, and `GET /tournaments/lookup?code=` is the "enter the code" read-only lookup of a participant's current table. Deliberately **not** wired into the live `games`/`game_players`/WebSocket life tracker or into Android — both explicitly out of scope for this pass, see the ADR. Full test coverage (`pairing_internal_test.go` for the pairing math, `service_test.go` including a full 3-round tournament lifecycle test against real Postgres) and web UI (`web/app/pages/tournaments/`).
 
