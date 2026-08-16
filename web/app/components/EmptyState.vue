@@ -9,6 +9,11 @@
  * glance — the surface reads as "this will fill in", not as a broken card.
  */
 defineProps<{ title: string, body?: string, ctaLabel?: string, ctaTo?: string }>()
+
+// The action is a link when it navigates somewhere (ctaTo) and a button
+// otherwise — some empty states resolve in place, e.g. by opening the deck
+// import modal, and those emit `cta` instead.
+defineEmits<{ cta: [] }>()
 </script>
 
 <template>
@@ -21,12 +26,21 @@ defineProps<{ title: string, body?: string, ctaLabel?: string, ctaTo?: string }>
       <p v-if="body" class="mt-1.5 text-[13px] leading-relaxed" style="color: var(--text-muted);">{{ body }}</p>
     </div>
     <NuxtLink
-      v-if="ctaTo && ctaLabel"
+      v-if="ctaLabel && ctaTo"
       :to="ctaTo"
       class="rounded-full px-4 py-2 text-[13px] font-semibold text-[#0a0714] transition-transform hover:scale-[1.04]"
       style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
     >
       {{ ctaLabel }}
     </NuxtLink>
+    <button
+      v-else-if="ctaLabel"
+      type="button"
+      class="rounded-full px-4 py-2 text-[13px] font-semibold text-[#0a0714] transition-transform hover:scale-[1.04]"
+      style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+      @click="$emit('cta')"
+    >
+      {{ ctaLabel }}
+    </button>
   </div>
 </template>

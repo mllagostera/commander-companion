@@ -166,7 +166,7 @@ onUnmounted(() => {
           <p class="text-center text-xs" style="color: var(--text-dim);">{{ $t('play.setup.localNote') }}</p>
         </section>
 
-        <button type="button" class="border-none bg-transparent text-[13px]" style="color: var(--text-dim);" @click="navigateTo('/')">
+        <button type="button" class="border-none bg-transparent px-2 py-1 text-[13px]" style="color: var(--text-dim);" @click="navigateTo('/')">
           {{ $t('play.setup.cancel') }}
         </button>
       </div>

@@ -31,6 +31,9 @@
   --win-bg: rgba(52, 211, 153, 0.15);
   --lose: #f87171;
   --lose-bg: rgba(248, 113, 113, 0.12);
+  /* In-progress / attention states (a running game, a running tournament). */
+  --warn: #fbbf24;
+  --warn-bg: rgba(251, 191, 36, 0.14);
   /*
    * Neutral track behind a progress/ring fill (see WinRateRing). It has to be a
    * token rather than a hardcoded white: at rgba(255,255,255,0.08) the track was
@@ -71,6 +74,10 @@
   --win-bg: rgba(15, 118, 110, 0.12);
   --lose: #ac1a1a;
   --lose-bg: rgba(185, 28, 28, 0.1);
+  /* Amber is the one hue that can't be carried over from the dark theme at all:
+     #fbbf24 measures 1.48:1 on a light card. */
+  --warn: #7c4a06;
+  --warn-bg: rgba(161, 98, 7, 0.12);
   --ring-track: rgba(30, 20, 60, 0.12);
 }
 

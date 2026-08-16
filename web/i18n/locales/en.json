@@ -161,7 +161,6 @@
     },
     "loadError": "Couldn't load the decks.",
     "loadingMore": "Loading more decks…",
-    "empty": "You don't have any decks yet. Import one from Moxfield to get started.",
     "stats": "{played} games · {won} wins",
     "sync": {
       "action": "Update",
@@ -186,7 +185,11 @@
     },
     "errors": {
       "syncFailed": "Couldn't sync with Moxfield."
-    }
+    },
+    "emptyTitle": "No decks yet",
+    "emptyBody": "Import a deck from Moxfield to start tracking how it performs.",
+    "noMatchesTitle": "No decks match your search",
+    "noMatchesBody": "Try a different deck or commander name."
   },
   "statistics": {
     "title": "Statistics",
@@ -205,16 +208,19 @@
     },
     "headToHead": {
       "heading": "Head-to-head",
-      "empty": "You haven't played with other users yet.",
       "mostPlayed": "Who you play the most",
       "archenemy": "Archenemy",
       "gamesTogether": "{count} games together",
-      "eliminatedYou": "Eliminated you {count} times"
+      "eliminatedYou": "Eliminated you {count} times",
+      "emptyTitle": "No head-to-head record yet",
+      "emptyBody": "Once you finish games with the same people, who you play the most and who beats you the most show up here."
     },
     "mostPlayedGroup": {
       "heading": "Group you play the most in",
-      "empty": "You haven't played a game in a group yet.",
-      "summary": "{count} games"
+      "summary": "{count} games",
+      "emptyTitle": "No group games yet",
+      "emptyBody": "Games played in a group count towards its history and standings.",
+      "emptyCta": "Go to groups"
     },
     "tabs": {
       "byDeck": "By deck",
@@ -240,7 +246,6 @@
     "finishedGames": {
       "loading": "Loading games...",
       "loadingMore": "Loading...",
-      "empty": "You haven't finished a game yet.",
       "noGroup": "Game without a group",
       "won": "Won",
       "lost": "Lost",
@@ -248,7 +253,9 @@
       "duration": "Duration",
       "turns": "Turns",
       "biggestHit": "Biggest hit",
-      "loadMore": "Load more"
+      "loadMore": "Load more",
+      "emptyTitle": "No finished games yet",
+      "emptyBody": "Every game you finish is listed here with its decks and result."
     }
   },
   "settings": {
@@ -334,9 +341,11 @@
       },
       "history": {
         "heading": "Game history",
-        "empty": "No game has been played in this group yet.",
-        "noPlayers": "No players"
-      }
+        "noPlayers": "No players",
+        "emptyTitle": "No games in this group yet",
+        "emptyBody": "Play one and it shows up here, along with everyone’s win rate."
+      },
+      "formerMember": "Former member"
     }
   },
   "friends": {
@@ -360,9 +369,12 @@
     },
     "list": {
       "heading": "Your friends",
-      "empty": "You haven't added any friends yet.",
       "since": "Friends since {date}",
-      "remove": "Remove"
+      "remove": "Remove",
+      "emptyTitle": "No friends yet",
+      "emptyBody": "Search for someone by username above to send them a request.",
+      "removeConfirmTitle": "Remove {username}?",
+      "removeConfirmBody": "You'll both stop being friends. You can send a new request afterwards."
     }
   },
   "play": {
@@ -604,7 +616,8 @@
         "commanderPlaceholder": "Commander",
         "adding": "Adding…",
         "add": "Add",
-        "empty": "No one has registered yet."
+        "emptyTitle": "No participants yet",
+        "emptyBody": "Share the join code above, or add a guest who has no account."
       },
       "round": {
         "heading": "Round {number}",
@@ -614,7 +627,8 @@
         "recording": "Saving…",
         "recordResult": "Record result",
         "advancing": "Advancing…",
-        "advance": "Next round"
+        "advance": "Next round",
+        "pickPositionFor": "Finishing position for {name}"
       },
       "standings": {
         "heading": "Standings",
@@ -623,7 +637,8 @@
           "points": "Points"
         },
         "winner": "Winner"
-      }
+      },
+      "shareHintInProgress": "Participants use this code to look up which table they're on each round."
     }
   }
 }

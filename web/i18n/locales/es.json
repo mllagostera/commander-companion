@@ -161,7 +161,6 @@
     },
     "loadError": "No se pudieron cargar los decks.",
     "loadingMore": "Cargando más decks…",
-    "empty": "Todavía no tienes decks. Importa uno desde Moxfield para empezar.",
     "stats": "{played} partidas · {won} victorias",
     "sync": {
       "action": "Actualizar",
@@ -186,7 +185,11 @@
     },
     "errors": {
       "syncFailed": "No se pudo sincronizar con Moxfield."
-    }
+    },
+    "emptyTitle": "Todavía no tienes decks",
+    "emptyBody": "Importa un deck desde Moxfield para empezar a seguir su rendimiento.",
+    "noMatchesTitle": "Ningún deck coincide con tu búsqueda",
+    "noMatchesBody": "Prueba con otro nombre de deck o de comandante."
   },
   "statistics": {
     "title": "Estadísticas",
@@ -205,16 +208,19 @@
     },
     "headToHead": {
       "heading": "Cara a cara",
-      "empty": "Todavía no has jugado ninguna partida con otros usuarios.",
       "mostPlayed": "Contra quién más juegas",
       "archenemy": "Archienemigo",
       "gamesTogether": "{count} partidas juntos",
-      "eliminatedYou": "Te ha eliminado {count} veces"
+      "eliminatedYou": "Te ha eliminado {count} veces",
+      "emptyTitle": "Todavía no hay historial de enfrentamientos",
+      "emptyBody": "Cuando termines partidas con las mismas personas, aquí verás con quién juegas más y quién te gana más."
     },
     "mostPlayedGroup": {
       "heading": "Grupo en el que más juegas",
-      "empty": "Todavía no has jugado ninguna partida en un grupo.",
-      "summary": "{count} partidas"
+      "summary": "{count} partidas",
+      "emptyTitle": "Todavía no hay partidas de grupo",
+      "emptyBody": "Las partidas jugadas en un grupo cuentan para su historial y su clasificación.",
+      "emptyCta": "Ir a grupos"
     },
     "tabs": {
       "byDeck": "Por deck",
@@ -240,7 +246,6 @@
     "finishedGames": {
       "loading": "Cargando partidas...",
       "loadingMore": "Cargando...",
-      "empty": "Todavía no has terminado ninguna partida.",
       "noGroup": "Partida sin grupo",
       "won": "Ganó",
       "lost": "Perdió",
@@ -248,7 +253,9 @@
       "duration": "Duración",
       "turns": "Turnos",
       "biggestHit": "Golpe más fuerte",
-      "loadMore": "Cargar más"
+      "loadMore": "Cargar más",
+      "emptyTitle": "Todavía no hay partidas finalizadas",
+      "emptyBody": "Cada partida que termines se lista aquí con sus decks y su resultado."
     }
   },
   "settings": {
@@ -334,9 +341,11 @@
       },
       "history": {
         "heading": "Historial de partidas",
-        "empty": "Todavía no se jugó ninguna partida en este grupo.",
-        "noPlayers": "Sin jugadores"
-      }
+        "noPlayers": "Sin jugadores",
+        "emptyTitle": "Todavía no hay partidas en este grupo",
+        "emptyBody": "Juega una y aparecerá aquí, junto con el win rate de cada uno."
+      },
+      "formerMember": "Ex miembro"
     }
   },
   "friends": {
@@ -360,9 +369,12 @@
     },
     "list": {
       "heading": "Tus amigos",
-      "empty": "Todavía no agregaste ningún amigo.",
       "since": "Amigos desde {date}",
-      "remove": "Quitar"
+      "remove": "Quitar",
+      "emptyTitle": "Todavía no tienes amigos",
+      "emptyBody": "Busca a alguien por username arriba para enviarle una solicitud.",
+      "removeConfirmTitle": "¿Quitar a {username}?",
+      "removeConfirmBody": "Dejaréis de ser amigos. Puedes enviar una nueva solicitud después."
     }
   },
   "play": {
@@ -604,7 +616,8 @@
         "commanderPlaceholder": "Comandante",
         "adding": "Añadiendo…",
         "add": "Añadir",
-        "empty": "Todavía no se ha registrado nadie."
+        "emptyTitle": "Todavía no hay participantes",
+        "emptyBody": "Comparte el código de arriba o añade un invitado que no tenga cuenta."
       },
       "round": {
         "heading": "Ronda {number}",
@@ -614,7 +627,8 @@
         "recording": "Guardando…",
         "recordResult": "Registrar resultado",
         "advancing": "Avanzando…",
-        "advance": "Siguiente ronda"
+        "advance": "Siguiente ronda",
+        "pickPositionFor": "Posición final de {name}"
       },
       "standings": {
         "heading": "Clasificación",
@@ -623,7 +637,8 @@
           "points": "Puntos"
         },
         "winner": "Ganador"
-      }
+      },
+      "shareHintInProgress": "Los participantes usan este código para consultar en qué mesa juegan cada ronda."
     }
   }
 }

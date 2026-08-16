@@ -313,9 +313,21 @@ const filteredDecks = computed(() => {
     </section>
 
     <p v-if="listError" class="text-sm" style="color: var(--lose);">{{ $t('decks.loadError') }}</p>
-    <p v-else-if="!filteredDecks.length" class="text-sm" style="color: var(--text-muted);">
-      {{ $t('decks.empty') }}
-    </p>
+    <!-- Two different "nothing to show" cases: an account with no decks at all
+         (offer the import) versus a search that matched none of them (offering
+         the import there would be answering a question nobody asked). -->
+    <EmptyState
+      v-else-if="!decks?.length"
+      :title="$t('decks.emptyTitle')"
+      :body="$t('decks.emptyBody')"
+      :cta-label="$t('decks.addDeck')"
+      @cta="openImportModal"
+    />
+    <EmptyState
+      v-else-if="!filteredDecks.length"
+      :title="$t('decks.noMatchesTitle')"
+      :body="$t('decks.noMatchesBody')"
+    />
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div v-for="deck in filteredDecks" :key="deck.id" class="relative">

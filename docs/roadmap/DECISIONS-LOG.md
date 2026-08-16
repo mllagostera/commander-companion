@@ -25,6 +25,66 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-16 — Design review across every screen, and the ten fixes it
+produced.** The user asked for a sweep of the whole web client. Rather than
+eyeball it, the pass combined a scripted audit (horizontal overflow, clipped
+text, WCAG 2.2 target sizes, missing accessible names, run over all nine
+screens at 1440px and 390px) with a visual read of each screen against
+**seeded** data — tournaments and friends had never been looked at with
+content in them, so a tournament was created through the real API (8 guests,
+started, one table result recorded) and friend rows were inserted directly.
+
+The structural audit came back healthier than expected: no horizontal
+overflow, no truncation, no unnamed controls. Its findings were mostly noise
+(the visually-hidden skip link, and nav links that WCAG 2.2 SC 2.5.8 exempts
+as inline text), which is why the filtered result — 14 real issues, then 0
+after the fixes — is the number worth keeping. What the visual read caught
+was more interesting than what the script did:
+
+- **The tournament join code was hidden exactly when it becomes useful.** It
+  rendered only while `status === 'registration'`, but
+  `GET /tournaments/lookup?code=` is what a participant uses to find their
+  table *each round*. Now shown until the tournament is finished, with a hint
+  that changes by phase.
+- **Recorded tables read as "#1 #2 #4 #3"** — seats were rendered in the
+  API's seat order. They're now sorted by finishing position once a result is
+  in, and left in seat order while it isn't (that's the physical seating,
+  which is what helps the organizer fill the form).
+- **A player who left a playgroup rendered as a raw UUID** in its ranking and
+  history (`usernameFor`'s `?? userId` fallback). Now a "former member" label.
+- **`EmptyState` had only ever been used by the dashboard**, so eight other
+  empty states were still bare grey sentences — the exact thing that
+  component was introduced to fix. Migrated, with the component gaining a
+  button mode (`@cta`) for the ones that resolve in place rather than by
+  navigating, e.g. opening the deck-import modal. The one deliberately left
+  alone is the playgroup ranking's, which sits *inside* a bordered table
+  where a dashed card would nest badly.
+- **The position pickers were native `<select>`s** — the only browser-painted
+  control left in the app, which `SortSelect` exists precisely to avoid (see
+  its own doc comment). Swapped.
+- **Amber had no token** and `#fbbf24` measures 1.48:1 on a light card, so
+  the "in progress" status was another light-theme casualty: added
+  `--warn`/`--warn-bg` (light `#7c4a06`, 5.66:1) and made that status a pill
+  like every other status in the app.
+- **The friends page repeated the old dashboard's mistake** — full-width rows
+  carrying a name and two buttons, ~800px of dead space between them, and
+  avatars on the friends list but not on the requests. Requests now sit in a
+  two-column row with avatars, via a new `UserAvatar` component that derives
+  its colour from the whole username (the old inline version keyed off
+  `username.length`, handing every five-letter name the same colour).
+- **Unfriending was a bare text link that took effect instantly.** Now a real
+  button behind a confirmation dialog, verified end to end: Escape cancels
+  without removing anyone, confirming actually removes.
+- **Five 20px-tall targets** (section "view all" links, "back to
+  tournaments", play's "cancel") were under SC 2.5.8's 24px floor — given
+  padded hit areas with negative margins so nothing moves visually.
+
+One finding was investigated and dismissed rather than "fixed": the deck
+cards looked like white text straight on card art, but they already carry a
+left-to-right scrim (0.94 → 0) under exactly the region the text occupies.
+Worth recording because the screenshot was misleading and the placeholder
+art made it look worse than it is.
+
 **2026-08-15 — Dashboard rebuilt (structure, density and empty states).**
 The user asked whether the main dashboard could be improved visually. Judging
 it fairly needed data: the gallery's own `dashboard-with-activity.png` was

@@ -232,7 +232,7 @@ function gameDate(game: Game): string {
         <div>
           <div class="mb-3.5 flex items-baseline justify-between">
             <h2 class="text-[15px] font-medium">{{ $t('dashboard.recentGames.heading') }}</h2>
-            <NuxtLink v-if="data.recentGames.length" to="/statistics" class="text-[13px]" style="color: var(--accent-link);">
+            <NuxtLink v-if="data.recentGames.length" to="/statistics" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
               {{ $t('dashboard.recentGames.viewAll') }}
             </NuxtLink>
           </div>
@@ -294,7 +294,7 @@ function gameDate(game: Game): string {
         <div>
           <div class="mb-3.5 flex items-baseline justify-between">
             <h2 class="text-[15px] font-medium">{{ $t('dashboard.decksSection.heading') }}</h2>
-            <NuxtLink v-if="data.dashboardDecks.length" to="/statistics" class="text-[13px]" style="color: var(--accent-link);">
+            <NuxtLink v-if="data.dashboardDecks.length" to="/statistics" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
               {{ $t('dashboard.decksSection.viewStats') }}
             </NuxtLink>
           </div>
@@ -336,7 +336,7 @@ function gameDate(game: Game): string {
       <section>
         <div class="mb-3.5 flex items-baseline justify-between">
           <h2 class="text-[15px] font-medium">{{ $t('dashboard.groups.heading') }}</h2>
-          <NuxtLink v-if="data.dashboardGroups.length" to="/playgroups" class="text-[13px]" style="color: var(--accent-link);">
+          <NuxtLink v-if="data.dashboardGroups.length" to="/playgroups" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
             {{ $t('dashboard.groups.viewAll') }}
           </NuxtLink>
         </div>

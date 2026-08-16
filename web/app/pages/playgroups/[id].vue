@@ -38,8 +38,12 @@ const usernameByUserId = computed<Record<string, string>>(() => {
   return map
 })
 
+// A game keeps its players even after one of them leaves the group, and the
+// members list is the only source of usernames here — so an ex-member has no
+// name to resolve to. Falling back to the raw user_id printed a bare UUID in
+// the ranking and the history; a label is the honest thing to show instead.
 function usernameFor(userId: string): string {
-  return usernameByUserId.value[userId] ?? userId
+  return usernameByUserId.value[userId] ?? t('playgroups.detail.formerMember')
 }
 
 function gameDate(game: Game): string | null {
@@ -376,9 +380,13 @@ async function handleAddMember() {
         <p v-if="gamesError" class="text-sm" style="color: var(--lose);">
           {{ listPlaygroupGamesError(gamesError) }}
         </p>
-        <p v-else-if="!games?.length" class="text-sm" style="color: var(--text-muted);">
-          {{ $t('playgroups.detail.history.empty') }}
-        </p>
+        <EmptyState
+          v-else-if="!games?.length"
+          :title="$t('playgroups.detail.history.emptyTitle')"
+          :body="$t('playgroups.detail.history.emptyBody')"
+          :cta-label="$t('dashboard.newGame')"
+          cta-to="/play"
+        />
 
         <div v-else class="flex flex-col gap-2.5">
           <div

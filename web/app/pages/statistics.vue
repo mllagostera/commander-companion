@@ -180,9 +180,11 @@ function formatDuration(game: FinishedGame): string {
 
       <section>
         <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('statistics.headToHead.heading') }}</h2>
-        <p v-if="!mostPlayedOpponent && !archenemy" class="text-sm" style="color: var(--text-muted);">
-          {{ $t('statistics.headToHead.empty') }}
-        </p>
+        <EmptyState
+          v-if="!mostPlayedOpponent && !archenemy"
+          :title="$t('statistics.headToHead.emptyTitle')"
+          :body="$t('statistics.headToHead.emptyBody')"
+        />
         <div v-else class="flex flex-wrap gap-3.5">
           <div
             v-if="mostPlayedOpponent"
@@ -211,9 +213,13 @@ function formatDuration(game: FinishedGame): string {
 
       <section>
         <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('statistics.mostPlayedGroup.heading') }}</h2>
-        <p v-if="!mostPlayedGroup" class="text-sm" style="color: var(--text-muted);">
-          {{ $t('statistics.mostPlayedGroup.empty') }}
-        </p>
+        <EmptyState
+          v-if="!mostPlayedGroup"
+          :title="$t('statistics.mostPlayedGroup.emptyTitle')"
+          :body="$t('statistics.mostPlayedGroup.emptyBody')"
+          :cta-label="$t('statistics.mostPlayedGroup.emptyCta')"
+          cta-to="/playgroups"
+        />
         <NuxtLink
           v-else
           :to="`/playgroups/${mostPlayedGroup.playgroup_id}`"
@@ -324,9 +330,13 @@ function formatDuration(game: FinishedGame): string {
             {{ $t('statistics.finishedGames.loading') }}
           </p>
           <p v-else-if="finishedGamesError" class="text-sm" style="color: var(--lose);">{{ $t('statistics.loadError') }}</p>
-          <p v-else-if="!finishedGames.length" class="text-sm" style="color: var(--text-muted);">
-            {{ $t('statistics.finishedGames.empty') }}
-          </p>
+          <EmptyState
+            v-else-if="!finishedGames.length"
+            :title="$t('statistics.finishedGames.emptyTitle')"
+            :body="$t('statistics.finishedGames.emptyBody')"
+            :cta-label="$t('dashboard.newGame')"
+            cta-to="/play"
+          />
           <template v-else>
             <div class="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
               <article
