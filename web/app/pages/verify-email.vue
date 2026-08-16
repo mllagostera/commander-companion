@@ -38,7 +38,7 @@ onMounted(async () => {
       </span>
 
       <div
-        class="flex w-full max-w-[340px] flex-col gap-4 rounded-[28px] border p-[26px] text-center"
+        class="flex w-full max-w-[340px] flex-col gap-4 rounded-[var(--radius-xl)] border p-[26px] text-center"
         style="background: var(--card-bg-strong); border-color: var(--card-border);"
       >
         <template v-if="status === 'pending'">

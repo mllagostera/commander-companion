@@ -38,8 +38,12 @@ const usernameByUserId = computed<Record<string, string>>(() => {
   return map
 })
 
+// A game keeps its players even after one of them leaves the group, and the
+// members list is the only source of usernames here — so an ex-member has no
+// name to resolve to. Falling back to the raw user_id printed a bare UUID in
+// the ranking and the history; a label is the honest thing to show instead.
 function usernameFor(userId: string): string {
-  return usernameByUserId.value[userId] ?? userId
+  return usernameByUserId.value[userId] ?? t('playgroups.detail.formerMember')
 }
 
 function gameDate(game: Game): string | null {
@@ -264,7 +268,7 @@ async function handleAddMember() {
 
         <div
           v-if="isAddMemberOpen"
-          class="mb-3.5 flex flex-col gap-2.5 rounded-[22px] border p-4"
+          class="mb-3.5 flex flex-col gap-2.5 rounded-[var(--radius-lg)] border p-4"
           style="border-color: var(--card-border); background: var(--card-bg-strong);"
         >
           <div class="relative">
@@ -290,7 +294,7 @@ async function handleAddMember() {
               v-if="searchResults.length"
               id="member-search-listbox"
               role="listbox"
-              class="absolute z-10 mt-1 w-full space-y-1 rounded-2xl border p-1 shadow-lg"
+              class="absolute z-10 mt-1 w-full space-y-1 rounded-[var(--radius-md)] border p-1 shadow-lg"
               style="border-color: var(--card-border); background: var(--page-solid);"
             >
               <li v-for="user in searchResults" :key="user.id" role="presentation">
@@ -299,7 +303,7 @@ async function handleAddMember() {
                   type="button"
                   role="option"
                   aria-selected="false"
-                  class="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-white/5"
+                  class="w-full rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm hover:bg-white/5"
                   style="color: var(--text);"
                   @click="selectUser(user)"
                   @keydown="handleResultKeydown"
@@ -324,23 +328,31 @@ async function handleAddMember() {
           <p v-if="addError" class="text-xs" style="color: var(--lose);">{{ addError }}</p>
         </div>
 
-        <div class="overflow-hidden rounded-3xl border" style="border-color: var(--card-border);">
+        <!-- With no ranked members the table isn't rendered at all: an EmptyState
+             belongs *instead of* it, not as a row inside it (a dashed card nested
+             in the bordered container reads as a broken row).
+             No CTA here on purpose: the ranking is derived from games, so this is
+             empty exactly when the history below is, and that section owns the
+             "New game" action. Two identical CTAs one scroll apart read as a bug. -->
+        <EmptyState
+          v-if="!rankedMembers.length"
+          :title="$t('playgroups.detail.ranking.emptyTitle')"
+          :body="$t('playgroups.detail.ranking.emptyBody')"
+        />
+        <div v-else class="overflow-hidden rounded-[var(--radius-lg)] border" style="border-color: var(--card-border);">
           <div
             class="grid grid-cols-[32px_1fr_90px] gap-2 px-5 py-3 text-[11px] uppercase tracking-wide sm:grid-cols-[32px_1fr_90px_90px_90px]"
-            style="background: rgba(255,255,255,0.05); color: var(--text-dim);"
+            style="background: var(--dim-bg); color: var(--text-dim);"
           >
             <span>#</span><span>{{ $t('playgroups.detail.ranking.columns.player') }}</span>
             <span class="hidden sm:inline">{{ $t('playgroups.detail.ranking.columns.games') }}</span><span class="hidden sm:inline">{{ $t('playgroups.detail.ranking.columns.wins') }}</span>
             <span>{{ $t('playgroups.detail.ranking.columns.winRate') }}</span>
           </div>
-          <p v-if="!rankedMembers.length" class="px-5 py-4 text-sm" style="color: var(--text-muted);">
-            {{ $t('playgroups.detail.ranking.empty') }}
-          </p>
           <div
             v-for="m in rankedMembers"
             :key="m.user_id"
             class="grid grid-cols-[32px_1fr_90px] items-center gap-2 border-t px-5 py-3.5 sm:grid-cols-[32px_1fr_90px_90px_90px]"
-            style="border-color: rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);"
+            style="border-color: var(--card-border); background: var(--card-bg);"
           >
             <span class="text-[13px]" style="color: var(--text-dim);">{{ m.rank }}</span>
             <span class="flex items-center gap-2 text-sm">
@@ -376,15 +388,19 @@ async function handleAddMember() {
         <p v-if="gamesError" class="text-sm" style="color: var(--lose);">
           {{ listPlaygroupGamesError(gamesError) }}
         </p>
-        <p v-else-if="!games?.length" class="text-sm" style="color: var(--text-muted);">
-          {{ $t('playgroups.detail.history.empty') }}
-        </p>
+        <EmptyState
+          v-else-if="!games?.length"
+          :title="$t('playgroups.detail.history.emptyTitle')"
+          :body="$t('playgroups.detail.history.emptyBody')"
+          :cta-label="$t('dashboard.newGame')"
+          cta-to="/play"
+        />
 
         <div v-else class="flex flex-col gap-2.5">
           <div
             v-for="game in games"
             :key="game.id"
-            class="rounded-[20px] border px-5 py-3"
+            class="rounded-[var(--radius-md)] border px-5 py-3"
             style="border-color: var(--card-border); background: var(--card-bg);"
           >
             <div class="flex flex-wrap items-center justify-between gap-2">

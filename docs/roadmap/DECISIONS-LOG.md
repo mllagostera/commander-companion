@@ -25,6 +25,268 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-16 — Creating decks by hand, and where the Scryfall lookup had to
+live.** The user asked for a way to create a deck from the decks page with a
+name and a commander, the commander picked from a Scryfall-backed dropdown of
+legendary creatures. Investigating first changed the shape of the work: the Go
+API's `POST /decks` has existed since Stage 1 with exactly the right fields
+(`name`, `commander`, `image_url`) and **no client had ever called it** — the
+web's "Add deck" button only opened the Moxfield import, so a deck that isn't
+on Moxfield could not be added at all. So the backend work was near zero and
+the real questions were about the lookup.
+
+- **The lookup runs in Nitro, not the browser, and three independent things
+  forced that.** The app's own CSP sets `connect-src 'self'`
+  (server/utils/security-headers.ts), so a `fetch` to api.scryfall.com from
+  the page is simply blocked — and widening connect-src to a third party to
+  power a form field is a bad trade. Scryfall's guidelines also ask clients to
+  identify themselves with a `User-Agent`, which a browser cannot set and Node
+  can. And `/cards/search` answers with *full* card objects — every printing,
+  legality and price — so a browser-side typeahead would download roughly two
+  orders of magnitude more bytes per keystroke than the two fields a dropdown
+  needs. Nitro solves all three at once and keeps `connect-src` untouched;
+  only `img-src` had to gain `https://cards.scryfall.io`, for the art.
+- **`is:commander` rather than "legendary creature".** The request said
+  legendary creatures, but that's both too wide (not every legendary creature
+  can lead a deck) and too narrow (planeswalkers and Backgrounds that say they
+  can). Scryfall has a predicate for exactly this concept, so the query is
+  `is:commander name:"…"`, ordered by `order=edhrec` — popularity ranking is
+  what makes a 10-item dropdown useful instead of alphabetical noise — and
+  `unique=cards` so reprints don't fill it with duplicates.
+- **Two Scryfall behaviours the code has to know about**: a search that matches
+  nothing answers **404**, not an empty 200 — for a typeahead that's the normal
+  state of a half-typed name, so it maps to `[]` rather than an error — and
+  double-faced cards carry no top-level `image_uris`, their art hanging off
+  `card_faces[0]`. Both are covered by the endpoint and were exercised in
+  verification.
+- **The art is attached by derivation, not by a watcher.** Picking a suggestion
+  emits `update:modelValue` and `select` in the same tick, so a default
+  (`flush: 'pre'`) watcher clearing the art on edit would run *after* the pick
+  set it and wipe it every time. It's a computed keyed on whether the field
+  still holds the picked commander's name, which has no ordering hazard and
+  says the rule out loud: edit the name by hand and the art goes away.
+- **Verification had to work around the sandbox.** This environment's network
+  policy blocks `api.scryfall.com` (confirmed via the proxy's own status
+  endpoint), so a local fake mimicking Scryfall's response shape — including a
+  double-faced card, an art-less card, and the 404-on-no-matches — was stood up
+  and the endpoint temporarily pointed at it. That verified the real parsing,
+  the query actually sent (`is:commander name:"atra"`, `order=edhrec`,
+  `unique=cards`, `User-Agent` present), the art fallback and the 404 mapping,
+  plus 24 browser checks over the full flow. **The one thing it cannot prove is
+  the live contract with Scryfall itself**, which needs a manual check from a
+  machine with network access.
+- **Two pieces of copy were left saying the wrong thing** and only the render
+  showed it: the page subtitle read "Imported from Moxfield." and the empty
+  state said "Import a deck from Moxfield to start tracking…" while its CTA now
+  opened the manual form. Both rewritten to cover either route.
+- **Blank name/commander had never been validated.** `CreateDeck` took whatever
+  it was given; the Moxfield import always fills both, so it was unreachable
+  until this form existed. Now trimmed and required like playgroups' and
+  tournaments' names, with a table test and the 400 documented in
+  `openapi.yaml`. The modal's two close buttons also measured 12×20 — under SC
+  2.5.8's floor, missed by the earlier target-size sweep because that audit
+  never opened a modal.
+
+**2026-08-16 — Closing the web pass: the playgroup ranking's empty state, and
+the radius scale everywhere else.** The two items the design review had left
+open, finished in one pass.
+
+- **The ranking empty state was solved by moving it, not restyling it.** The
+  reason it had been held back is that it was being rendered *as a row inside*
+  the bordered ranking table, where a dashed card reads as a broken row. But
+  with no ranked members the table has nothing in it but its header — so the
+  empty state belongs *instead of* the table, not inside it. It's now an
+  `v-if`/`v-else` against the whole container, which is what made it look
+  right without any new styling.
+- **Then screenshotting it surfaced a second problem the code review hadn't.**
+  On an empty group the page showed two identical "New game" CTAs one scroll
+  apart — because the ranking is derived from games, so it is empty in exactly
+  the cases where the history below it is, and that section already owned the
+  action. The ranking's empty state is now deliberately CTA-less (`EmptyState`
+  already treats the CTA as optional). Worth recording as the reason: the
+  duplication is invisible in the diff and obvious in the render, especially at
+  390px where both cards are in the same viewport.
+- **The radius scale was applied by role, not by find-and-replace.** The four
+  tokens (`--radius-xl/lg/md/sm`, 28/22/16/10px) were introduced with the
+  dashboard rebuild but only used there. Rolling them out to the remaining
+  files meant deciding what each surface *is* — xl for page-level and auth
+  cards and modals, lg for section cards and table containers, md for rows,
+  popups and inner blocks, sm for dropdown options, thumbnails and chips —
+  rather than mapping old pixel values one-to-one, since the old values were
+  themselves inconsistent. Zero hardcoded card radii remain. What deliberately
+  stayed literal: the percentage-based organic shapes (the background blobs'
+  `63%_37%_54%_46%/…`, the logo glyph), `play.vue`'s `rounded-sm` bars, which
+  are a pause *icon* and not a card, and its asymmetric winner badge.
+
+Verified with `npm run lint`, `nuxt typecheck` and `npm run build` all clean,
+the scripted audit re-run at 0 issues across nine screens × two viewports, i18n
+parity held at 443 keys in all three locales (`ranking.empty` replaced by
+`emptyTitle`/`emptyBody`, old key referenced nowhere), and screenshots of a
+purpose-made empty group at 1440px and 390px.
+
+**2026-08-16 — Design review across every screen, and the ten fixes it
+produced.** The user asked for a sweep of the whole web client. Rather than
+eyeball it, the pass combined a scripted audit (horizontal overflow, clipped
+text, WCAG 2.2 target sizes, missing accessible names, run over all nine
+screens at 1440px and 390px) with a visual read of each screen against
+**seeded** data — tournaments and friends had never been looked at with
+content in them, so a tournament was created through the real API (8 guests,
+started, one table result recorded) and friend rows were inserted directly.
+
+The structural audit came back healthier than expected: no horizontal
+overflow, no truncation, no unnamed controls. Its findings were mostly noise
+(the visually-hidden skip link, and nav links that WCAG 2.2 SC 2.5.8 exempts
+as inline text), which is why the filtered result — 14 real issues, then 0
+after the fixes — is the number worth keeping. What the visual read caught
+was more interesting than what the script did:
+
+- **The tournament join code was hidden exactly when it becomes useful.** It
+  rendered only while `status === 'registration'`, but
+  `GET /tournaments/lookup?code=` is what a participant uses to find their
+  table *each round*. Now shown until the tournament is finished, with a hint
+  that changes by phase.
+- **Recorded tables read as "#1 #2 #4 #3"** — seats were rendered in the
+  API's seat order. They're now sorted by finishing position once a result is
+  in, and left in seat order while it isn't (that's the physical seating,
+  which is what helps the organizer fill the form).
+- **A player who left a playgroup rendered as a raw UUID** in its ranking and
+  history (`usernameFor`'s `?? userId` fallback). Now a "former member" label.
+- **`EmptyState` had only ever been used by the dashboard**, so eight other
+  empty states were still bare grey sentences — the exact thing that
+  component was introduced to fix. Migrated, with the component gaining a
+  button mode (`@cta`) for the ones that resolve in place rather than by
+  navigating, e.g. opening the deck-import modal. The playgroup ranking's was
+  the awkward one — a dashed card nested inside the bordered table read as a
+  broken row — and it was held back a pass before being solved properly (see
+  the follow-up below).
+- **The position pickers were native `<select>`s** — the only browser-painted
+  control left in the app, which `SortSelect` exists precisely to avoid (see
+  its own doc comment). Swapped.
+- **Amber had no token** and `#fbbf24` measures 1.48:1 on a light card, so
+  the "in progress" status was another light-theme casualty: added
+  `--warn`/`--warn-bg` (light `#7c4a06`, 5.66:1) and made that status a pill
+  like every other status in the app.
+- **The friends page repeated the old dashboard's mistake** — full-width rows
+  carrying a name and two buttons, ~800px of dead space between them, and
+  avatars on the friends list but not on the requests. Requests now sit in a
+  two-column row with avatars, via a new `UserAvatar` component that derives
+  its colour from the whole username (the old inline version keyed off
+  `username.length`, handing every five-letter name the same colour).
+- **Unfriending was a bare text link that took effect instantly.** Now a real
+  button behind a confirmation dialog, verified end to end: Escape cancels
+  without removing anyone, confirming actually removes.
+- **Five 20px-tall targets** (section "view all" links, "back to
+  tournaments", play's "cancel") were under SC 2.5.8's 24px floor — given
+  padded hit areas with negative margins so nothing moves visually.
+
+One finding was investigated and dismissed rather than "fixed": the deck
+cards looked like white text straight on card art, but they already carry a
+left-to-right scrim (0.94 → 0) under exactly the region the text occupies.
+Worth recording because the screenshot was misleading and the placeholder
+art made it look worse than it is.
+
+**2026-08-15 — Dashboard rebuilt (structure, density and empty states).**
+The user asked whether the main dashboard could be improved visually. Judging
+it fairly needed data: the gallery's own `dashboard-with-activity.png` was
+captured on an account with a single empty playgroup, so it showed the same
+"nothing yet" text as the empty-state shot. A throwaway account was seeded
+directly in the local Postgres (14 finished games across 2 playgroups, 5
+decks with stats summaries) to see the screen as a real user would. Four
+concrete problems came out of that, and all four drove the redesign:
+
+- **Radii had drifted with no scale** — 18/20/22/24/26/28px, including three
+  cards sitting side by side in the same grid at 24, 20 and 26. Fixed by
+  adding a four-step `--radius-{sm,md,lg,xl}` scale to `main.css` alongside
+  the existing colour tokens (deliberately outside the `[data-theme]` blocks:
+  radii don't vary by theme). The dashboard uses it throughout; other pages
+  can adopt it opportunistically, which is why the tokens were introduced as
+  a scale rather than as a repo-wide rename in this pass.
+- **The second row restated the first** — a KPI strip said win rate / wins /
+  games, and the card immediately below repeated all three around the ring.
+  Resolved by dropping the KPI strip and letting a single "performance" card
+  own win rate (ring), wins-losses, streak, and a totals footer.
+- **`Recent games` wasted its width** — each row was `date · group` and a
+  result badge with ~1000px of nothing between them, despite the payload
+  already carrying each game's players and `deck_id`. Rows now show the deck
+  played (with its art) and the opponents' usernames; no new endpoint was
+  needed, since the usernames come from the playgroup members already
+  fetched for the groups section (`Game.players` only carries `user_id`).
+- **Empty states were five grey sentences with nothing to click** — the
+  literal first impression of the app. Replaced with a shared `EmptyState`
+  component (dashed border, title, body, action) so each section points at
+  what to do next: import a deck, start a game, create a group.
+
+The best deck became the page's visual anchor: a spotlight card rendering its
+own art full-bleed behind the text. That needed a `fill` mode on `DeckArt`,
+and produced the one real bug of the session — passing `absolute` from the
+parent did nothing, because `DeckArt`'s root already carried `relative` and
+Tailwind emits `.relative` *after* `.absolute`, so on equal specificity the
+component's own class won regardless of the order they appear in the class
+attribute. Caught by inspecting the live DOM (the art was rendering as a
+91px-tall strip) rather than by eyeballing the screenshot; `fill` now sets
+the positioning itself instead of relying on the caller.
+
+Verified against the running stack (local Postgres + `go run ./cmd/api` +
+`nuxt dev`) with real browser captures at 1440px and at a 390px phone
+viewport, in both themes, and in both the populated and brand-new-account
+states — the phone pass caught deck names truncating to "Atraxa Su…" in
+`Recent games`, fixed by dropping the group name from that column below
+`sm`. `eslint` / `nuxt typecheck` / a real `nuxt build` all clean, i18n keys
+re-checked for parity across the three locales (427 each) with no orphaned
+or missing dashboard keys. `docs/ux/screenshots.md`'s two Dashboard captures
+were regenerated (in `es`, 1440×900, matching the rest of the gallery) since
+the README asks for that after a significant UI change.
+
+**Light-theme contrast pass (same session, after the user reported the light
+theme was hard to read).** Measured rather than eyeballed: a script walked
+every text node on the dashboard, composited each one's real painted
+backdrop from a screenshot pixel, and computed WCAG ratios in both themes.
+The dark theme passed AA everywhere (`--text-dim` at 5.37:1); the light
+theme's equivalents came in at **4.29:1** — under AA's 4.5 for body text —
+so every secondary line (opponents, dates, commanders, counts, totals) was
+genuinely worse in light than in dark. `--win` on `--win-bg` was 4.15. The
+fix is at the token level, so it lands across the whole app rather than just
+this screen: `--text-dim` → `#625f76`, `--text-muted` → `#524f64`, `--win` →
+`#0c625b`, `--lose` → `#ac1a1a`, each solved for ≥5.4 against the measured
+light card surface (`rgb(242,241,245)`) so light now matches dark's headroom
+instead of merely scraping the minimum.
+
+Three separate bugs of the same family came out of that pass:
+
+- **Surfaces hardcoded as translucent white**, invisible on a near-white
+  page: the win-rate ring's track (`rgba(255,255,255,0.08)`, so the ring
+  rendered as a floating arc with nothing behind it — now the `--ring-track`
+  token), and the ranking-table headers/rows in `playgroups/[id].vue` and
+  `tournaments/[id].vue`, moved to `--dim-bg`/`--card-border`/`--card-bg`.
+- **`statistics.vue`'s win-rate figure** was a hardcoded `#e9b8fb`, which is
+  **1.47:1** on a light card — effectively unreadable. Now `--accent-link`.
+- **The inverse mistake, in the new dashboard's own spotlight card**: that
+  card is dark in *both* themes (its overlay sits on the deck art), but it
+  was pulling `--accent-link`/`--win`, which are *dark* colours in the light
+  theme — 3.38:1 and 2.67:1 against their own card. Fixed with deliberate
+  light-on-dark literals there, commented so the next person doesn't
+  "helpfully" tokenise them back.
+
+That last one is the trap in both directions, and it nearly bit twice: an
+initial sweep also replaced the hardcoded greys in `play.vue` with tokens,
+which would have broken them — the life tracker renders inside a
+`fixed inset-0` overlay with a hardcoded `#0a0714` background, so it is
+always dark and its literals are correct. That change was reverted after
+checking where the overlay actually starts (line 176; the four token uses
+above it are the theme-aware setup screen and are fine). Rule of thumb for
+this codebase: theme tokens belong on theme-aware surfaces, literals belong
+on surfaces that are pinned to one theme — and the only way to tell them
+apart is to find which ancestor paints the background.
+
+Final state: of 48 text nodes sampled per theme, the only remaining
+sub-AA readings are measurement artefacts — the wordmark uses
+`background-clip: text` (so its computed `color` isn't what's painted), and
+the "+ New game" pill and avatar sample their backdrop just outside the
+pill; checked against their actual purple gradient they measure 4.69 and
+4.83. `eslint`/`typecheck`/`nuxt build` clean, and the gallery's two
+Dashboard captures were regenerated once more since the streak label's
+colour changed in the dark theme too.
+
 **2026-08-15 — Friends system, phase 2 of 3 (QR generation in `settings.vue`).**
 Follow-up to phase 1 (below), same session. Added a "My QR code" card to
 `settings.vue` that renders a QR of the user's own `id` using the `qrcode`

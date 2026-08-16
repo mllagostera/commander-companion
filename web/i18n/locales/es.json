@@ -92,54 +92,64 @@
     }
   },
   "dashboard": {
-    "sessionAs": "Sesión iniciada como",
     "greeting": "Hola, {username}",
     "newGame": "+ Nueva partida",
     "loadError": "No se pudo cargar el resumen.",
     "stats": {
       "games": "Partidas",
-      "wins": "Victorias",
-      "winRate": "Win rate",
-      "decks": "Decks"
+      "winRate": "Win rate"
     },
     "winLoss": {
       "heading": "Victorias / derrotas",
       "won": "{count} ganadas",
       "lost": "{count} perdidas"
     },
+    "performance": {
+      "totals": "{games} partidas · {decks} decks · {groups} grupos"
+    },
     "bestDeck": {
       "heading": "Tu mejor deck",
-      "summary": "{winRate} de win rate · {games} partidas",
-      "empty": "Todavía no hay partidas registradas."
+      "emptyTitle": "Todavía no hay un deck destacado",
+      "emptyBody": "Importa tus decks desde Moxfield y juega una partida: aquí aparecerá con el que más ganas.",
+      "emptyCta": "Importar un deck"
     },
     "streak": {
       "heading": "Racha actual",
       "wins": "{count} victorias seguidas",
       "losses": "{count} derrotas seguidas",
-      "sinceLast": "Contando desde tu última partida.",
       "empty": "Sin partidas finalizadas todavía."
     },
     "groups": {
       "heading": "Tus grupos",
       "viewAll": "Ver todos",
-      "empty": "Todavía no eres miembro de ningún grupo.",
-      "summary": "{members} miembros · {games} partidas"
+      "summary": "{members} miembros · {games} partidas",
+      "emptyTitle": "Todavía no estás en ningún grupo",
+      "emptyBody": "Los grupos son las mesas con las que juegas habitualmente: mantienen juntos el historial y las estadísticas de cada partida.",
+      "emptyCta": "Crear un grupo"
     },
     "decksSection": {
       "heading": "Tus decks",
       "viewStats": "Ver estadísticas",
-      "empty": "Todavía no tienes decks."
+      "gamesPlayed": "{count} partida | {count} partidas",
+      "emptyTitle": "Todavía no tienes decks",
+      "emptyBody": "Impórtalos desde Moxfield para seguir cómo rinde cada uno.",
+      "emptyCta": "Importar un deck"
     },
     "recentGames": {
       "heading": "Últimas partidas",
-      "empty": "Todavía no se registró ninguna partida finalizada.",
+      "viewAll": "Ver todas",
       "won": "Ganada",
-      "lost": "Perdida"
+      "lost": "Perdida",
+      "versus": "vs {opponents}",
+      "unknownDeck": "Deck sin registrar",
+      "emptyTitle": "Todavía no hay partidas registradas",
+      "emptyBody": "Termina una partida y aparecerá aquí con el deck que jugaste y a quién ganaste.",
+      "emptyCta": "Empezar una partida"
     }
   },
   "decks": {
     "title": "Mis decks",
-    "subtitle": "Importados desde Moxfield.",
+    "subtitle": "Creados a mano o importados desde Moxfield.",
     "addDeck": "+ Agregar deck",
     "searchPlaceholder": "Buscar deck o comandante…",
     "sort": {
@@ -151,7 +161,6 @@
     },
     "loadError": "No se pudieron cargar los decks.",
     "loadingMore": "Cargando más decks…",
-    "empty": "Todavía no tienes decks. Importa uno desde Moxfield para empezar.",
     "stats": "{played} partidas · {won} victorias",
     "sync": {
       "action": "Actualizar",
@@ -176,6 +185,24 @@
     },
     "errors": {
       "syncFailed": "No se pudo sincronizar con Moxfield."
+    },
+    "emptyTitle": "Todavía no tienes decks",
+    "emptyBody": "Añade tu primer deck para empezar a seguir su rendimiento: a mano o importándolo desde Moxfield.",
+    "noMatchesTitle": "Ningún deck coincide con tu búsqueda",
+    "noMatchesBody": "Prueba con otro nombre de deck o de comandante.",
+    "create": {
+      "title": "Nuevo deck",
+      "nameLabel": "Nombre del deck",
+      "namePlaceholder": "Atraxa Superfriends",
+      "commanderLabel": "Comandante",
+      "commanderPlaceholder": "Escribe para buscar un comandante…",
+      "searching": "Buscando en Scryfall…",
+      "noSuggestions": "Ningún comandante coincide. Puedes usar igualmente el nombre que has escrito.",
+      "artAttached": "El deck usará la ilustración de este comandante.",
+      "submit": "Crear deck",
+      "submitting": "Creando…",
+      "moxfieldPrompt": "¿Ya lo tienes en Moxfield?",
+      "moxfieldAction": "Impórtalo en su lugar"
     }
   },
   "statistics": {
@@ -195,16 +222,19 @@
     },
     "headToHead": {
       "heading": "Cara a cara",
-      "empty": "Todavía no has jugado ninguna partida con otros usuarios.",
       "mostPlayed": "Contra quién más juegas",
       "archenemy": "Archienemigo",
       "gamesTogether": "{count} partidas juntos",
-      "eliminatedYou": "Te ha eliminado {count} veces"
+      "eliminatedYou": "Te ha eliminado {count} veces",
+      "emptyTitle": "Todavía no hay historial de enfrentamientos",
+      "emptyBody": "Cuando termines partidas con las mismas personas, aquí verás con quién juegas más y quién te gana más."
     },
     "mostPlayedGroup": {
       "heading": "Grupo en el que más juegas",
-      "empty": "Todavía no has jugado ninguna partida en un grupo.",
-      "summary": "{count} partidas"
+      "summary": "{count} partidas",
+      "emptyTitle": "Todavía no hay partidas de grupo",
+      "emptyBody": "Las partidas jugadas en un grupo cuentan para su historial y su clasificación.",
+      "emptyCta": "Ir a grupos"
     },
     "tabs": {
       "byDeck": "Por deck",
@@ -230,7 +260,6 @@
     "finishedGames": {
       "loading": "Cargando partidas...",
       "loadingMore": "Cargando...",
-      "empty": "Todavía no has terminado ninguna partida.",
       "noGroup": "Partida sin grupo",
       "won": "Ganó",
       "lost": "Perdió",
@@ -238,7 +267,9 @@
       "duration": "Duración",
       "turns": "Turnos",
       "biggestHit": "Golpe más fuerte",
-      "loadMore": "Cargar más"
+      "loadMore": "Cargar más",
+      "emptyTitle": "Todavía no hay partidas finalizadas",
+      "emptyBody": "Cada partida que termines se lista aquí con sus decks y su resultado."
     }
   },
   "settings": {
@@ -317,16 +348,19 @@
           "wins": "Victorias",
           "winRate": "Win rate"
         },
-        "empty": "Sin partidas registradas todavía."
+        "emptyTitle": "Todavía no hay clasificación",
+        "emptyBody": "Cuando este grupo termine una partida, aquí se clasifica el win rate de cada uno."
       },
       "members": {
         "heading": "Miembros"
       },
       "history": {
         "heading": "Historial de partidas",
-        "empty": "Todavía no se jugó ninguna partida en este grupo.",
-        "noPlayers": "Sin jugadores"
-      }
+        "noPlayers": "Sin jugadores",
+        "emptyTitle": "Todavía no hay partidas en este grupo",
+        "emptyBody": "Juega una y aparecerá aquí, junto con el win rate de cada uno."
+      },
+      "formerMember": "Ex miembro"
     }
   },
   "friends": {
@@ -350,9 +384,12 @@
     },
     "list": {
       "heading": "Tus amigos",
-      "empty": "Todavía no agregaste ningún amigo.",
       "since": "Amigos desde {date}",
-      "remove": "Quitar"
+      "remove": "Quitar",
+      "emptyTitle": "Todavía no tienes amigos",
+      "emptyBody": "Busca a alguien por username arriba para enviarle una solicitud.",
+      "removeConfirmTitle": "¿Quitar a {username}?",
+      "removeConfirmBody": "Dejaréis de ser amigos. Puedes enviar una nueva solicitud después."
     }
   },
   "play": {
@@ -416,7 +453,8 @@
     "tournamentStarted": "Torneo iniciado",
     "roundAdvanced": "Ronda avanzada",
     "friendRequestSent": "Solicitud de amistad enviada a {username}",
-    "friendAdded": "Ahora tú y {username} son amigos"
+    "friendAdded": "Ahora tú y {username} son amigos",
+    "deckCreated": "Deck creado"
   },
   "gameStatus": {
     "pending": "Pendiente",
@@ -540,6 +578,10 @@
       "list": {
         "generic": "No se pudieron cargar tus amigos."
       }
+    },
+    "createDeck": {
+      "missingFields": "Un deck necesita nombre y comandante.",
+      "generic": "No se pudo crear el deck."
     }
   },
   "tournaments": {
@@ -594,7 +636,8 @@
         "commanderPlaceholder": "Comandante",
         "adding": "Añadiendo…",
         "add": "Añadir",
-        "empty": "Todavía no se ha registrado nadie."
+        "emptyTitle": "Todavía no hay participantes",
+        "emptyBody": "Comparte el código de arriba o añade un invitado que no tenga cuenta."
       },
       "round": {
         "heading": "Ronda {number}",
@@ -604,7 +647,8 @@
         "recording": "Guardando…",
         "recordResult": "Registrar resultado",
         "advancing": "Avanzando…",
-        "advance": "Siguiente ronda"
+        "advance": "Siguiente ronda",
+        "pickPositionFor": "Posición final de {name}"
       },
       "standings": {
         "heading": "Clasificación",
@@ -613,7 +657,8 @@
           "points": "Puntos"
         },
         "winner": "Ganador"
-      }
+      },
+      "shareHintInProgress": "Los participantes usan este código para consultar en qué mesa juegan cada ronda."
     }
   }
 }

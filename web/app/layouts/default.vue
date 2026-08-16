@@ -63,7 +63,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
 
     <header class="sticky top-0 z-10 px-4 pt-4 sm:px-6 sm:pt-[18px]">
       <div
-        class="mx-auto flex max-w-[1080px] flex-wrap items-center gap-4 rounded-[26px] border px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:gap-7 sm:rounded-full sm:px-[22px]"
+        class="mx-auto flex max-w-[1080px] flex-wrap items-center gap-4 rounded-[var(--radius-xl)] border px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:gap-7 sm:rounded-full sm:px-[22px]"
         style="background: var(--header-bg); border-color: var(--card-border);"
       >
         <NuxtLink to="/" class="flex items-center gap-2.5">
@@ -106,7 +106,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
           <template v-if="isUserMenuOpen">
             <div class="fixed inset-0 z-[29]" @click="closeUserMenu" />
             <div
-              class="absolute right-0 top-[calc(100%+10px)] z-30 flex min-w-[210px] flex-col gap-0.5 rounded-[18px] border p-2.5 shadow-[0_16px_36px_rgba(0,0,0,0.3)] backdrop-blur-xl"
+              class="absolute right-0 top-[calc(100%+10px)] z-30 flex min-w-[210px] flex-col gap-0.5 rounded-[var(--radius-md)] border p-2.5 shadow-[0_16px_36px_rgba(0,0,0,0.3)] backdrop-blur-xl"
               style="background: var(--menu-bg); border-color: var(--card-border);"
             >
               <nav class="flex flex-col gap-0.5 border-b pb-1.5 sm:hidden" style="border-color: var(--card-border);">
@@ -114,7 +114,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
                   v-for="link in links"
                   :key="link.to"
                   :to="link.to"
-                  class="rounded-[10px] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
+                  class="rounded-[var(--radius-sm)] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
                   :style="{ color: isActive(link.to) ? 'var(--accent-link)' : 'var(--text)' }"
                   @click="closeUserMenu"
                 >
@@ -155,14 +155,14 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
               </div>
               <NuxtLink
                 to="/settings"
-                class="rounded-[10px] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
+                class="rounded-[var(--radius-sm)] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
                 style="color: var(--text);"
                 @click="closeUserMenu"
               >
                 {{ $t('nav.settings') }}
               </NuxtLink>
               <button
-                class="rounded-[10px] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
+                class="rounded-[var(--radius-sm)] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
                 style="color: var(--lose);"
                 @click="handleLogout"
               >

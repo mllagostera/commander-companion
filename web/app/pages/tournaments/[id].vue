@@ -103,6 +103,23 @@ function draftFor(table: TournamentTable): Record<string, number | null> {
   return resultDrafts[table.id] ?? {}
 }
 
+// Once a table's result is recorded its seats are a ranking, so they're shown
+// in finishing order. The API returns them in seat order, which rendered as
+// "#1 #2 #4 #3". While a table is still unrecorded, seat order is kept: that's
+// how the players are physically sitting, which is what helps the organizer
+// fill the positions in.
+function orderedSeats(table: TournamentTable) {
+  if (table.seats.some((seat) => !seat.finish_position)) return table.seats
+  return [...table.seats].sort((a, b) => (a.finish_position ?? 0) - (b.finish_position ?? 0))
+}
+
+function positionOptions(table: TournamentTable) {
+  return [
+    { value: '', label: t('tournaments.detail.round.pickPosition') },
+    ...Array.from({ length: table.seats.length }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
+  ]
+}
+
 const recordingTableId = ref<string | null>(null)
 const recordErrors = reactive<Record<string, string>>({})
 
@@ -145,7 +162,7 @@ async function handleAdvance() {
 
 <template>
   <div class="flex flex-col gap-6">
-    <NuxtLink to="/tournaments" class="self-start text-[13px]" style="color: var(--accent-link);">
+    <NuxtLink to="/tournaments" class="-my-1 self-start py-1 text-[13px]" style="color: var(--accent-link);">
       {{ $t('tournaments.detail.back') }}
     </NuxtLink>
 
@@ -164,19 +181,33 @@ async function handleAdvance() {
         </p>
       </section>
 
+      <!--
+        The join code stays visible for the whole tournament, not just during
+        registration: GET /tournaments/lookup?code= is what a participant uses
+        to find their table *each round*, so hiding the code on start took it
+        away exactly when it starts being used.
+      -->
+      <section
+        v-if="detail.tournament.status !== 'finished'"
+        class="rounded-[var(--radius-lg)] border p-5"
+        style="border-color: var(--card-border); background: var(--card-bg);"
+      >
+        <p class="text-[13px]" style="color: var(--text-dim);">{{ $t('tournaments.detail.joinCodeLabel') }}</p>
+        <div class="mt-1 flex flex-wrap items-center gap-3">
+          <span class="text-2xl font-semibold tracking-[0.3em]">{{ detail.tournament.join_code }}</span>
+          <button type="button" class="rounded-full px-2 py-1 text-[13px]" style="color: var(--accent-link);" @click="copyJoinCode">
+            {{ codeCopied ? $t('tournaments.detail.copied') : $t('tournaments.detail.copy') }}
+          </button>
+        </div>
+        <p class="mt-2 text-[13px]" style="color: var(--text-muted);">
+          {{ detail.tournament.status === 'registration'
+            ? $t('tournaments.detail.shareHint')
+            : $t('tournaments.detail.shareHintInProgress') }}
+        </p>
+      </section>
+
       <!-- Registration phase -->
       <template v-if="detail.tournament.status === 'registration'">
-        <section class="rounded-[24px] border p-5" style="border-color: var(--card-border); background: var(--card-bg);">
-          <p class="text-[13px]" style="color: var(--text-dim);">{{ $t('tournaments.detail.joinCodeLabel') }}</p>
-          <div class="mt-1 flex items-center gap-3">
-            <span class="text-2xl font-semibold tracking-[0.3em]">{{ detail.tournament.join_code }}</span>
-            <button type="button" class="text-[13px]" style="color: var(--accent-link);" @click="copyJoinCode">
-              {{ codeCopied ? $t('tournaments.detail.copied') : $t('tournaments.detail.copy') }}
-            </button>
-          </div>
-          <p class="mt-2 text-[13px]" style="color: var(--text-muted);">{{ $t('tournaments.detail.shareHint') }}</p>
-        </section>
-
         <section>
           <div class="mb-3.5 flex items-baseline justify-between">
             <h2 class="text-[15px] font-medium">
@@ -195,7 +226,7 @@ async function handleAdvance() {
 
           <div
             v-if="isAddGuestOpen"
-            class="mb-3.5 flex flex-col gap-2.5 rounded-[22px] border p-4"
+            class="mb-3.5 flex flex-col gap-2.5 rounded-[var(--radius-lg)] border p-4"
             style="border-color: var(--card-border); background: var(--card-bg-strong);"
           >
             <form class="flex flex-wrap gap-2.5" @submit.prevent="handleAddGuest">
@@ -233,14 +264,18 @@ async function handleAdvance() {
             <li
               v-for="p in detail.participants"
               :key="p.id"
-              class="flex items-center justify-between rounded-2xl border px-4 py-2.5 text-sm"
+              class="flex items-center justify-between rounded-[var(--radius-md)] border px-4 py-2.5 text-sm"
               style="border-color: var(--card-border); background: var(--card-bg);"
             >
               <span>{{ p.username ?? p.guest_name }}</span>
               <span style="color: var(--text-muted);">{{ p.commander_name }}</span>
             </li>
           </ul>
-          <p v-else class="text-sm" style="color: var(--text-muted);">{{ $t('tournaments.detail.participants.empty') }}</p>
+          <EmptyState
+            v-else
+            :title="$t('tournaments.detail.participants.emptyTitle')"
+            :body="$t('tournaments.detail.participants.emptyBody')"
+          />
         </section>
 
         <section v-if="isOrganizer">
@@ -267,14 +302,14 @@ async function handleAdvance() {
             <div
               v-for="table in currentRound.tables"
               :key="table.id"
-              class="rounded-[22px] border p-4"
+              class="rounded-[var(--radius-lg)] border p-4"
               style="border-color: var(--card-border); background: var(--card-bg);"
             >
               <p class="text-[13px] font-medium" style="color: var(--text-dim);">
                 {{ $t('tournaments.detail.round.table', { number: table.table_number }) }}
               </p>
               <ul class="mt-2 flex flex-col gap-1.5">
-                <li v-for="seat in table.seats" :key="seat.id" class="flex items-center justify-between gap-3 text-sm">
+                <li v-for="seat in orderedSeats(table)" :key="seat.id" class="flex items-center justify-between gap-3 text-sm">
                   <span>
                     {{ seat.username ?? seat.guest_name }}
                     <span style="color: var(--text-muted);">({{ seat.commander_name }})</span>
@@ -282,15 +317,17 @@ async function handleAdvance() {
                   <span v-if="seat.finish_position" class="text-[13px] font-semibold" style="color: var(--accent-link);">
                     {{ $t('tournaments.detail.round.finishedPosition', { n: seat.finish_position }) }}
                   </span>
-                  <select
+                  <!-- SortSelect rather than a native <select>: its popup is the only
+                       control in the app the browser would paint itself (see the
+                       component's own doc comment). -->
+                  <SortSelect
                     v-else-if="isOrganizer"
-                    v-model.number="draftFor(table)[seat.participant_id]"
-                    class="rounded-full border px-3 py-1 text-[12px] outline-none"
-                    style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
-                  >
-                    <option :value="null">{{ $t('tournaments.detail.round.pickPosition') }}</option>
-                    <option v-for="n in table.seats.length" :key="n" :value="n">{{ n }}</option>
-                  </select>
+                    :model-value="String(draftFor(table)[seat.participant_id] ?? '')"
+                    :options="positionOptions(table)"
+                    :select-label="$t('tournaments.detail.round.pickPositionFor', { name: seat.username ?? seat.guest_name })"
+                    class="flex-shrink-0"
+                    @update:model-value="(v) => (draftFor(table)[seat.participant_id] = v ? Number(v) : null)"
+                  />
                 </li>
               </ul>
               <button
@@ -327,10 +364,10 @@ async function handleAdvance() {
 
         <section>
           <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('tournaments.detail.standings.heading') }}</h2>
-          <div class="overflow-hidden rounded-3xl border" style="border-color: var(--card-border);">
+          <div class="overflow-hidden rounded-[var(--radius-lg)] border" style="border-color: var(--card-border);">
             <div
               class="grid grid-cols-[32px_1fr_70px] gap-2 px-5 py-3 text-[11px] uppercase tracking-wide"
-              style="background: rgba(255,255,255,0.05); color: var(--text-dim);"
+              style="background: var(--dim-bg); color: var(--text-dim);"
             >
               <span>#</span>
               <span>{{ $t('tournaments.detail.standings.columns.player') }}</span>
@@ -340,7 +377,7 @@ async function handleAdvance() {
               v-for="(p, i) in detail.participants"
               :key="p.id"
               class="grid grid-cols-[32px_1fr_70px] items-center gap-2 border-t px-5 py-3"
-              style="border-color: rgba(255,255,255,0.06);"
+              style="border-color: var(--card-border);"
             >
               <span class="text-[13px]" style="color: var(--text-dim);">{{ i + 1 }}</span>
               <span class="text-sm">

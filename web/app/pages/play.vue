@@ -113,7 +113,7 @@ onUnmounted(() => {
           <span class="cc-gradient-text text-[15px] font-semibold tracking-wide">Commander Companion</span>
         </NuxtLink>
 
-        <section class="flex w-full max-w-md flex-col gap-6 rounded-[28px] border p-[26px]" style="background: var(--card-bg-strong); border-color: var(--card-border);">
+        <section class="flex w-full max-w-md flex-col gap-6 rounded-[var(--radius-xl)] border p-[26px]" style="background: var(--card-bg-strong); border-color: var(--card-border);">
           <div>
             <h1 class="text-2xl font-semibold sm:text-[26px]">{{ $t('play.setup.title') }}</h1>
             <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('play.setup.subtitle') }}</p>
@@ -166,7 +166,7 @@ onUnmounted(() => {
           <p class="text-center text-xs" style="color: var(--text-dim);">{{ $t('play.setup.localNote') }}</p>
         </section>
 
-        <button type="button" class="border-none bg-transparent text-[13px]" style="color: var(--text-dim);" @click="navigateTo('/')">
+        <button type="button" class="border-none bg-transparent px-2 py-1 text-[13px]" style="color: var(--text-dim);" @click="navigateTo('/')">
           {{ $t('play.setup.cancel') }}
         </button>
       </div>
@@ -204,7 +204,7 @@ onUnmounted(() => {
               <div
                 v-for="player in players"
                 :key="player.id"
-                class="flex items-center gap-1 rounded-xl border px-2.5 py-2"
+                class="flex items-center gap-1 rounded-[var(--radius-md)] border px-2.5 py-2"
                 style="border-color: rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);"
               >
                 <span class="flex flex-[1.3] items-center gap-1.5 text-[11px]" style="color: #f1f0f6;">

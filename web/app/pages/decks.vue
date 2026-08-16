@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import type { CommanderSuggestion } from '#shared/types/scryfall'
 import type { Deck, DeckResyncJob, DeckStats, PaginatedResponse } from '~/types/api'
 
 const { t } = useI18n()
-const { listDecksPage, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus } = useDecks()
+const { listDecksPage, createDeck, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus } = useDecks()
 const { allDeckStats } = useStatistics()
 const { showToast } = useToast()
 
@@ -100,6 +101,71 @@ onUnmounted(() => scrollObserver?.disconnect())
 const { data: statsList, refresh: refreshStats } = await useAsyncData('decks-stats', () => allDeckStats(), { default: () => [] })
 const statsByDeckId = computed(() => new Map((statsList.value ?? []).map((s) => [s.deck_id, s])))
 
+// ------------------------------------------------------ create by hand
+// Two ways to add a deck, one entry point: the header's primary button opens
+// this form, and the Moxfield import hangs off it as a secondary action
+// (openImportModal below) rather than as a third button competing for the
+// same corner of the page.
+const isCreateModalOpen = ref(false)
+const createModalRef = ref<HTMLElement | null>(null)
+const newDeckName = ref('')
+const newDeckCommander = ref('')
+const createError = ref('')
+const isCreating = ref(false)
+const pickedCommander = ref<CommanderSuggestion | null>(null)
+
+/**
+ * The picked commander's art, but only while the field still holds that
+ * commander's name — edit it by hand afterwards and the deck goes back to
+ * DeckArt's placeholder rather than keeping one commander's art under
+ * another's name.
+ *
+ * Derived rather than cleared by a watcher on purpose: picking a suggestion
+ * emits `update:modelValue` and `select` in the same tick, so a default
+ * (flush: 'pre') watcher would run *after* the art was set and wipe it.
+ */
+const newDeckImageUrl = computed(() =>
+  pickedCommander.value?.name === newDeckCommander.value.trim()
+    ? pickedCommander.value?.image_url ?? null
+    : null,
+)
+
+function openCreateModal() {
+  newDeckName.value = ''
+  newDeckCommander.value = ''
+  pickedCommander.value = null
+  createError.value = ''
+  isCreateModalOpen.value = true
+}
+
+function closeCreateModal() {
+  isCreateModalOpen.value = false
+}
+
+useModalA11y(isCreateModalOpen, createModalRef, closeCreateModal)
+
+const canSubmitCreate = computed(() => !!newDeckName.value.trim() && !!newDeckCommander.value.trim())
+
+async function handleCreate() {
+  if (!canSubmitCreate.value) return
+  createError.value = ''
+  isCreating.value = true
+  try {
+    await createDeck({
+      name: newDeckName.value,
+      commander: newDeckCommander.value,
+      imageUrl: newDeckImageUrl.value,
+    })
+    closeCreateModal()
+    await refresh()
+    showToast(t('toast.deckCreated'))
+  } catch (err) {
+    createError.value = createDeckError(err)
+  } finally {
+    isCreating.value = false
+  }
+}
+
 const isImportModalOpen = ref(false)
 const moxfieldInput = ref('')
 const importError = ref('')
@@ -111,6 +177,7 @@ function openImportModal() {
   moxfieldInput.value = ''
   importError.value = ''
   importedDeck.value = null
+  isCreateModalOpen.value = false
   isImportModalOpen.value = true
 }
 
@@ -275,7 +342,7 @@ const filteredDecks = computed(() => {
           type="button"
           class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.04]"
           style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
-          @click="openImportModal"
+          @click="openCreateModal"
         >
           {{ $t('decks.addDeck') }}
         </button>
@@ -313,15 +380,27 @@ const filteredDecks = computed(() => {
     </section>
 
     <p v-if="listError" class="text-sm" style="color: var(--lose);">{{ $t('decks.loadError') }}</p>
-    <p v-else-if="!filteredDecks.length" class="text-sm" style="color: var(--text-muted);">
-      {{ $t('decks.empty') }}
-    </p>
+    <!-- Two different "nothing to show" cases: an account with no decks at all
+         (offer the import) versus a search that matched none of them (offering
+         the import there would be answering a question nobody asked). -->
+    <EmptyState
+      v-else-if="!decks?.length"
+      :title="$t('decks.emptyTitle')"
+      :body="$t('decks.emptyBody')"
+      :cta-label="$t('decks.addDeck')"
+      @cta="openCreateModal"
+    />
+    <EmptyState
+      v-else-if="!filteredDecks.length"
+      :title="$t('decks.noMatchesTitle')"
+      :body="$t('decks.noMatchesBody')"
+    />
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div v-for="deck in filteredDecks" :key="deck.id" class="relative">
-        <DeckArt :deck="deck" aspect-ratio="21/9" rounded="rounded-[22px]" image-position="right" />
+        <DeckArt :deck="deck" aspect-ratio="21/9" rounded="rounded-[var(--radius-lg)]" image-position="right" />
         <div
-          class="pointer-events-none absolute inset-0 rounded-[22px]"
+          class="pointer-events-none absolute inset-0 rounded-[var(--radius-lg)]"
           style="background: linear-gradient(90deg, rgba(10,7,20,0.94) 0%, rgba(10,7,20,0.82) 38%, rgba(10,7,20,0.25) 68%, rgba(10,7,20,0) 92%);"
         />
         <div class="absolute inset-y-0 left-0 flex w-[68%] flex-col justify-between p-4 sm:w-[58%]">
@@ -369,6 +448,104 @@ const filteredDecks = computed(() => {
     </p>
 
     <div
+      v-if="isCreateModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="closeCreateModal"
+    >
+      <div
+        ref="createModalRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="decks-create-title"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
+        <div class="flex items-center justify-between">
+          <h2 id="decks-create-title" class="text-[15px] font-medium">{{ $t('decks.create.title') }}</h2>
+          <button
+            type="button"
+            :aria-label="$t('common.close')"
+            class="-m-2 p-2 text-sm"
+            style="color: var(--text-dim);"
+            @click="closeCreateModal"
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+
+        <form class="mt-4 flex flex-col gap-3" @submit.prevent="handleCreate">
+          <div class="flex flex-col gap-1.5">
+            <label for="new-deck-name" class="px-1 text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">
+              {{ $t('decks.create.nameLabel') }}
+            </label>
+            <input
+              id="new-deck-name"
+              v-model="newDeckName"
+              type="text"
+              required
+              autofocus
+              :placeholder="$t('decks.create.namePlaceholder')"
+              class="w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
+              style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
+            >
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label for="new-deck-commander" class="px-1 text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">
+              {{ $t('decks.create.commanderLabel') }}
+            </label>
+            <CommanderSearch
+              v-model="newDeckCommander"
+              input-id="new-deck-commander"
+              :label="$t('decks.create.commanderLabel')"
+              @select="(s) => (pickedCommander = s)"
+            />
+          </div>
+
+          <!-- Confirms the pick did more than fill in text: this art is what
+               the deck card will show in the grid. -->
+          <div
+            v-if="newDeckImageUrl"
+            class="flex items-center gap-3 rounded-[var(--radius-md)] border p-2.5"
+            style="border-color: var(--card-border); background: var(--card-bg);"
+          >
+            <img
+              :src="newDeckImageUrl"
+              alt=""
+              class="h-10 w-16 shrink-0 rounded-[var(--radius-sm)] object-cover"
+            >
+            <p class="text-[11px]" style="color: var(--text-muted);">{{ $t('decks.create.artAttached') }}</p>
+          </div>
+
+          <button
+            type="submit"
+            :disabled="isCreating || !canSubmitCreate"
+            class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] transition-transform hover:scale-[1.02] disabled:opacity-50"
+            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+          >
+            {{ isCreating ? $t('decks.create.submitting') : $t('decks.create.submit') }}
+          </button>
+        </form>
+
+        <p v-if="createError" class="mt-3 text-sm" style="color: var(--lose);">{{ createError }}</p>
+
+        <p class="mt-4 border-t pt-4 text-[13px]" style="border-color: var(--card-border); color: var(--text-muted);">
+          {{ $t('decks.create.moxfieldPrompt') }}
+          <!-- Padded to clear SC 2.5.8's 24px floor without moving the text:
+               it sits inline in a sentence, so it can't just grow. -->
+          <button
+            type="button"
+            class="-my-1 inline-block py-1 underline"
+            style="color: var(--accent-link);"
+            @click="openImportModal"
+          >
+            {{ $t('decks.create.moxfieldAction') }}
+          </button>
+        </p>
+      </div>
+    </div>
+
+    <div
       v-if="isImportModalOpen"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       @click.self="closeImportModal"
@@ -378,7 +555,7 @@ const filteredDecks = computed(() => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="decks-import-title"
-        class="w-full max-w-sm rounded-[24px] border p-6"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
         style="border-color: var(--card-border); background: var(--page-solid);"
       >
         <div class="flex items-center justify-between">
@@ -386,7 +563,7 @@ const filteredDecks = computed(() => {
           <button
             type="button"
             :aria-label="$t('common.close')"
-            class="p-0 text-sm"
+            class="-m-2 p-2 text-sm"
             style="color: var(--text-dim);"
             @click="closeImportModal"
           >
@@ -419,14 +596,14 @@ const filteredDecks = computed(() => {
 
         <div
           v-if="importedDeck"
-          class="mt-4 flex gap-4 rounded-[18px] border p-4"
+          class="mt-4 flex gap-4 rounded-[var(--radius-md)] border p-4"
           style="border-color: rgba(52,211,153,0.35); background: var(--win-bg);"
         >
           <img
             v-if="importedDeck.image_url"
             :src="importedDeck.image_url"
             :alt="importedDeck.commander"
-            class="h-16 w-16 shrink-0 rounded-[14px] object-cover"
+            class="h-16 w-16 shrink-0 rounded-[var(--radius-sm)] object-cover"
           >
           <div>
             <p class="text-sm" style="color: var(--win);">{{ $t('toast.deckImported') }}</p>

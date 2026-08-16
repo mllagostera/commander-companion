@@ -115,10 +115,13 @@ async function handleJoin() {
   }
 }
 
-function statusColor(status: Tournament['status']): string {
-  if (status === 'finished') return 'var(--win)'
-  if (status === 'in_progress') return '#fbbf24'
-  return 'var(--text-muted)'
+// Status reads as a pill here, matching how every other status in the app is
+// rendered (a game's Won/Lost, a playgroup's history) rather than as loose
+// coloured text.
+function statusStyle(status: Tournament['status']): Record<string, string> {
+  if (status === 'finished') return { background: 'var(--win-bg)', color: 'var(--win)' }
+  if (status === 'in_progress') return { background: 'var(--warn-bg)', color: 'var(--warn)' }
+  return { background: 'var(--dim-bg)', color: 'var(--text-muted)' }
 }
 </script>
 
@@ -159,22 +162,28 @@ function statusColor(status: Tournament['status']): string {
         v-for="tournament in tournaments"
         :key="tournament.id"
         :to="`/tournaments/${tournament.id}`"
-        class="flex flex-col gap-2.5 rounded-[28px] border p-5 transition-all hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(129,140,248,0.18)]"
+        class="flex flex-col gap-3 rounded-[var(--radius-xl)] border p-5 transition-all hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(129,140,248,0.18)]"
         style="border-color: var(--card-border); background: var(--card-bg); color: var(--text);"
       >
         <div class="flex items-start justify-between gap-2">
           <h3 class="text-base font-semibold">{{ tournament.name }}</h3>
-          <span class="text-[11px] font-semibold uppercase tracking-wide" :style="{ color: statusColor(tournament.status) }">
+          <span
+            class="flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
+            :style="statusStyle(tournament.status)"
+          >
             {{ $t(`tournaments.status.${tournament.status}`) }}
           </span>
         </div>
-        <p class="text-[13px]" style="color: var(--text-dim);">
-          <template v-if="tournament.status === 'registration'">
+        <!-- The join code is shown for as long as it's usable (participants look
+             their table up with it every round), not only during registration. -->
+        <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]" style="color: var(--text-dim);">
+          <template v-if="tournament.status !== 'registration'">
+            <span>{{ $t('tournaments.list.roundProgress', { current: tournament.current_round, total: tournament.round_count }) }}</span>
+            <span v-if="tournament.status === 'in_progress'" aria-hidden="true">·</span>
+          </template>
+          <span v-if="tournament.status !== 'finished'" class="font-mono tracking-[0.15em]">
             {{ $t('tournaments.list.joinCode', { code: tournament.join_code }) }}
-          </template>
-          <template v-else>
-            {{ $t('tournaments.list.roundProgress', { current: tournament.current_round, total: tournament.round_count }) }}
-          </template>
+          </span>
         </p>
       </NuxtLink>
     </div>
@@ -190,7 +199,7 @@ function statusColor(status: Tournament['status']): string {
         role="dialog"
         aria-modal="true"
         aria-labelledby="tournaments-create-title"
-        class="w-full max-w-sm rounded-[24px] border p-6"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
         style="border-color: var(--card-border); background: var(--page-solid);"
       >
         <h2 id="tournaments-create-title" class="text-[15px] font-medium">{{ $t('tournaments.list.createModal.title') }}</h2>
@@ -251,7 +260,7 @@ function statusColor(status: Tournament['status']): string {
         role="dialog"
         aria-modal="true"
         aria-labelledby="tournaments-join-title"
-        class="w-full max-w-sm rounded-[24px] border p-6"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
         style="border-color: var(--card-border); background: var(--page-solid);"
       >
         <h2 id="tournaments-join-title" class="text-[15px] font-medium">{{ $t('tournaments.list.joinModal.title') }}</h2>

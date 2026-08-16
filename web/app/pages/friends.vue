@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { UserSearchResult } from '~/types/api'
+import type { Friend, UserSearchResult } from '~/types/api'
 
 const { t, d } = useI18n()
 const {
@@ -176,11 +176,31 @@ async function handleCancel(requestId: string) {
   }
 }
 
-async function handleRemove(userId: string) {
+// Unfriending is irreversible (the row is deleted, not soft-closed) and the
+// button sits right next to the friend's name, so it asks first.
+const friendPendingRemoval = ref<Friend | null>(null)
+const removeDialogRef = ref<HTMLElement | null>(null)
+const isRemoveDialogOpen = computed(() => friendPendingRemoval.value !== null)
+
+function askRemove(friend: Friend) {
   respondError.value = ''
-  respondingId.value = userId
+  friendPendingRemoval.value = friend
+}
+
+function cancelRemove() {
+  friendPendingRemoval.value = null
+}
+
+useModalA11y(isRemoveDialogOpen, removeDialogRef, cancelRemove)
+
+async function confirmRemove() {
+  const friend = friendPendingRemoval.value
+  if (!friend) return
+  respondError.value = ''
+  respondingId.value = friend.id
   try {
-    await removeFriend(userId)
+    await removeFriend(friend.id)
+    friendPendingRemoval.value = null
     await refreshFriends()
   } catch (err) {
     respondError.value = respondFriendRequestError(err)
@@ -197,7 +217,7 @@ async function handleRemove(userId: string) {
       <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('friends.subtitle') }}</p>
     </section>
 
-    <section class="flex flex-col gap-2.5 rounded-[22px] border p-4" style="border-color: var(--card-border); background: var(--card-bg-strong);">
+    <section class="flex flex-col gap-2.5 rounded-[var(--radius-lg)] border p-4" style="border-color: var(--card-border); background: var(--card-bg-strong);">
       <h2 class="text-[15px] font-medium">{{ $t('friends.add.heading') }}</h2>
       <div class="relative">
         <input
@@ -220,7 +240,7 @@ async function handleRemove(userId: string) {
           v-if="searchResults.length"
           id="friend-search-listbox"
           role="listbox"
-          class="absolute z-10 mt-1 w-full space-y-1 rounded-2xl border p-1 shadow-lg"
+          class="absolute z-10 mt-1 w-full space-y-1 rounded-[var(--radius-md)] border p-1 shadow-lg"
           style="border-color: var(--card-border); background: var(--page-solid);"
         >
           <li v-for="user in searchResults" :key="user.id" role="presentation">
@@ -230,7 +250,7 @@ async function handleRemove(userId: string) {
               role="option"
               aria-selected="false"
               :disabled="sendingUserId === user.id"
-              class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-white/5 disabled:opacity-50"
+              class="flex w-full items-center justify-between rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm hover:bg-white/5 disabled:opacity-50"
               style="color: var(--text);"
               @click="handleSendRequest(user)"
               @keydown="handleResultKeydown"
@@ -246,62 +266,73 @@ async function handleRemove(userId: string) {
       <p v-if="sendError" class="text-xs" style="color: var(--lose);">{{ sendError }}</p>
     </section>
 
-    <section v-if="incoming?.length">
-      <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('friends.incoming.heading') }}</h2>
-      <div class="flex flex-col gap-2.5">
-        <div
-          v-for="req in incoming"
-          :key="req.id"
-          class="flex items-center justify-between gap-3 rounded-[20px] border px-5 py-3"
-          style="border-color: var(--card-border); background: var(--card-bg);"
-        >
-          <span class="text-sm">{{ req.requester_username }}</span>
-          <div class="flex gap-2">
-            <button
-              type="button"
-              :disabled="respondingId === req.id"
-              class="rounded-full px-4 py-1.5 text-[13px] font-semibold text-[#0a0714] disabled:opacity-50"
-              style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
-              @click="handleAccept(req.id, req.requester_username)"
-            >
-              {{ $t('friends.incoming.accept') }}
-            </button>
-            <button
-              type="button"
-              :disabled="respondingId === req.id"
-              class="rounded-full border px-4 py-1.5 text-[13px] disabled:opacity-50"
-              style="border-color: var(--input-border); color: var(--text-muted);"
-              @click="handleReject(req.id)"
-            >
-              {{ $t('friends.incoming.reject') }}
-            </button>
+    <!-- Both request lists sit in one two-column row: each card carries a name
+         and two small actions, so full-width rows left ~800px of dead space
+         between the two. -->
+    <section v-if="incoming?.length || outgoing?.length" class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div v-if="incoming?.length">
+        <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('friends.incoming.heading') }}</h2>
+        <div class="flex flex-col gap-2.5">
+          <div
+            v-for="req in incoming"
+            :key="req.id"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border px-4 py-3"
+            style="border-color: var(--card-border); background: var(--card-bg);"
+          >
+            <span class="flex min-w-0 items-center gap-2.5">
+              <UserAvatar :username="req.requester_username" />
+              <span class="truncate text-sm">{{ req.requester_username }}</span>
+            </span>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                :disabled="respondingId === req.id"
+                class="rounded-full px-4 py-1.5 text-[13px] font-semibold text-[#0a0714] disabled:opacity-50"
+                style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+                @click="handleAccept(req.id, req.requester_username)"
+              >
+                {{ $t('friends.incoming.accept') }}
+              </button>
+              <button
+                type="button"
+                :disabled="respondingId === req.id"
+                class="rounded-full border px-4 py-1.5 text-[13px] disabled:opacity-50"
+                style="border-color: var(--input-border); color: var(--text-muted);"
+                @click="handleReject(req.id)"
+              >
+                {{ $t('friends.incoming.reject') }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </section>
 
-    <section v-if="outgoing?.length">
-      <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('friends.outgoing.heading') }}</h2>
-      <div class="flex flex-col gap-2.5">
-        <div
-          v-for="req in outgoing"
-          :key="req.id"
-          class="flex items-center justify-between gap-3 rounded-[20px] border px-5 py-3"
-          style="border-color: var(--card-border); background: var(--card-bg);"
-        >
-          <span class="text-sm">{{ req.addressee_username }}</span>
-          <span class="flex items-center gap-3">
-            <span class="text-[13px]" style="color: var(--text-dim);">{{ $t('friends.outgoing.pending') }}</span>
-            <button
-              type="button"
-              :disabled="respondingId === req.id"
-              class="rounded-full border px-4 py-1.5 text-[13px] disabled:opacity-50"
-              style="border-color: var(--input-border); color: var(--text-muted);"
-              @click="handleCancel(req.id)"
-            >
-              {{ $t('friends.outgoing.cancel') }}
-            </button>
-          </span>
+      <div v-if="outgoing?.length">
+        <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('friends.outgoing.heading') }}</h2>
+        <div class="flex flex-col gap-2.5">
+          <div
+            v-for="req in outgoing"
+            :key="req.id"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border px-4 py-3"
+            style="border-color: var(--card-border); background: var(--card-bg);"
+          >
+            <span class="flex min-w-0 items-center gap-2.5">
+              <UserAvatar :username="req.addressee_username" />
+              <span class="truncate text-sm">{{ req.addressee_username }}</span>
+            </span>
+            <span class="flex items-center gap-3">
+              <span class="text-[13px]" style="color: var(--text-dim);">{{ $t('friends.outgoing.pending') }}</span>
+              <button
+                type="button"
+                :disabled="respondingId === req.id"
+                class="rounded-full border px-4 py-1.5 text-[13px] disabled:opacity-50"
+                style="border-color: var(--input-border); color: var(--text-muted);"
+                @click="handleCancel(req.id)"
+              >
+                {{ $t('friends.outgoing.cancel') }}
+              </button>
+            </span>
+          </div>
         </div>
       </div>
     </section>
@@ -312,24 +343,23 @@ async function handleRemove(userId: string) {
       <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('friends.list.heading') }}</h2>
 
       <p v-if="friendsError" class="text-sm" style="color: var(--lose);">{{ listFriendsError(friendsError) }}</p>
-      <p v-else-if="!friends?.length" class="text-sm" style="color: var(--text-muted);">{{ $t('friends.list.empty') }}</p>
+      <EmptyState
+        v-else-if="!friends?.length"
+        :title="$t('friends.list.emptyTitle')"
+        :body="$t('friends.list.emptyBody')"
+      />
 
       <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div
           v-for="friend in friends"
           :key="friend.id"
-          class="flex items-center justify-between gap-3 rounded-[20px] border px-5 py-3.5"
+          class="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border px-4 py-3"
           style="border-color: var(--card-border); background: var(--card-bg);"
         >
-          <span class="flex items-center gap-2.5">
-            <span
-              class="flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-semibold text-[#0a0714]"
-              :style="{ background: avatarColor(friend.username.length) }"
-            >
-              {{ friend.username[0]?.toUpperCase() }}
-            </span>
-            <span>
-              <span class="block text-sm">{{ friend.username }}</span>
+          <span class="flex min-w-0 items-center gap-2.5">
+            <UserAvatar :username="friend.username" />
+            <span class="min-w-0">
+              <span class="block truncate text-sm">{{ friend.username }}</span>
               <span class="block text-[11px]" style="color: var(--text-dim);">
                 {{ $t('friends.list.since', { date: friendsSinceLabel(friend.friends_since) }) }}
               </span>
@@ -338,14 +368,54 @@ async function handleRemove(userId: string) {
           <button
             type="button"
             :disabled="respondingId === friend.id"
-            class="text-[13px] disabled:opacity-50"
-            style="color: var(--text-muted);"
-            @click="handleRemove(friend.id)"
+            class="flex-shrink-0 rounded-full border px-3 py-1 text-[13px] disabled:opacity-50"
+            style="border-color: var(--input-border); color: var(--text-muted);"
+            @click="askRemove(friend)"
           >
             {{ $t('friends.list.remove') }}
           </button>
         </div>
       </div>
     </section>
+
+    <div
+      v-if="friendPendingRemoval"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="cancelRemove"
+    >
+      <div
+        ref="removeDialogRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="friends-remove-title"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
+        <h2 id="friends-remove-title" class="text-[15px] font-medium">
+          {{ $t('friends.list.removeConfirmTitle', { username: friendPendingRemoval.username }) }}
+        </h2>
+        <p class="mt-2 text-[13px]" style="color: var(--text-muted);">{{ $t('friends.list.removeConfirmBody') }}</p>
+
+        <div class="mt-5 flex justify-end gap-3">
+          <button
+            type="button"
+            class="rounded-full border px-4 py-2 text-sm"
+            style="border-color: var(--input-border); color: var(--text);"
+            @click="cancelRemove"
+          >
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            type="button"
+            :disabled="respondingId === friendPendingRemoval.id"
+            class="rounded-full border px-5 py-2 text-sm font-semibold disabled:opacity-50"
+            style="border-color: rgba(248,113,113,0.35); background: var(--lose-bg); color: var(--lose);"
+            @click="confirmRemove"
+          >
+            {{ $t('friends.list.remove') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

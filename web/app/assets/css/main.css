@@ -31,13 +31,32 @@
   --win-bg: rgba(52, 211, 153, 0.15);
   --lose: #f87171;
   --lose-bg: rgba(248, 113, 113, 0.12);
+  /* In-progress / attention states (a running game, a running tournament). */
+  --warn: #fbbf24;
+  --warn-bg: rgba(251, 191, 36, 0.14);
+  /*
+   * Neutral track behind a progress/ring fill (see WinRateRing). It has to be a
+   * token rather than a hardcoded white: at rgba(255,255,255,0.08) the track was
+   * invisible on the light theme's near-white surfaces, so the ring rendered as a
+   * floating arc with nothing to read it against.
+   */
+  --ring-track: rgba(255, 255, 255, 0.08);
 }
 
+/*
+ * Light theme. The greys here were measured against the light card surface
+ * (rgb(242,241,245), i.e. --card-bg composited over the page) and tuned to at
+ * least match what the dark theme already achieved — before that pass,
+ * --text-dim sat at 4.29:1, under WCAG AA's 4.5 for body text, while its dark
+ * counterpart was a comfortable 5.37, so every secondary line (opponents,
+ * dates, commanders, counts) was noticeably harder to read in light mode than
+ * in dark. Same for --win, which failed at 4.15 on --win-bg.
+ */
 :root[data-theme='light'] {
   --bg-gradient: radial-gradient(ellipse 120% 80% at 20% -10%, #f2eefc 0%, #f8f7fb 45%, #ffffff 100%);
   --text: #211f2e;
-  --text-muted: #5d5a72;
-  --text-dim: #726f89;
+  --text-muted: #524f64;
+  --text-dim: #625f76;
   --card-bg: rgba(30, 20, 60, 0.035);
   --card-bg-strong: rgba(30, 20, 60, 0.05);
   --card-border: rgba(30, 20, 60, 0.09);
@@ -51,10 +70,35 @@
   --accent-link2: #9333ea;
   --page-solid: #faf9fc;
   --blob-opacity: 0.4;
-  --win: #0f766e;
+  --win: #0c625b;
   --win-bg: rgba(15, 118, 110, 0.12);
-  --lose: #b91c1c;
+  --lose: #ac1a1a;
   --lose-bg: rgba(185, 28, 28, 0.1);
+  /* Amber is the one hue that can't be carried over from the dark theme at all:
+     #fbbf24 measures 1.48:1 on a light card. */
+  --warn: #7c4a06;
+  --warn-bg: rgba(161, 98, 7, 0.12);
+  --ring-track: rgba(30, 20, 60, 0.12);
+}
+
+/*
+ * Corner-radius scale. Not theme-dependent (so it lives outside the two
+ * [data-theme] blocks above), but it belongs with the other design tokens:
+ * before this existed, radii were written inline per element and had drifted
+ * to 18/20/22/24/26/28px with no rule — three cards sitting side by side in
+ * the dashboard's own grid used 24, 20 and 26. Four steps is enough for
+ * every surface this app draws:
+ *   xl → page-level cards and hero surfaces
+ *   lg → standard cards inside a section
+ *   md → list rows and inner blocks
+ *   sm → thumbnails and chips
+ * Pages still on hardcoded values are fine to migrate opportunistically.
+ */
+:root {
+  --radius-xl: 28px;
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 10px;
 }
 
 body {

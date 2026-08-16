@@ -17,8 +17,9 @@ was available to capture those the same way — see `docs/roadmap/TASKS.md`)
 and [`use-cases.md`](use-cases.md) for the step-by-step flows behind
 each screen.
 
-**Freshness note**: these are a point-in-time capture (2026-08-09). The web
-client has no visual regression testing, so treat this gallery as
+**Freshness note**: these are a point-in-time capture (2026-08-09; the two
+Dashboard shots were re-taken 2026-08-15 after that screen was rebuilt). The
+web client has no visual regression testing, so treat this gallery as
 documentation, not as a guarantee the pixels still match — re-generate it
 after any significant UI change.
 
@@ -59,16 +60,20 @@ immediately; production has it enabled).
 
 ![Dashboard, no activity yet](screenshots/dashboard-empty.png)
 
-First screen after login: stat cards (games/wins/win rate/decks), a
-win-loss ring, best deck, current streak, groups, decks, and recent games —
-all showing their empty states for a brand-new account.
+First screen after login, for a brand-new account: every section is in its
+empty state, and each one offers the action that gets you out of it
+(import a deck, start a game, create a group) rather than just stating that
+there's nothing yet.
 
 ### With activity
 
-![Dashboard after joining a group](screenshots/dashboard-with-activity.png)
+![Dashboard with games, decks and groups](screenshots/dashboard-with-activity.png)
 
-Same screen after creating a playgroup and adding a member — the "Tus
-grupos" section now lists it.
+The same screen once there's history. The best-performing deck leads as a
+spotlight card over its own art, with win rate / wins-losses / current
+streak and the account totals beside it; below, recent games (each with the
+deck played and the opponents faced) next to the most-played decks and
+their win rates, and the playgroups last.
 
 ### Account menu
 

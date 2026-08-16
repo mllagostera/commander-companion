@@ -92,54 +92,64 @@
     }
   },
   "dashboard": {
-    "sessionAs": "Sessió iniciada com a",
     "greeting": "Hola, {username}",
     "newGame": "+ Nova partida",
     "loadError": "No s'ha pogut carregar el resum.",
     "stats": {
       "games": "Partides",
-      "wins": "Victòries",
-      "winRate": "Win rate",
-      "decks": "Decks"
+      "winRate": "Win rate"
     },
     "winLoss": {
       "heading": "Victòries / derrotes",
       "won": "{count} guanyades",
       "lost": "{count} perdudes"
     },
+    "performance": {
+      "totals": "{games} partides · {decks} decks · {groups} grups"
+    },
     "bestDeck": {
       "heading": "El teu millor deck",
-      "summary": "{winRate} de win rate · {games} partides",
-      "empty": "Encara no hi ha partides registrades."
+      "emptyTitle": "Encara no hi ha cap deck destacat",
+      "emptyBody": "Importa els teus decks des de Moxfield i juga una partida: aquí hi apareixerà amb el que més guanyes.",
+      "emptyCta": "Importar un deck"
     },
     "streak": {
       "heading": "Ratxa actual",
       "wins": "{count} victòries seguides",
       "losses": "{count} derrotes seguides",
-      "sinceLast": "Comptant des de la teva última partida.",
       "empty": "Encara no hi ha partides finalitzades."
     },
     "groups": {
       "heading": "Els teus grups",
       "viewAll": "Veure'ls tots",
-      "empty": "Encara no ets membre de cap grup.",
-      "summary": "{members} membres · {games} partides"
+      "summary": "{members} membres · {games} partides",
+      "emptyTitle": "Encara no ets a cap grup",
+      "emptyBody": "Els grups són les taules amb què jugues habitualment: mantenen juntes la història i les estadístiques de cada partida.",
+      "emptyCta": "Crear un grup"
     },
     "decksSection": {
       "heading": "Els teus decks",
       "viewStats": "Veure estadístiques",
-      "empty": "Encara no tens cap deck."
+      "gamesPlayed": "{count} partida | {count} partides",
+      "emptyTitle": "Encara no tens cap deck",
+      "emptyBody": "Importa'ls des de Moxfield per seguir com rendeix cadascun.",
+      "emptyCta": "Importar un deck"
     },
     "recentGames": {
       "heading": "Últimes partides",
-      "empty": "Encara no s'ha registrat cap partida finalitzada.",
+      "viewAll": "Veure-les totes",
       "won": "Guanyada",
-      "lost": "Perduda"
+      "lost": "Perduda",
+      "versus": "vs {opponents}",
+      "unknownDeck": "Deck sense registrar",
+      "emptyTitle": "Encara no hi ha partides registrades",
+      "emptyBody": "Acaba una partida i apareixerà aquí amb el deck que has jugat i a qui has guanyat.",
+      "emptyCta": "Començar una partida"
     }
   },
   "decks": {
     "title": "Els meus decks",
-    "subtitle": "Importats des de Moxfield.",
+    "subtitle": "Creats a mà o importats des de Moxfield.",
     "addDeck": "+ Afegeix deck",
     "searchPlaceholder": "Cerca deck o comandant…",
     "sort": {
@@ -151,7 +161,6 @@
     },
     "loadError": "No s'han pogut carregar els decks.",
     "loadingMore": "Carregant més decks…",
-    "empty": "Encara no tens cap deck. Importa'n un des de Moxfield per començar.",
     "stats": "{played} partides · {won} victòries",
     "sync": {
       "action": "Actualitza",
@@ -176,6 +185,24 @@
     },
     "errors": {
       "syncFailed": "No s'ha pogut sincronitzar amb Moxfield."
+    },
+    "emptyTitle": "Encara no tens cap deck",
+    "emptyBody": "Afegeix el teu primer deck per començar a seguir-ne el rendiment: a mà o important-lo des de Moxfield.",
+    "noMatchesTitle": "Cap deck coincideix amb la teva cerca",
+    "noMatchesBody": "Prova amb un altre nom de deck o de comandant.",
+    "create": {
+      "title": "Nou deck",
+      "nameLabel": "Nom del deck",
+      "namePlaceholder": "Atraxa Superfriends",
+      "commanderLabel": "Comandant",
+      "commanderPlaceholder": "Escriu per cercar un comandant…",
+      "searching": "Cercant a Scryfall…",
+      "noSuggestions": "Cap comandant no coincideix. Pots fer servir igualment el nom que has escrit.",
+      "artAttached": "El deck farà servir la il·lustració d'aquest comandant.",
+      "submit": "Crea el deck",
+      "submitting": "Creant…",
+      "moxfieldPrompt": "Ja el tens a Moxfield?",
+      "moxfieldAction": "Importa'l en lloc d'això"
     }
   },
   "statistics": {
@@ -195,16 +222,19 @@
     },
     "headToHead": {
       "heading": "Cara a cara",
-      "empty": "Encara no has jugat cap partida amb altres usuaris.",
       "mostPlayed": "Contra qui més jugues",
       "archenemy": "Arxienemic",
       "gamesTogether": "{count} partides juntes",
-      "eliminatedYou": "T'ha eliminat {count} vegades"
+      "eliminatedYou": "T'ha eliminat {count} vegades",
+      "emptyTitle": "Encara no hi ha historial d’enfrontaments",
+      "emptyBody": "Quan acabis partides amb les mateixes persones, aquí veuràs amb qui jugues més i qui et guanya més."
     },
     "mostPlayedGroup": {
       "heading": "Grup en el qual més jugues",
-      "empty": "Encara no has jugat cap partida en un grup.",
-      "summary": "{count} partides"
+      "summary": "{count} partides",
+      "emptyTitle": "Encara no hi ha partides de grup",
+      "emptyBody": "Les partides jugades en un grup compten per al seu historial i la seva classificació.",
+      "emptyCta": "Anar a grups"
     },
     "tabs": {
       "byDeck": "Per deck",
@@ -230,7 +260,6 @@
     "finishedGames": {
       "loading": "Carregant partides...",
       "loadingMore": "Carregant...",
-      "empty": "Encara no has acabat cap partida.",
       "noGroup": "Partida sense grup",
       "won": "Ha guanyat",
       "lost": "Ha perdut",
@@ -238,7 +267,9 @@
       "duration": "Durada",
       "turns": "Torns",
       "biggestHit": "Cop més fort",
-      "loadMore": "Carrega'n més"
+      "loadMore": "Carrega'n més",
+      "emptyTitle": "Encara no hi ha partides finalitzades",
+      "emptyBody": "Cada partida que acabis es llista aquí amb els seus decks i el resultat."
     }
   },
   "settings": {
@@ -317,16 +348,19 @@
           "wins": "Victòries",
           "winRate": "Win rate"
         },
-        "empty": "Encara no hi ha partides registrades."
+        "emptyTitle": "Encara no hi ha classificació",
+        "emptyBody": "Quan aquest grup acabi una partida, aquí es classifica el win rate de cadascú."
       },
       "members": {
         "heading": "Membres"
       },
       "history": {
         "heading": "Historial de partides",
-        "empty": "Encara no s'ha jugat cap partida en aquest grup.",
-        "noPlayers": "Sense jugadors"
-      }
+        "noPlayers": "Sense jugadors",
+        "emptyTitle": "Encara no hi ha partides en aquest grup",
+        "emptyBody": "Juga'n una i apareixerà aquí, juntament amb el win rate de cadascú."
+      },
+      "formerMember": "Ex membre"
     }
   },
   "friends": {
@@ -350,9 +384,12 @@
     },
     "list": {
       "heading": "Els teus amics",
-      "empty": "Encara no has afegit cap amic.",
       "since": "Amics des de {date}",
-      "remove": "Elimina"
+      "remove": "Elimina",
+      "emptyTitle": "Encara no tens amics",
+      "emptyBody": "Cerca algú pel seu username a dalt per enviar-li una sol·licitud.",
+      "removeConfirmTitle": "Vols treure {username}?",
+      "removeConfirmBody": "Deixareu de ser amics. Després pots enviar una nova sol·licitud."
     }
   },
   "play": {
@@ -416,7 +453,8 @@
     "tournamentStarted": "Torneig iniciat",
     "roundAdvanced": "Ronda avançada",
     "friendRequestSent": "Sol·licitud d'amistat enviada a {username}",
-    "friendAdded": "Ara tu i {username} sou amics"
+    "friendAdded": "Ara tu i {username} sou amics",
+    "deckCreated": "Deck creat"
   },
   "gameStatus": {
     "pending": "Pendent",
@@ -540,6 +578,10 @@
       "list": {
         "generic": "No s'han pogut carregar els teus amics."
       }
+    },
+    "createDeck": {
+      "missingFields": "Un deck necessita nom i comandant.",
+      "generic": "No s'ha pogut crear el deck."
     }
   },
   "tournaments": {
@@ -594,7 +636,8 @@
         "commanderPlaceholder": "Comandant",
         "adding": "Afegint…",
         "add": "Afegir",
-        "empty": "Encara no s'ha registrat ningú."
+        "emptyTitle": "Encara no hi ha participants",
+        "emptyBody": "Comparteix el codi de dalt o afegeix un convidat que no tingui compte."
       },
       "round": {
         "heading": "Ronda {number}",
@@ -604,7 +647,8 @@
         "recording": "Desant…",
         "recordResult": "Registrar resultat",
         "advancing": "Avançant…",
-        "advance": "Següent ronda"
+        "advance": "Següent ronda",
+        "pickPositionFor": "Posició final de {name}"
       },
       "standings": {
         "heading": "Classificació",
@@ -613,7 +657,8 @@
           "points": "Punts"
         },
         "winner": "Guanyador"
-      }
+      },
+      "shareHintInProgress": "Els participants fan servir aquest codi per consultar a quina taula juguen cada ronda."
     }
   }
 }

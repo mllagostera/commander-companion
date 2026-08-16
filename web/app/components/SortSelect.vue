@@ -107,7 +107,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
         role="listbox"
         :aria-label="selectLabel"
         tabindex="-1"
-        class="absolute left-0 top-[calc(100%+8px)] z-30 flex min-w-[180px] flex-col gap-0.5 rounded-[18px] border p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.3)] backdrop-blur-xl"
+        class="absolute left-0 top-[calc(100%+8px)] z-30 flex min-w-[180px] flex-col gap-0.5 rounded-[var(--radius-md)] border p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.3)] backdrop-blur-xl"
         style="background: var(--menu-bg); border-color: var(--card-border);"
         @keydown="handleListKeydown"
       >
@@ -118,7 +118,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
           type="button"
           role="option"
           :aria-selected="option.value === modelValue"
-          class="rounded-[10px] px-3 py-2 text-left text-[13px] transition-colors"
+          class="rounded-[var(--radius-sm)] px-3 py-2 text-left text-[13px] transition-colors"
           :class="option.value === modelValue ? '' : 'hover:bg-[var(--card-bg)]'"
           :style="option.value === modelValue
             ? 'background: rgba(139,92,246,0.18); color: var(--text); font-weight: 600;'
