@@ -7,7 +7,7 @@ withDefaults(
 
 <template>
   <div
-    class="rounded-[22px] border p-4"
+    class="rounded-[var(--radius-lg)] border p-4"
     :style="{
       background: tint ? `linear-gradient(160deg, ${tint}, var(--card-bg))` : 'var(--card-bg)',
       borderColor: 'var(--card-border)',

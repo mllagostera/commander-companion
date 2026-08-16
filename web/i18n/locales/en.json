@@ -334,7 +334,8 @@
           "wins": "Wins",
           "winRate": "Win rate"
         },
-        "empty": "No games recorded yet."
+        "emptyTitle": "No ranking yet",
+        "emptyBody": "Once this group finishes a game, everyone's win rate is ranked here."
       },
       "members": {
         "heading": "Members"

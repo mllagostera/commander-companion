@@ -177,7 +177,7 @@ onUnmounted(stopPolling)
       <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('settings.subtitle') }}</p>
     </section>
 
-    <section class="flex flex-col gap-4 rounded-[28px] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
+    <section class="flex flex-col gap-4 rounded-[var(--radius-xl)] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
       <div class="flex items-center gap-3.5">
         <span
           class="flex h-[50px] w-[50px] flex-shrink-0 items-center justify-center rounded-full text-lg font-bold text-[#0a0714]"
@@ -213,14 +213,14 @@ onUnmounted(stopPolling)
       <p v-if="usernameError" class="text-sm" style="color: var(--lose);">{{ usernameError }}</p>
     </section>
 
-    <section class="flex flex-col items-center gap-3 rounded-[28px] border p-[22px] text-center" style="border-color: var(--card-border); background: var(--card-bg);">
+    <section class="flex flex-col items-center gap-3 rounded-[var(--radius-xl)] border p-[22px] text-center" style="border-color: var(--card-border); background: var(--card-bg);">
       <h2 class="text-[15px] font-medium">{{ $t('settings.qr.heading') }}</h2>
       <p class="max-w-[380px] text-[13px]" style="color: var(--text-muted);">{{ $t('settings.qr.description') }}</p>
       <!-- eslint-disable-next-line vue/no-v-html -- friendQrSvg is generated locally by the `qrcode` lib from the user's own id (a UUID), never from user-controllable input -->
-      <div v-if="friendQrSvg" class="w-[180px] rounded-2xl bg-white p-3" v-html="friendQrSvg" />
+      <div v-if="friendQrSvg" class="w-[180px] rounded-[var(--radius-md)] bg-white p-3" v-html="friendQrSvg" />
     </section>
 
-    <section class="flex flex-col gap-3.5 rounded-[28px] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
+    <section class="flex flex-col gap-3.5 rounded-[var(--radius-xl)] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
       <h2 class="text-[15px] font-medium">{{ $t('settings.moxfield.heading') }}</h2>
       <p class="text-[13px]" style="color: var(--text-muted);">
         {{ $t('settings.moxfield.description') }}
@@ -277,7 +277,7 @@ onUnmounted(stopPolling)
       </div>
     </section>
 
-    <section class="flex flex-col gap-3.5 rounded-[28px] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
+    <section class="flex flex-col gap-3.5 rounded-[var(--radius-xl)] border p-[22px]" style="border-color: var(--card-border); background: var(--card-bg);">
       <h2 class="text-[15px] font-medium">{{ $t('settings.security.heading') }}</h2>
 
       <p v-if="!user?.has_password" class="text-[13px]" style="color: var(--text-muted);">

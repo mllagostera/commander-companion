@@ -199,7 +199,7 @@ function statusStyle(status: Tournament['status']): Record<string, string> {
         role="dialog"
         aria-modal="true"
         aria-labelledby="tournaments-create-title"
-        class="w-full max-w-sm rounded-[24px] border p-6"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
         style="border-color: var(--card-border); background: var(--page-solid);"
       >
         <h2 id="tournaments-create-title" class="text-[15px] font-medium">{{ $t('tournaments.list.createModal.title') }}</h2>
@@ -260,7 +260,7 @@ function statusStyle(status: Tournament['status']): Record<string, string> {
         role="dialog"
         aria-modal="true"
         aria-labelledby="tournaments-join-title"
-        class="w-full max-w-sm rounded-[24px] border p-6"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
         style="border-color: var(--card-border); background: var(--page-solid);"
       >
         <h2 id="tournaments-join-title" class="text-[15px] font-medium">{{ $t('tournaments.list.joinModal.title') }}</h2>

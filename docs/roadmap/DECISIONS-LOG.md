@@ -25,6 +25,43 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-16 — Closing the web pass: the playgroup ranking's empty state, and
+the radius scale everywhere else.** The two items the design review had left
+open, finished in one pass.
+
+- **The ranking empty state was solved by moving it, not restyling it.** The
+  reason it had been held back is that it was being rendered *as a row inside*
+  the bordered ranking table, where a dashed card reads as a broken row. But
+  with no ranked members the table has nothing in it but its header — so the
+  empty state belongs *instead of* the table, not inside it. It's now an
+  `v-if`/`v-else` against the whole container, which is what made it look
+  right without any new styling.
+- **Then screenshotting it surfaced a second problem the code review hadn't.**
+  On an empty group the page showed two identical "New game" CTAs one scroll
+  apart — because the ranking is derived from games, so it is empty in exactly
+  the cases where the history below it is, and that section already owned the
+  action. The ranking's empty state is now deliberately CTA-less (`EmptyState`
+  already treats the CTA as optional). Worth recording as the reason: the
+  duplication is invisible in the diff and obvious in the render, especially at
+  390px where both cards are in the same viewport.
+- **The radius scale was applied by role, not by find-and-replace.** The four
+  tokens (`--radius-xl/lg/md/sm`, 28/22/16/10px) were introduced with the
+  dashboard rebuild but only used there. Rolling them out to the remaining
+  files meant deciding what each surface *is* — xl for page-level and auth
+  cards and modals, lg for section cards and table containers, md for rows,
+  popups and inner blocks, sm for dropdown options, thumbnails and chips —
+  rather than mapping old pixel values one-to-one, since the old values were
+  themselves inconsistent. Zero hardcoded card radii remain. What deliberately
+  stayed literal: the percentage-based organic shapes (the background blobs'
+  `63%_37%_54%_46%/…`, the logo glyph), `play.vue`'s `rounded-sm` bars, which
+  are a pause *icon* and not a card, and its asymmetric winner badge.
+
+Verified with `npm run lint`, `nuxt typecheck` and `npm run build` all clean,
+the scripted audit re-run at 0 issues across nine screens × two viewports, i18n
+parity held at 443 keys in all three locales (`ranking.empty` replaced by
+`emptyTitle`/`emptyBody`, old key referenced nowhere), and screenshots of a
+purpose-made empty group at 1440px and 390px.
+
 **2026-08-16 — Design review across every screen, and the ten fixes it
 produced.** The user asked for a sweep of the whole web client. Rather than
 eyeball it, the pass combined a scripted audit (horizontal overflow, clipped
@@ -56,9 +93,10 @@ was more interesting than what the script did:
   empty states were still bare grey sentences — the exact thing that
   component was introduced to fix. Migrated, with the component gaining a
   button mode (`@cta`) for the ones that resolve in place rather than by
-  navigating, e.g. opening the deck-import modal. The one deliberately left
-  alone is the playgroup ranking's, which sits *inside* a bordered table
-  where a dashed card would nest badly.
+  navigating, e.g. opening the deck-import modal. The playgroup ranking's was
+  the awkward one — a dashed card nested inside the bordered table read as a
+  broken row — and it was held back a pass before being solved properly (see
+  the follow-up below).
 - **The position pickers were native `<select>`s** — the only browser-painted
   control left in the app, which `SortSelect` exists precisely to avoid (see
   its own doc comment). Swapped.

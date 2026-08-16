@@ -90,7 +90,7 @@ async function handleCreate() {
         v-for="playgroup in playgroups"
         :key="playgroup.id"
         :to="`/playgroups/${playgroup.id}`"
-        class="flex flex-col gap-3.5 rounded-[28px] border p-5 transition-all hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(129,140,248,0.18)]"
+        class="flex flex-col gap-3.5 rounded-[var(--radius-xl)] border p-5 transition-all hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(129,140,248,0.18)]"
         style="border-color: var(--card-border); background: var(--card-bg); color: var(--text);"
       >
         <div>
@@ -123,7 +123,7 @@ async function handleCreate() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="playgroups-create-title"
-        class="w-full max-w-sm rounded-[24px] border p-6"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
         style="border-color: var(--card-border); background: var(--page-solid);"
       >
         <h2 id="playgroups-create-title" class="text-[15px] font-medium">{{ $t('playgroups.list.modal.title') }}</h2>

@@ -331,9 +331,9 @@ const filteredDecks = computed(() => {
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div v-for="deck in filteredDecks" :key="deck.id" class="relative">
-        <DeckArt :deck="deck" aspect-ratio="21/9" rounded="rounded-[22px]" image-position="right" />
+        <DeckArt :deck="deck" aspect-ratio="21/9" rounded="rounded-[var(--radius-lg)]" image-position="right" />
         <div
-          class="pointer-events-none absolute inset-0 rounded-[22px]"
+          class="pointer-events-none absolute inset-0 rounded-[var(--radius-lg)]"
           style="background: linear-gradient(90deg, rgba(10,7,20,0.94) 0%, rgba(10,7,20,0.82) 38%, rgba(10,7,20,0.25) 68%, rgba(10,7,20,0) 92%);"
         />
         <div class="absolute inset-y-0 left-0 flex w-[68%] flex-col justify-between p-4 sm:w-[58%]">
@@ -390,7 +390,7 @@ const filteredDecks = computed(() => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="decks-import-title"
-        class="w-full max-w-sm rounded-[24px] border p-6"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
         style="border-color: var(--card-border); background: var(--page-solid);"
       >
         <div class="flex items-center justify-between">
@@ -431,14 +431,14 @@ const filteredDecks = computed(() => {
 
         <div
           v-if="importedDeck"
-          class="mt-4 flex gap-4 rounded-[18px] border p-4"
+          class="mt-4 flex gap-4 rounded-[var(--radius-md)] border p-4"
           style="border-color: rgba(52,211,153,0.35); background: var(--win-bg);"
         >
           <img
             v-if="importedDeck.image_url"
             :src="importedDeck.image_url"
             :alt="importedDeck.commander"
-            class="h-16 w-16 shrink-0 rounded-[14px] object-cover"
+            class="h-16 w-16 shrink-0 rounded-[var(--radius-sm)] object-cover"
           >
           <div>
             <p class="text-sm" style="color: var(--win);">{{ $t('toast.deckImported') }}</p>

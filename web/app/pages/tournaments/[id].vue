@@ -226,7 +226,7 @@ async function handleAdvance() {
 
           <div
             v-if="isAddGuestOpen"
-            class="mb-3.5 flex flex-col gap-2.5 rounded-[22px] border p-4"
+            class="mb-3.5 flex flex-col gap-2.5 rounded-[var(--radius-lg)] border p-4"
             style="border-color: var(--card-border); background: var(--card-bg-strong);"
           >
             <form class="flex flex-wrap gap-2.5" @submit.prevent="handleAddGuest">
@@ -264,7 +264,7 @@ async function handleAdvance() {
             <li
               v-for="p in detail.participants"
               :key="p.id"
-              class="flex items-center justify-between rounded-2xl border px-4 py-2.5 text-sm"
+              class="flex items-center justify-between rounded-[var(--radius-md)] border px-4 py-2.5 text-sm"
               style="border-color: var(--card-border); background: var(--card-bg);"
             >
               <span>{{ p.username ?? p.guest_name }}</span>
@@ -302,7 +302,7 @@ async function handleAdvance() {
             <div
               v-for="table in currentRound.tables"
               :key="table.id"
-              class="rounded-[22px] border p-4"
+              class="rounded-[var(--radius-lg)] border p-4"
               style="border-color: var(--card-border); background: var(--card-bg);"
             >
               <p class="text-[13px] font-medium" style="color: var(--text-dim);">
@@ -364,7 +364,7 @@ async function handleAdvance() {
 
         <section>
           <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('tournaments.detail.standings.heading') }}</h2>
-          <div class="overflow-hidden rounded-3xl border" style="border-color: var(--card-border);">
+          <div class="overflow-hidden rounded-[var(--radius-lg)] border" style="border-color: var(--card-border);">
             <div
               class="grid grid-cols-[32px_1fr_70px] gap-2 px-5 py-3 text-[11px] uppercase tracking-wide"
               style="background: var(--dim-bg); color: var(--text-dim);"

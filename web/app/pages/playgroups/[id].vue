@@ -268,7 +268,7 @@ async function handleAddMember() {
 
         <div
           v-if="isAddMemberOpen"
-          class="mb-3.5 flex flex-col gap-2.5 rounded-[22px] border p-4"
+          class="mb-3.5 flex flex-col gap-2.5 rounded-[var(--radius-lg)] border p-4"
           style="border-color: var(--card-border); background: var(--card-bg-strong);"
         >
           <div class="relative">
@@ -294,7 +294,7 @@ async function handleAddMember() {
               v-if="searchResults.length"
               id="member-search-listbox"
               role="listbox"
-              class="absolute z-10 mt-1 w-full space-y-1 rounded-2xl border p-1 shadow-lg"
+              class="absolute z-10 mt-1 w-full space-y-1 rounded-[var(--radius-md)] border p-1 shadow-lg"
               style="border-color: var(--card-border); background: var(--page-solid);"
             >
               <li v-for="user in searchResults" :key="user.id" role="presentation">
@@ -303,7 +303,7 @@ async function handleAddMember() {
                   type="button"
                   role="option"
                   aria-selected="false"
-                  class="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-white/5"
+                  class="w-full rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm hover:bg-white/5"
                   style="color: var(--text);"
                   @click="selectUser(user)"
                   @keydown="handleResultKeydown"
@@ -328,7 +328,18 @@ async function handleAddMember() {
           <p v-if="addError" class="text-xs" style="color: var(--lose);">{{ addError }}</p>
         </div>
 
-        <div class="overflow-hidden rounded-3xl border" style="border-color: var(--card-border);">
+        <!-- With no ranked members the table isn't rendered at all: an EmptyState
+             belongs *instead of* it, not as a row inside it (a dashed card nested
+             in the bordered container reads as a broken row).
+             No CTA here on purpose: the ranking is derived from games, so this is
+             empty exactly when the history below is, and that section owns the
+             "New game" action. Two identical CTAs one scroll apart read as a bug. -->
+        <EmptyState
+          v-if="!rankedMembers.length"
+          :title="$t('playgroups.detail.ranking.emptyTitle')"
+          :body="$t('playgroups.detail.ranking.emptyBody')"
+        />
+        <div v-else class="overflow-hidden rounded-[var(--radius-lg)] border" style="border-color: var(--card-border);">
           <div
             class="grid grid-cols-[32px_1fr_90px] gap-2 px-5 py-3 text-[11px] uppercase tracking-wide sm:grid-cols-[32px_1fr_90px_90px_90px]"
             style="background: var(--dim-bg); color: var(--text-dim);"
@@ -337,9 +348,6 @@ async function handleAddMember() {
             <span class="hidden sm:inline">{{ $t('playgroups.detail.ranking.columns.games') }}</span><span class="hidden sm:inline">{{ $t('playgroups.detail.ranking.columns.wins') }}</span>
             <span>{{ $t('playgroups.detail.ranking.columns.winRate') }}</span>
           </div>
-          <p v-if="!rankedMembers.length" class="px-5 py-4 text-sm" style="color: var(--text-muted);">
-            {{ $t('playgroups.detail.ranking.empty') }}
-          </p>
           <div
             v-for="m in rankedMembers"
             :key="m.user_id"
@@ -392,7 +400,7 @@ async function handleAddMember() {
           <div
             v-for="game in games"
             :key="game.id"
-            class="rounded-[20px] border px-5 py-3"
+            class="rounded-[var(--radius-md)] border px-5 py-3"
             style="border-color: var(--card-border); background: var(--card-bg);"
           >
             <div class="flex flex-wrap items-center justify-between gap-2">

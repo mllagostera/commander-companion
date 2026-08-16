@@ -240,7 +240,7 @@ async function confirmRemove() {
           v-if="searchResults.length"
           id="friend-search-listbox"
           role="listbox"
-          class="absolute z-10 mt-1 w-full space-y-1 rounded-2xl border p-1 shadow-lg"
+          class="absolute z-10 mt-1 w-full space-y-1 rounded-[var(--radius-md)] border p-1 shadow-lg"
           style="border-color: var(--card-border); background: var(--page-solid);"
         >
           <li v-for="user in searchResults" :key="user.id" role="presentation">
@@ -250,7 +250,7 @@ async function confirmRemove() {
               role="option"
               aria-selected="false"
               :disabled="sendingUserId === user.id"
-              class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-white/5 disabled:opacity-50"
+              class="flex w-full items-center justify-between rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm hover:bg-white/5 disabled:opacity-50"
               style="color: var(--text);"
               @click="handleSendRequest(user)"
               @keydown="handleResultKeydown"

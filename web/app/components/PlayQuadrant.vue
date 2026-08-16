@@ -43,7 +43,7 @@ function toggleExpand() {
 
 <template>
   <div
-    class="relative flex-1 overflow-hidden rounded-[22px] transition-[transform,box-shadow] duration-150"
+    class="relative flex-1 overflow-hidden rounded-[var(--radius-lg)] transition-[transform,box-shadow] duration-150"
     :style="{ background: player.color, transform: transformStyle, boxShadow: ringStyle }"
   >
     <div class="pointer-events-none absolute inset-0" style="background: linear-gradient(to bottom, rgba(10,7,20,0.05), rgba(10,7,20,0.45));" />
@@ -84,7 +84,7 @@ function toggleExpand() {
 
         <button
           type="button"
-          class="pointer-events-auto flex flex-col items-center gap-[3px] rounded-[14px] p-1.5"
+          class="pointer-events-auto flex flex-col items-center gap-[3px] rounded-[var(--radius-sm)] p-1.5"
           style="background: rgba(255,255,255,0.32);"
           @click="toggleExpand"
         >
@@ -92,7 +92,7 @@ function toggleExpand() {
             <span
               v-for="opponent in opponents"
               :key="opponent.id"
-              class="relative flex items-center justify-center rounded-lg font-bold"
+              class="relative flex items-center justify-center rounded-[var(--radius-sm)] font-bold"
               style="width: clamp(26px,4vw,36px); height: clamp(26px,4vw,36px); background: rgba(255,255,255,0.55); font-size: clamp(13px,1.8vw,17px); color: rgba(0,0,0,0.8);"
             >
               <span class="absolute left-0.5 top-0.5 h-1.5 w-1.5 rounded-full" :style="{ background: opponent.color }" />
@@ -130,7 +130,7 @@ function toggleExpand() {
           <div
             v-for="cell in row"
             :key="cell.id"
-            class="flex items-center justify-center rounded-xl"
+            class="flex items-center justify-center rounded-[var(--radius-sm)]"
             style="width: clamp(48px,7vw,66px); height: clamp(48px,7vw,66px);"
             :style="{ background: cell.color }"
           >

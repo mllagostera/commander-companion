@@ -158,7 +158,7 @@ function formatDuration(game: FinishedGame): string {
       <section>
         <h2 class="mb-3.5 text-[15px] font-medium">{{ $t('statistics.global.heading') }}</h2>
         <div class="mb-3.5 flex flex-wrap gap-3.5">
-          <div class="flex min-w-[220px] flex-1 items-center gap-4 rounded-[24px] border p-5" style="border-color: var(--card-border); background: var(--card-bg);">
+          <div class="flex min-w-[220px] flex-1 items-center gap-4 rounded-[var(--radius-lg)] border p-5" style="border-color: var(--card-border); background: var(--card-bg);">
             <WinRateRing :played="data.user.games_played" :won="data.user.games_won" />
             <div>
               <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">{{ $t('statistics.global.winLoss') }}</p>
@@ -188,7 +188,7 @@ function formatDuration(game: FinishedGame): string {
         <div v-else class="flex flex-wrap gap-3.5">
           <div
             v-if="mostPlayedOpponent"
-            class="min-w-[220px] flex-1 rounded-[24px] border p-5"
+            class="min-w-[220px] flex-1 rounded-[var(--radius-lg)] border p-5"
             style="border-color: var(--card-border); background: var(--card-bg);"
           >
             <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">{{ $t('statistics.headToHead.mostPlayed') }}</p>
@@ -199,7 +199,7 @@ function formatDuration(game: FinishedGame): string {
           </div>
           <div
             v-if="archenemy"
-            class="min-w-[220px] flex-1 rounded-[24px] border p-5"
+            class="min-w-[220px] flex-1 rounded-[var(--radius-lg)] border p-5"
             style="border-color: var(--card-border); background: var(--card-bg);"
           >
             <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">{{ $t('statistics.headToHead.archenemy') }}</p>
@@ -223,7 +223,7 @@ function formatDuration(game: FinishedGame): string {
         <NuxtLink
           v-else
           :to="`/playgroups/${mostPlayedGroup.playgroup_id}`"
-          class="flex items-center justify-between rounded-[20px] border px-5 py-3.5 transition-colors hover:bg-white/[0.03]"
+          class="flex items-center justify-between rounded-[var(--radius-md)] border px-5 py-3.5 transition-colors hover:bg-white/[0.03]"
           style="border-color: var(--card-border); background: var(--card-bg); color: var(--text);"
         >
           <span class="text-sm font-medium">{{ mostPlayedGroup.playgroup_name }}</span>
@@ -287,10 +287,10 @@ function formatDuration(game: FinishedGame): string {
               <article
                 v-for="entry in sortedDecks"
                 :key="entry.deck.id"
-                class="flex gap-4 rounded-[28px] border p-[22px]"
+                class="flex gap-4 rounded-[var(--radius-xl)] border p-[22px]"
                 style="border-color: var(--card-border); background: var(--card-bg);"
               >
-                <DeckArt :deck="entry.deck" class="h-[76px] w-[76px] flex-shrink-0" rounded="rounded-2xl" />
+                <DeckArt :deck="entry.deck" class="h-[76px] w-[76px] flex-shrink-0" rounded="rounded-[var(--radius-md)]" />
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-wrap items-baseline justify-between gap-2">
                     <h3 class="text-[15px] font-medium">{{ entry.deck.name }}</h3>
@@ -342,7 +342,7 @@ function formatDuration(game: FinishedGame): string {
               <article
                 v-for="game in finishedGames"
                 :key="game.id"
-                class="rounded-[28px] border p-[22px]"
+                class="rounded-[var(--radius-xl)] border p-[22px]"
                 style="border-color: var(--card-border); background: var(--card-bg);"
               >
                 <div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -356,13 +356,13 @@ function formatDuration(game: FinishedGame): string {
                     <div
                       v-for="player in game.players"
                       :key="player.user_id"
-                      class="relative flex flex-col items-center gap-1.5 rounded-2xl px-1.5 py-2 text-center"
+                      class="relative flex flex-col items-center gap-1.5 rounded-[var(--radius-md)] px-1.5 py-2 text-center"
                       :style="player.won ? 'background: rgba(52,211,153,0.10); box-shadow: 0 0 0 1.5px var(--win) inset;' : ''"
                     >
                       <DeckArt
                         :deck="{ id: player.deck_id, user_id: '', name: player.deck_name, commander: player.deck_commander, moxfield_id: null, image_url: player.deck_image_url }"
                         class="h-12 w-12 sm:h-14 sm:w-14"
-                        rounded="rounded-xl"
+                        rounded="rounded-[var(--radius-sm)]"
                       />
                       <span
                         v-if="player.won"

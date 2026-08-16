@@ -78,7 +78,7 @@ async function handleSubmit() {
         </span>
 
         <div
-          class="flex w-full max-w-[340px] flex-col gap-4 rounded-[28px] border p-[26px] text-center"
+          class="flex w-full max-w-[340px] flex-col gap-4 rounded-[var(--radius-xl)] border p-[26px] text-center"
           style="background: var(--card-bg-strong); border-color: var(--card-border);"
         >
           <p class="text-sm" style="color: var(--text-muted);">
@@ -104,7 +104,7 @@ async function handleSubmit() {
         </span>
 
         <form
-          class="flex w-full max-w-[340px] flex-col gap-3 rounded-[28px] border p-[26px]"
+          class="flex w-full max-w-[340px] flex-col gap-3 rounded-[var(--radius-xl)] border p-[26px]"
           style="background: var(--card-bg-strong); border-color: var(--card-border);"
           @submit.prevent="handleSubmit"
         >

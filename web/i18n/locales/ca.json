@@ -334,7 +334,8 @@
           "wins": "Victòries",
           "winRate": "Win rate"
         },
-        "empty": "Encara no hi ha partides registrades."
+        "emptyTitle": "Encara no hi ha classificació",
+        "emptyBody": "Quan aquest grup acabi una partida, aquí es classifica el win rate de cadascú."
       },
       "members": {
         "heading": "Membres"

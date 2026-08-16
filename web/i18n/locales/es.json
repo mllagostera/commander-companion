@@ -334,7 +334,8 @@
           "wins": "Victorias",
           "winRate": "Win rate"
         },
-        "empty": "Sin partidas registradas todavía."
+        "emptyTitle": "Todavía no hay clasificación",
+        "emptyBody": "Cuando este grupo termine una partida, aquí se clasifica el win rate de cada uno."
       },
       "members": {
         "heading": "Miembros"
