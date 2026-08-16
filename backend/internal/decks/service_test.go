@@ -85,6 +85,50 @@ func TestCreateDeck_Success(t *testing.T) {
 	}
 }
 
+// Blank name/commander were accepted until the web client grew a "new deck"
+// form: the only previous caller was the Moxfield import, which always fills
+// both. Whitespace-only counts as blank, and the stored values are trimmed.
+func TestCreateDeck_BlankFields(t *testing.T) {
+	pool := testutil.DB(t)
+	testutil.Truncate(t, pool, "users")
+
+	owner := createTestUser(t, pool, "blank-deck@example.com")
+	svc := newDecksSvc(pool, nil)
+
+	cases := []struct {
+		name    string
+		req     decks.CreateDeckRequest
+		wantErr error
+	}{
+		{"sin nombre", decks.CreateDeckRequest{Name: "", Commander: "Atraxa"}, decks.ErrNameRequired},
+		{"nombre en blanco", decks.CreateDeckRequest{Name: "   ", Commander: "Atraxa"}, decks.ErrNameRequired},
+		{"sin comandante", decks.CreateDeckRequest{Name: "Deck", Commander: ""}, decks.ErrCommanderRequired},
+		{"comandante en blanco", decks.CreateDeckRequest{Name: "Deck", Commander: "\t "}, decks.ErrCommanderRequired},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.CreateDeck(context.Background(), owner.ID, tc.req)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("CreateDeck() error = %v, want %v", err, tc.wantErr)
+			}
+			if got := asFiberError(t, err).Code; got != 400 {
+				t.Fatalf("CreateDeck() status = %d, want 400", got)
+			}
+		})
+	}
+
+	res, err := svc.CreateDeck(context.Background(), owner.ID, decks.CreateDeckRequest{
+		Name:      "  Atraxa Superfriends  ",
+		Commander: "  Atraxa, Praetors' Voice  ",
+	})
+	if err != nil {
+		t.Fatalf("CreateDeck() error = %v, want nil", err)
+	}
+	if res.Name != "Atraxa Superfriends" || res.Commander != "Atraxa, Praetors' Voice" {
+		t.Fatalf("CreateDeck() no recortó los espacios: %+v", res)
+	}
+}
+
 func TestGetDeck_OwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 	pool := testutil.DB(t)
 	testutil.Truncate(t, pool, "users")

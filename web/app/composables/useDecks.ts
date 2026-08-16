@@ -26,6 +26,22 @@ export function useDecks() {
     return all
   }
 
+  /**
+   * Creates a deck by hand. `imageUrl` is the art of the commander picked from
+   * the Scryfall typeahead — omitted when the user typed a name instead of
+   * choosing a suggestion, which leaves the deck on DeckArt's placeholder.
+   */
+  function createDeck(input: { name: string, commander: string, imageUrl?: string | null }) {
+    return apiFetch<Deck>('/decks', {
+      method: 'POST',
+      body: {
+        name: input.name.trim(),
+        commander: input.commander.trim(),
+        ...(input.imageUrl ? { image_url: input.imageUrl } : {}),
+      },
+    })
+  }
+
   /** `input` accepts either the full Moxfield URL or just the public ID. */
   function importFromMoxfield(input: string) {
     return apiFetch<Deck>('/decks/import/moxfield', {
@@ -55,7 +71,18 @@ export function useDecks() {
     return apiFetch<DeckResyncJob>(`/decks/resync-all/${jobId}`)
   }
 
-  return { listDecksPage, listAllDecks, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus }
+  return { listDecksPage, listAllDecks, createDeck, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus }
+}
+
+/**
+ * Translates POST /decks errors. The backend validates that name and
+ * commander aren't blank (see internal/decks/service.go), which is the only
+ * 400 a client that fills both can realistically hit.
+ */
+export function createDeckError(err: unknown): string {
+  const { t } = useI18n()
+  if (apiErrorStatus(err) === 400) return t('errors.createDeck.missingFields')
+  return apiErrorMessage(err, t('errors.createDeck.generic'))
 }
 
 /**

@@ -149,7 +149,7 @@
   },
   "decks": {
     "title": "My decks",
-    "subtitle": "Imported from Moxfield.",
+    "subtitle": "Created by hand or imported from Moxfield.",
     "addDeck": "+ Add deck",
     "searchPlaceholder": "Search deck or commander…",
     "sort": {
@@ -187,9 +187,23 @@
       "syncFailed": "Couldn't sync with Moxfield."
     },
     "emptyTitle": "No decks yet",
-    "emptyBody": "Import a deck from Moxfield to start tracking how it performs.",
+    "emptyBody": "Add your first deck to start tracking how it performs — by hand, or imported from Moxfield.",
     "noMatchesTitle": "No decks match your search",
-    "noMatchesBody": "Try a different deck or commander name."
+    "noMatchesBody": "Try a different deck or commander name.",
+    "create": {
+      "title": "New deck",
+      "nameLabel": "Deck name",
+      "namePlaceholder": "Atraxa Superfriends",
+      "commanderLabel": "Commander",
+      "commanderPlaceholder": "Type to search for a commander…",
+      "searching": "Searching on Scryfall…",
+      "noSuggestions": "No commander matches that. You can use the name you typed anyway.",
+      "artAttached": "The deck will use this commander's art.",
+      "submit": "Create deck",
+      "submitting": "Creating…",
+      "moxfieldPrompt": "Already have it on Moxfield?",
+      "moxfieldAction": "Import it instead"
+    }
   },
   "statistics": {
     "title": "Statistics",
@@ -439,7 +453,8 @@
     "tournamentStarted": "Tournament started",
     "roundAdvanced": "Round advanced",
     "friendRequestSent": "Friend request sent to {username}",
-    "friendAdded": "You and {username} are now friends"
+    "friendAdded": "You and {username} are now friends",
+    "deckCreated": "Deck created"
   },
   "gameStatus": {
     "pending": "Pending",
@@ -563,6 +578,10 @@
       "list": {
         "generic": "Couldn't load your friends."
       }
+    },
+    "createDeck": {
+      "missingFields": "A deck needs a name and a commander.",
+      "generic": "Couldn't create the deck."
     }
   },
   "tournaments": {

@@ -1457,6 +1457,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create deck manually
+      description: >-
+        Creates a deck from a name and a commander typed by the user, as
+        opposed to `/decks/import/moxfield`. `image_url` is optional and
+        carries the commander's art when the client resolved the card (the web
+        client's commander typeahead fills it from Scryfall); with no image the
+        clients fall back to a placeholder.
       requestBody:
         required: true
         content:
@@ -1470,6 +1476,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Deck'
+        '400':
+          description: name or commander missing or blank (both are trimmed before validating)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /decks/import/moxfield:
     post:
       summary: Import from Moxfield

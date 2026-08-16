@@ -25,6 +25,68 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-16 — Creating decks by hand, and where the Scryfall lookup had to
+live.** The user asked for a way to create a deck from the decks page with a
+name and a commander, the commander picked from a Scryfall-backed dropdown of
+legendary creatures. Investigating first changed the shape of the work: the Go
+API's `POST /decks` has existed since Stage 1 with exactly the right fields
+(`name`, `commander`, `image_url`) and **no client had ever called it** — the
+web's "Add deck" button only opened the Moxfield import, so a deck that isn't
+on Moxfield could not be added at all. So the backend work was near zero and
+the real questions were about the lookup.
+
+- **The lookup runs in Nitro, not the browser, and three independent things
+  forced that.** The app's own CSP sets `connect-src 'self'`
+  (server/utils/security-headers.ts), so a `fetch` to api.scryfall.com from
+  the page is simply blocked — and widening connect-src to a third party to
+  power a form field is a bad trade. Scryfall's guidelines also ask clients to
+  identify themselves with a `User-Agent`, which a browser cannot set and Node
+  can. And `/cards/search` answers with *full* card objects — every printing,
+  legality and price — so a browser-side typeahead would download roughly two
+  orders of magnitude more bytes per keystroke than the two fields a dropdown
+  needs. Nitro solves all three at once and keeps `connect-src` untouched;
+  only `img-src` had to gain `https://cards.scryfall.io`, for the art.
+- **`is:commander` rather than "legendary creature".** The request said
+  legendary creatures, but that's both too wide (not every legendary creature
+  can lead a deck) and too narrow (planeswalkers and Backgrounds that say they
+  can). Scryfall has a predicate for exactly this concept, so the query is
+  `is:commander name:"…"`, ordered by `order=edhrec` — popularity ranking is
+  what makes a 10-item dropdown useful instead of alphabetical noise — and
+  `unique=cards` so reprints don't fill it with duplicates.
+- **Two Scryfall behaviours the code has to know about**: a search that matches
+  nothing answers **404**, not an empty 200 — for a typeahead that's the normal
+  state of a half-typed name, so it maps to `[]` rather than an error — and
+  double-faced cards carry no top-level `image_uris`, their art hanging off
+  `card_faces[0]`. Both are covered by the endpoint and were exercised in
+  verification.
+- **The art is attached by derivation, not by a watcher.** Picking a suggestion
+  emits `update:modelValue` and `select` in the same tick, so a default
+  (`flush: 'pre'`) watcher clearing the art on edit would run *after* the pick
+  set it and wipe it every time. It's a computed keyed on whether the field
+  still holds the picked commander's name, which has no ordering hazard and
+  says the rule out loud: edit the name by hand and the art goes away.
+- **Verification had to work around the sandbox.** This environment's network
+  policy blocks `api.scryfall.com` (confirmed via the proxy's own status
+  endpoint), so a local fake mimicking Scryfall's response shape — including a
+  double-faced card, an art-less card, and the 404-on-no-matches — was stood up
+  and the endpoint temporarily pointed at it. That verified the real parsing,
+  the query actually sent (`is:commander name:"atra"`, `order=edhrec`,
+  `unique=cards`, `User-Agent` present), the art fallback and the 404 mapping,
+  plus 24 browser checks over the full flow. **The one thing it cannot prove is
+  the live contract with Scryfall itself**, which needs a manual check from a
+  machine with network access.
+- **Two pieces of copy were left saying the wrong thing** and only the render
+  showed it: the page subtitle read "Imported from Moxfield." and the empty
+  state said "Import a deck from Moxfield to start tracking…" while its CTA now
+  opened the manual form. Both rewritten to cover either route.
+- **Blank name/commander had never been validated.** `CreateDeck` took whatever
+  it was given; the Moxfield import always fills both, so it was unreachable
+  until this form existed. Now trimmed and required like playgroups' and
+  tournaments' names, with a table test and the 400 documented in
+  `openapi.yaml`. The modal's two close buttons also measured 12×20 — under SC
+  2.5.8's floor, missed by the earlier target-size sweep because that audit
+  never opened a modal.
+
 **2026-08-16 — Closing the web pass: the playgroup ranking's empty state, and
 the radius scale everywhere else.** The two items the design review had left
 open, finished in one pass.

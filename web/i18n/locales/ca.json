@@ -149,7 +149,7 @@
   },
   "decks": {
     "title": "Els meus decks",
-    "subtitle": "Importats des de Moxfield.",
+    "subtitle": "Creats a mà o importats des de Moxfield.",
     "addDeck": "+ Afegeix deck",
     "searchPlaceholder": "Cerca deck o comandant…",
     "sort": {
@@ -187,9 +187,23 @@
       "syncFailed": "No s'ha pogut sincronitzar amb Moxfield."
     },
     "emptyTitle": "Encara no tens cap deck",
-    "emptyBody": "Importa un deck des de Moxfield per començar a seguir-ne el rendiment.",
+    "emptyBody": "Afegeix el teu primer deck per començar a seguir-ne el rendiment: a mà o important-lo des de Moxfield.",
     "noMatchesTitle": "Cap deck coincideix amb la teva cerca",
-    "noMatchesBody": "Prova amb un altre nom de deck o de comandant."
+    "noMatchesBody": "Prova amb un altre nom de deck o de comandant.",
+    "create": {
+      "title": "Nou deck",
+      "nameLabel": "Nom del deck",
+      "namePlaceholder": "Atraxa Superfriends",
+      "commanderLabel": "Comandant",
+      "commanderPlaceholder": "Escriu per cercar un comandant…",
+      "searching": "Cercant a Scryfall…",
+      "noSuggestions": "Cap comandant no coincideix. Pots fer servir igualment el nom que has escrit.",
+      "artAttached": "El deck farà servir la il·lustració d'aquest comandant.",
+      "submit": "Crea el deck",
+      "submitting": "Creant…",
+      "moxfieldPrompt": "Ja el tens a Moxfield?",
+      "moxfieldAction": "Importa'l en lloc d'això"
+    }
   },
   "statistics": {
     "title": "Estadístiques",
@@ -439,7 +453,8 @@
     "tournamentStarted": "Torneig iniciat",
     "roundAdvanced": "Ronda avançada",
     "friendRequestSent": "Sol·licitud d'amistat enviada a {username}",
-    "friendAdded": "Ara tu i {username} sou amics"
+    "friendAdded": "Ara tu i {username} sou amics",
+    "deckCreated": "Deck creat"
   },
   "gameStatus": {
     "pending": "Pendent",
@@ -563,6 +578,10 @@
       "list": {
         "generic": "No s'han pogut carregar els teus amics."
       }
+    },
+    "createDeck": {
+      "missingFields": "Un deck necessita nom i comandant.",
+      "generic": "No s'ha pogut crear el deck."
     }
   },
   "tournaments": {

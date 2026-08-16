@@ -149,7 +149,7 @@
   },
   "decks": {
     "title": "Mis decks",
-    "subtitle": "Importados desde Moxfield.",
+    "subtitle": "Creados a mano o importados desde Moxfield.",
     "addDeck": "+ Agregar deck",
     "searchPlaceholder": "Buscar deck o comandante…",
     "sort": {
@@ -187,9 +187,23 @@
       "syncFailed": "No se pudo sincronizar con Moxfield."
     },
     "emptyTitle": "Todavía no tienes decks",
-    "emptyBody": "Importa un deck desde Moxfield para empezar a seguir su rendimiento.",
+    "emptyBody": "Añade tu primer deck para empezar a seguir su rendimiento: a mano o importándolo desde Moxfield.",
     "noMatchesTitle": "Ningún deck coincide con tu búsqueda",
-    "noMatchesBody": "Prueba con otro nombre de deck o de comandante."
+    "noMatchesBody": "Prueba con otro nombre de deck o de comandante.",
+    "create": {
+      "title": "Nuevo deck",
+      "nameLabel": "Nombre del deck",
+      "namePlaceholder": "Atraxa Superfriends",
+      "commanderLabel": "Comandante",
+      "commanderPlaceholder": "Escribe para buscar un comandante…",
+      "searching": "Buscando en Scryfall…",
+      "noSuggestions": "Ningún comandante coincide. Puedes usar igualmente el nombre que has escrito.",
+      "artAttached": "El deck usará la ilustración de este comandante.",
+      "submit": "Crear deck",
+      "submitting": "Creando…",
+      "moxfieldPrompt": "¿Ya lo tienes en Moxfield?",
+      "moxfieldAction": "Impórtalo en su lugar"
+    }
   },
   "statistics": {
     "title": "Estadísticas",
@@ -439,7 +453,8 @@
     "tournamentStarted": "Torneo iniciado",
     "roundAdvanced": "Ronda avanzada",
     "friendRequestSent": "Solicitud de amistad enviada a {username}",
-    "friendAdded": "Ahora tú y {username} son amigos"
+    "friendAdded": "Ahora tú y {username} son amigos",
+    "deckCreated": "Deck creado"
   },
   "gameStatus": {
     "pending": "Pendiente",
@@ -563,6 +578,10 @@
       "list": {
         "generic": "No se pudieron cargar tus amigos."
       }
+    },
+    "createDeck": {
+      "missingFields": "Un deck necesita nombre y comandante.",
+      "generic": "No se pudo crear el deck."
     }
   },
   "tournaments": {

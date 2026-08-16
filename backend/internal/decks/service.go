@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -34,6 +35,12 @@ var (
 	// ErrDeckAlreadyImported indicates the user already has a deck imported from
 	// this same Moxfield public ID (see deckMoxfieldIDUniqueConstraint).
 	ErrDeckAlreadyImported = common.Conflict("this moxfield deck is already imported")
+	// ErrNameRequired indicates a manual deck was submitted with a blank name.
+	ErrNameRequired = common.InvalidInput("name is required")
+	// ErrCommanderRequired indicates a manual deck was submitted with a blank commander.
+	// Nothing else identifies a Commander deck, and the whole app keys off it
+	// (statistics group by deck, DeckArt falls back to its first letter).
+	ErrCommanderRequired = common.InvalidInput("commander is required")
 )
 
 // MoxfieldClient is what decks needs from a Moxfield client (allows mocking it in tests).
@@ -68,6 +75,20 @@ func NewService(db *pgxpool.Pool, moxfieldClient MoxfieldClient) Service {
 
 // CreateDeck creates a new deck for the given user.
 func (s *service) CreateDeck(ctx context.Context, userID string, req CreateDeckRequest) (*DeckResponse, error) {
+	// Trimmed and required, same as playgroups/tournaments do with their own
+	// names: until the web client grew a "new deck" form this endpoint was
+	// only ever called by the Moxfield import (which fills both fields from
+	// the fetched deck), so blank values were unreachable in practice and
+	// went unvalidated.
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, ErrNameRequired
+	}
+	commander := strings.TrimSpace(req.Commander)
+	if commander == "" {
+		return nil, ErrCommanderRequired
+	}
+
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
 		return nil, common.ErrInvalidUser
@@ -84,8 +105,8 @@ func (s *service) CreateDeck(ctx context.Context, userID string, req CreateDeckR
 
 	deck, err := s.repo.CreateDeck(ctx, CreateDeckParams{
 		UserID:     uid,
-		Name:       req.Name,
-		Commander:  req.Commander,
+		Name:       name,
+		Commander:  commander,
 		MoxfieldID: moxfieldID,
 		ImageUrl:   imageURL,
 	})

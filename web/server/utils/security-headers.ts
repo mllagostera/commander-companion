@@ -15,6 +15,12 @@ import type { H3Event } from 'h3'
 
 const GOOGLE_IDENTITY_ORIGIN = 'https://accounts.google.com'
 const MOXFIELD_ASSETS_ORIGIN = 'https://assets.moxfield.net'
+/**
+ * Card art for decks created by hand, whose commander is picked from the
+ * Scryfall typeahead (server/api/scryfall/commanders.get.ts). Only img-src
+ * needs it: the API call itself is made by Nitro, so connect-src stays 'self'.
+ */
+const SCRYFALL_IMAGES_ORIGIN = 'https://cards.scryfall.io'
 
 export function shouldApplyStrictHeaders(): boolean {
   return !import.meta.dev
@@ -58,7 +64,7 @@ export function buildCsp(scriptHashes: string[], isHttps: boolean): string {
     // is a materially weaker primitive than script injection, which is what
     // script-src's hashes above actually defend against.
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', MOXFIELD_ASSETS_ORIGIN],
+    'img-src': ["'self'", 'data:', MOXFIELD_ASSETS_ORIGIN, SCRYFALL_IMAGES_ORIGIN],
     'font-src': ["'self'", 'data:'],
     'connect-src': ["'self'", GOOGLE_IDENTITY_ORIGIN],
     'frame-src': [GOOGLE_IDENTITY_ORIGIN],
