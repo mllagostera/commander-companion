@@ -77,6 +77,56 @@ or missing dashboard keys. `docs/ux/screenshots.md`'s two Dashboard captures
 were regenerated (in `es`, 1440×900, matching the rest of the gallery) since
 the README asks for that after a significant UI change.
 
+**Light-theme contrast pass (same session, after the user reported the light
+theme was hard to read).** Measured rather than eyeballed: a script walked
+every text node on the dashboard, composited each one's real painted
+backdrop from a screenshot pixel, and computed WCAG ratios in both themes.
+The dark theme passed AA everywhere (`--text-dim` at 5.37:1); the light
+theme's equivalents came in at **4.29:1** — under AA's 4.5 for body text —
+so every secondary line (opponents, dates, commanders, counts, totals) was
+genuinely worse in light than in dark. `--win` on `--win-bg` was 4.15. The
+fix is at the token level, so it lands across the whole app rather than just
+this screen: `--text-dim` → `#625f76`, `--text-muted` → `#524f64`, `--win` →
+`#0c625b`, `--lose` → `#ac1a1a`, each solved for ≥5.4 against the measured
+light card surface (`rgb(242,241,245)`) so light now matches dark's headroom
+instead of merely scraping the minimum.
+
+Three separate bugs of the same family came out of that pass:
+
+- **Surfaces hardcoded as translucent white**, invisible on a near-white
+  page: the win-rate ring's track (`rgba(255,255,255,0.08)`, so the ring
+  rendered as a floating arc with nothing behind it — now the `--ring-track`
+  token), and the ranking-table headers/rows in `playgroups/[id].vue` and
+  `tournaments/[id].vue`, moved to `--dim-bg`/`--card-border`/`--card-bg`.
+- **`statistics.vue`'s win-rate figure** was a hardcoded `#e9b8fb`, which is
+  **1.47:1** on a light card — effectively unreadable. Now `--accent-link`.
+- **The inverse mistake, in the new dashboard's own spotlight card**: that
+  card is dark in *both* themes (its overlay sits on the deck art), but it
+  was pulling `--accent-link`/`--win`, which are *dark* colours in the light
+  theme — 3.38:1 and 2.67:1 against their own card. Fixed with deliberate
+  light-on-dark literals there, commented so the next person doesn't
+  "helpfully" tokenise them back.
+
+That last one is the trap in both directions, and it nearly bit twice: an
+initial sweep also replaced the hardcoded greys in `play.vue` with tokens,
+which would have broken them — the life tracker renders inside a
+`fixed inset-0` overlay with a hardcoded `#0a0714` background, so it is
+always dark and its literals are correct. That change was reverted after
+checking where the overlay actually starts (line 176; the four token uses
+above it are the theme-aware setup screen and are fine). Rule of thumb for
+this codebase: theme tokens belong on theme-aware surfaces, literals belong
+on surfaces that are pinned to one theme — and the only way to tell them
+apart is to find which ancestor paints the background.
+
+Final state: of 48 text nodes sampled per theme, the only remaining
+sub-AA readings are measurement artefacts — the wordmark uses
+`background-clip: text` (so its computed `color` isn't what's painted), and
+the "+ New game" pill and avatar sample their backdrop just outside the
+pill; checked against their actual purple gradient they measure 4.69 and
+4.83. `eslint`/`typecheck`/`nuxt build` clean, and the gallery's two
+Dashboard captures were regenerated once more since the streak label's
+colour changed in the dark theme too.
+
 **2026-08-15 — Friends system, phase 2 of 3 (QR generation in `settings.vue`).**
 Follow-up to phase 1 (below), same session. Added a "My QR code" card to
 `settings.vue` that renders a QR of the user's own `id` using the `qrcode`

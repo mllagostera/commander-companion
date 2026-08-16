@@ -330,7 +330,7 @@ async function handleAdvance() {
           <div class="overflow-hidden rounded-3xl border" style="border-color: var(--card-border);">
             <div
               class="grid grid-cols-[32px_1fr_70px] gap-2 px-5 py-3 text-[11px] uppercase tracking-wide"
-              style="background: rgba(255,255,255,0.05); color: var(--text-dim);"
+              style="background: var(--dim-bg); color: var(--text-dim);"
             >
               <span>#</span>
               <span>{{ $t('tournaments.detail.standings.columns.player') }}</span>
@@ -340,7 +340,7 @@ async function handleAdvance() {
               v-for="(p, i) in detail.participants"
               :key="p.id"
               class="grid grid-cols-[32px_1fr_70px] items-center gap-2 border-t px-5 py-3"
-              style="border-color: rgba(255,255,255,0.06);"
+              style="border-color: var(--card-border);"
             >
               <span class="text-[13px]" style="color: var(--text-dim);">{{ i + 1 }}</span>
               <span class="text-sm">

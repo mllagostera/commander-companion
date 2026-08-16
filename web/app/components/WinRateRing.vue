@@ -19,7 +19,7 @@ const innerSize = computed(() => props.size - 30)
     :style="{
       width: `${size}px`,
       height: `${size}px`,
-      background: `conic-gradient(var(--win) 0deg, var(--win) ${deg}deg, rgba(255,255,255,0.08) ${deg}deg, rgba(255,255,255,0.08) 360deg)`,
+      background: `conic-gradient(var(--win) 0deg, var(--win) ${deg}deg, var(--ring-track) ${deg}deg, var(--ring-track) 360deg)`,
     }"
   >
     <div

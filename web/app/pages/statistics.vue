@@ -171,7 +171,7 @@ function formatDuration(game: FinishedGame): string {
         <div class="flex flex-wrap gap-3.5">
           <StatCard :label="$t('statistics.global.games')" :value="data.user.games_played" class="min-w-[150px] flex-1" />
           <StatCard :label="$t('statistics.global.wins')" :value="data.user.games_won" value-color="var(--win)" class="min-w-[150px] flex-1" />
-          <StatCard :label="$t('statistics.global.winRate')" :value="winRate(data.user.games_played, data.user.games_won)" value-color="#e9b8fb" class="min-w-[150px] flex-1" />
+          <StatCard :label="$t('statistics.global.winRate')" :value="winRate(data.user.games_played, data.user.games_won)" value-color="var(--accent-link)" class="min-w-[150px] flex-1" />
           <StatCard :label="$t('statistics.global.totalDamage')" :value="data.user.total_damage_dealt" class="min-w-[150px] flex-1" />
           <StatCard :label="$t('statistics.global.commanderDamage')" :value="data.user.total_commander_damage_dealt" class="min-w-[150px] flex-1" />
           <StatCard :label="$t('statistics.global.eliminations')" :value="data.user.total_eliminations" class="min-w-[150px] flex-1" />

@@ -327,7 +327,7 @@ async function handleAddMember() {
         <div class="overflow-hidden rounded-3xl border" style="border-color: var(--card-border);">
           <div
             class="grid grid-cols-[32px_1fr_90px] gap-2 px-5 py-3 text-[11px] uppercase tracking-wide sm:grid-cols-[32px_1fr_90px_90px_90px]"
-            style="background: rgba(255,255,255,0.05); color: var(--text-dim);"
+            style="background: var(--dim-bg); color: var(--text-dim);"
           >
             <span>#</span><span>{{ $t('playgroups.detail.ranking.columns.player') }}</span>
             <span class="hidden sm:inline">{{ $t('playgroups.detail.ranking.columns.games') }}</span><span class="hidden sm:inline">{{ $t('playgroups.detail.ranking.columns.wins') }}</span>
@@ -340,7 +340,7 @@ async function handleAddMember() {
             v-for="m in rankedMembers"
             :key="m.user_id"
             class="grid grid-cols-[32px_1fr_90px] items-center gap-2 border-t px-5 py-3.5 sm:grid-cols-[32px_1fr_90px_90px_90px]"
-            style="border-color: rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);"
+            style="border-color: var(--card-border); background: var(--card-bg);"
           >
             <span class="text-[13px]" style="color: var(--text-dim);">{{ m.rank }}</span>
             <span class="flex items-center gap-2 text-sm">

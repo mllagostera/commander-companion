@@ -139,8 +139,14 @@ function gameDate(game: Game): string {
             class="absolute inset-0"
             style="background: linear-gradient(100deg, rgba(10,7,20,0.95) 25%, rgba(10,7,20,0.72) 60%, rgba(10,7,20,0.35) 100%);"
           />
+          <!--
+            This card is dark in BOTH themes (the overlay above sits on the art),
+            so its text uses fixed light-on-dark values rather than the theme
+            tokens: in the light theme --accent-link/--win are dark by design and
+            drop to 3.4:1 and 2.7:1 here.
+          -->
           <div class="relative">
-            <p class="text-[11px] uppercase tracking-wide" style="color: var(--accent-link);">
+            <p class="text-[11px] uppercase tracking-wide" style="color: #c4b5fd;">
               {{ $t('dashboard.bestDeck.heading') }}
             </p>
             <p class="mt-2 text-2xl font-semibold leading-tight text-white">{{ data.bestDeckEntry.deck.name }}</p>
@@ -148,7 +154,7 @@ function gameDate(game: Game): string {
             <div class="mt-5 flex items-end gap-6">
               <span>
                 <span class="block text-[11px] uppercase tracking-wide text-white/60">{{ $t('dashboard.stats.winRate') }}</span>
-                <span class="text-xl font-semibold" style="color: var(--win);">
+                <span class="text-xl font-semibold" style="color: #5eead4;">
                   {{ winRate(data.bestDeckEntry.stats!.games_played, data.bestDeckEntry.stats!.games_won) }}
                 </span>
               </span>
@@ -193,7 +199,10 @@ function gameDate(game: Game): string {
               ? { background: data.streakWon ? 'var(--win-bg)' : 'var(--lose-bg)' }
               : { background: 'var(--dim-bg)' }"
           >
-            <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-dim);">
+            <!-- --text-muted, not --text-dim like the other section labels: this
+                 one sits on the tinted win/lose surface, where dim measures 4.41:1
+                 in the dark theme, just under AA. -->
+            <p class="text-[11px] uppercase tracking-wide" style="color: var(--text-muted);">
               {{ $t('dashboard.streak.heading') }}
             </p>
             <p
