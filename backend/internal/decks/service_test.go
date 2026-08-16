@@ -16,7 +16,15 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
-const testCommander = "Korvold, Fae-Cursed King"
+// Fixture strings shared across tests. Grouped rather than repeated inline:
+// past two uses goconst flags the literal.
+const (
+	testCommander = "Korvold, Fae-Cursed King"
+
+	deckNameFixture      = "Atraxa Superfriends"
+	deckCommanderFixture = "Atraxa, Praetors' Voice"
+	commanderFixture     = "Atraxa"
+)
 
 // mockMoxfieldClient allows controlling the Moxfield response without hitting the
 // real API from the tests (see decks.MoxfieldClient, designed for this).
@@ -71,8 +79,8 @@ func TestCreateDeck_Success(t *testing.T) {
 	svc := newDecksSvc(pool, nil)
 
 	res, err := svc.CreateDeck(context.Background(), owner.ID, decks.CreateDeckRequest{
-		Name:      "Atraxa Superfriends",
-		Commander: "Atraxa, Praetors' Voice",
+		Name:      deckNameFixture,
+		Commander: deckCommanderFixture,
 	})
 	if err != nil {
 		t.Fatalf("CreateDeck() error = %v, want nil", err)
@@ -80,7 +88,7 @@ func TestCreateDeck_Success(t *testing.T) {
 	if res.UserID != owner.ID {
 		t.Fatalf("CreateDeck() UserID = %q, want %q", res.UserID, owner.ID)
 	}
-	if res.Name != "Atraxa Superfriends" || res.Commander != "Atraxa, Praetors' Voice" {
+	if res.Name != deckNameFixture || res.Commander != deckCommanderFixture {
 		t.Fatalf("CreateDeck() devolvió datos inesperados: %+v", res)
 	}
 }
@@ -100,8 +108,8 @@ func TestCreateDeck_BlankFields(t *testing.T) {
 		req     decks.CreateDeckRequest
 		wantErr error
 	}{
-		{"sin nombre", decks.CreateDeckRequest{Name: "", Commander: "Atraxa"}, decks.ErrNameRequired},
-		{"nombre en blanco", decks.CreateDeckRequest{Name: "   ", Commander: "Atraxa"}, decks.ErrNameRequired},
+		{"sin nombre", decks.CreateDeckRequest{Name: "", Commander: commanderFixture}, decks.ErrNameRequired},
+		{"nombre en blanco", decks.CreateDeckRequest{Name: "   ", Commander: commanderFixture}, decks.ErrNameRequired},
 		{"sin comandante", decks.CreateDeckRequest{Name: "Deck", Commander: ""}, decks.ErrCommanderRequired},
 		{"comandante en blanco", decks.CreateDeckRequest{Name: "Deck", Commander: "\t "}, decks.ErrCommanderRequired},
 	}
@@ -124,7 +132,7 @@ func TestCreateDeck_BlankFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateDeck() error = %v, want nil", err)
 	}
-	if res.Name != "Atraxa Superfriends" || res.Commander != "Atraxa, Praetors' Voice" {
+	if res.Name != deckNameFixture || res.Commander != deckCommanderFixture {
 		t.Fatalf("CreateDeck() no recortó los espacios: %+v", res)
 	}
 }
@@ -471,7 +479,9 @@ func TestResyncFromMoxfield_AppliesRemoteChanges(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	owner := createTestUser(t, pool, "resync-changed@example.com")
-	mox := &mockMoxfieldClient{deck: &moxfield.Deck{PublicID: resyncPublicID, Name: "Nombre viejo", Commander: "Atraxa"}}
+	mox := &mockMoxfieldClient{deck: &moxfield.Deck{
+		PublicID: resyncPublicID, Name: "Nombre viejo", Commander: commanderFixture,
+	}}
 	svc, imported := importDeck(t, pool, owner.ID, mox)
 
 	// The deck changed in Moxfield since the import.
@@ -509,7 +519,7 @@ func TestResyncFromMoxfield_NoRemoteChanges(t *testing.T) {
 	testutil.Truncate(t, pool, "users")
 
 	owner := createTestUser(t, pool, "resync-unchanged@example.com")
-	mox := &mockMoxfieldClient{deck: &moxfield.Deck{PublicID: "same1", Name: "Igual", Commander: "Atraxa"}}
+	mox := &mockMoxfieldClient{deck: &moxfield.Deck{PublicID: "same1", Name: "Igual", Commander: commanderFixture}}
 	svc, _ := importDeck(t, pool, owner.ID, mox)
 
 	state, err := svc.ResyncFromMoxfield(context.Background(), owner.ID, "same1")
