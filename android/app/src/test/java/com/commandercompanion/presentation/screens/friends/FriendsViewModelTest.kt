@@ -41,6 +41,10 @@ class FriendsViewModelTest {
 
     private fun viewModel() = FriendsViewModel(FriendsRepositoryImpl(api))
 
+    private companion object {
+        const val SCANNED_ID = "0d2dff0e-6208-4783-8236-e83974d900c6"
+    }
+
     @Test
     fun `carga amigos y solicitudes de ambas direcciones`() = runTest(dispatcher) {
         api.onListFriends = { listOf(friendDto(username = "ana")) }
@@ -223,6 +227,72 @@ class FriendsViewModelTest {
         gate.complete(Unit)
         advanceUntilIdle()
         assertTrue(vm.uiState.value.busyIds.isEmpty())
+    }
+
+    // ------------------------------------------------------------- escaneo
+
+    @Test
+    fun `escanear un enlace valido envia la solicitud`() = runTest(dispatcher) {
+        var sentTo: String? = null
+        api.onSendFriendRequest = { request ->
+            sentTo = request.addresseeId
+            friendRequestDto(addresseeId = request.addresseeId)
+        }
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onScanned("https://commander.example/friends/add/$SCANNED_ID")
+        advanceUntilIdle()
+
+        assertEquals(SCANNED_ID, sentTo)
+        assertEquals(SendOutcome.REQUEST_SENT, vm.uiState.value.lastOutcome)
+    }
+
+    @Test
+    fun `escanear un uuid pelado tambien funciona`() = runTest(dispatcher) {
+        var sentTo: String? = null
+        api.onSendFriendRequest = { request ->
+            sentTo = request.addresseeId
+            friendRequestDto(addresseeId = request.addresseeId)
+        }
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onScanned(SCANNED_ID)
+        advanceUntilIdle()
+
+        assertEquals(SCANNED_ID, sentTo)
+    }
+
+    /**
+     * A camera pointed at the world reads Wi-Fi codes, product barcodes and
+     * unrelated URLs. None of them should cost a request.
+     */
+    @Test
+    fun `un codigo ajeno no llega al backend`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        api.calls.clear()
+
+        vm.onScanned("WIFI:S:MiRed;T:WPA;P:secreto;;")
+        advanceUntilIdle()
+
+        assertEquals(FriendsError.INVALID_CODE, vm.uiState.value.actionError)
+        assertEquals(0, api.calls.count { it == "sendFriendRequest" })
+    }
+
+    /** Cancelling the scanner, or Play Services failing, both arrive as null. */
+    @Test
+    fun `cancelar el escaner no llega al backend`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        api.calls.clear()
+
+        vm.onScanned(null)
+        advanceUntilIdle()
+
+        assertEquals(FriendsError.INVALID_CODE, vm.uiState.value.actionError)
+        assertEquals(0, api.calls.count { it == "sendFriendRequest" })
     }
 
     /**

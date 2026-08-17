@@ -3,6 +3,7 @@ package com.commandercompanion.presentation.screens.friends
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.core.util.ApiError
+import com.commandercompanion.core.util.parseScannedFriendCode
 import com.commandercompanion.data.remote.dto.FriendDto
 import com.commandercompanion.data.remote.dto.IncomingFriendRequestDto
 import com.commandercompanion.data.remote.dto.OutgoingFriendRequestDto
@@ -35,7 +36,7 @@ private const val MIN_QUERY_LENGTH = 2
  * predates the other two locales and is not followed here.) It also keeps the
  * unit tests asserting an enum instead of prose.
  */
-enum class FriendsError { NETWORK, SELF, USER_NOT_FOUND, ALREADY_RELATED, REQUEST_GONE, UNKNOWN }
+enum class FriendsError { NETWORK, SELF, USER_NOT_FOUND, ALREADY_RELATED, REQUEST_GONE, INVALID_CODE, UNKNOWN }
 
 /**
  * Result of sending a request. [FRIENDS_NOW] is the auto-accept case: the
@@ -157,6 +158,22 @@ class FriendsViewModel @Inject constructor(
     fun clearSearch() {
         searchJob?.cancel()
         _uiState.update { it.copy(query = "", results = emptyList(), isSearching = false) }
+    }
+
+    /**
+     * Handles whatever the camera read. Parsing lives in [parseScannedFriendCode]
+     * (tested on the JVM) rather than in the screen, so the "that is not one of
+     * our codes" path is covered without a camera: a scanner pointed at the
+     * world reads Wi-Fi codes, product barcodes and unrelated URLs, and none of
+     * them should reach the backend.
+     */
+    fun onScanned(raw: String?) {
+        val userId = parseScannedFriendCode(raw)
+        if (userId == null) {
+            _uiState.update { it.copy(actionError = FriendsError.INVALID_CODE, lastOutcome = null) }
+            return
+        }
+        sendRequest(userId)
     }
 
     /** [userId] comes from a search result or from a scanned QR — same call either way. */

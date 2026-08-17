@@ -180,6 +180,7 @@
     <string name="friends_section_incoming">Sol·licituds rebudes</string>
     <string name="friends_section_outgoing">Sol·licituds enviades</string>
     <string name="friends_section_list">Els teus amics</string>
+    <string name="friends_scan">Escaneja un codi</string>
     <string name="friends_search_label">Cerca pel nom d\'usuari</string>
     <string name="friends_searching">Cercant…</string>
     <string name="friends_no_results">Cap usuari coincideix amb aquesta cerca.</string>
@@ -196,5 +197,6 @@
     <string name="error_friends_user_not_found">Aquest usuari ja no existeix</string>
     <string name="error_friends_already_related">Ja sou amics o ja hi ha una sol·licitud pendent</string>
     <string name="error_friends_request_gone">Aquesta sol·licitud ja no està disponible</string>
+    <string name="error_friends_invalid_code">Aquest codi no és d\'un perfil de Commander Companion</string>
     <string name="error_friends_unknown">S\'ha produït un error inesperat</string>
 </resources>

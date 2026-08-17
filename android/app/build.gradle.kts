@@ -135,6 +135,7 @@ dependencies {
 
     // Coil: deck art thumbnails (commander card art from the backend's image_url)
     implementation(libs.zxing.core)
+    implementation(libs.play.services.code.scanner)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 

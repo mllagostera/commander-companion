@@ -16,12 +16,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.collectAsState
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.content.Context
 import com.commandercompanion.R
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.AuthTextField
@@ -34,6 +36,9 @@ import com.commandercompanion.presentation.theme.AppOnBackground
 import com.commandercompanion.presentation.theme.AppOnSurfaceVariant
 import com.commandercompanion.presentation.theme.StatusDanger
 import com.commandercompanion.presentation.theme.StatusSuccess
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
 /** Maps the ViewModel's error enum onto the translated strings (see [FriendsError]). */
 @Composable
@@ -44,6 +49,7 @@ private fun FriendsError.message(): String = stringResource(
         FriendsError.USER_NOT_FOUND -> R.string.error_friends_user_not_found
         FriendsError.ALREADY_RELATED -> R.string.error_friends_already_related
         FriendsError.REQUEST_GONE -> R.string.error_friends_request_gone
+        FriendsError.INVALID_CODE -> R.string.error_friends_invalid_code
         FriendsError.UNKNOWN -> R.string.error_friends_unknown
     }
 )
@@ -54,6 +60,7 @@ fun FriendsScreen(
     viewModel: FriendsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     AppScreenBackground {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -91,6 +98,11 @@ fun FriendsScreen(
                         value = state.query,
                         onValueChange = viewModel::onQueryChange,
                         enabled = true
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    GradientOutlineButton(
+                        text = stringResource(R.string.friends_scan),
+                        onClick = { scanFriendCode(context, viewModel::onScanned) }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -250,4 +262,28 @@ private fun PersonRow(
             }
         }
     }
+}
+
+/**
+ * Opens Google's code scanner and hands the raw text back.
+ *
+ * Play Services runs the camera in its own process, so the app needs **no**
+ * CAMERA permission and no runtime-permission flow — which is the whole reason
+ * this is a function and not a screen. The trade is that the capture UI is
+ * Google's rather than ours; see ADR-0017.
+ *
+ * Cancelling (back button) and failing (Play Services missing or the scanner
+ * module unavailable) both land on [onResult] with null, which the ViewModel
+ * already treats as "not one of our codes".
+ */
+private fun scanFriendCode(context: Context, onResult: (String?) -> Unit) {
+    val options = GmsBarcodeScannerOptions.Builder()
+        .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+        .build()
+
+    GmsBarcodeScanning.getClient(context, options)
+        .startScan()
+        .addOnSuccessListener { barcode -> onResult(barcode.rawValue) }
+        .addOnCanceledListener { }
+        .addOnFailureListener { onResult(null) }
 }

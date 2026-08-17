@@ -180,6 +180,7 @@
     <string name="friends_section_incoming">Requests received</string>
     <string name="friends_section_outgoing">Requests sent</string>
     <string name="friends_section_list">Your friends</string>
+    <string name="friends_scan">Scan a code</string>
     <string name="friends_search_label">Search by username</string>
     <string name="friends_searching">Searching…</string>
     <string name="friends_no_results">No user matches that search.</string>
@@ -196,5 +197,6 @@
     <string name="error_friends_user_not_found">That user no longer exists</string>
     <string name="error_friends_already_related">You are already friends, or a request is already pending</string>
     <string name="error_friends_request_gone">That request is no longer available</string>
+    <string name="error_friends_invalid_code">That code isn\'t a Commander Companion profile</string>
     <string name="error_friends_unknown">Something went wrong</string>
 </resources>
