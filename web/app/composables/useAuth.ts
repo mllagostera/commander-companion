@@ -6,6 +6,11 @@ export interface AuthUser {
   moxfield_username?: string | null
   /** false = account created via Google Sign-In, with no password of its own. */
   has_password: boolean
+  /** Grants access to the admin dashboard (/admin/*). See ADR-0018. */
+  is_admin: boolean
+  /** False = an admin deactivated this account. In practice always true here: a
+   * deactivated account never reaches this far (login/refresh reject it first). */
+  is_active: boolean
 }
 
 interface SessionResponse {

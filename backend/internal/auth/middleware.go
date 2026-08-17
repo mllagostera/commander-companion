@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
+	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
 const bearerPrefix = "Bearer "
@@ -25,6 +26,27 @@ func RequireAuth(secret []byte) fiber.Handler {
 		}
 
 		c.Locals(common.UserIDKey, userID)
+		return c.Next()
+	}
+}
+
+// RequireAdmin builds on RequireAuth's already-authenticated user (must be chained
+// after it, so common.UserIDKey is already set) and additionally requires
+// is_admin = true. It's looked up fresh from the DB on every request rather than
+// trusted from a JWT claim, so demoting an admin takes effect immediately instead of
+// leaving a stale-privilege window until their token expires — see ADR-0018.
+func RequireAdmin(usersSvc users.Service) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID, _ := c.Locals(common.UserIDKey).(string)
+
+		isAdmin, err := usersSvc.IsAdmin(c.Context(), userID)
+		if err != nil {
+			return common.MapError(err)
+		}
+		if !isAdmin {
+			return fiber.NewError(fiber.StatusForbidden, "admin access required")
+		}
+
 		return c.Next()
 	}
 }

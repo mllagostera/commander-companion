@@ -25,6 +25,82 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-17 — Admin dashboard, Phase 1 (role foundation + user management +
+global stats).** The user asked for a full admin "operations panel" (users,
+games, tournaments, decks, global stats, moderation in each area) with
+nothing to build on: no role/permission concept existed anywhere in the app
+before this session (confirmed by grepping the whole repo for
+"admin"/"role"/"is_admin" — zero hits). Given the size of the full ask, the
+work was scoped down via plan mode, agreed with the user up front: Phase 1
+builds the role foundation itself plus the one area needed to prove it
+end-to-end (user management) and a small global-stats overview; games/
+tournaments/decks moderation and an admin-promotion UI are deferred. See
+[ADR-0018](../decisions/0018-admin-role-and-user-moderation.md) for the full
+design rationale (why a plain `is_admin` boolean over a roles table, why
+account deactivation over hard delete, why `is_admin` is checked fresh from
+the DB per request rather than trusted from a JWT claim, why `is_active`
+only gates login/refresh rather than triggering full session revocation).
+
+- **Backend**: migration `00018_admin_and_account_status.sql` adds
+  `users.is_admin`/`users.is_active`; new `backend/internal/admin` module
+  (`GET /admin/users` — cursor-paginated, `search` matches username or
+  email; `GET /admin/users/{id}` with deck/games-played counts via
+  correlated subqueries; `PATCH /admin/users/{id}/status` with a
+  self-lockout guard — an admin can't deactivate their own account, since
+  there's no promotion UI yet to undo it; `GET /admin/stats/overview`, one
+  query with 7 correlated subqueries, live-computed, no summary table, same
+  choice already made for `GetPlaygroupStats`). `auth.RequireAdmin`
+  middleware chains after `RequireAuth` and queries `is_admin` fresh per
+  request. `is_active` gating added to `VerifyCredentials`,
+  `FindOrCreateGoogleUser`, and `auth.Service.Refresh` (`ErrAccountDeactivated`,
+  403) — refresh already re-queries the refresh-token record, so the check
+  there is free, and it bounds a deactivated account's remaining access to
+  at most one access-token TTL.
+- **Testing**: new `internal/admin/service_test.go` (pagination, search,
+  deck-count aggregation, self-lockout guard, not-found cases, overview
+  stats) plus new cases in `internal/users/service_test.go`
+  (`TestVerifyCredentials_BlocksDeactivatedAccount`, `TestIsAdmin_*`) and
+  `internal/auth/service_test.go` (`TestRefresh_BlocksDeactivatedAccount`).
+  Full suite run against a real local Postgres 16 (`go test -race -p 1
+  ./...`, sequential — a parallel `./...` run cross-contaminates shared
+  tables like `users` across packages, a pre-existing sandbox artifact
+  unrelated to this change, not a real bug): all packages pass.
+  `golangci-lint run ./...` clean except pre-existing, unrelated debt in
+  files this session didn't touch (`internal/tournaments`, `internal/deckresync`,
+  `internal/moxfieldimport`, `internal/testutil` — confirmed via `git
+  status` that none of those files were modified here).
+- **Web**: `AuthUser` (both `server/utils/backend.ts` and
+  `app/composables/useAuth.ts`) gained `is_admin`/`is_active`, threaded from
+  the backend's `/auth/me` with no new endpoint. New `admin.ts` named route
+  middleware (`definePageMeta({ middleware: 'admin' })` per page, not a
+  second global middleware — only a few pages need it), `useAdmin.ts`
+  composable, and three pages: `admin/index.vue` (stats tiles),
+  `admin/users/index.vue` (search + cursor "load more", same pattern as
+  `statistics.vue`'s finished-games tab), `admin/users/[id].vue` (detail +
+  activate/deactivate with a confirm dialog, reusing `useModalA11y` like
+  `friends.vue`'s unfriend confirmation). Nav entry in `default.vue`'s
+  `links` array, conditional on `user.is_admin`. i18n: new `admin`
+  namespace in `en`/`es`/`ca` locale files.
+- **Verified end-to-end in a real browser**, not just typecheck/build:
+  started the Go API against a local Postgres with migrations applied and
+  the Nuxt dev server, registered two real users via the API, promoted one
+  to admin by hand in the DB (`UPDATE users SET is_admin = true`), then
+  drove the actual UI with Playwright (Chromium) — logged in as the admin,
+  confirmed the "Admin" nav link and `/admin` overview stats (correct
+  counts), searched `/admin/users`, opened a user's detail, deactivated and
+  reactivated the account (badge and button state changed correctly both
+  ways), then logged in as the non-admin and confirmed a direct visit to
+  `/admin` redirects to `/`. Separately confirmed via `curl` that a
+  deactivated account gets a `403 {"message":"account has been
+  deactivated"}` from `POST /auth/login`. `npm run lint` / `vue-tsc
+  --noEmit` / `npm run build` (SSR) all clean.
+- **Docs**: `docs/database/schema.dbml` (`users.is_admin`/`is_active`),
+  `docs/api/openapi.yaml` (`/admin/*` paths + schemas, Spectral lint: 0
+  errors, only the same pre-existing warning classes — missing
+  `operationId`/`tags` — already present across the rest of the file),
+  README.md's ADR index and documentation hub, `ROADMAP.md` (new Stage 10),
+  this file, and `TASKS.md` (new Stage 10 section).
+
 **2026-08-16 — Creating decks by hand, and where the Scryfall lookup had to
 live.** The user asked for a way to create a deck from the decks page with a
 name and a commander, the commander picked from a Scryfall-backed dropdown of

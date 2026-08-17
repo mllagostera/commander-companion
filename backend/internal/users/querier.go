@@ -22,6 +22,9 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
+	// Used by auth.RequireAdmin: is_admin is checked fresh from the DB on every
+	// admin request rather than trusted from a JWT claim, see ADR-0018.
+	GetUserRoleFlags(ctx context.Context, id pgtype.UUID) (GetUserRoleFlagsRow, error)
 	// email_verified is forced to true when linking: FindOrCreateGoogleUser already checked
 	// that Google confirms this email before calling this query, so an email/password
 	// account that isn't verified yet also gets verified through this path.

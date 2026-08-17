@@ -106,6 +106,13 @@ func (s *service) Refresh(ctx context.Context, refreshToken string) (*TokenRespo
 		return nil, err
 	}
 
+	// An admin may have deactivated this account after the refresh token was issued;
+	// checking here (rather than trusting the still-valid token) bounds how long a
+	// deactivated account stays usable to at most one access-token TTL — see ADR-0018.
+	if !user.IsActive {
+		return nil, users.ErrAccountDeactivated
+	}
+
 	return s.issueTokens(ctx, user)
 }
 

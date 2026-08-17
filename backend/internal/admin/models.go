@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.27.0
 
-package gameactions
+package admin
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
