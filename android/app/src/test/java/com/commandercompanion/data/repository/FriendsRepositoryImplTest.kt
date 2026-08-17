@@ -8,19 +8,13 @@ import com.commandercompanion.testing.friendRequestDto
 import com.commandercompanion.testing.incomingFriendRequestDto
 import com.commandercompanion.testing.outgoingFriendRequestDto
 import com.commandercompanion.testing.userSearchResultDto
+import com.commandercompanion.testing.httpException
 import kotlinx.coroutines.test.runTest
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import retrofit2.HttpException
-import retrofit2.Response
 import java.io.IOException
-
-private fun httpError(code: Int) =
-    HttpException(Response.error<Unit>(code, "".toResponseBody("application/json".toMediaType())))
 
 class FriendsRepositoryImplTest {
 
@@ -85,7 +79,7 @@ class FriendsRepositoryImplTest {
 
     @Test
     fun `sendRequest propaga el 409 de amistad ya existente`() = runTest {
-        api.onSendFriendRequest = { throw httpError(409) }
+        api.onSendFriendRequest = { throw httpException(409) }
 
         val error = repository.sendRequest("user-2").exceptionOrNull()
 

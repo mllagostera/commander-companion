@@ -169,4 +169,31 @@
     <string name="statistics_game_result_won">Ganó</string>
     <string name="statistics_game_result_lost">Perdió</string>
     <string name="statistics_game_no_playgroup">Partida sin grupo</string>
+
+    <!-- friends -->
+    <string name="dashboard_friends">Amigos</string>
+    <string name="friends_title">Amigos</string>
+    <string name="friends_subtitle">Añade a alguien por su nombre de usuario o escaneando su código de perfil.</string>
+    <string name="friends_empty">Todavía no tienes amigos ni solicitudes. Busca a alguien por su nombre de usuario para empezar.</string>
+    <string name="friends_retry">Reintentar</string>
+    <string name="friends_section_incoming">Solicitudes recibidas</string>
+    <string name="friends_section_outgoing">Solicitudes enviadas</string>
+    <string name="friends_section_list">Tus amigos</string>
+    <string name="friends_search_label">Buscar por nombre de usuario</string>
+    <string name="friends_searching">Buscando…</string>
+    <string name="friends_no_results">Ningún usuario coincide con esa búsqueda.</string>
+    <string name="friends_action_add">Añadir</string>
+    <string name="friends_action_accept">Aceptar</string>
+    <string name="friends_action_reject">Rechazar</string>
+    <string name="friends_action_cancel">Cancelar</string>
+    <string name="friends_action_remove">Eliminar</string>
+    <string name="friends_already_related">Ya en tu lista</string>
+    <string name="friends_outcome_sent">Solicitud enviada. Le aparecerá como pendiente hasta que la acepte.</string>
+    <string name="friends_outcome_now_friends">Ya sois amigos: esa persona ya te había enviado una solicitud.</string>
+    <string name="error_friends_network">No se pudo conectar con el servidor</string>
+    <string name="error_friends_self">No puedes enviarte una solicitud a ti mismo</string>
+    <string name="error_friends_user_not_found">Ese usuario ya no existe</string>
+    <string name="error_friends_already_related">Ya sois amigos o ya hay una solicitud pendiente</string>
+    <string name="error_friends_request_gone">Esa solicitud ya no está disponible</string>
+    <string name="error_friends_unknown">Ocurrió un error inesperado</string>
 </resources>
