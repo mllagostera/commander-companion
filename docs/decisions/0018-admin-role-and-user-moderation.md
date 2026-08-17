@@ -2,7 +2,9 @@
 
 **Status:** Accepted (2026-08-17) — Phase 1 of a multi-phase plan implemented
 (role foundation, user management, global stats overview). Games/tournaments/
-decks moderation are deferred to later phases, see Consequences.
+decks moderation are deferred to later phases, see Consequences. Same-day
+addendum: online users, active games, and a historical activity chart added
+to the overview (see Addendum below).
 
 ## Context
 
@@ -115,13 +117,53 @@ viewed rarely.
   separate authorization question (who can promote whom) out of scope for a
   first pass; manual DB promotion is enough to unblock everything else.
 
+## Addendum (2026-08-17): online users, active games, and a historical activity chart
+
+The overview page gained two more live stats and a chart. Both needed a
+definition the app has no infrastructure to answer precisely, so each
+required its own trade-off — the same "cheap proxy over exact-but-expensive"
+pattern this ADR already uses elsewhere (e.g. `is_admin` checked per request
+rather than session-tracked in real time).
+
+**"Online users" = has an unexpired, unrevoked refresh token right now**,
+not real-time presence. There's no heartbeat, no websocket-wide connection
+registry, and no session table beyond `refresh_tokens` (see ADR-0001) — the
+one alternative considered, counting live `internal/websocket` Hub
+connections, was rejected because it would only count users currently
+inside an active game, undercounting anyone who's logged in but on another
+screen (decks, statistics, browsing `/admin` itself). A refresh-token count
+(`GetAdminOverviewStats`'s `online_users`) reuses data that already exists,
+needs no new tracking, and reads as "has a live session," which is the more
+useful operator signal anyway. **"Active games"** is a direct, unambiguous
+count of `games.status = 'active'` — no proxy needed.
+
+**The historical chart is derived entirely from `games`/`game_players`, not
+a new daily-snapshot table.** A snapshot table (write one row per day with
+that day's online-user/active-game counts) was rejected because this
+backend has no scheduler (`cmd/api/main.go` only runs one-off startup
+tasks, see the `reapStaleBackgroundJobs` call) — a "run once a day" job
+would be new infrastructure just for this chart, and the chart would start
+empty with no history until it had run for a while. Instead,
+`admin.Service.GetDailyActivity` groups `games`/`game_players` by
+`date_trunc('day', started_at)`: per day, count of games started and count
+of distinct users who played one. This means the chart's "active users"
+series is retroactive gameplay activity ("played a game that day"), a
+different (and narrower) definition than the overview card's "online users"
+(has a session right now) — they intentionally don't share a definition,
+since one is a live snapshot and the other is history the app can actually
+reconstruct. Days with no games don't produce a row from the query; the
+service fills every day in the requested range to zero so the chart always
+gets a continuous series. `days` (default 30) is clamped to `[1, 90]`
+server-side so an arbitrary query param can't force an unbounded scan.
+
 ## Consequences
 
 - Phase 1 ships `backend/internal/admin` (`GET /admin/users`,
   `GET /admin/users/{id}`, `PATCH /admin/users/{id}/status`,
-  `GET /admin/stats/overview`, all behind `auth.RequireAdmin`), the
-  `is_admin`/`is_active` columns, and `web/app/pages/admin/` (overview, user
-  list, user detail with activate/deactivate).
+  `GET /admin/stats/overview`, `GET /admin/stats/activity`, all behind
+  `auth.RequireAdmin`), the `is_admin`/`is_active` columns, and
+  `web/app/pages/admin/` (overview with online users/active games/historical
+  activity chart, user list, user detail with activate/deactivate).
 - **Deferred to later phases** (per the roadmap's phased plan agreed with the
   user): moderation of games, tournaments, and decks; an admin-promotion
   UI/flow; an audit log of admin actions; full session/token revocation on

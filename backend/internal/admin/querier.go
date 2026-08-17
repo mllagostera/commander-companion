@@ -15,7 +15,21 @@ type Querier interface {
 	// call, no summary table — same "live aggregation, no summary table" choice
 	// already made for GetPlaygroupStats (internal/statistics); admin-panel
 	// traffic is low enough that this doesn't need to be pre-aggregated.
+	//
+	// online_users approximates "currently online" as "has at least one
+	// unexpired, unrevoked refresh token" — there's no real-time presence
+	// tracking (no heartbeat/websocket-wide registry), so this reads as "has an
+	// active session right now", not "has the app open this instant". See
+	// ADR-0018's addendum.
 	GetAdminOverviewStats(ctx context.Context) (GetAdminOverviewStatsRow, error)
+	// Historical series for the admin dashboard's activity chart: per day, how many
+	// games were started and how many distinct users played at least one of them.
+	// Derived entirely from games/game_players — no new tracking table, see
+	// ADR-0018's addendum for why (no scheduler in this backend to run a daily
+	// snapshot job). A day with zero games simply doesn't produce a row; the
+	// caller (admin.Service.GetDailyActivity) fills the gaps with zero so the
+	// chart gets one point per calendar day, not a shorter series with holes.
+	GetDailyActivity(ctx context.Context, daysBack int32) ([]GetDailyActivityRow, error)
 	// A user's profile plus deck/games-played counts, for the admin user detail
 	// screen. Counted with correlated subqueries instead of a JOIN + GROUP BY: at
 	// one row per call this is simpler to read and just as cheap, and it avoids

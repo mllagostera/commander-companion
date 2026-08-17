@@ -1,4 +1,4 @@
-import type { AdminOverviewStats, AdminUserDetail, PaginatedResponse, AdminUserSummary } from '~/types/api'
+import type { AdminDailyActivityPoint, AdminOverviewStats, AdminUserDetail, PaginatedResponse, AdminUserSummary } from '~/types/api'
 
 /**
  * Admin dashboard API client. Every call here hits an endpoint gated by
@@ -32,7 +32,14 @@ export function useAdmin() {
     return apiFetch<AdminOverviewStats>('/admin/stats/overview')
   }
 
-  return { listUsers, getUser, updateUserStatus, getOverviewStats }
+  /** Historical daily series for the activity chart, oldest day first. days defaults to 30 (clamped to [1, 90] server-side). */
+  function getDailyActivity(days?: number) {
+    return apiFetch<AdminDailyActivityPoint[]>('/admin/stats/activity', {
+      query: days ? { days } : undefined,
+    })
+  }
+
+  return { listUsers, getUser, updateUserStatus, getOverviewStats, getDailyActivity }
 }
 
 export function adminError(err: unknown): string {

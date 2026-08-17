@@ -53,4 +53,19 @@ type OverviewStatsResponse struct {
 	TotalPlaygroups    int64 `json:"total_playgroups"`
 	TotalFinishedGames int64 `json:"total_finished_games"`
 	TotalTournaments   int64 `json:"total_tournaments"`
+	// OnlineUsers approximates "currently online" as "has at least one unexpired,
+	// unrevoked refresh token" — there's no real-time presence tracking, so this
+	// reads as "has an active session right now", not "has the app open this
+	// instant". See ADR-0018's addendum.
+	OnlineUsers int64 `json:"online_users"`
+	// ActiveGames is the count of games in the 'active' state (started, not yet finished).
+	ActiveGames int64 `json:"active_games"`
+}
+
+// DailyActivityPoint is one day of Service.GetDailyActivity's historical series.
+type DailyActivityPoint struct {
+	// Date is the calendar day, formatted "2006-01-02" (UTC).
+	Date         string `json:"date"`
+	GamesStarted int64  `json:"games_started"`
+	ActiveUsers  int64  `json:"active_users"`
 }

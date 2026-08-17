@@ -19,7 +19,10 @@ SELECT
   (SELECT count(*) FROM decks) AS total_decks,
   (SELECT count(*) FROM playgroups) AS total_playgroups,
   (SELECT count(*) FROM games WHERE status = 'finished') AS total_finished_games,
-  (SELECT count(*) FROM tournaments) AS total_tournaments
+  (SELECT count(*) FROM tournaments) AS total_tournaments,
+  (SELECT count(DISTINCT user_id) FROM refresh_tokens
+     WHERE revoked_at IS NULL AND expires_at > now()) AS online_users,
+  (SELECT count(*) FROM games WHERE status = 'active') AS active_games
 `
 
 type GetAdminOverviewStatsRow struct {
@@ -30,12 +33,20 @@ type GetAdminOverviewStatsRow struct {
 	TotalPlaygroups    int64 `json:"total_playgroups"`
 	TotalFinishedGames int64 `json:"total_finished_games"`
 	TotalTournaments   int64 `json:"total_tournaments"`
+	OnlineUsers        int64 `json:"online_users"`
+	ActiveGames        int64 `json:"active_games"`
 }
 
 // Global counts for the admin dashboard's home page. Live-computed on every
 // call, no summary table — same "live aggregation, no summary table" choice
 // already made for GetPlaygroupStats (internal/statistics); admin-panel
 // traffic is low enough that this doesn't need to be pre-aggregated.
+//
+// online_users approximates "currently online" as "has at least one
+// unexpired, unrevoked refresh token" — there's no real-time presence
+// tracking (no heartbeat/websocket-wide registry), so this reads as "has an
+// active session right now", not "has the app open this instant". See
+// ADR-0018's addendum.
 func (q *Queries) GetAdminOverviewStats(ctx context.Context) (GetAdminOverviewStatsRow, error) {
 	row := q.db.QueryRow(ctx, getAdminOverviewStats)
 	var i GetAdminOverviewStatsRow
@@ -47,8 +58,55 @@ func (q *Queries) GetAdminOverviewStats(ctx context.Context) (GetAdminOverviewSt
 		&i.TotalPlaygroups,
 		&i.TotalFinishedGames,
 		&i.TotalTournaments,
+		&i.OnlineUsers,
+		&i.ActiveGames,
 	)
 	return i, err
+}
+
+const getDailyActivity = `-- name: GetDailyActivity :many
+SELECT
+  date_trunc('day', g.started_at)::date AS day,
+  count(DISTINCT g.id) AS games_started,
+  count(DISTINCT gp.user_id) AS active_users
+FROM games g
+JOIN game_players gp ON gp.game_id = g.id
+WHERE g.started_at >= now() - ($1::int * interval '1 day')
+GROUP BY 1
+ORDER BY 1
+`
+
+type GetDailyActivityRow struct {
+	Day          pgtype.Date `json:"day"`
+	GamesStarted int64       `json:"games_started"`
+	ActiveUsers  int64       `json:"active_users"`
+}
+
+// Historical series for the admin dashboard's activity chart: per day, how many
+// games were started and how many distinct users played at least one of them.
+// Derived entirely from games/game_players — no new tracking table, see
+// ADR-0018's addendum for why (no scheduler in this backend to run a daily
+// snapshot job). A day with zero games simply doesn't produce a row; the
+// caller (admin.Service.GetDailyActivity) fills the gaps with zero so the
+// chart gets one point per calendar day, not a shorter series with holes.
+func (q *Queries) GetDailyActivity(ctx context.Context, daysBack int32) ([]GetDailyActivityRow, error) {
+	rows, err := q.db.Query(ctx, getDailyActivity, daysBack)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDailyActivityRow
+	for rows.Next() {
+		var i GetDailyActivityRow
+		if err := rows.Scan(&i.Day, &i.GamesStarted, &i.ActiveUsers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUserDetail = `-- name: GetUserDetail :one

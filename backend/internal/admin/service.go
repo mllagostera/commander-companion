@@ -16,6 +16,15 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
 
+const (
+	// dateLayout is the calendar-day format used in DailyActivityPoint.Date.
+	dateLayout = "2006-01-02"
+	// maxActivityDaysBack caps how far back GetDailyActivity will look, so an
+	// arbitrary `days` query param can't force an unbounded scan/response.
+	maxActivityDaysBack = 90
+	hoursPerDay         = 24
+)
+
 // ErrUserNotFound indicates that no user exists with the given ID.
 var ErrUserNotFound = common.NotFound("user not found")
 
@@ -37,6 +46,9 @@ type Service interface {
 	UpdateUserStatus(ctx context.Context, callerID, id string, isActive bool) (*UserDetailResponse, error)
 	// GetOverviewStats returns the global counts shown on the admin home page.
 	GetOverviewStats(ctx context.Context) (*OverviewStatsResponse, error)
+	// GetDailyActivity returns one point per calendar day for the last daysBack
+	// days (today inclusive), days with no games filled to zero.
+	GetDailyActivity(ctx context.Context, daysBack int) ([]DailyActivityPoint, error)
 }
 
 type service struct {
@@ -150,7 +162,50 @@ func (s *service) GetOverviewStats(ctx context.Context) (*OverviewStatsResponse,
 		TotalPlaygroups:    row.TotalPlaygroups,
 		TotalFinishedGames: row.TotalFinishedGames,
 		TotalTournaments:   row.TotalTournaments,
+		OnlineUsers:        row.OnlineUsers,
+		ActiveGames:        row.ActiveGames,
 	}, nil
+}
+
+// GetDailyActivity returns the last daysBack calendar days (today inclusive), one
+// point each, for the admin dashboard's activity chart. The underlying query
+// (see query.sql: GetDailyActivity) only returns rows for days that actually had
+// a game, so this fills every day in the requested range to zero first and
+// overlays the real counts on top — the chart always gets a continuous series,
+// never a shorter one with holes on quiet days.
+func (s *service) GetDailyActivity(ctx context.Context, daysBack int) ([]DailyActivityPoint, error) {
+	if daysBack < 1 {
+		daysBack = 1
+	}
+	if daysBack > maxActivityDaysBack {
+		daysBack = maxActivityDaysBack
+	}
+
+	//nolint:gosec // bounded to [1, maxActivityDaysBack] right above
+	rows, err := s.repo.GetDailyActivity(ctx, int32(daysBack))
+	if err != nil {
+		return nil, fmt.Errorf("getting daily activity: %w", err)
+	}
+
+	byDate := make(map[string]GetDailyActivityRow, len(rows))
+	for i := range rows {
+		byDate[rows[i].Day.Time.Format(dateLayout)] = rows[i]
+	}
+
+	today := time.Now().UTC().Truncate(hoursPerDay * time.Hour)
+	points := make([]DailyActivityPoint, daysBack)
+	for i := range daysBack {
+		day := today.AddDate(0, 0, -(daysBack - 1 - i))
+		date := day.Format(dateLayout)
+		point := DailyActivityPoint{Date: date}
+		if row, ok := byDate[date]; ok {
+			point.GamesStarted = row.GamesStarted
+			point.ActiveUsers = row.ActiveUsers
+		}
+		points[i] = point
+	}
+
+	return points, nil
 }
 
 // decodeCursor turns the opaque page cursor into the DB-typed pair ListUsersPage

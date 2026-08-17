@@ -351,4 +351,17 @@ export interface AdminOverviewStats {
   total_playgroups: number
   total_finished_games: number
   total_tournaments: number
+  /** Users with an unexpired, unrevoked refresh token right now — an "has a live session" proxy, not real-time presence. */
+  online_users: number
+  /** Games currently in the 'active' state. */
+  active_games: number
+}
+
+/** One day of `GET /admin/stats/activity`'s historical series (oldest first). */
+export interface AdminDailyActivityPoint {
+  /** ISO calendar day, e.g. "2026-08-17". */
+  date: string
+  games_started: number
+  /** Distinct users who played at least one game that day. */
+  active_users: number
 }

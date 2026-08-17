@@ -25,6 +25,72 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-17 — Admin dashboard: live "online users"/"active games" card +
+historical activity chart (same-day addendum to Phase 1).** Follow-up ask
+right after Phase 1 shipped: a card showing online users and active games,
+plus a chart of historical active-users/games counts. Neither concept has
+supporting infrastructure in this app (no presence/heartbeat system, no
+daily-snapshot table, no scheduler), so both definitions were confirmed with
+the user via `AskUserQuestion` before building — see
+[ADR-0018](../decisions/0018-admin-role-and-user-moderation.md)'s Addendum
+for the full write-up of both trade-offs.
+
+- **"Online users"** = distinct `refresh_tokens.user_id` with `revoked_at IS
+  NULL AND expires_at > now()` — a "has a live session" proxy, not real-time
+  presence (the WebSocket-Hub-connections alternative was rejected: it would
+  only count users currently inside an active game). **"Active games"** =
+  `count(*) FROM games WHERE status = 'active'`, no proxy needed. Both
+  folded into the existing single-query `GetAdminOverviewStats`
+  (`internal/admin/query.sql`) alongside the Phase 1 counts.
+- **The historical chart has no snapshot table** — this backend's only
+  scheduled-ish work is a one-off startup reap
+  (`cmd/api/main.go: reapStaleBackgroundJobs`), there's no daily-job runner
+  to populate one, and a snapshot table would start the chart empty with no
+  history. Instead `GET /admin/stats/activity?days=` (default 30, clamped
+  `[1,90]`) derives a `games_started`/distinct-`active_users` series
+  straight from `games`/`game_players`, grouped by
+  `date_trunc('day', started_at)`. The query only returns rows for days that
+  had a game; `admin.Service.GetDailyActivity` fills every day in the
+  requested range to zero first so the chart's x-axis is always continuous,
+  never shorter with holes on quiet days.
+- **New backend tests** (`internal/admin/service_test.go`): online/active
+  counts with valid vs. expired/revoked tokens, gap-filling verified against
+  a real 5-day range with games seeded on specific days (raw SQL inserts
+  directly into `games`/`game_players`/`refresh_tokens`, not the full
+  games/playgroups service stack — this module only reads those tables, so
+  it doesn't need `games.Service`'s state-machine plumbing to set up
+  fixtures), and clamp behavior at both ends (`0` → 1 day, `10000` → 90
+  days). Full suite re-run (`go test -race -p 1 ./...`): all green.
+- **The chart itself is a hand-rolled inline SVG component**
+  (`AdminActivityChart.vue`), no charting library added. Followed the
+  `dataviz` skill's procedure end to end: picked the categorical pair from
+  its reference palette's violet/aqua slots (`#4a3aa7`/`#1baf7a` light,
+  `#9085e9`/`#199e70` dark) rather than reusing the app's existing
+  `--accent-link`/`--win` text tokens, because those failed the palette
+  validator (`scripts/validate_palette.js`) when used as saturated line
+  marks — `--accent-link`/`--win` are tuned as pastel/muted *text* colors,
+  not marks, and came back outside the lightness band (dark) or below the
+  chroma floor (light `--win`). The validated pair passed all checks in
+  both modes and was added as new `--chart-series-1`/`--chart-series-2`
+  tokens in `main.css`, following the app's existing "every color is a CSS
+  custom property, swapped per `[data-theme]`" convention rather than the
+  Artifact-specific dual data-theme/media-query pattern (this is a page in
+  the real app, not a published Artifact). Built to the skill's mark specs:
+  thin 2px lines, a legend with swatches (not colored text), recessive
+  gridlines, a hover crosshair + tooltip (mouse position mapped to the
+  nearest day via the wrapper's `getBoundingClientRect()`, since the
+  wrapper's CSS `aspect-ratio` is locked to match the SVG `viewBox` — no
+  `getScreenCTM()` matrix math needed), and a visually-hidden (`sr-only`)
+  data table satisfying the "table view exists" accessibility requirement
+  the palette validator's contrast WARN on light-mode aqua obligated.
+- **Verified end-to-end in a real browser**, both themes: reused the same
+  running backend+Postgres+Nuxt-dev-server setup from the Phase 1 check,
+  seeded games spread across ~10 days plus 2 active games via direct SQL,
+  logged in as the admin, and drove Playwright (Chromium) to screenshot the
+  live card, the chart with real data, a hover-triggered tooltip (dark and
+  light), and confirmed the `sr-only` table renders with the expected row
+  count (30, matching the default `days=30`). No console/page errors.
+
 **2026-08-17 — Admin dashboard, Phase 1 (role foundation + user management +
 global stats).** The user asked for a full admin "operations panel" (users,
 games, tournaments, decks, global stats, moderation in each area) with

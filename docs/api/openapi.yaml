@@ -994,6 +994,28 @@ components:
           type: integer
         total_tournaments:
           type: integer
+        online_users:
+          type: integer
+          description: >-
+            Approximates "currently online" as "has at least one unexpired,
+            unrevoked refresh token" — there's no real-time presence tracking,
+            so this reads as "has an active session right now," not "has the
+            app open this instant." See ADR-0018's addendum.
+        active_games:
+          type: integer
+          description: Games currently in the 'active' state (started, not yet finished).
+    AdminDailyActivityPoint:
+      type: object
+      description: One day of GET /admin/stats/activity's historical series.
+      properties:
+        date:
+          type: string
+          format: date
+        games_started:
+          type: integer
+        active_users:
+          type: integer
+          description: Distinct users who played at least one game that day.
 
 security:
   - bearerAuth: []
@@ -2857,6 +2879,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminOverviewStats'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/stats/activity:
+    get:
+      summary: Historical daily activity for the admin dashboard's chart (admin only)
+      description: >-
+        One point per calendar day, most recent day last. Derived from
+        games/game_players (no snapshot table) — a day with no games is
+        filled to zero rather than omitted, so the series has no gaps.
+      parameters:
+        - in: query
+          name: days
+          required: false
+          description: How many days back to include, today inclusive. Clamped to [1, 90].
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 30
+      responses:
+        '200':
+          description: The daily activity series, oldest day first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminDailyActivityPoint'
+        '400':
+          description: days is not a positive integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: The authenticated user is not an admin
           content:

@@ -676,6 +676,20 @@
         "totalPlaygroups": "Total groups",
         "totalFinishedGames": "Finished games",
         "totalTournaments": "Tournaments"
+      },
+      "live": {
+        "label": "Live",
+        "onlineUsers": "Online users",
+        "activeGames": "Active games"
+      },
+      "chart": {
+        "title": "Activity, last 30 days",
+        "subtitle": "Games started and distinct users who played each day.",
+        "gamesStarted": "Games started",
+        "activeUsers": "Active users",
+        "empty": "No activity yet.",
+        "tableCaption": "Daily games started and active users",
+        "date": "Date"
       }
     },
     "users": {

@@ -1,10 +1,16 @@
 package admin
 
 import (
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
 )
+
+// defaultActivityDaysBack is how many days GetDailyActivity looks back when the
+// caller doesn't pass a `days` query param.
+const defaultActivityDaysBack = 30
 
 // Handler holds the HTTP transport dependencies for the admin dashboard.
 type Handler struct {
@@ -24,6 +30,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/users/:id", h.GetUser)
 	router.Patch("/users/:id/status", h.UpdateUserStatus)
 	router.Get("/stats/overview", h.GetOverviewStats)
+	router.Get("/stats/activity", h.GetDailyActivity)
 }
 
 // ListUsers returns a paginated, optionally search-filtered list of users.
@@ -67,6 +74,27 @@ func (h *Handler) UpdateUserStatus(c *fiber.Ctx) error {
 // GetOverviewStats returns the global counts shown on the admin home page.
 func (h *Handler) GetOverviewStats(c *fiber.Ctx) error {
 	res, err := h.svc.GetOverviewStats(c.Context())
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
+}
+
+// GetDailyActivity returns the historical series for the admin dashboard's
+// activity chart. `days` defaults to 30 and is clamped to
+// [1, maxActivityDaysBack] by the service, same "clamp, don't error" approach
+// as internal/common/pagination.go's limit param.
+func (h *Handler) GetDailyActivity(c *fiber.Ctx) error {
+	days := defaultActivityDaysBack
+	if raw := c.Query("days"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "days must be a positive integer")
+		}
+		days = parsed
+	}
+
+	res, err := h.svc.GetDailyActivity(c.Context(), days)
 	if err != nil {
 		return common.MapError(err)
 	}
