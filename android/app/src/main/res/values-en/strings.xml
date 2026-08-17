@@ -167,6 +167,10 @@
     <string name="statistics_game_result_lost">Lost</string>
     <string name="statistics_game_no_playgroup">Game without a group</string>
 
+    <string name="settings_qr_heading">Your profile code</string>
+    <string name="settings_qr_body">Show it to someone so they can add you as a friend by scanning it.</string>
+    <string name="settings_qr_content_description">QR code for your profile</string>
+
     <!-- friends -->
     <string name="dashboard_friends">Friends</string>
     <string name="friends_title">Friends</string>

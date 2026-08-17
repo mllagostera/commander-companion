@@ -170,6 +170,10 @@
     <string name="statistics_game_result_lost">Perdió</string>
     <string name="statistics_game_no_playgroup">Partida sin grupo</string>
 
+    <string name="settings_qr_heading">Tu código de perfil</string>
+    <string name="settings_qr_body">Enséñaselo a otra persona para que te añada como amigo escaneándolo.</string>
+    <string name="settings_qr_content_description">Código QR de tu perfil</string>
+
     <!-- friends -->
     <string name="dashboard_friends">Amigos</string>
     <string name="friends_title">Amigos</string>

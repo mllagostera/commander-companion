@@ -167,6 +167,10 @@
     <string name="statistics_game_result_lost">Ha perdut</string>
     <string name="statistics_game_no_playgroup">Partida sense grup</string>
 
+    <string name="settings_qr_heading">El teu codi de perfil</string>
+    <string name="settings_qr_body">Ensenya\'l a una altra persona perquè t\'afegeixi com a amic escanejant-lo.</string>
+    <string name="settings_qr_content_description">Codi QR del teu perfil</string>
+
     <!-- friends -->
     <string name="dashboard_friends">Amics</string>
     <string name="friends_title">Amics</string>
