@@ -25,6 +25,92 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-17 — Friends phase 3 on Android, and what investigating it changed
+about the plan.** The user asked for a plan for the Android phase, chose
+Google's code scanner over CameraX, and picked a deep link over the bare UUID.
+Reading the Android client first moved two of the plan's load-bearing pieces.
+
+- **The "new profile screen" that ADR-0017 sized phase 3 around was not
+  needed.** The web client doesn't put the QR on a profile either — it's a card
+  in `settings.vue` — and Android's `SettingsViewModel` already loads the full
+  `UserDto` (id included) through `AuthApi.me()`. The card dropped into the
+  settings screen that already existed. The single biggest estimated chunk of
+  the phase didn't exist.
+- **What the plan was missing instead: a friends screen.** Scanning creates a
+  *pending* request the other person has to accept, so with only a scanner the
+  person being added would have had to open the web client to accept it —
+  phone in hand, at the table. `GET /users/search` was also absent from
+  Android's API surface, and the username path needs it.
+- **The deep link pulled the work outside Android.** The QR is a contract
+  between two clients, so the web had to emit the new format before Android
+  could consume it. That meant changing `settings.vue`'s payload, adding
+  `web/app/pages/friends/add/[id].vue` as the landing page, and two things that
+  only showed up while building it: `pages/friends.vue` had to become
+  `pages/friends/index.vue` (leaving it beside a `pages/friends/` directory
+  would have made it the parent route and the child would have rendered
+  nothing), and the auth middleware was **discarding the destination** when it
+  bounced you to login, so a deep link opened without a session was consumed
+  and lost. It now travels as `?redirect=`, restricted to same-site absolute
+  paths — a query parameter that accepts `//evil.com` turns the login page into
+  an open redirect.
+- **The landing page deliberately does not send on load.** A URL can be
+  prefetched, opened by accident, or come from someone else's screenshot.
+
+**The verification story is the unusual part of this pass.** This environment's
+network policy blocks `dl.google.com`, and every route to the Android Gradle
+Plugin redirects there (`maven.google.com` 301s to it), so the Android module
+cannot even be *configured* locally — no compile, no unit tests. Maven Central
+is reachable; Google's Maven is not. `android-ci.yml` only runs on `push` to
+`main` and on `pull_request`, so a branch push doesn't build either: PR #91 was
+opened primarily to obtain a compiler, and each phase was pushed and verified
+there before the next was written, rather than accumulating unverified Kotlin.
+Checking the job logs rather than the green tick mattered — the point was
+whether `compileDebugUnitTestKotlin` and `testDebugUnitTest` actually
+*executed* (they did, and the uploaded test-results artifact grew by one file
+per new test class).
+
+Two things were designed specifically to be testable without a device:
+
+- **`QrEncoder` holds every part with logic and no Android type at all.**
+  ZXing's `core` is pure Java, so building the link, encoding the matrix and
+  parsing a scanned code all run on the JVM. The only untestable step — matrix
+  to `Bitmap` — is four lines in the UI layer. That split allows the strongest
+  check available without a camera: the test encodes the link, **decodes the
+  matrix back with ZXing's own reader**, and asserts the text survived. A QR
+  that renders but decodes wrong would otherwise only surface on a phone. The
+  same was done on the web side by regenerating the SVG from the expected URL
+  and comparing path data.
+- **`onScanned()` lives in the ViewModel, not the screen**, so the rejection
+  path is covered: a Wi-Fi QR, a product barcode or an unrelated URL set
+  `INVALID_CODE` without spending a request, and cancelling the scanner (which
+  arrives as null) takes the same path.
+
+Smaller decisions worth keeping: the ViewModel returns a `FriendsError` enum
+and the screen resolves it to a string resource, because the app ships three
+locales and a literal in the ViewModel would be untranslatable
+(`ApiError.toUserMessage()` does hardcode Spanish; it predates the other two
+locales and was deliberately not followed). 409 is mapped by context — "already
+friends / already pending" when sending versus "no longer pending" when
+responding are the same status with opposite meanings. And `FriendsViewModel`
+depends only on `FriendsRepository`, never on `SessionManager`, which is
+precisely why five other ViewModels have no tests (see "Known, deliberate
+Android test gaps" below) — avoiding that inheritance cost nothing and bought
+18 tests.
+
+Two test details came from `StandardTestDispatcher` rather than from the code:
+the busy-row test was asserting state from before its coroutine had started
+(now gated on a `CompletableDeferred`), and `advanceTimeBy` needs a `Long`.
+
+**Left open, and only the repo owner can close it:** App Links *verification*
+needs `/.well-known/assetlinks.json` carrying the release keystore's SHA-256
+fingerprint. Until it exists the deep link still works — it opens the web page,
+which does the same thing — but not *directly in the app*. A placeholder was
+deliberately not committed, since it would serve an invalid file in production.
+Android release builds also need `-PWEB_APP_URL=https://<domain>`; the default
+is the emulator alias, and a release built without it would generate QRs
+pointing at localhost.
+
+
 **2026-08-16 — Creating decks by hand, and where the Scryfall lookup had to
 live.** The user asked for a way to create a deck from the decks page with a
 name and a commander, the commander picked from a Scryfall-backed dropdown of
