@@ -243,7 +243,7 @@
     "perDeck": {
       "heading": "Per deck",
       "noDecksIntro": "Encara no tens cap deck.",
-      "importLink": "Importa'n un des de Moxfield",
+      "importLink": "Afegeix-ne un",
       "noDecksOutro": "per veure'n les estadístiques.",
       "noStats": "No hi ha estadístiques disponibles per aquest deck.",
       "games": "Partides",
@@ -367,10 +367,17 @@
     "title": "Amics",
     "subtitle": "Afegeix amics per username i gestiona les teves sol·licituds.",
     "add": {
-      "heading": "Afegir un amic",
-      "searchPlaceholder": "Cerca per username",
-      "searching": "Cercant…",
-      "send": "Envia sol·licitud"
+      "title": "Afegeix un amic",
+      "back": "← Amics",
+      "body": "Has escanejat el codi de perfil d'algú. Envia-li una sol·licitud d'amistat: encara l'ha d'acceptar.",
+      "action": "Envia la sol·licitud",
+      "sending": "Enviant…",
+      "sent": "Sol·licitud enviada. Li apareixerà com a pendent fins que l'accepti.",
+      "nowFriends": "Ja sou amics: aquesta persona ja t'havia enviat una sol·licitud.",
+      "alreadyFriends": "{username} i tu ja sou amics.",
+      "goToFriends": "Ves a amics",
+      "self": "Aquest és el teu propi codi. Ensenya'l a una altra persona perquè l'escanegi.",
+      "malformed": "Aquest enllaç no apunta a cap perfil vàlid. Demana-li que et torni a ensenyar el seu codi."
     },
     "incoming": {
       "heading": "Sol·licituds d'amistat",

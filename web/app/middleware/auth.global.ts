@@ -10,7 +10,11 @@ export default defineNuxtRouteMiddleware((to) => {
   const isPublic = PUBLIC_ROUTES.includes(to.path)
 
   if (!isAuthenticated.value && !isPublic) {
-    return navigateTo('/login')
+    // El destino viaja a /login para volver después. Sin esto, abrir un enlace
+    // profundo sin sesión (el QR de perfil escaneado desde el navegador, ver
+    // pages/friends/add/[id].vue) te deja en el dashboard tras iniciar sesión,
+    // con el enlace ya consumido y sin forma de recuperarlo.
+    return navigateTo({ path: '/login', query: { redirect: to.fullPath } })
   }
   if (isAuthenticated.value && isPublic) {
     return navigateTo('/')

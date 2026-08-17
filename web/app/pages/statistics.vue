@@ -270,7 +270,13 @@ function formatDuration(game: FinishedGame): string {
         <div v-if="activeTab === 'decks'" id="statistics-panel-decks" role="tabpanel" aria-labelledby="statistics-tab-decks" tabindex="0">
           <p v-if="!data.perDeck.length" class="text-sm" style="color: var(--text-muted);">
             {{ $t('statistics.perDeck.noDecksIntro') }}
-            <NuxtLink to="/decks" style="color: var(--accent-link);">{{ $t('statistics.perDeck.importLink') }}</NuxtLink>
+            <!-- Padded to clear SC 2.5.8's 24px floor without moving the text:
+                 it sits inline in a sentence, so it can't just grow. -->
+            <NuxtLink
+              to="/decks"
+              class="-my-1 inline-block py-1"
+              style="color: var(--accent-link);"
+            >{{ $t('statistics.perDeck.importLink') }}</NuxtLink>
             {{ $t('statistics.perDeck.noDecksOutro') }}
           </p>
 
