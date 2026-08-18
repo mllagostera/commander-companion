@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.commandercompanion.presentation.screens.dashboard.DashboardScreen
+import com.commandercompanion.presentation.screens.friends.FriendsScreen
 import com.commandercompanion.presentation.screens.game.GameTrackerScreen
 import com.commandercompanion.presentation.screens.history.HistoryScreen
 import com.commandercompanion.presentation.screens.joingame.JoinGameScreen
@@ -59,6 +60,7 @@ fun AppNavigation(
                 onJoinGame = { navController.navigate(JoinGameRoute) },
                 onViewHistory = { navController.navigate(HistoryRoute) },
                 onViewStatistics = { navController.navigate(StatisticsRoute) },
+                onViewFriends = { navController.navigate(FriendsRoute) },
                 onOpenSettings = { navController.navigate(SettingsRoute) },
                 onLogout = {
                     navController.navigate(LoginRoute) { popUpTo(0) { inclusive = true } }
@@ -125,6 +127,9 @@ fun AppNavigation(
         }
         composable<StatisticsRoute> {
             StatisticsScreen(onBack = { navController.popBackStack() })
+        }
+        composable<FriendsRoute> {
+            FriendsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

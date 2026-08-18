@@ -15,21 +15,27 @@ import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.DeckStatsDto
 import com.commandercompanion.data.remote.dto.FinishedGameDto
 import com.commandercompanion.data.remote.dto.FinishedGamePlayerDto
+import com.commandercompanion.data.remote.dto.FriendDto
+import com.commandercompanion.data.remote.dto.FriendRequestDto
 import com.commandercompanion.data.remote.dto.GameActionDto
 import com.commandercompanion.data.remote.dto.GameDto
 import com.commandercompanion.data.remote.dto.GamePlayerDto
 import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.remote.dto.HealthDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
+import com.commandercompanion.data.remote.dto.IncomingFriendRequestDto
 import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.OpponentStatsDto
+import com.commandercompanion.data.remote.dto.OutgoingFriendRequestDto
 import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.remote.dto.PlaygroupDto
 import com.commandercompanion.data.remote.dto.PlaygroupGameCountDto
 import com.commandercompanion.data.remote.dto.PlaygroupMemberDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
+import com.commandercompanion.data.remote.dto.SendFriendRequestRequest
 import com.commandercompanion.data.remote.dto.UpdateProfileRequest
 import com.commandercompanion.data.remote.dto.UserDto
+import com.commandercompanion.data.remote.dto.UserSearchResultDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import com.commandercompanion.data.remote.ws.GameSocketClient
 import com.commandercompanion.data.remote.ws.GameSocketEvent
@@ -93,6 +99,49 @@ fun userDto(
     moxfieldUsername = moxfieldUsername,
     hasPassword = hasPassword
 )
+
+private const val TEST_TIMESTAMP = "2026-08-16T10:00:00Z"
+
+fun friendDto(id: String = "user-2", username: String = "ana") =
+    FriendDto(id = id, username = username, friendsSince = TEST_TIMESTAMP)
+
+fun friendRequestDto(
+    id: String = "req-1",
+    addresseeId: String = "user-2",
+    addresseeUsername: String = "ana",
+    status: String = FriendRequestDto.STATUS_PENDING
+) = FriendRequestDto(
+    id = id,
+    addresseeId = addresseeId,
+    addresseeUsername = addresseeUsername,
+    status = status,
+    createdAt = TEST_TIMESTAMP
+)
+
+fun incomingFriendRequestDto(
+    id: String = "req-in-1",
+    requesterId: String = "user-3",
+    requesterUsername: String = "bruno"
+) = IncomingFriendRequestDto(
+    id = id,
+    requesterId = requesterId,
+    requesterUsername = requesterUsername,
+    createdAt = TEST_TIMESTAMP
+)
+
+fun outgoingFriendRequestDto(
+    id: String = "req-out-1",
+    addresseeId: String = "user-4",
+    addresseeUsername: String = "carla"
+) = OutgoingFriendRequestDto(
+    id = id,
+    addresseeId = addresseeId,
+    addresseeUsername = addresseeUsername,
+    createdAt = TEST_TIMESTAMP
+)
+
+fun userSearchResultDto(id: String = "user-2", username: String = "ana") =
+    UserSearchResultDto(id = id, username = username)
 
 fun opponentStatsDto(
     userId: String = "user-2",
@@ -190,6 +239,17 @@ class FakeCommanderApi : CommanderApi {
     var onListPlaygroupGameCounts: suspend () -> List<PlaygroupGameCountDto> = { emptyList() }
     var onGetOpponentStats: suspend () -> List<OpponentStatsDto> = { emptyList() }
     var onListFinishedGames: suspend (cursor: String?) -> PagedResponse<FinishedGameDto> = { PagedResponse(items = emptyList()) }
+    var onSearchUsers: suspend (String) -> List<UserSearchResultDto> = { emptyList() }
+    var onListFriends: suspend () -> List<FriendDto> = { emptyList() }
+    var onListIncomingFriendRequests: suspend () -> List<IncomingFriendRequestDto> = { emptyList() }
+    var onListOutgoingFriendRequests: suspend () -> List<OutgoingFriendRequestDto> = { emptyList() }
+    var onSendFriendRequest: suspend (SendFriendRequestRequest) -> FriendRequestDto = { request ->
+        friendRequestDto(addresseeId = request.addresseeId)
+    }
+    var onAcceptFriendRequest: suspend (String) -> FriendDto = { friendDto() }
+    var onRejectFriendRequest: suspend (String) -> Unit = { }
+    var onCancelFriendRequest: suspend (String) -> Unit = { }
+    var onRemoveFriend: suspend (String) -> Unit = { }
 
     override suspend fun checkHealth(): HealthDto = HealthDto(status = "ok", db = "ok")
 
@@ -319,6 +379,51 @@ class FakeCommanderApi : CommanderApi {
     override suspend fun changePassword(userId: String, request: ChangePasswordRequest) {
         calls += "changePassword"
         onChangePassword(userId, request)
+    }
+
+    override suspend fun searchUsers(query: String): List<UserSearchResultDto> {
+        calls += "searchUsers"
+        return onSearchUsers(query)
+    }
+
+    override suspend fun sendFriendRequest(request: SendFriendRequestRequest): FriendRequestDto {
+        calls += "sendFriendRequest"
+        return onSendFriendRequest(request)
+    }
+
+    override suspend fun listIncomingFriendRequests(direction: String): List<IncomingFriendRequestDto> {
+        calls += "listIncomingFriendRequests"
+        return onListIncomingFriendRequests()
+    }
+
+    override suspend fun listOutgoingFriendRequests(direction: String): List<OutgoingFriendRequestDto> {
+        calls += "listOutgoingFriendRequests"
+        return onListOutgoingFriendRequests()
+    }
+
+    override suspend fun acceptFriendRequest(requestId: String): FriendDto {
+        calls += "acceptFriendRequest"
+        return onAcceptFriendRequest(requestId)
+    }
+
+    override suspend fun rejectFriendRequest(requestId: String) {
+        calls += "rejectFriendRequest"
+        onRejectFriendRequest(requestId)
+    }
+
+    override suspend fun cancelFriendRequest(requestId: String) {
+        calls += "cancelFriendRequest"
+        onCancelFriendRequest(requestId)
+    }
+
+    override suspend fun listFriends(): List<FriendDto> {
+        calls += "listFriends"
+        return onListFriends()
+    }
+
+    override suspend fun removeFriend(userId: String) {
+        calls += "removeFriend"
+        onRemoveFriend(userId)
     }
 }
 

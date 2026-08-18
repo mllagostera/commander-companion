@@ -29,6 +29,7 @@ fun DashboardScreen(
     onJoinGame: () -> Unit,
     onViewHistory: () -> Unit,
     onViewStatistics: () -> Unit,
+    onViewFriends: () -> Unit,
     onOpenSettings: () -> Unit,
     onLogout: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel()
@@ -63,6 +64,13 @@ fun DashboardScreen(
                 color = AppFaint,
                 fontSize = 13.sp,
                 modifier = Modifier.clickable(onClick = onViewStatistics)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.dashboard_friends),
+                color = AppFaint,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onViewFriends)
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(

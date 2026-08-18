@@ -20,6 +20,8 @@ googleid = "1.2.0"
 coroutines = "1.11.0"
 appcompat = "1.7.1"
 coil = "3.5.0"
+zxing = "3.5.3"
+codeScanner = "16.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -65,6 +67,19 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+
+# QR generation only (the scanner uses Play Services' code scanner, no ZXing).
+# `core` is the pure-Java module: no Android dependency, so the encoder is
+# unit-testable on the JVM. Deliberately NOT zxing-android-embedded, which
+# brings its own Activity-based capture UI that would clash with Compose.
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+
+# QR scanning. Google's code scanner asks for NO camera permission (it runs the
+# camera in a Play Services process) and needs no CameraX wiring, which is what
+# makes it ~20 lines instead of a preview + analyzer + permission flow. The app
+# already depends on Play Services for Google Sign-In, so this adds no new
+# distribution requirement.
+play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "codeScanner" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

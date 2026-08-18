@@ -166,4 +166,37 @@
     <string name="statistics_game_result_won">Ha guanyat</string>
     <string name="statistics_game_result_lost">Ha perdut</string>
     <string name="statistics_game_no_playgroup">Partida sense grup</string>
+
+    <string name="settings_qr_heading">El teu codi de perfil</string>
+    <string name="settings_qr_body">Ensenya\'l a una altra persona perquè t\'afegeixi com a amic escanejant-lo.</string>
+    <string name="settings_qr_content_description">Codi QR del teu perfil</string>
+
+    <!-- friends -->
+    <string name="dashboard_friends">Amics</string>
+    <string name="friends_title">Amics</string>
+    <string name="friends_subtitle">Afegeix algú pel seu nom d\'usuari o escanejant el seu codi de perfil.</string>
+    <string name="friends_empty">Encara no tens amics ni sol·licituds. Cerca algú pel seu nom d\'usuari per començar.</string>
+    <string name="friends_retry">Torna-ho a provar</string>
+    <string name="friends_section_incoming">Sol·licituds rebudes</string>
+    <string name="friends_section_outgoing">Sol·licituds enviades</string>
+    <string name="friends_section_list">Els teus amics</string>
+    <string name="friends_scan">Escaneja un codi</string>
+    <string name="friends_search_label">Cerca pel nom d\'usuari</string>
+    <string name="friends_searching">Cercant…</string>
+    <string name="friends_no_results">Cap usuari coincideix amb aquesta cerca.</string>
+    <string name="friends_action_add">Afegeix</string>
+    <string name="friends_action_accept">Accepta</string>
+    <string name="friends_action_reject">Rebutja</string>
+    <string name="friends_action_cancel">Cancel·la</string>
+    <string name="friends_action_remove">Elimina</string>
+    <string name="friends_already_related">Ja és a la teva llista</string>
+    <string name="friends_outcome_sent">Sol·licitud enviada. Li apareixerà com a pendent fins que l\'accepti.</string>
+    <string name="friends_outcome_now_friends">Ja sou amics: aquesta persona ja t\'havia enviat una sol·licitud.</string>
+    <string name="error_friends_network">No s\'ha pogut connectar amb el servidor</string>
+    <string name="error_friends_self">No et pots enviar una sol·licitud a tu mateix</string>
+    <string name="error_friends_user_not_found">Aquest usuari ja no existeix</string>
+    <string name="error_friends_already_related">Ja sou amics o ja hi ha una sol·licitud pendent</string>
+    <string name="error_friends_request_gone">Aquesta sol·licitud ja no està disponible</string>
+    <string name="error_friends_invalid_code">Aquest codi no és d\'un perfil de Commander Companion</string>
+    <string name="error_friends_unknown">S\'ha produït un error inesperat</string>
 </resources>
