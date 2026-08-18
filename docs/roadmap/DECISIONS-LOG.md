@@ -25,6 +25,148 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-08-17 — Admin dashboard: live "online users"/"active games" card +
+historical activity chart (same-day addendum to Phase 1).** Follow-up ask
+right after Phase 1 shipped: a card showing online users and active games,
+plus a chart of historical active-users/games counts. Neither concept has
+supporting infrastructure in this app (no presence/heartbeat system, no
+daily-snapshot table, no scheduler), so both definitions were confirmed with
+the user via `AskUserQuestion` before building — see
+[ADR-0018](../decisions/0018-admin-role-and-user-moderation.md)'s Addendum
+for the full write-up of both trade-offs.
+
+- **"Online users"** = distinct `refresh_tokens.user_id` with `revoked_at IS
+  NULL AND expires_at > now()` — a "has a live session" proxy, not real-time
+  presence (the WebSocket-Hub-connections alternative was rejected: it would
+  only count users currently inside an active game). **"Active games"** =
+  `count(*) FROM games WHERE status = 'active'`, no proxy needed. Both
+  folded into the existing single-query `GetAdminOverviewStats`
+  (`internal/admin/query.sql`) alongside the Phase 1 counts.
+- **The historical chart has no snapshot table** — this backend's only
+  scheduled-ish work is a one-off startup reap
+  (`cmd/api/main.go: reapStaleBackgroundJobs`), there's no daily-job runner
+  to populate one, and a snapshot table would start the chart empty with no
+  history. Instead `GET /admin/stats/activity?days=` (default 30, clamped
+  `[1,90]`) derives a `games_started`/distinct-`active_users` series
+  straight from `games`/`game_players`, grouped by
+  `date_trunc('day', started_at)`. The query only returns rows for days that
+  had a game; `admin.Service.GetDailyActivity` fills every day in the
+  requested range to zero first so the chart's x-axis is always continuous,
+  never shorter with holes on quiet days.
+- **New backend tests** (`internal/admin/service_test.go`): online/active
+  counts with valid vs. expired/revoked tokens, gap-filling verified against
+  a real 5-day range with games seeded on specific days (raw SQL inserts
+  directly into `games`/`game_players`/`refresh_tokens`, not the full
+  games/playgroups service stack — this module only reads those tables, so
+  it doesn't need `games.Service`'s state-machine plumbing to set up
+  fixtures), and clamp behavior at both ends (`0` → 1 day, `10000` → 90
+  days). Full suite re-run (`go test -race -p 1 ./...`): all green.
+- **The chart itself is a hand-rolled inline SVG component**
+  (`AdminActivityChart.vue`), no charting library added. Followed the
+  `dataviz` skill's procedure end to end: picked the categorical pair from
+  its reference palette's violet/aqua slots (`#4a3aa7`/`#1baf7a` light,
+  `#9085e9`/`#199e70` dark) rather than reusing the app's existing
+  `--accent-link`/`--win` text tokens, because those failed the palette
+  validator (`scripts/validate_palette.js`) when used as saturated line
+  marks — `--accent-link`/`--win` are tuned as pastel/muted *text* colors,
+  not marks, and came back outside the lightness band (dark) or below the
+  chroma floor (light `--win`). The validated pair passed all checks in
+  both modes and was added as new `--chart-series-1`/`--chart-series-2`
+  tokens in `main.css`, following the app's existing "every color is a CSS
+  custom property, swapped per `[data-theme]`" convention rather than the
+  Artifact-specific dual data-theme/media-query pattern (this is a page in
+  the real app, not a published Artifact). Built to the skill's mark specs:
+  thin 2px lines, a legend with swatches (not colored text), recessive
+  gridlines, a hover crosshair + tooltip (mouse position mapped to the
+  nearest day via the wrapper's `getBoundingClientRect()`, since the
+  wrapper's CSS `aspect-ratio` is locked to match the SVG `viewBox` — no
+  `getScreenCTM()` matrix math needed), and a visually-hidden (`sr-only`)
+  data table satisfying the "table view exists" accessibility requirement
+  the palette validator's contrast WARN on light-mode aqua obligated.
+- **Verified end-to-end in a real browser**, both themes: reused the same
+  running backend+Postgres+Nuxt-dev-server setup from the Phase 1 check,
+  seeded games spread across ~10 days plus 2 active games via direct SQL,
+  logged in as the admin, and drove Playwright (Chromium) to screenshot the
+  live card, the chart with real data, a hover-triggered tooltip (dark and
+  light), and confirmed the `sr-only` table renders with the expected row
+  count (30, matching the default `days=30`). No console/page errors.
+
+**2026-08-17 — Admin dashboard, Phase 1 (role foundation + user management +
+global stats).** The user asked for a full admin "operations panel" (users,
+games, tournaments, decks, global stats, moderation in each area) with
+nothing to build on: no role/permission concept existed anywhere in the app
+before this session (confirmed by grepping the whole repo for
+"admin"/"role"/"is_admin" — zero hits). Given the size of the full ask, the
+work was scoped down via plan mode, agreed with the user up front: Phase 1
+builds the role foundation itself plus the one area needed to prove it
+end-to-end (user management) and a small global-stats overview; games/
+tournaments/decks moderation and an admin-promotion UI are deferred. See
+[ADR-0018](../decisions/0018-admin-role-and-user-moderation.md) for the full
+design rationale (why a plain `is_admin` boolean over a roles table, why
+account deactivation over hard delete, why `is_admin` is checked fresh from
+the DB per request rather than trusted from a JWT claim, why `is_active`
+only gates login/refresh rather than triggering full session revocation).
+
+- **Backend**: migration `00018_admin_and_account_status.sql` adds
+  `users.is_admin`/`users.is_active`; new `backend/internal/admin` module
+  (`GET /admin/users` — cursor-paginated, `search` matches username or
+  email; `GET /admin/users/{id}` with deck/games-played counts via
+  correlated subqueries; `PATCH /admin/users/{id}/status` with a
+  self-lockout guard — an admin can't deactivate their own account, since
+  there's no promotion UI yet to undo it; `GET /admin/stats/overview`, one
+  query with 7 correlated subqueries, live-computed, no summary table, same
+  choice already made for `GetPlaygroupStats`). `auth.RequireAdmin`
+  middleware chains after `RequireAuth` and queries `is_admin` fresh per
+  request. `is_active` gating added to `VerifyCredentials`,
+  `FindOrCreateGoogleUser`, and `auth.Service.Refresh` (`ErrAccountDeactivated`,
+  403) — refresh already re-queries the refresh-token record, so the check
+  there is free, and it bounds a deactivated account's remaining access to
+  at most one access-token TTL.
+- **Testing**: new `internal/admin/service_test.go` (pagination, search,
+  deck-count aggregation, self-lockout guard, not-found cases, overview
+  stats) plus new cases in `internal/users/service_test.go`
+  (`TestVerifyCredentials_BlocksDeactivatedAccount`, `TestIsAdmin_*`) and
+  `internal/auth/service_test.go` (`TestRefresh_BlocksDeactivatedAccount`).
+  Full suite run against a real local Postgres 16 (`go test -race -p 1
+  ./...`, sequential — a parallel `./...` run cross-contaminates shared
+  tables like `users` across packages, a pre-existing sandbox artifact
+  unrelated to this change, not a real bug): all packages pass.
+  `golangci-lint run ./...` clean except pre-existing, unrelated debt in
+  files this session didn't touch (`internal/tournaments`, `internal/deckresync`,
+  `internal/moxfieldimport`, `internal/testutil` — confirmed via `git
+  status` that none of those files were modified here).
+- **Web**: `AuthUser` (both `server/utils/backend.ts` and
+  `app/composables/useAuth.ts`) gained `is_admin`/`is_active`, threaded from
+  the backend's `/auth/me` with no new endpoint. New `admin.ts` named route
+  middleware (`definePageMeta({ middleware: 'admin' })` per page, not a
+  second global middleware — only a few pages need it), `useAdmin.ts`
+  composable, and three pages: `admin/index.vue` (stats tiles),
+  `admin/users/index.vue` (search + cursor "load more", same pattern as
+  `statistics.vue`'s finished-games tab), `admin/users/[id].vue` (detail +
+  activate/deactivate with a confirm dialog, reusing `useModalA11y` like
+  `friends.vue`'s unfriend confirmation). Nav entry in `default.vue`'s
+  `links` array, conditional on `user.is_admin`. i18n: new `admin`
+  namespace in `en`/`es`/`ca` locale files.
+- **Verified end-to-end in a real browser**, not just typecheck/build:
+  started the Go API against a local Postgres with migrations applied and
+  the Nuxt dev server, registered two real users via the API, promoted one
+  to admin by hand in the DB (`UPDATE users SET is_admin = true`), then
+  drove the actual UI with Playwright (Chromium) — logged in as the admin,
+  confirmed the "Admin" nav link and `/admin` overview stats (correct
+  counts), searched `/admin/users`, opened a user's detail, deactivated and
+  reactivated the account (badge and button state changed correctly both
+  ways), then logged in as the non-admin and confirmed a direct visit to
+  `/admin` redirects to `/`. Separately confirmed via `curl` that a
+  deactivated account gets a `403 {"message":"account has been
+  deactivated"}` from `POST /auth/login`. `npm run lint` / `vue-tsc
+  --noEmit` / `npm run build` (SSR) all clean.
+- **Docs**: `docs/database/schema.dbml` (`users.is_admin`/`is_active`),
+  `docs/api/openapi.yaml` (`/admin/*` paths + schemas, Spectral lint: 0
+  errors, only the same pre-existing warning classes — missing
+  `operationId`/`tags` — already present across the rest of the file),
+  README.md's ADR index and documentation hub, `ROADMAP.md` (new Stage 10),
+  this file, and `TASKS.md` (new Stage 10 section).
+
 **2026-08-17 — Friends phase 3 on Android, and what investigating it changed
 about the plan.** The user asked for a plan for the Android phase, chose
 Google's code scanner over CameraX, and picked a deep link over the bare UUID.
@@ -109,7 +251,6 @@ deliberately not committed, since it would serve an invalid file in production.
 Android release builds also need `-PWEB_APP_URL=https://<domain>`; the default
 is the emulator alias, and a release built without it would generate QRs
 pointing at localhost.
-
 
 **2026-08-16 — Creating decks by hand, and where the Scryfall lookup had to
 live.** The user asked for a way to create a deck from the decks page with a

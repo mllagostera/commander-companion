@@ -260,6 +260,66 @@ func TestVerifyCredentials_BlocksUnconfirmedEmail(t *testing.T) {
 	}
 }
 
+// Deactivation (see ADR-0018) is done via internal/admin, not internal/users itself —
+// this test flips the column directly with SQL, same as a real admin action would leave it.
+func TestVerifyCredentials_BlocksDeactivatedAccount(t *testing.T) {
+	svc, pool, mailer := newUsersSvcWithMailer(t)
+
+	created := registerUser(t, svc, "deactivated@example.com")
+	token := mailer.tokenFor(t, "deactivated@example.com")
+	if err := svc.VerifyEmail(context.Background(), token); err != nil {
+		t.Fatalf("VerifyEmail() error = %v, want nil", err)
+	}
+	const deactivateQuery = "UPDATE users SET is_active = false WHERE id = $1"
+	if _, err := pool.Exec(context.Background(), deactivateQuery, created.ID); err != nil {
+		t.Fatalf("desactivando cuenta de test: %v", err)
+	}
+
+	_, err := svc.VerifyCredentials(context.Background(), "deactivated@example.com", testPassword)
+	if !errors.Is(err, users.ErrAccountDeactivated) {
+		t.Fatalf("VerifyCredentials() con cuenta desactivada: error = %v, want ErrAccountDeactivated", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusForbidden {
+		t.Fatalf("VerifyCredentials() con cuenta desactivada: code = %d, want %d", fiberErr.Code, fiber.StatusForbidden)
+	}
+}
+
+func TestIsAdmin_ReflectsColumn(t *testing.T) {
+	svc, pool := newUsersSvc(t)
+
+	created := registerUser(t, svc, "maybe-admin@example.com")
+
+	isAdmin, err := svc.IsAdmin(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("IsAdmin() error = %v, want nil", err)
+	}
+	if isAdmin {
+		t.Fatalf("IsAdmin() = true, want false (new account, not yet promoted)")
+	}
+
+	const promoteQuery = "UPDATE users SET is_admin = true WHERE id = $1"
+	if _, promoteErr := pool.Exec(context.Background(), promoteQuery, created.ID); promoteErr != nil {
+		t.Fatalf("promoviendo usuario de test: %v", promoteErr)
+	}
+
+	isAdmin, err = svc.IsAdmin(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("IsAdmin() tras promover: error = %v, want nil", err)
+	}
+	if !isAdmin {
+		t.Fatalf("IsAdmin() tras promover = false, want true")
+	}
+}
+
+func TestIsAdmin_UnknownUser_ReturnsNotFound(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	_, err := svc.IsAdmin(context.Background(), "00000000-0000-0000-0000-000000000000")
+	if !errors.Is(err, users.ErrUserNotFound) {
+		t.Fatalf("IsAdmin() con usuario inexistente: error = %v, want ErrUserNotFound", err)
+	}
+}
+
 func TestRegisterUser_SendsVerificationEmail(t *testing.T) {
 	svc, _, mailer := newUsersSvcWithMailer(t)
 

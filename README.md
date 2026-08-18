@@ -170,6 +170,7 @@ for a new module), add it to this list too in the same change.
 - [0008 — sqlc + goose (data access and migrations)](docs/decisions/0008-sqlc-goose.md)
 - [0009 — Native Android vs. cross-platform](docs/decisions/0009-android-native-vs-crossplatform.md)
 - [0010 — Modular monolith vs. microservices](docs/decisions/0010-modular-monolith-vs-microservices.md)
+- [0018 — Admin role and user moderation](docs/decisions/0018-admin-role-and-user-moderation.md)
 
 **READMEs per module:**
 

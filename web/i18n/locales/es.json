@@ -20,7 +20,8 @@
     "language": "Idioma",
     "tournaments": "Torneos",
     "friends": "Amigos",
-    "userMenu": "Menú de usuario"
+    "userMenu": "Menú de usuario",
+    "admin": "Admin"
   },
   "login": {
     "tagline": "Tus partidas y decks de Commander, en un solo lugar.",
@@ -666,6 +667,71 @@
         "winner": "Ganador"
       },
       "shareHintInProgress": "Los participantes usan este código para consultar en qué mesa juegan cada ronda."
+    }
+  },
+  "admin": {
+    "overview": {
+      "title": "Panel de administración",
+      "subtitle": "Estadísticas globales de la app y gestión de usuarios.",
+      "manageUsers": "Gestionar usuarios",
+      "loadError": "No se pudieron cargar las estadísticas.",
+      "stats": {
+        "totalUsers": "Usuarios totales",
+        "activeUsers": "Usuarios activos",
+        "verifiedUsers": "Usuarios verificados",
+        "totalDecks": "Decks totales",
+        "totalPlaygroups": "Grupos totales",
+        "totalFinishedGames": "Partidas finalizadas",
+        "totalTournaments": "Torneos"
+      },
+      "live": {
+        "label": "En vivo",
+        "onlineUsers": "Usuarios online",
+        "activeGames": "Partidas activas"
+      },
+      "chart": {
+        "title": "Actividad, últimos 30 días",
+        "subtitle": "Partidas iniciadas y usuarios distintos que jugaron cada día.",
+        "gamesStarted": "Partidas iniciadas",
+        "activeUsers": "Usuarios activos",
+        "empty": "Todavía no hay actividad.",
+        "tableCaption": "Partidas iniciadas y usuarios activos por día",
+        "date": "Fecha"
+      }
+    },
+    "users": {
+      "title": "Usuarios",
+      "subtitle": "Buscá, revisá y moderá cuentas.",
+      "searchPlaceholder": "Buscar por usuario o email",
+      "loadError": "No se pudieron cargar los usuarios.",
+      "empty": "Ningún usuario coincide con esta búsqueda.",
+      "loadMore": "Cargar más",
+      "loadingMore": "Cargando…",
+      "badges": {
+        "admin": "Admin",
+        "deactivated": "Desactivada"
+      }
+    },
+    "userDetail": {
+      "back": "← Volver a usuarios",
+      "loadError": "No se pudo cargar este usuario.",
+      "decks": "Decks",
+      "gamesPlayed": "Partidas jugadas",
+      "emailVerified": "Email verificado",
+      "createdAt": "Se unió",
+      "yes": "Sí",
+      "no": "No",
+      "deactivate": "Desactivar cuenta",
+      "activate": "Activar cuenta",
+      "cannotDeactivateSelf": "No podés desactivar tu propia cuenta.",
+      "deactivateConfirmTitle": "¿Desactivar a {username}?",
+      "deactivateConfirmBody": "No va a poder iniciar sesión hasta que un admin reactive la cuenta. Sus decks, partidas y estadísticas se conservan."
+    },
+    "errors": {
+      "cannotDeactivateSelf": "No podés desactivar tu propia cuenta.",
+      "forbidden": "No tenés acceso de administrador.",
+      "userNotFound": "Este usuario ya no existe.",
+      "generic": "Algo salió mal. Intentá de nuevo."
     }
   }
 }

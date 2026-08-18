@@ -14,6 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/usuario/commander-companion-backend/internal/admin"
 	"github.com/usuario/commander-companion-backend/internal/auth"
 	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/config"
@@ -253,4 +254,11 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	// ADR-0017), distinct from playgroups (game groups, not friendship relations).
 	friendsService := friends.NewService(db.Pool)
 	friends.NewHandler(friendsService).RegisterRoutes(protected)
+
+	// admin: user management + global stats overview for the admin dashboard (see
+	// internal/admin and ADR-0018). RequireAdmin is chained after RequireAuth
+	// (protected already has it) and checks is_admin fresh from the DB per request.
+	adminGroup := protected.Group("/admin", auth.RequireAdmin(usersService))
+	adminService := admin.NewService(db.Pool)
+	admin.NewHandler(adminService).RegisterRoutes(adminGroup)
 }

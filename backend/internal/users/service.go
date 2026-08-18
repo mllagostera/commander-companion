@@ -71,6 +71,10 @@ var (
 	ErrUsernameEmpty = common.InvalidInput("username cannot be empty")
 	// ErrUsernameTaken indicates that the chosen username is already in use by another account.
 	ErrUsernameTaken = common.Conflict("username already taken")
+	// ErrAccountDeactivated indicates that an admin has deactivated the account (see
+	// ADR-0018) — checked at login and at refresh, so a deactivated account can't keep
+	// using an already-issued refresh token to stay signed in.
+	ErrAccountDeactivated = common.Forbidden("account has been deactivated")
 )
 
 // minPasswordLength is the minimum length of the new password in ChangePassword, matching the
@@ -112,6 +116,9 @@ type Service interface {
 	// doesn't reveal anything the register form's own submission wouldn't already (see
 	// ErrUserAlreadyExists), just earlier and for one specific name.
 	IsUsernameAvailable(ctx context.Context, username string) (bool, error)
+	// IsAdmin reports whether the user has admin privileges, queried fresh from the DB
+	// (not trusted from a JWT claim) — see auth.RequireAdmin and ADR-0018.
+	IsAdmin(ctx context.Context, id string) (bool, error)
 }
 
 type service struct {
@@ -330,6 +337,10 @@ func (s *service) VerifyCredentials(ctx context.Context, email, password string)
 		return nil, ErrEmailNotConfirmed
 	}
 
+	if !user.IsActive {
+		return nil, ErrAccountDeactivated
+	}
+
 	return toUserResponse(&user), nil
 }
 
@@ -344,6 +355,9 @@ func (s *service) FindOrCreateGoogleUser(
 	user, err := s.repo.GetUserByGoogleID(ctx, googleIDText)
 	switch {
 	case err == nil:
+		if !user.IsActive {
+			return nil, ErrAccountDeactivated
+		}
 		return toUserResponse(&user), nil
 	case !errors.Is(err, pgx.ErrNoRows):
 		return nil, fmt.Errorf("looking up user by google id: %w", err)
@@ -356,6 +370,9 @@ func (s *service) FindOrCreateGoogleUser(
 	existing, err := s.repo.GetUserByEmail(ctx, email)
 	switch {
 	case err == nil:
+		if !existing.IsActive {
+			return nil, ErrAccountDeactivated
+		}
 		var linked User
 		linked, err = s.repo.LinkGoogleID(ctx, LinkGoogleIDParams{ID: existing.ID, GoogleID: googleIDText})
 		if err != nil {
@@ -518,6 +535,25 @@ func (s *service) IsUsernameAvailable(ctx context.Context, username string) (boo
 	return !exists, nil
 }
 
+// IsAdmin reports whether the user has admin privileges, queried fresh from the DB
+// (not trusted from a JWT claim) — see auth.RequireAdmin and ADR-0018.
+func (s *service) IsAdmin(ctx context.Context, id string) (bool, error) {
+	uid, err := common.ParseUUID(id)
+	if err != nil {
+		return false, ErrUserNotFound
+	}
+
+	flags, err := s.repo.GetUserRoleFlags(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrUserNotFound
+		}
+		return false, fmt.Errorf("looking up user role flags: %w", err)
+	}
+
+	return flags.IsAdmin, nil
+}
+
 func toUserResponse(user *User) *UserResponse {
 	var createdAt time.Time
 	if user.CreatedAt.Valid {
@@ -530,6 +566,8 @@ func toUserResponse(user *User) *UserResponse {
 		Email:       user.Email,
 		CreatedAt:   createdAt,
 		HasPassword: user.PasswordHash.Valid,
+		IsAdmin:     user.IsAdmin,
+		IsActive:    user.IsActive,
 	}
 	if user.MoxfieldUsername.Valid {
 		res.MoxfieldUsername = &user.MoxfieldUsername.String

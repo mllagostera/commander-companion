@@ -77,6 +77,12 @@ RETURNING *;
 -- name: UsernameExists :one
 SELECT EXISTS(SELECT 1 FROM users WHERE username = $1) AS exists;
 
+-- name: GetUserRoleFlags :one
+-- Used by auth.RequireAdmin: is_admin is checked fresh from the DB on every
+-- admin request rather than trusted from a JWT claim, see ADR-0018.
+SELECT is_admin, is_active FROM users
+WHERE id = $1 LIMIT 1;
+
 -- name: SearchUsersByUsername :many
 -- Partial, case-insensitive username search, to invite people to a playgroup without
 -- knowing their UUID (see internal/playgroups). Deliberately does NOT search by email

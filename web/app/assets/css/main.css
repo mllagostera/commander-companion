@@ -41,6 +41,16 @@
    * floating arc with nothing to read it against.
    */
   --ring-track: rgba(255, 255, 255, 0.08);
+  /*
+   * Categorical chart-mark colors (AdminActivityChart.vue). Distinct from the
+   * text/link tokens above on purpose: those are tuned as pastel/muted text
+   * colors and fail the data-viz palette validator's lightness/chroma checks
+   * when used as saturated line marks (see dataviz skill,
+   * scripts/validate_palette.js). --chart-series-1/2 are validated as a pair
+   * in both themes (adjacent CVD ΔE 17.3 dark / 31.1 light).
+   */
+  --chart-series-1: #9085e9;
+  --chart-series-2: #199e70;
 }
 
 /*
@@ -79,6 +89,8 @@
   --warn: #7c4a06;
   --warn-bg: rgba(161, 98, 7, 0.12);
   --ring-track: rgba(30, 20, 60, 0.12);
+  --chart-series-1: #4a3aa7;
+  --chart-series-2: #1baf7a;
 }
 
 /*
