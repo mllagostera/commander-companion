@@ -7,19 +7,25 @@ import com.commandercompanion.data.remote.dto.CreateGameRequest
 import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.DeckStatsDto
 import com.commandercompanion.data.remote.dto.FinishedGameDto
+import com.commandercompanion.data.remote.dto.FriendDto
+import com.commandercompanion.data.remote.dto.FriendRequestDto
 import com.commandercompanion.data.remote.dto.GameActionDto
 import com.commandercompanion.data.remote.dto.GameDto
 import com.commandercompanion.data.remote.dto.GamePlayerDto
 import com.commandercompanion.data.remote.dto.HealthDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
+import com.commandercompanion.data.remote.dto.IncomingFriendRequestDto
 import com.commandercompanion.data.remote.dto.JoinGameRequest
 import com.commandercompanion.data.remote.dto.OpponentStatsDto
+import com.commandercompanion.data.remote.dto.OutgoingFriendRequestDto
 import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.remote.dto.PlaygroupDto
 import com.commandercompanion.data.remote.dto.PlaygroupGameCountDto
 import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
+import com.commandercompanion.data.remote.dto.SendFriendRequestRequest
 import com.commandercompanion.data.remote.dto.UpdateProfileRequest
 import com.commandercompanion.data.remote.dto.UserDto
+import com.commandercompanion.data.remote.dto.UserSearchResultDto
 import com.commandercompanion.data.remote.dto.UserStatsDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -30,7 +36,8 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * Protected backend endpoints (`decks`, `games`, `game-actions`, `statistics`),
+ * Protected backend endpoints (`decks`, `games`, `game-actions`, `statistics`,
+ * `users`, `friends`),
  * see `docs/api/openapi.yaml`.
  *
  * Always consumed through the **authenticated** HTTP client (see `NetworkModule`): the
@@ -172,4 +179,53 @@ interface CommanderApi {
     /** 204 with no body. 401 if the current password doesn't match, or if the account has no password of its own. */
     @POST("api/v1/users/{id}/password")
     suspend fun changePassword(@Path("id") userId: String, @Body request: ChangePasswordRequest)
+
+    /**
+     * Partial, case-insensitive match on username (exact on email, and never
+     * returns anyone's email — see `UserSearchResult`). Capped at 10 results,
+     * with a 2-character minimum query; excludes the caller.
+     */
+    @GET("api/v1/users/search")
+    suspend fun searchUsers(@Query("q") query: String): List<UserSearchResultDto>
+
+    // --------------------------------------------------------------- friends
+
+    /**
+     * 400 if [SendFriendRequestRequest.addresseeId] is the caller, 404 if no
+     * such user, 409 if already friends or a request is already pending in
+     * this same direction. A pending request in the OPPOSITE direction is not
+     * an error: it auto-accepts, and the response comes back with
+     * `status = "accepted"` (see [FriendRequestDto.wasAutoAccepted]).
+     */
+    @POST("api/v1/friends/requests")
+    suspend fun sendFriendRequest(@Body request: SendFriendRequestRequest): FriendRequestDto
+
+    @GET("api/v1/friends/requests")
+    suspend fun listIncomingFriendRequests(
+        @Query("direction") direction: String = "incoming"
+    ): List<IncomingFriendRequestDto>
+
+    @GET("api/v1/friends/requests")
+    suspend fun listOutgoingFriendRequests(
+        @Query("direction") direction: String = "outgoing"
+    ): List<OutgoingFriendRequestDto>
+
+    /** Answers with the resulting friendship, not the updated request. 404 if the caller isn't the addressee. */
+    @POST("api/v1/friends/requests/{id}/accept")
+    suspend fun acceptFriendRequest(@Path("id") requestId: String): FriendDto
+
+    /** 404 if the caller isn't the addressee — deliberately not 403, so a stranger can't probe request ids. */
+    @POST("api/v1/friends/requests/{id}/reject")
+    suspend fun rejectFriendRequest(@Path("id") requestId: String)
+
+    /** Withdraws a request the caller sent. 404 if the caller isn't the requester. */
+    @DELETE("api/v1/friends/requests/{id}")
+    suspend fun cancelFriendRequest(@Path("id") requestId: String)
+
+    @GET("api/v1/friends")
+    suspend fun listFriends(): List<FriendDto>
+
+    /** Takes the OTHER user's id, not a request id. */
+    @DELETE("api/v1/friends/{userId}")
+    suspend fun removeFriend(@Path("userId") userId: String)
 }

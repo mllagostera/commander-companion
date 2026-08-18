@@ -18,18 +18,29 @@ const userInitial = computed(() => user.value?.username?.[0]?.toUpperCase() ?? '
 const memberSince = computed(() => (user.value ? d(new Date(user.value.created_at), 'short') : ''))
 
 // ------------------------------------------------------------------- QR
-// The QR encodes the user's own id directly (no separate rotable code, see
-// ADR-0017): scanning it (Android, future work) feeds that id into the same
-// POST /friends/requests a username search already uses. SVG generation
-// runs fine in pure Node (no canvas needed), so it also renders in the
-// initial SSR payload.
+// The QR encodes a link to /friends/add/{id} rather than the bare id (which
+// is what it held originally, see ADR-0017). Same id reaches the same
+// POST /friends/requests either way, but a URL means any camera app resolves
+// it: with the Android app installed the App Link opens it there, and
+// without it the browser lands on the page below, which does the same thing.
+// A bare UUID is inert in every scanner on the phone.
+//
+// The origin comes from the request rather than a configured base URL, so
+// dev, preview deployments and production each encode themselves with no
+// extra env var to keep in sync.
+const requestUrl = useRequestURL()
 const friendQrSvg = ref('')
 
 watch(
   () => user.value?.id,
   async (id) => {
+    // SVG generation runs in pure Node (no canvas), so this also renders in
+    // the initial SSR payload.
     friendQrSvg.value = id
-      ? await QRCode.toString(id, { type: 'svg', margin: 1, color: { dark: '#0a0714', light: '#ffffff' } })
+      ? await QRCode.toString(
+          `${requestUrl.origin}/friends/add/${id}`,
+          { type: 'svg', margin: 1, color: { dark: '#0a0714', light: '#ffffff' } },
+        )
       : ''
   },
   { immediate: true },

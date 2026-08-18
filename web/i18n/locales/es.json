@@ -244,7 +244,7 @@
     "perDeck": {
       "heading": "Por deck",
       "noDecksIntro": "Todavía no tienes decks.",
-      "importLink": "Importa uno desde Moxfield",
+      "importLink": "Añade uno",
       "noDecksOutro": "para ver sus estadísticas.",
       "noStats": "Sin estadísticas disponibles para este deck.",
       "games": "Partidas",
@@ -368,10 +368,17 @@
     "title": "Amigos",
     "subtitle": "Agrega amigos por username y gestiona tus solicitudes.",
     "add": {
-      "heading": "Agregar un amigo",
-      "searchPlaceholder": "Buscar por username",
-      "searching": "Buscando…",
-      "send": "Enviar solicitud"
+      "title": "Añadir amigo",
+      "back": "← Amigos",
+      "body": "Has escaneado el código de perfil de alguien. Envíale una solicitud de amistad: todavía tiene que aceptarla.",
+      "action": "Enviar solicitud",
+      "sending": "Enviando…",
+      "sent": "Solicitud enviada. Le aparecerá como pendiente hasta que la acepte.",
+      "nowFriends": "Ya sois amigos: esa persona ya te había enviado una solicitud.",
+      "alreadyFriends": "{username} y tú ya sois amigos.",
+      "goToFriends": "Ir a amigos",
+      "self": "Ese es tu propio código. Enséñaselo a otra persona para que lo escanee.",
+      "malformed": "Ese enlace no apunta a un perfil válido. Pídele que te vuelva a enseñar su código."
     },
     "incoming": {
       "heading": "Solicitudes de amistad",

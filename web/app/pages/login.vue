@@ -6,6 +6,23 @@ const { renderButton } = useGoogleIdentity()
 const { theme } = useTheme()
 const { t } = useI18n()
 
+/**
+ * Where to land after logging in. `auth.global.ts` puts the blocked
+ * destination here so a deep link (a scanned profile QR, see
+ * pages/friends/add/[id].vue) survives the trip through login.
+ *
+ * Only same-site absolute paths are honoured: the value comes from the query
+ * string, so accepting `//evil.com` or `https://evil.com` would turn this
+ * page into an open redirect that a phishing link could point anywhere.
+ */
+const route = useRoute()
+const redirectTarget = computed(() => {
+  const raw = route.query.redirect
+  const path = Array.isArray(raw) ? raw[0] : raw
+  if (typeof path !== 'string') return '/'
+  return path.startsWith('/') && !path.startsWith('//') ? path : '/'
+})
+
 const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
@@ -41,7 +58,7 @@ async function handleSubmit() {
   startLoginTimers()
   try {
     await login(email.value, password.value)
-    await navigateTo('/')
+    await navigateTo(redirectTarget.value)
   } catch (err) {
     if (apiErrorStatus(err) === 403) {
       needsVerification.value = true
@@ -70,7 +87,7 @@ async function handleGoogleCredential(idToken: string) {
   startLoginTimers()
   try {
     await loginWithGoogle(idToken)
-    await navigateTo('/')
+    await navigateTo(redirectTarget.value)
   } catch (err) {
     errorMessage.value = apiErrorMessage(err, t('login.errors.googleFailed'))
   } finally {

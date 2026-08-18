@@ -244,7 +244,7 @@
     "perDeck": {
       "heading": "By deck",
       "noDecksIntro": "You don't have any decks yet.",
-      "importLink": "Import one from Moxfield",
+      "importLink": "Add one",
       "noDecksOutro": "to see its statistics.",
       "noStats": "No statistics available for this deck.",
       "games": "Games",
@@ -368,10 +368,17 @@
     "title": "Friends",
     "subtitle": "Add friends by username, and manage your requests.",
     "add": {
-      "heading": "Add a friend",
-      "searchPlaceholder": "Search by username",
-      "searching": "Searching…",
-      "send": "Send request"
+      "title": "Add friend",
+      "back": "← Friends",
+      "body": "You scanned someone's profile code. Send them a friend request — they still have to accept it.",
+      "action": "Send friend request",
+      "sending": "Sending…",
+      "sent": "Request sent. It shows up for them as pending until they accept.",
+      "nowFriends": "You are now friends — they had already sent you a request.",
+      "alreadyFriends": "You and {username} are already friends.",
+      "goToFriends": "Go to friends",
+      "self": "That is your own code. Show it to someone else so they can scan it.",
+      "malformed": "That link does not point at a valid profile. Ask them to show you their code again."
     },
     "incoming": {
       "heading": "Friend requests",

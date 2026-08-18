@@ -24,6 +24,9 @@ object SettingsRoute
 object StatisticsRoute
 
 @Serializable
+object FriendsRoute
+
+@Serializable
 object JoinGameRoute
 
 @Serializable

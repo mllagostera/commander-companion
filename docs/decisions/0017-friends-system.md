@@ -1,6 +1,9 @@
 # ADR-0017: Friend requests (send/accept/reject) and profile QR generation
 
-**Status:** Accepted (2026-08-15) — phases 1-2 of a 3-phase plan implemented (backend + web request lifecycle, web QR generation); phase 3 (Android profile screen, QR generation + camera scanning) is follow-up work, see Consequences.
+**Status:** Accepted (2026-08-15) — all three phases implemented. Amended
+2026-08-17: phase 3 shipped without the new Android profile screen this ADR
+originally assumed, and the QR now encodes a deep link rather than a bare
+UUID. See "Amendments (2026-08-17)".
 
 ## Context
 
@@ -48,7 +51,9 @@ client already has its own `id` after login (`AuthUser.id`), and scanning
 another user's QR just feeds their `id` into the exact same `POST
 /friends/requests` call the username-search flow uses. Both entry points
 converge on one endpoint; only the request lifecycle itself is new backend
-work. (QR generation/scanning is phases 2-3, not built yet — see Consequences.)
+work. (Amended 2026-08-17: the payload is now a *link* containing that id
+rather than the bare id — see the amendment below. What reaches
+`POST /friends/requests` is unchanged.)
 
 ### One `friend_requests` table, no separate `friends` table
 
@@ -95,6 +100,61 @@ after a client-side effect. No new backend endpoint was needed: the client
 already has its own `id` from the session (`useAuth().user.id`), matching
 the "no new endpoint for QR generation" consequence already called out in
 the Decision section above.
+
+## Amendments (2026-08-17)
+
+Phase 3 was implemented on Android, and two of this ADR's assumptions did not
+survive contact with the code.
+
+### There was no new profile screen, because none was needed
+
+This ADR sized phase 3 around "a new Android profile screen", noting the app
+has none. That turned out to be the wrong frame: the **web** client does not
+put the QR on a profile either — it is a card in `settings.vue`. And Android's
+`SettingsViewModel` already loads the full `UserDto` (including `id`) through
+`AuthApi.me()`, so the QR card dropped into the settings screen that already
+existed. The single largest piece of estimated work in phase 3 did not exist.
+
+What phase 3 *did* need, and this ADR did not mention, was a **friends screen
+on Android**. Scanning creates a *pending* request the other person has to
+accept; with only a scanner, the person being added would have had to open the
+web client to accept it — phone in hand, at the table.
+
+### The QR encodes a deep link, not the bare id
+
+The original decision above (encode the `id` directly, no `friend_code`) still
+holds for *what identifies the user*. What changed is the envelope: the QR now
+encodes `https://<web>/friends/add/{id}`.
+
+A bare UUID is inert in every scanner on the phone — only this app could ever
+have done anything with it. A URL is resolved by any camera app: with the
+Android app installed the App Link opens it there, and without it the browser
+lands on `web/app/pages/friends/add/[id].vue`, which sends the same request.
+The id that reaches `POST /friends/requests` is identical either way, so the
+"no `friend_code`" reasoning is untouched.
+
+Both clients accept a bare UUID as well as the link, so codes generated before
+this change still scan.
+
+### Google's code scanner instead of CameraX + ML Kit
+
+Scanning uses `play-services-code-scanner`. Play Services runs the camera in
+its own process, so **the app declares no `CAMERA` permission** and needs no
+runtime-permission flow; the integration is one function instead of a preview,
+an analyzer, a permission request and a permanently-denied path. The trade is
+that the capture UI is Google's and cannot be themed. The app already depended
+on Play Services for Google Sign-In, so this adds no distribution requirement.
+If the unthemed UI becomes a problem, moving to CameraX is a contained change
+behind the same call site.
+
+### Out of scope, still: App Links verification
+
+The intent filter that makes the deep link open *directly* in the app (no
+disambiguation dialog) requires `/.well-known/assetlinks.json` served by the
+web client, carrying the release keystore's SHA-256 fingerprint. That
+fingerprint is not in the repository, so this is left as a separate change.
+Until then the link still works — it opens the web page, which does the same
+thing.
 
 ## Alternatives considered
 
