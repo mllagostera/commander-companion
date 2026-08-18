@@ -172,6 +172,33 @@ func TestRefresh_ReuseOfRotatedToken_RevokesTheWholeSessionFamily(t *testing.T) 
 	}
 }
 
+// Deactivation (see ADR-0018) is done via internal/admin, not internal/auth/internal/users
+// themselves — this test flips the column directly with SQL, same as a real admin action
+// would leave it. The refresh token was issued while the account was still active; Refresh
+// must still reject it once is_active flips, bounding a deactivated account's exposure to
+// at most one access-token TTL (see ADR-0018).
+func TestRefresh_BlocksDeactivatedAccount(t *testing.T) {
+	pool := testutil.DB(t)
+	testutil.Truncate(t, pool, "users")
+
+	authSvc, usersSvc := newAuthSvc(t, pool, defaultTestConfig())
+	registerUser(t, pool, usersSvc, "refresh-deactivated@example.com")
+
+	login, err := authSvc.Login(context.Background(), "refresh-deactivated@example.com", testPassword)
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+
+	if _, err := pool.Exec(context.Background(), "UPDATE users SET is_active = false WHERE email = $1",
+		"refresh-deactivated@example.com"); err != nil {
+		t.Fatalf("desactivando cuenta de test: %v", err)
+	}
+
+	if _, err := authSvc.Refresh(context.Background(), login.RefreshToken); !errors.Is(err, users.ErrAccountDeactivated) {
+		t.Fatalf("Refresh() con cuenta desactivada: error = %v, want ErrAccountDeactivated", err)
+	}
+}
+
 func TestRefresh_InvalidToken(t *testing.T) {
 	pool := testutil.DB(t)
 	testutil.Truncate(t, pool, "users")

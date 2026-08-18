@@ -40,6 +40,16 @@ android {
         val googleWebClientId = (project.findProperty("GOOGLE_WEB_CLIENT_ID") as String?)
             ?: "REPLACE_WITH_GOOGLE_CLOUD_WEB_CLIENT_ID.apps.googleusercontent.com"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+
+        // Public URL of the web client. Only used to build the profile QR's
+        // deep link (see QrEncoder/friendQrLink): the code has to encode the
+        // same https://<web>/friends/add/{id} the web client encodes, or the
+        // two clients could not scan each other. Not an API endpoint -- the
+        // backend is reached through API_BASE_URL above.
+        // Override: -PWEB_APP_URL=https://mi-despliegue.vercel.app
+        val webAppUrl = (project.findProperty("WEB_APP_URL") as String?)
+            ?: "http://10.0.2.2:3000"
+        buildConfigField("String", "WEB_APP_URL", "\"$webAppUrl\"")
     }
 
     buildTypes {
@@ -124,6 +134,8 @@ dependencies {
     implementation(libs.googleid)
 
     // Coil: deck art thumbnails (commander card art from the backend's image_url)
+    implementation(libs.zxing.core)
+    implementation(libs.play.services.code.scanner)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 

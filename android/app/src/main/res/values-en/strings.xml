@@ -166,4 +166,37 @@
     <string name="statistics_game_result_won">Won</string>
     <string name="statistics_game_result_lost">Lost</string>
     <string name="statistics_game_no_playgroup">Game without a group</string>
+
+    <string name="settings_qr_heading">Your profile code</string>
+    <string name="settings_qr_body">Show it to someone so they can add you as a friend by scanning it.</string>
+    <string name="settings_qr_content_description">QR code for your profile</string>
+
+    <!-- friends -->
+    <string name="dashboard_friends">Friends</string>
+    <string name="friends_title">Friends</string>
+    <string name="friends_subtitle">Add someone by username, or by scanning their profile code.</string>
+    <string name="friends_empty">No friends or requests yet. Search for someone by username to get started.</string>
+    <string name="friends_retry">Retry</string>
+    <string name="friends_section_incoming">Requests received</string>
+    <string name="friends_section_outgoing">Requests sent</string>
+    <string name="friends_section_list">Your friends</string>
+    <string name="friends_scan">Scan a code</string>
+    <string name="friends_search_label">Search by username</string>
+    <string name="friends_searching">Searching…</string>
+    <string name="friends_no_results">No user matches that search.</string>
+    <string name="friends_action_add">Add</string>
+    <string name="friends_action_accept">Accept</string>
+    <string name="friends_action_reject">Reject</string>
+    <string name="friends_action_cancel">Cancel</string>
+    <string name="friends_action_remove">Remove</string>
+    <string name="friends_already_related">Already on your list</string>
+    <string name="friends_outcome_sent">Request sent. It shows up for them as pending until they accept.</string>
+    <string name="friends_outcome_now_friends">You are now friends — they had already sent you a request.</string>
+    <string name="error_friends_network">Couldn\'t reach the server</string>
+    <string name="error_friends_self">You can\'t send yourself a request</string>
+    <string name="error_friends_user_not_found">That user no longer exists</string>
+    <string name="error_friends_already_related">You are already friends, or a request is already pending</string>
+    <string name="error_friends_request_gone">That request is no longer available</string>
+    <string name="error_friends_invalid_code">That code isn\'t a Commander Companion profile</string>
+    <string name="error_friends_unknown">Something went wrong</string>
 </resources>

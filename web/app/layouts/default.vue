@@ -5,14 +5,18 @@ const { t, locale, locales, setLocale } = useI18n()
 
 const availableLocales = computed(() => locales.value as { code: string, name?: string }[])
 
-const links = computed(() => [
-  { to: '/', label: t('nav.home') },
-  { to: '/decks', label: t('nav.decks') },
-  { to: '/statistics', label: t('nav.statistics') },
-  { to: '/playgroups', label: t('nav.playgroups') },
-  { to: '/tournaments', label: t('nav.tournaments') },
-  { to: '/friends', label: t('nav.friends') },
-])
+const links = computed(() => {
+  const items = [
+    { to: '/', label: t('nav.home') },
+    { to: '/decks', label: t('nav.decks') },
+    { to: '/statistics', label: t('nav.statistics') },
+    { to: '/playgroups', label: t('nav.playgroups') },
+    { to: '/tournaments', label: t('nav.tournaments') },
+    { to: '/friends', label: t('nav.friends') },
+  ]
+  if (user.value?.is_admin) items.push({ to: '/admin', label: t('nav.admin') })
+  return items
+})
 
 const route = useRoute()
 function isActive(to: string) {

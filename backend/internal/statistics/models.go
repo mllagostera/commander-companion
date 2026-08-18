@@ -194,6 +194,8 @@ type User struct {
 	GoogleID         pgtype.Text      `json:"google_id"`
 	MoxfieldUsername pgtype.Text      `json:"moxfield_username"`
 	EmailVerified    bool             `json:"email_verified"`
+	IsAdmin          bool             `json:"is_admin"`
+	IsActive         bool             `json:"is_active"`
 }
 
 type UserStatisticsSummary struct {

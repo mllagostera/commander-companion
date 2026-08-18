@@ -46,6 +46,14 @@ type UserResponse struct {
 	// created via Google Sign-In, without password_hash) — clients use it to decide
 	// whether to show the "change password" flow (see ChangePassword, which rejects these accounts).
 	HasPassword bool `json:"has_password"`
+	// IsAdmin grants access to the admin dashboard (see ADR-0018). Safe to expose here:
+	// UserResponse is only ever returned for the caller's own account (Me/login/refresh/
+	// profile updates), never for another user's profile.
+	IsAdmin bool `json:"is_admin"`
+	// IsActive is false when an admin has deactivated the account (see ADR-0018); a
+	// deactivated account fails login/refresh before this ever reaches the client, so in
+	// practice a client only ever observes this as true — it's included for completeness.
+	IsActive bool `json:"is_active"`
 }
 
 // UsernameAvailabilityResponse is the DTO of GET /users/username-available.

@@ -20,7 +20,8 @@
     "language": "Language",
     "tournaments": "Tournaments",
     "friends": "Friends",
-    "userMenu": "User menu"
+    "userMenu": "User menu",
+    "admin": "Admin"
   },
   "login": {
     "tagline": "Your Commander games and decks, all in one place.",
@@ -243,7 +244,7 @@
     "perDeck": {
       "heading": "By deck",
       "noDecksIntro": "You don't have any decks yet.",
-      "importLink": "Import one from Moxfield",
+      "importLink": "Add one",
       "noDecksOutro": "to see its statistics.",
       "noStats": "No statistics available for this deck.",
       "games": "Games",
@@ -367,10 +368,17 @@
     "title": "Friends",
     "subtitle": "Add friends by username, and manage your requests.",
     "add": {
-      "heading": "Add a friend",
-      "searchPlaceholder": "Search by username",
-      "searching": "Searching…",
-      "send": "Send request"
+      "title": "Add friend",
+      "back": "← Friends",
+      "body": "You scanned someone's profile code. Send them a friend request — they still have to accept it.",
+      "action": "Send friend request",
+      "sending": "Sending…",
+      "sent": "Request sent. It shows up for them as pending until they accept.",
+      "nowFriends": "You are now friends — they had already sent you a request.",
+      "alreadyFriends": "You and {username} are already friends.",
+      "goToFriends": "Go to friends",
+      "self": "That is your own code. Show it to someone else so they can scan it.",
+      "malformed": "That link does not point at a valid profile. Ask them to show you their code again."
     },
     "incoming": {
       "heading": "Friend requests",
@@ -659,6 +667,71 @@
         "winner": "Winner"
       },
       "shareHintInProgress": "Participants use this code to look up which table they're on each round."
+    }
+  },
+  "admin": {
+    "overview": {
+      "title": "Admin dashboard",
+      "subtitle": "Global app stats and user management.",
+      "manageUsers": "Manage users",
+      "loadError": "Couldn't load the overview stats.",
+      "stats": {
+        "totalUsers": "Total users",
+        "activeUsers": "Active users",
+        "verifiedUsers": "Verified users",
+        "totalDecks": "Total decks",
+        "totalPlaygroups": "Total groups",
+        "totalFinishedGames": "Finished games",
+        "totalTournaments": "Tournaments"
+      },
+      "live": {
+        "label": "Live",
+        "onlineUsers": "Online users",
+        "activeGames": "Active games"
+      },
+      "chart": {
+        "title": "Activity, last 30 days",
+        "subtitle": "Games started and distinct users who played each day.",
+        "gamesStarted": "Games started",
+        "activeUsers": "Active users",
+        "empty": "No activity yet.",
+        "tableCaption": "Daily games started and active users",
+        "date": "Date"
+      }
+    },
+    "users": {
+      "title": "Users",
+      "subtitle": "Search, review, and moderate accounts.",
+      "searchPlaceholder": "Search by username or email",
+      "loadError": "Couldn't load users.",
+      "empty": "No users match this search.",
+      "loadMore": "Load more",
+      "loadingMore": "Loading…",
+      "badges": {
+        "admin": "Admin",
+        "deactivated": "Deactivated"
+      }
+    },
+    "userDetail": {
+      "back": "← Back to users",
+      "loadError": "Couldn't load this user.",
+      "decks": "Decks",
+      "gamesPlayed": "Games played",
+      "emailVerified": "Email verified",
+      "createdAt": "Joined",
+      "yes": "Yes",
+      "no": "No",
+      "deactivate": "Deactivate account",
+      "activate": "Activate account",
+      "cannotDeactivateSelf": "You can't deactivate your own account.",
+      "deactivateConfirmTitle": "Deactivate {username}?",
+      "deactivateConfirmBody": "They won't be able to log in until an admin reactivates the account. Their decks, games, and stats are kept."
+    },
+    "errors": {
+      "cannotDeactivateSelf": "You can't deactivate your own account.",
+      "forbidden": "You don't have admin access.",
+      "userNotFound": "This user no longer exists.",
+      "generic": "Something went wrong. Try again."
     }
   }
 }

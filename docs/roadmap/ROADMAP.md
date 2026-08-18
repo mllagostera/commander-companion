@@ -108,6 +108,9 @@ There will be no microservices.
 ## Stage 9: Social — friends, groups, and tournaments
 - Not in the original roadmap (added 2026-07-27, to be defined in detail). A friends system (beyond the `playgroups` already implemented in Stage 1), and creating tournaments among friends, among groups, or open to strangers who sign up.
 
+## Stage 10: Admin dashboard
+- Not in the original roadmap (added 2026-08-17). A web-only `/admin` section for app operators: user management (list/search/detail, activate/deactivate accounts) and a global stats overview, gated by a new `users.is_admin` role — see [ADR-0018](../decisions/0018-admin-role-and-user-moderation.md). Phase 1 (role foundation + users + stats) is done; moderation of games/tournaments/decks and an admin-promotion UI are deferred to later phases.
+
 ---
 
 # API definition

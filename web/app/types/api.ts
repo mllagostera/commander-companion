@@ -315,3 +315,53 @@ export interface TournamentLookup {
    */
   current_table?: TournamentTable
 }
+
+/** One row of `GET /admin/users` (paginated via PaginatedResponse). See ADR-0018. */
+export interface AdminUserSummary {
+  id: string
+  username: string
+  email: string
+  created_at: string
+  email_verified: boolean
+  is_admin: boolean
+  is_active: boolean
+}
+
+/** Full detail of `GET /admin/users/{id}`. */
+export interface AdminUserDetail {
+  id: string
+  username: string
+  email: string
+  created_at: string
+  moxfield_username?: string | null
+  has_password: boolean
+  email_verified: boolean
+  is_admin: boolean
+  is_active: boolean
+  deck_count: number
+  games_played_count: number
+}
+
+/** Global counts shown on the admin dashboard's home page (`GET /admin/stats/overview`). */
+export interface AdminOverviewStats {
+  total_users: number
+  active_users: number
+  verified_users: number
+  total_decks: number
+  total_playgroups: number
+  total_finished_games: number
+  total_tournaments: number
+  /** Users with an unexpired, unrevoked refresh token right now — an "has a live session" proxy, not real-time presence. */
+  online_users: number
+  /** Games currently in the 'active' state. */
+  active_games: number
+}
+
+/** One day of `GET /admin/stats/activity`'s historical series (oldest first). */
+export interface AdminDailyActivityPoint {
+  /** ISO calendar day, e.g. "2026-08-17". */
+  date: string
+  games_started: number
+  /** Distinct users who played at least one game that day. */
+  active_users: number
+}

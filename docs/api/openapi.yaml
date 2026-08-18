@@ -58,6 +58,15 @@ components:
             false = account created via Google Sign-In, with no password of its
             own. Clients use this to decide whether to show the change password
             flow (POST /users/{id}/password rejects it for these accounts).
+        is_admin:
+          type: boolean
+          description: Grants access to the admin dashboard (GET/PATCH /admin/*). See ADR-0018.
+        is_active:
+          type: boolean
+          description: >-
+            False = an admin deactivated this account. A deactivated account
+            never actually reaches this far (login/refresh reject it first),
+            so a client only ever observes this as true. See ADR-0018.
     UserSearchResult:
       type: object
       properties:
@@ -896,6 +905,117 @@ components:
           type: integer
         message:
           type: string
+    AdminUserSummary:
+      type: object
+      description: One row of the admin user listing (see GET /admin/users).
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+        email_verified:
+          type: boolean
+        is_admin:
+          type: boolean
+        is_active:
+          type: boolean
+    AdminUserListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserSummary'
+        next_cursor:
+          type: string
+          nullable: true
+          description: >-
+            Cursor to pass as the `cursor` query param to request the next
+            page. It is null on the last page.
+    AdminUserDetail:
+      type: object
+      description: A single user's admin-facing profile (see GET /admin/users/{id}).
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+        moxfield_username:
+          type: string
+          nullable: true
+        has_password:
+          type: boolean
+        email_verified:
+          type: boolean
+        is_admin:
+          type: boolean
+        is_active:
+          type: boolean
+        deck_count:
+          type: integer
+        games_played_count:
+          type: integer
+    UpdateUserStatusRequest:
+      type: object
+      required: [is_active]
+      properties:
+        is_active:
+          type: boolean
+    AdminOverviewStats:
+      type: object
+      description: Global counts shown on the admin dashboard's home page (see ADR-0018).
+      properties:
+        total_users:
+          type: integer
+        active_users:
+          type: integer
+        verified_users:
+          type: integer
+        total_decks:
+          type: integer
+        total_playgroups:
+          type: integer
+        total_finished_games:
+          type: integer
+        total_tournaments:
+          type: integer
+        online_users:
+          type: integer
+          description: >-
+            Approximates "currently online" as "has at least one unexpired,
+            unrevoked refresh token" — there's no real-time presence tracking,
+            so this reads as "has an active session right now," not "has the
+            app open this instant." See ADR-0018's addendum.
+        active_games:
+          type: integer
+          description: Games currently in the 'active' state (started, not yet finished).
+    AdminDailyActivityPoint:
+      type: object
+      description: One day of GET /admin/stats/activity's historical series.
+      properties:
+        date:
+          type: string
+          format: date
+        games_started:
+          type: integer
+        active_users:
+          type: integer
+          description: Distinct users who played at least one game that day.
 
 security:
   - bearerAuth: []
@@ -2631,6 +2751,174 @@ paths:
           description: Friendship removed
         '404':
           description: The authenticated user and userId are not friends
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/users:
+    get:
+      summary: List users (admin only)
+      description: >-
+        Requires is_admin = true on the authenticated user (see
+        auth.RequireAdmin, ADR-0018) in addition to bearer auth — OpenAPI has
+        no scope mechanism here to express that, so it's documented rather
+        than modeled. Cursor-paginated, keyset over created_at + id, same
+        scheme as GET /playgroups/GET /decks. `search` matches a substring of
+        either username or email.
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '400':
+          description: Invalid cursor or limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/users/{id}:
+    get:
+      summary: Get a user's admin-facing profile (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No user exists with this id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/users/{id}/status:
+    patch:
+      summary: Activate or deactivate a user's account (admin only)
+      description: >-
+        A deactivated account keeps every other row (decks, games,
+        statistics) intact — it just can't log in or refresh its session
+        (see ADR-0018). An admin cannot deactivate their own account.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserStatusRequest'
+      responses:
+        '200':
+          description: Updated user detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+        '400':
+          description: The caller tried to deactivate their own account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No user exists with this id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/stats/overview:
+    get:
+      summary: Global app stats overview (admin only)
+      description: >-
+        Live-computed on every call, no summary table — same choice already
+        made for GET /statistics/playgroup/{id}.
+      responses:
+        '200':
+          description: Global counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOverviewStats'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/stats/activity:
+    get:
+      summary: Historical daily activity for the admin dashboard's chart (admin only)
+      description: >-
+        One point per calendar day, most recent day last. Derived from
+        games/game_players (no snapshot table) — a day with no games is
+        filled to zero rather than omitted, so the series has no gaps.
+      parameters:
+        - in: query
+          name: days
+          required: false
+          description: How many days back to include, today inclusive. Clamped to [1, 90].
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 30
+      responses:
+        '200':
+          description: The daily activity series, oldest day first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminDailyActivityPoint'
+        '400':
+          description: days is not a positive integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The authenticated user is not an admin
           content:
             application/json:
               schema:

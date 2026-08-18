@@ -13,6 +13,8 @@ Table users {
   updated_at timestamp
   moxfield_username varchar [note: 'Linked Moxfield username (optional, no uniqueness). Migration 00009_moxfield_username.sql']
   email_verified boolean [default: true, note: 'Default true: existing accounts and Google sign-ups (already confirmed by their id_token) are left verified. Only email/password sign-up forces false. Migration 00011_email_verification.sql']
+  is_admin boolean [default: false, note: 'Grants access to the admin dashboard (GET/PATCH /admin/*). Promoted by hand in the DB, no self-service UI. Migration 00018_admin_and_account_status.sql, see ADR-0018']
+  is_active boolean [default: true, note: 'False = account deactivated by an admin: blocks login and refresh, does not delete data. Migration 00018_admin_and_account_status.sql, see ADR-0018']
 
   Note: 'CHECK: password_hash IS NOT NULL OR google_id IS NOT NULL'
 }
