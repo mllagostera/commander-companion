@@ -181,7 +181,6 @@ func (s *service) GetDailyActivity(ctx context.Context, daysBack int) ([]DailyAc
 		daysBack = maxActivityDaysBack
 	}
 
-	//nolint:gosec // bounded to [1, maxActivityDaysBack] right above
 	rows, err := s.repo.GetDailyActivity(ctx, int32(daysBack))
 	if err != nil {
 		return nil, fmt.Errorf("getting daily activity: %w", err)
