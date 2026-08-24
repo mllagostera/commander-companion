@@ -378,7 +378,11 @@
       "alreadyFriends": "{username} y tú ya sois amigos.",
       "goToFriends": "Ir a amigos",
       "self": "Ese es tu propio código. Enséñaselo a otra persona para que lo escanee.",
-      "malformed": "Ese enlace no apunta a un perfil válido. Pídele que te vuelva a enseñar su código."
+      "malformed": "Ese enlace no apunta a un perfil válido. Pídele que te vuelva a enseñar su código.",
+      "heading": "Agregar un amigo",
+      "searchPlaceholder": "Buscar por username o email exacto",
+      "send": "Enviar",
+      "searching": "Buscando…"
     },
     "incoming": {
       "heading": "Solicitudes de amistad",
