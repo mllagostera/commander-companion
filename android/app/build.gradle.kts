@@ -1,8 +1,10 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
+    // No 'org.jetbrains.kotlin.android': since AGP 9 Kotlin compilation is built into
+    // the Android plugin (android.builtInKotlin), and the standalone plugin is not
+    // compatible with the new DSL (android.newDsl). Compose/serialization/KSP stay.
     alias(libs.plugins.androidApplication)
-    alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlinSerialization)
@@ -65,6 +67,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    // Under built-in Kotlin this lives inside android { }, not in a top-level kotlin { } block.
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
+    }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -81,12 +89,6 @@ android {
             // "not mocked" instead of returning the type's default.
             isReturnDefaultValues = true
         }
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_11)
     }
 }
 
@@ -110,6 +112,7 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
 
     // Room
     implementation(libs.room.runtime)

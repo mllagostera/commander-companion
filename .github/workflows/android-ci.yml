@@ -14,11 +14,11 @@ defaults:
     working-directory: android
 
 jobs:
-  # Sin filtro de path: siempre corre y siempre reporta un check (aunque sea
-  # "skipped"), para que este workflow pueda marcarse como required en
-  # branch protection sin dejar colgados los PRs que no tocan android/.
+  # No path filter on the workflow itself: it always runs and always reports a
+  # check (even a "skipped" one), so it can be marked as required in branch
+  # protection without leaving PRs that don't touch android/ hanging.
   changes:
-    name: Detectar cambios en android/
+    name: Detect changes in android/
     runs-on: ubuntu-latest
     outputs:
       android: ${{ steps.filter.outputs.android }}
@@ -44,35 +44,46 @@ jobs:
               - '.github/workflows/android-ci.yml'
 
   lint-test-build:
-    name: lint, unit tests y assembleDebug
+    name: lint, unit tests and assembleDebug
     needs: changes
     if: needs.changes.outputs.android == 'true' || needs.changes.outputs.android_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Configurar JDK 21
+      - name: Set up JDK 21
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
 
-      - name: Configurar Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Dar permisos de ejecución a gradlew
+      - name: Make gradlew executable
         run: chmod +x gradlew
 
       - name: Android Lint
         run: ./gradlew lintDebug --stacktrace
 
-      - name: Tests unitarios
+      - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Build (assembleDebug)
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Publicar reportes de Lint/Test
+      # Kept out of the report bundle below (which runs with if: always()) on purpose:
+      # this one should only run when assembleDebug succeeded, so if-no-files-found:error
+      # flags a moved output path instead of silently uploading nothing.
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Lint/Test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
