@@ -25,6 +25,55 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-02 — Deleting a tournament created by mistake (`DELETE
+/tournaments/{id}`).** The user asked whether there was any way to delete a
+tournament created by mistake. There wasn't: the module shipped with nine
+routes and no `DELETE`, `tournaments` has no `deleted_at`, and `/admin` only
+counts tournaments for its stats card (moderation of tournaments is still
+deferred to Phase 2+, see Stage 10). The only escape hatch was hand-written
+SQL against the five tables in dependency order.
+
+- **Scoped to `status = 'registration'`, organizer-only.** That's the state
+  the question was actually about — created by mistake, nothing played yet —
+  and the only one where the tournament is still purely the organizer's. Once
+  round 1 is seated the rows a deletion would have to take with it (rounds,
+  tables, seats) are games its participants played, so the organizer no longer
+  gets to erase them unilaterally. Rejected there with a dedicated
+  `ErrTournamentNotDeletable` (409) rather than reusing
+  `ErrTournamentNotInRegistration`, whose "tournament has already started"
+  message reads wrong for a `finished` one.
+- **Not-yours is a 404, not a 403**, via the existing
+  `getOrganizerTournament` — same "don't reveal" criteria as the rest of the
+  module. A registered participant gets the same 404 as a stranger: being in a
+  tournament lets you see it, never delete it.
+- **Two `:exec` queries, not one cascading delete.** `00016_tournaments.sql`
+  has no `ON DELETE CASCADE` anywhere, so `DeleteParticipantsForTournament`
+  runs before `DeleteTournament` inside one transaction. Rounds/tables/seats
+  need no cleanup *because* of the registration gate — they don't exist yet at
+  that point. That also makes the check-then-delete race safe by construction:
+  if the tournament somehow started in between, the seats' FK onto
+  `tournament_participants` rejects the roster delete and the transaction rolls
+  back, instead of half-deleting a running tournament.
+- **Web**: organizer-only "Eliminar torneo" button next to "Iniciar torneo" in
+  the registration phase of `tournaments/[id].vue`, behind the same
+  `useModalA11y` confirm dialog pattern `admin/users/[id].vue` already uses for
+  deactivation. The confirm body is pluralized on the roster size (three forms,
+  so "nobody has registered yet" reads naturally for the common case). i18n in
+  en/es/ca, `deleteTournamentError` maps 404/409 the way the sibling helpers do.
+- **Verified locally in Docker** (no Go toolchain or sqlc in this sandbox):
+  `sqlc/sqlc:1.27.0` regenerated `query.sql.go`/`querier.go` with exactly the
+  two new queries and nothing else; `golang:1.25` ran `go build ./...` and
+  `go vet` clean, the three new tests
+  (`TestDeleteTournament_Success_TakesRosterWithIt`,
+  `_NotOrganizer_ReturnsNotFound`, `_AlreadyStarted_ReturnsConflict`) pass
+  against a throwaway `postgres:18-alpine` with goose migrations applied, and
+  `golangci-lint run ./...` reports 0 issues on an LF-normalized copy (the
+  repo-wide `gofmt` noise from this Windows checkout's CRLF is pre-existing and
+  unrelated — 83 of 131 files, most untouched here). Web: `eslint` clean,
+  `nuxt typecheck` clean apart from the pre-existing `Cannot find module
+  'qrcode'` in `settings.vue` (that package simply isn't in this machine's
+  `node_modules`), Spectral 0 errors on `openapi.yaml`.
+
 **2026-08-17 — Admin dashboard: live "online users"/"active games" card +
 historical activity chart (same-day addendum to Phase 1).** Follow-up ask
 right after Phase 1 shipped: a card showing online users and active games,

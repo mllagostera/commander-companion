@@ -6,7 +6,9 @@ const route = useRoute()
 const tournamentId = route.params.id as string
 const { t } = useI18n()
 const { user } = useAuth()
-const { getTournament, addGuestParticipant, startTournament, recordTableResult, advanceRound } = useTournaments()
+const {
+  getTournament, addGuestParticipant, startTournament, recordTableResult, advanceRound, deleteTournament,
+} = useTournaments()
 const { showToast } = useToast()
 
 const { data: detail, refresh, error: loadError } = await useAsyncData<TournamentDetail | null>(
@@ -83,6 +85,42 @@ async function handleStart() {
     startError.value = startTournamentError(err)
   } finally {
     isStarting.value = false
+  }
+}
+
+// --------------------------------------------------------------- delete
+// Only offered while the tournament is in registration -- that's the only
+// state the backend accepts (see internal/tournaments/service.go:
+// DeleteTournament), and the only one where nothing has been played yet.
+const isDeleteConfirmOpen = ref(false)
+const deleteDialogRef = ref<HTMLElement | null>(null)
+const deleteError = ref('')
+const isDeleting = ref(false)
+
+function askDelete() {
+  deleteError.value = ''
+  isDeleteConfirmOpen.value = true
+}
+
+function cancelDelete() {
+  isDeleteConfirmOpen.value = false
+  deleteError.value = ''
+}
+
+useModalA11y(isDeleteConfirmOpen, deleteDialogRef, cancelDelete)
+
+async function confirmDelete() {
+  deleteError.value = ''
+  isDeleting.value = true
+  try {
+    await deleteTournament(tournamentId)
+    isDeleteConfirmOpen.value = false
+    showToast(t('toast.tournamentDeleted'))
+    await navigateTo('/tournaments')
+  } catch (err) {
+    deleteError.value = deleteTournamentError(err)
+  } finally {
+    isDeleting.value = false
   }
 }
 
@@ -279,15 +317,25 @@ async function handleAdvance() {
         </section>
 
         <section v-if="isOrganizer">
-          <button
-            type="button"
-            :disabled="isStarting"
-            class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] disabled:opacity-50"
-            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
-            @click="handleStart"
-          >
-            {{ isStarting ? $t('tournaments.detail.starting') : $t('tournaments.detail.start') }}
-          </button>
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              :disabled="isStarting"
+              class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] disabled:opacity-50"
+              style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+              @click="handleStart"
+            >
+              {{ isStarting ? $t('tournaments.detail.starting') : $t('tournaments.detail.start') }}
+            </button>
+            <button
+              type="button"
+              class="rounded-full border px-5 py-2.5 text-[13px]"
+              style="border-color: rgba(248,113,113,0.35); color: var(--lose);"
+              @click="askDelete"
+            >
+              {{ $t('tournaments.detail.delete') }}
+            </button>
+          </div>
           <p v-if="startError" class="mt-2 text-sm" style="color: var(--lose);">{{ startError }}</p>
         </section>
       </template>
@@ -394,5 +442,48 @@ async function handleAdvance() {
         </section>
       </template>
     </template>
+
+    <div
+      v-if="isDeleteConfirmOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="cancelDelete"
+    >
+      <div
+        ref="deleteDialogRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tournament-delete-title"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
+        <h2 id="tournament-delete-title" class="text-[15px] font-medium">
+          {{ $t('tournaments.detail.deleteConfirmTitle', { name: detail?.tournament.name }) }}
+        </h2>
+        <p class="mt-2 text-[13px]" style="color: var(--text-muted);">
+          {{ $t('tournaments.detail.deleteConfirmBody', detail?.participants.length ?? 0) }}
+        </p>
+
+        <div class="mt-5 flex justify-end gap-3">
+          <button
+            type="button"
+            class="rounded-full border px-4 py-2 text-sm"
+            style="border-color: var(--input-border); color: var(--text);"
+            @click="cancelDelete"
+          >
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            type="button"
+            :disabled="isDeleting"
+            class="rounded-full border px-5 py-2 text-sm font-semibold disabled:opacity-50"
+            style="border-color: rgba(248,113,113,0.35); background: var(--lose-bg); color: var(--lose);"
+            @click="confirmDelete"
+          >
+            {{ isDeleting ? $t('tournaments.detail.deleting') : $t('tournaments.detail.delete') }}
+          </button>
+        </div>
+        <p v-if="deleteError" class="mt-3 text-[13px]" style="color: var(--lose);">{{ deleteError }}</p>
+      </div>
+    </div>
   </div>
 </template>

@@ -26,6 +26,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/tournaments/lookup", h.LookupByCode)
 	router.Post("/tournaments/join", h.JoinTournament)
 	router.Get("/tournaments/:id", h.GetTournament)
+	router.Delete("/tournaments/:id", h.DeleteTournament)
 	router.Post("/tournaments/:id/participants", h.AddGuestParticipant)
 	router.Post("/tournaments/:id/start", h.StartTournament)
 	router.Post("/tournaments/:id/tables/:tableId/result", h.RecordTableResult)
@@ -74,6 +75,16 @@ func (h *Handler) GetTournament(c *fiber.Ctx) error {
 		return common.MapError(err)
 	}
 	return c.JSON(res)
+}
+
+// DeleteTournament deletes a tournament the authenticated user organizes, as
+// long as it hasn't started yet. Organizer-only.
+func (h *Handler) DeleteTournament(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	if err := h.svc.DeleteTournament(c.Context(), userID, c.Params("id")); err != nil {
+		return common.MapError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // JoinTournament self-registers the authenticated user for a tournament by

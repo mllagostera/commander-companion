@@ -35,6 +35,15 @@ UPDATE tournaments SET current_round = current_round + 1 WHERE id = $1 RETURNING
 -- name: FinishTournament :one
 UPDATE tournaments SET status = 'finished', finished_at = now() WHERE id = $1 RETURNING *;
 
+-- name: DeleteTournament :exec
+DELETE FROM tournaments WHERE id = $1;
+
+-- name: DeleteParticipantsForTournament :exec
+-- Only needed to delete a tournament still in 'registration': rounds/tables/seats
+-- don't exist yet at that point (StartTournament is what creates the first ones),
+-- so participants are the only rows referencing it. See service.DeleteTournament.
+DELETE FROM tournament_participants WHERE tournament_id = $1;
+
 -- name: CreateParticipant :one
 INSERT INTO tournament_participants (tournament_id, user_id, guest_name, deck_id, commander_name)
 VALUES ($1, $2, $3, $4, $5)

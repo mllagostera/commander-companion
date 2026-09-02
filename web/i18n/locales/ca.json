@@ -459,6 +459,7 @@
     "tournamentJoined": "T'has unit al torneig",
     "guestAdded": "{name} afegit al torneig",
     "tournamentStarted": "Torneig iniciat",
+    "tournamentDeleted": "Torneig eliminat",
     "roundAdvanced": "Ronda avançada",
     "friendRequestSent": "Sol·licitud d'amistat enviada a {username}",
     "friendAdded": "Ara tu i {username} sou amics",
@@ -557,6 +558,11 @@
         "alreadyStarted": "El torneig ja ha començat.",
         "generic": "No s'ha pogut iniciar el torneig."
       },
+      "delete": {
+        "notOrganizer": "El torneig no existeix o no n'ets l'organitzador.",
+        "alreadyStarted": "El torneig ja ha començat: només es pot eliminar mentre la inscripció segueix oberta.",
+        "generic": "No s'ha pogut eliminar el torneig."
+      },
       "recordResult": {
         "invalid": "El resultat no coincideix amb els seients d'aquesta taula.",
         "notInProgress": "El torneig no està en curs.",
@@ -636,6 +642,10 @@
       "shareHint": "Comparteix aquest codi perquè els jugadors es registrin i, quan comenci el torneig, consultin la seva taula a cada ronda.",
       "starting": "Iniciant…",
       "start": "Iniciar torneig",
+      "delete": "Eliminar torneig",
+      "deleting": "Eliminant…",
+      "deleteConfirmTitle": "Vols eliminar «{name}»?",
+      "deleteConfirmBody": "Encara no hi ha ningú inscrit. Aquesta acció no es pot desfer. | També s'esborrarà la inscripció de {count} participant. Aquesta acció no es pot desfer. | També s'esborraran les inscripcions de {count} participants. Aquesta acció no es pot desfer.",
       "participants": {
         "heading": "{count} participant | {count} participants",
         "close": "Tancar",

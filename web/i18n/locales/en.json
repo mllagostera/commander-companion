@@ -459,6 +459,7 @@
     "tournamentJoined": "You joined the tournament",
     "guestAdded": "{name} added to the tournament",
     "tournamentStarted": "Tournament started",
+    "tournamentDeleted": "Tournament deleted",
     "roundAdvanced": "Round advanced",
     "friendRequestSent": "Friend request sent to {username}",
     "friendAdded": "You and {username} are now friends",
@@ -557,6 +558,11 @@
         "alreadyStarted": "The tournament has already started.",
         "generic": "Couldn't start the tournament."
       },
+      "delete": {
+        "notOrganizer": "The tournament doesn't exist, or you're not its organizer.",
+        "alreadyStarted": "The tournament has already started: it can only be deleted while registration is still open.",
+        "generic": "Couldn't delete the tournament."
+      },
       "recordResult": {
         "invalid": "The result doesn't match this table's seats.",
         "notInProgress": "The tournament is not in progress.",
@@ -636,6 +642,10 @@
       "shareHint": "Share this code so players can register themselves and, once the tournament starts, look up their table each round.",
       "starting": "Starting…",
       "start": "Start tournament",
+      "delete": "Delete tournament",
+      "deleting": "Deleting…",
+      "deleteConfirmTitle": "Delete “{name}”?",
+      "deleteConfirmBody": "Nobody has registered yet. This can't be undone. | {count} registered participant will be removed with it. This can't be undone. | {count} registered participants will be removed with it. This can't be undone.",
       "participants": {
         "heading": "{count} participant | {count} participants",
         "close": "Close",

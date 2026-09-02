@@ -2423,6 +2423,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a tournament (organizer-only)
+      description: >-
+        Deletes the tournament and its whole roster. Only while it is still in `registration`:
+        once it has started, its rounds and results belong to its participants too, so the
+        organizer can no longer take them away.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Tournament deleted
+        '404':
+          description: Does not exist, or the authenticated user is not its organizer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The tournament has already started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /tournaments/{id}/participants:
     post:
