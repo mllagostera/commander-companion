@@ -64,5 +64,11 @@ DELETE FROM game_players WHERE game_id = $1 AND user_id = $2;
 -- name: ListGamePlayers :many
 SELECT * FROM game_players WHERE game_id = $1;
 
+-- name: ListGamePlayersForGames :many
+-- Every seat across a whole list of games in one round trip, for callers that
+-- need the players of all of them (ListGamesForPlaygroup) instead of one game's.
+-- Same game_id = ANY(...) shape as statistics.ListPlayersForGames.
+SELECT * FROM game_players WHERE game_id = ANY(sqlc.arg('game_ids')::uuid[]);
+
 -- name: GetDeckByID :one
 SELECT * FROM decks WHERE id = $1 LIMIT 1;

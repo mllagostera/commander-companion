@@ -178,6 +178,44 @@ func (q *Queries) ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]Ga
 	return items, nil
 }
 
+const listGamePlayersForGames = `-- name: ListGamePlayersForGames :many
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by FROM game_players WHERE game_id = ANY($1::uuid[])
+`
+
+// Every seat across a whole list of games in one round trip, for callers that
+// need the players of all of them (ListGamesForPlaygroup) instead of one game's.
+// Same game_id = ANY(...) shape as statistics.ListPlayersForGames.
+func (q *Queries) ListGamePlayersForGames(ctx context.Context, gameIds []pgtype.UUID) ([]GamePlayer, error) {
+	rows, err := q.db.Query(ctx, listGamePlayersForGames, gameIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GamePlayer
+	for rows.Next() {
+		var i GamePlayer
+		if err := rows.Scan(
+			&i.ID,
+			&i.GameID,
+			&i.UserID,
+			&i.DeckID,
+			&i.LifeTotal,
+			&i.PoisonCounters,
+			&i.EnergyCounters,
+			&i.ExperienceCounters,
+			&i.IsEliminated,
+			&i.AddedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGamesForPlaygroup = `-- name: ListGamesForPlaygroup :many
 SELECT id, playgroup_id, status, started_at, finished_at, created_at, current_turn_player_id FROM games WHERE playgroup_id = $1 ORDER BY created_at DESC
 `

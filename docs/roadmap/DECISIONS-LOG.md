@@ -25,6 +25,34 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-02 — The `/games?playgroup_id=` N+1, the last multiplier from the
+dashboard measurement.** `ListGamesForPlaygroup` fetched a group's games in one
+query and then ran `ListGamePlayers` once per game. The listing is deliberately
+unpaginated (a single group's history is bounded, unlike the account-wide one),
+so the cost was one round trip per game in the group, forever.
+
+- **41 queries → 2** on a 40-game group, 16.7 → 5.9 ms, byte-identical
+  response (55164 bytes both ways). New `ListGamePlayersForGames` uses
+  `game_id = ANY($1)` — the same shape `statistics.ListPlayersForGames`
+  already used — and the service groups the rows by game in memory.
+- **The nil-vs-empty distinction is load-bearing and was preserved.** sqlc
+  leaves its `items` slice nil when no rows match, so a game with no seats
+  used to get `nil` from the per-game query, and `toGameResponse` skips the
+  players field entirely when it's nil (`json:"players,omitempty"`). A map
+  lookup miss returns nil too, so the JSON is unchanged — "helpfully"
+  substituting an empty slice there would have started emitting `"players":
+  []` for seatless games.
+- **The regression test was mutation-checked.** `TestListGamesForPlaygroup_
+  AttributesEachSeatToItsOwnGame` builds three games with 1, 2 and 3 seats;
+  the pre-existing test only had one game with one player, which cannot detect
+  cross-attribution. Deliberately breaking the grouping (handing every game the
+  full result set) was confirmed to fail it on all three games before keeping
+  it.
+- **This was the only instance of the pattern.** The other six
+  `ListGamePlayers` call sites (`GetGame`, `CanAccessGame`, `StartGame`,
+  `FinishGame`, `LeaveGame`, `ensureNotAlreadyJoined`) each operate on a single
+  known game, not a list.
+
 **2026-09-02 — Dashboard load: measured, and found to be a fan-out problem,
 not a latency one.** Started from a UX complaint about the login splash
 disappearing while the destination page was still loading (fixed first, see

@@ -294,12 +294,33 @@ func (s *service) ListGamesForPlaygroup(ctx context.Context, playgroupID, userID
 	}
 
 	items := make([]GameResponse, 0, len(rows))
+	if len(rows) == 0 {
+		return &GameListResponse{Items: items, NextCursor: nil}, nil
+	}
+
+	// One query for every seat in the group's history, not one per game: this
+	// listing is unpaginated, so the old loop cost a round trip per game and a
+	// group with 400 games issued 400 queries to render one screen.
+	gameIDs := make([]pgtype.UUID, len(rows))
 	for i := range rows {
-		players, err := s.repo.ListGamePlayers(ctx, rows[i].ID)
-		if err != nil {
-			return nil, fmt.Errorf("listing game players: %w", err)
-		}
-		items = append(items, *toGameResponse(&rows[i], players))
+		gameIDs[i] = rows[i].ID
+	}
+	playerRows, err := s.repo.ListGamePlayersForGames(ctx, gameIDs)
+	if err != nil {
+		return nil, fmt.Errorf("listing game players: %w", err)
+	}
+	playersByGame := make(map[pgtype.UUID][]GamePlayer, len(rows))
+	for i := range playerRows {
+		gid := playerRows[i].GameID
+		playersByGame[gid] = append(playersByGame[gid], playerRows[i])
+	}
+
+	for i := range rows {
+		// A game with no seats yet gets a nil slice from the map, which is
+		// exactly what the per-game query returned for it (sqlc leaves `items`
+		// nil when no rows match) -- so `players` stays omitted in the JSON,
+		// as before.
+		items = append(items, *toGameResponse(&rows[i], playersByGame[rows[i].ID]))
 	}
 	return &GameListResponse{Items: items, NextCursor: nil}, nil
 }
