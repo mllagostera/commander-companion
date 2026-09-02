@@ -37,28 +37,32 @@ const resendSent = ref(false)
 // The backend may be asleep (cold start) and take ~50s to respond to the
 // first request. Without this notice the user has no way to know and
 // tends to retry the login thinking nothing happened.
-const isLoggingIn = ref(false)
 const { active: showSlowHint, start: startSlowHint, stop: stopSlowHint } = useSlowRequestHint()
 
-function startLoginTimers() {
-  isLoggingIn.value = true
-  startSlowHint()
-}
+/**
+ * Set once the credentials are accepted and never cleared: the destination page
+ * still has to mount and fetch its own data after `navigateTo` resolves, and
+ * this screen stays visible during that gap. Hiding the overlay as soon as the
+ * request finished put the form back in reach and users submitted again
+ * mid-navigation. It goes away with the page itself, on unmount.
+ */
+const isNavigating = ref(false)
 
-function stopLoginTimers() {
-  isLoggingIn.value = false
-  stopSlowHint()
-}
+// Drives the overlay, which also acts as the click blocker for the whole form
+// (including the Google iframe button, which can't be `disabled`).
+const isBusy = computed(() => isSubmitting.value || isNavigating.value)
 
 async function handleSubmit() {
+  if (isBusy.value) return
+
   errorMessage.value = ''
   needsVerification.value = false
   resendSent.value = false
   isSubmitting.value = true
-  startLoginTimers()
+  startSlowHint()
   try {
     await login(email.value, password.value)
-    await navigateTo(redirectTarget.value)
+    isNavigating.value = true
   } catch (err) {
     if (apiErrorStatus(err) === 403) {
       needsVerification.value = true
@@ -66,8 +70,10 @@ async function handleSubmit() {
     errorMessage.value = apiErrorMessage(err, t('login.errors.loginFailed'))
   } finally {
     isSubmitting.value = false
-    stopLoginTimers()
+    if (!isNavigating.value) stopSlowHint()
   }
+
+  if (isNavigating.value) await navigateTo(redirectTarget.value)
 }
 
 async function handleResendVerification() {
@@ -83,16 +89,23 @@ async function handleResendVerification() {
 }
 
 async function handleGoogleCredential(idToken: string) {
+  if (isBusy.value) return
+
   errorMessage.value = ''
-  startLoginTimers()
+  needsVerification.value = false
+  isSubmitting.value = true
+  startSlowHint()
   try {
     await loginWithGoogle(idToken)
-    await navigateTo(redirectTarget.value)
+    isNavigating.value = true
   } catch (err) {
     errorMessage.value = apiErrorMessage(err, t('login.errors.googleFailed'))
   } finally {
-    stopLoginTimers()
+    isSubmitting.value = false
+    if (!isNavigating.value) stopSlowHint()
   }
+
+  if (isNavigating.value) await navigateTo(redirectTarget.value)
 }
 
 onMounted(() => {
@@ -109,7 +122,15 @@ onMounted(() => {
     <div class="cc-blob top-[-160px] right-[-140px] h-[460px] w-[460px] rounded-[63%_37%_54%_46%/48%_42%_58%_52%]" style="background: radial-gradient(circle, rgba(167,139,250,0.35), rgba(167,139,250,0) 70%);" />
     <div class="cc-blob bottom-[-200px] left-[-160px] h-[520px] w-[520px] rounded-[42%_58%_65%_35%/55%_45%_55%_45%]" style="background: radial-gradient(circle, rgba(168,85,247,0.22), rgba(168,85,247,0) 70%);" />
 
-    <div class="relative z-[1] flex min-h-screen flex-col items-center justify-center gap-8 p-6">
+    <!--
+      `inert` takes the whole form out of reach while a login is in flight: the
+      overlay already swallows clicks, but not keyboard focus, and the Google
+      button is a GSI iframe that has no `disabled` of its own.
+    -->
+    <div
+      class="relative z-[1] flex min-h-screen flex-col items-center justify-center gap-8 p-6"
+      :inert="isBusy || undefined"
+    >
       <span class="flex flex-col items-center gap-3.5">
         <AppLogo size="lg" />
         <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Commander Companion</span>
@@ -128,6 +149,7 @@ onMounted(() => {
             type="email"
             autocomplete="email"
             required
+            :disabled="isBusy"
             :placeholder="$t('login.emailPlaceholder')"
             class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
@@ -140,6 +162,7 @@ onMounted(() => {
             type="password"
             autocomplete="current-password"
             required
+            :disabled="isBusy"
             placeholder="••••••••"
             class="mt-1.5 w-full rounded-full border px-4 py-2.5 text-[13px] outline-none"
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
@@ -155,7 +178,7 @@ onMounted(() => {
           <button
             v-else
             type="button"
-            :disabled="isResending"
+            :disabled="isResending || isBusy"
             class="disabled:opacity-50"
             style="color: var(--accent-link);"
             @click="handleResendVerification"
@@ -166,11 +189,11 @@ onMounted(() => {
 
         <button
           type="submit"
-          :disabled="isSubmitting"
+          :disabled="isBusy"
           class="mt-2 rounded-full px-5 py-3 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.02] disabled:opacity-50"
           style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
         >
-          {{ isSubmitting ? $t('login.submitting') : $t('login.submit') }}
+          {{ isBusy ? $t('login.submitting') : $t('login.submit') }}
         </button>
 
         <div class="my-1 flex items-center gap-2.5">
@@ -190,7 +213,7 @@ onMounted(() => {
 
     <Transition name="cc-fade">
       <div
-        v-if="isLoggingIn"
+        v-if="isBusy"
         class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 p-6 text-center"
         style="background: rgba(5, 3, 8, 0.72); backdrop-filter: blur(6px);"
       >
