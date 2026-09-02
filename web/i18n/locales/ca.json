@@ -378,7 +378,11 @@
       "alreadyFriends": "{username} i tu ja sou amics.",
       "goToFriends": "Ves a amics",
       "self": "Aquest és el teu propi codi. Ensenya'l a una altra persona perquè l'escanegi.",
-      "malformed": "Aquest enllaç no apunta a cap perfil vàlid. Demana-li que et torni a ensenyar el seu codi."
+      "malformed": "Aquest enllaç no apunta a cap perfil vàlid. Demana-li que et torni a ensenyar el seu codi.",
+      "heading": "Afegeix un amic",
+      "searchPlaceholder": "Cerca per nom d'usuari o correu exacte",
+      "send": "Envia",
+      "searching": "Cercant…"
     },
     "incoming": {
       "heading": "Sol·licituds d'amistat",

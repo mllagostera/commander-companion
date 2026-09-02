@@ -378,7 +378,11 @@
       "alreadyFriends": "You and {username} are already friends.",
       "goToFriends": "Go to friends",
       "self": "That is your own code. Show it to someone else so they can scan it.",
-      "malformed": "That link does not point at a valid profile. Ask them to show you their code again."
+      "malformed": "That link does not point at a valid profile. Ask them to show you their code again.",
+      "heading": "Add a friend",
+      "searchPlaceholder": "Search by username or exact email",
+      "send": "Send",
+      "searching": "Searching…"
     },
     "incoming": {
       "heading": "Friend requests",

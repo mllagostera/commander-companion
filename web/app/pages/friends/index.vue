@@ -15,6 +15,8 @@ const {
 const { searchUsers } = useUsers()
 const { showToast } = useToast()
 
+useHead({ title: () => t('friends.title') })
+
 const { data: incoming, refresh: refreshIncoming } = await useAsyncData(
   'friends-incoming',
   () => listIncomingRequests(),
