@@ -26,6 +26,10 @@ type Querier interface {
 	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
 	ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
+	// Every seat across a whole list of games in one round trip, for callers that
+	// need the players of all of them (ListGamesForPlaygroup) instead of one game's.
+	// Same game_id = ANY(...) shape as statistics.ListPlayersForGames.
+	ListGamePlayersForGames(ctx context.Context, gameIds []pgtype.UUID) ([]GamePlayer, error)
 	// Game history for a group. Unpaginated: scoped to a single playgroup,
 	// never approaches the volume of ListGamesPage (the global history).
 	ListGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) ([]Game, error)

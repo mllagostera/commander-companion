@@ -761,6 +761,77 @@ func TestListGamesForPlaygroup_Success(t *testing.T) {
 	}
 }
 
+// seat is one player's place in a game: who sits there and with which deck.
+type seat struct{ userID, deckID string }
+
+// createGamesWithSeats creates one game per entry in seatSets, joins the seats
+// it lists, and returns how many each game ended up with, keyed by game id.
+func createGamesWithSeats(
+	t *testing.T, svc games.Service, playgroupID, creatorID string, seatSets [][]seat,
+) map[string]int {
+	t.Helper()
+	seatsByGameID := make(map[string]int, len(seatSets))
+	for _, seats := range seatSets {
+		game, err := svc.CreateGame(context.Background(), creatorID, games.CreateGameRequest{PlaygroupID: playgroupID})
+		if err != nil {
+			t.Fatalf("CreateGame() error = %v", err)
+		}
+		for _, s := range seats {
+			mustJoin(t, svc, game.ID, s.userID, s.deckID)
+		}
+		seatsByGameID[game.ID] = len(seats)
+	}
+	return seatsByGameID
+}
+
+// The seats of every game in the history are fetched in one batched query and
+// grouped by game_id in memory. This guards the grouping: with a different
+// number of players per game, a game that took someone else's seats -- or lost
+// its own -- would show a wrong count here, which the single-game test above
+// can't detect.
+func TestListGamesForPlaygroup_AttributesEachSeatToItsOwnGame(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	userA, deckA := createUserAndDeck(t, pool, "seat-attribution-a@example.com")
+	userB, deckB := createUserAndDeck(t, pool, "seat-attribution-b@example.com")
+	userC, deckC := createUserAndDeck(t, pool, "seat-attribution-c@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, userA, userB, userC)
+
+	// Three games in the same group with 1, 2 and 3 seats.
+	seatSets := [][]seat{
+		{{userA, deckA}},
+		{{userA, deckA}, {userB, deckB}},
+		{{userA, deckA}, {userB, deckB}, {userC, deckC}},
+	}
+	seatsByGameID := createGamesWithSeats(t, svc, playgroupID, userA, seatSets)
+
+	res, err := svc.ListGamesForPlaygroup(context.Background(), playgroupID, userA)
+	if err != nil {
+		t.Fatalf("ListGamesForPlaygroup() error = %v, want nil", err)
+	}
+	if len(res.Items) != len(seatSets) {
+		t.Fatalf("ListGamesForPlaygroup() = %d games, want %d", len(res.Items), len(seatSets))
+	}
+
+	for i := range res.Items {
+		game := &res.Items[i]
+		want, known := seatsByGameID[game.ID]
+		if !known {
+			t.Fatalf("ListGamesForPlaygroup() returned an unexpected game %q", game.ID)
+		}
+		if len(game.Players) != want {
+			t.Errorf("game %q has %d players, want %d", game.ID, len(game.Players), want)
+		}
+		for j := range game.Players {
+			if game.Players[j].GameID != game.ID {
+				t.Errorf("game %q carries a seat belonging to game %q", game.ID, game.Players[j].GameID)
+			}
+		}
+	}
+}
+
 // Same "don't reveal" criteria as playgroups.GetPlaygroup: someone outside the
 // group can't see its history, without distinguishing "doesn't exist" from "you're not a member".
 func TestListGamesForPlaygroup_NotAMember_ReturnsNotFound(t *testing.T) {
