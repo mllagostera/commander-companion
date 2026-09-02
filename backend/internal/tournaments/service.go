@@ -49,6 +49,10 @@ var (
 	// ErrTournamentNotInProgress indicates an action that requires an in-progress
 	// tournament (recording a result, advancing a round) attempted at the wrong stage.
 	ErrTournamentNotInProgress = common.Conflict("tournament is not in progress")
+	// ErrTournamentNotDeletable indicates an attempt to delete a tournament that
+	// already started: deleting it would take rounds and results away from every
+	// participant, not just the organizer. See Service.DeleteTournament.
+	ErrTournamentNotDeletable = common.Conflict("only a tournament still open for registration can be deleted")
 	// ErrInvalidParticipantCount indicates a roster size with no valid 3-4
 	// player table split (see pairing.go: tableSizes).
 	ErrInvalidParticipantCount = common.InvalidInput(
@@ -84,6 +88,10 @@ type Service interface {
 	CreateTournament(ctx context.Context, organizerID string, req CreateTournamentRequest) (*TournamentResponse, error)
 	ListTournaments(ctx context.Context, userID string, page common.PageRequest) (*TournamentListResponse, error)
 	GetTournament(ctx context.Context, userID, id string) (*TournamentDetailResponse, error)
+	// DeleteTournament deletes a tournament and its roster. Organizer-only, and
+	// only while it's still in 'registration' -- the "I created it by mistake"
+	// escape hatch, not a way to erase rounds already played.
+	DeleteTournament(ctx context.Context, organizerID, id string) error
 	// JoinTournament is self-service registration: an authenticated app user
 	// registers themselves with one of their own decks (ownership-checked via
 	// DeckLookup). Guests can't self-register, see AddGuestParticipant.
@@ -323,6 +331,43 @@ func (s *service) buildTables(ctx context.Context, roundID pgtype.UUID) ([]Table
 		tables[len(tables)-1].Seats = append(tables[len(tables)-1].Seats, toSeatResponseFromRoundRow(row))
 	}
 	return tables, nil
+}
+
+// DeleteTournament removes a tournament and its whole roster. Gated to
+// 'registration' so it can only undo a mistake: once round 1 is seated the
+// tournament isn't only the organizer's any more, and the rows a deletion would
+// have to take with it (rounds, tables, seats) are games its participants played.
+func (s *service) DeleteTournament(ctx context.Context, organizerID, id string) error {
+	t, err := s.getOrganizerTournament(ctx, organizerID, id)
+	if err != nil {
+		return err
+	}
+	if t.Status != statusRegistration {
+		return ErrTournamentNotDeletable
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.repo.WithTx(tx)
+
+	// No ON DELETE CASCADE anywhere in 00016_tournaments.sql, so the roster goes
+	// first -- and if the tournament raced into 'in_progress' between the check
+	// above and here, the seats' FK onto tournament_participants rejects this and
+	// the transaction rolls back, rather than half-deleting a running tournament.
+	if err := q.DeleteParticipantsForTournament(ctx, t.ID); err != nil {
+		return fmt.Errorf("deleting participants: %w", err)
+	}
+	if err := q.DeleteTournament(ctx, t.ID); err != nil {
+		return fmt.Errorf("deleting tournament: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing tournament deletion: %w", err)
+	}
+	return nil
 }
 
 // JoinTournament is the self-service registration path for an app user: the

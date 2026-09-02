@@ -20,6 +20,11 @@ type Querier interface {
 	CreateTable(ctx context.Context, arg CreateTableParams) (TournamentTable, error)
 	CreateTableSeat(ctx context.Context, arg CreateTableSeatParams) (TournamentTableSeat, error)
 	CreateTournament(ctx context.Context, arg CreateTournamentParams) (Tournament, error)
+	// Only needed to delete a tournament still in 'registration': rounds/tables/seats
+	// don't exist yet at that point (StartTournament is what creates the first ones),
+	// so participants are the only rows referencing it. See service.DeleteTournament.
+	DeleteParticipantsForTournament(ctx context.Context, tournamentID pgtype.UUID) error
+	DeleteTournament(ctx context.Context, id pgtype.UUID) error
 	FinishRound(ctx context.Context, id pgtype.UUID) (TournamentRound, error)
 	FinishTournament(ctx context.Context, id pgtype.UUID) (Tournament, error)
 	GetParticipant(ctx context.Context, id pgtype.UUID) (TournamentParticipant, error)

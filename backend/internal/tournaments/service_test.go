@@ -581,6 +581,88 @@ func TestListTournaments_OrganizedAndParticipating(t *testing.T) {
 	}
 }
 
+func TestDeleteTournament_Success_TakesRosterWithIt(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateTournamentTables(t, pool)
+	tSvc, decksSvc, usersSvc := newTestServices(pool)
+	organizer := createTestUser(t, usersSvc, "delete-organizer@example.com")
+	tour, err := tSvc.CreateTournament(context.Background(), organizer.ID, tournaments.CreateTournamentRequest{Name: "T"})
+	if err != nil {
+		t.Fatalf("CreateTournament() error = %v", err)
+	}
+	// Both kinds of participant: the roster is what the deletion has to clear
+	// before the tournaments row can go (no ON DELETE CASCADE in the schema).
+	joiner, _ := joinAsUser(t, tSvc, decksSvc, usersSvc, tour.JoinCode, "delete-joiner")
+	if _, err = tSvc.AddGuestParticipant(context.Background(), organizer.ID, tour.ID,
+		tournaments.AddGuestParticipantRequest{GuestName: testGuestName, CommanderName: "Meren"},
+	); err != nil {
+		t.Fatalf("AddGuestParticipant() error = %v", err)
+	}
+
+	if err = tSvc.DeleteTournament(context.Background(), organizer.ID, tour.ID); err != nil {
+		t.Fatalf("DeleteTournament() error = %v, want nil", err)
+	}
+
+	_, err = tSvc.GetTournament(context.Background(), organizer.ID, tour.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("GetTournament() tras borrar: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+	page, err := tSvc.ListTournaments(context.Background(), joiner.ID, common.PageRequest{Limit: common.DefaultPageLimit})
+	if err != nil {
+		t.Fatalf("ListTournaments() error = %v", err)
+	}
+	if len(page.Items) != 0 {
+		t.Fatalf("ListTournaments() del participante = %d torneos, want 0 (el torneo se borró)", len(page.Items))
+	}
+}
+
+func TestDeleteTournament_NotOrganizer_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateTournamentTables(t, pool)
+	tSvc, decksSvc, usersSvc := newTestServices(pool)
+	organizer := createTestUser(t, usersSvc, "delete-real-organizer@example.com")
+	tour, err := tSvc.CreateTournament(context.Background(), organizer.ID, tournaments.CreateTournamentRequest{Name: "T"})
+	if err != nil {
+		t.Fatalf("CreateTournament() error = %v", err)
+	}
+	// A registered participant, not just a stranger: being in the tournament
+	// lets you see it, never delete it.
+	participant, _ := joinAsUser(t, tSvc, decksSvc, usersSvc, tour.JoinCode, "delete-participant")
+
+	err = tSvc.DeleteTournament(context.Background(), participant.ID, tour.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("DeleteTournament() de un participante: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+	if _, err = tSvc.GetTournament(context.Background(), organizer.ID, tour.ID); err != nil {
+		t.Fatalf("GetTournament() tras el borrado rechazado: error = %v, want nil (sigue existiendo)", err)
+	}
+}
+
+func TestDeleteTournament_AlreadyStarted_ReturnsConflict(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateTournamentTables(t, pool)
+	tSvc, decksSvc, usersSvc := newTestServices(pool)
+	organizer := createTestUser(t, usersSvc, "delete-started-organizer@example.com")
+	tour, err := tSvc.CreateTournament(context.Background(), organizer.ID, tournaments.CreateTournamentRequest{Name: "T"})
+	if err != nil {
+		t.Fatalf("CreateTournament() error = %v", err)
+	}
+	for i := range 3 {
+		joinAsUser(t, tSvc, decksSvc, usersSvc, tour.JoinCode, "delete-started-"+string(rune('a'+i)))
+	}
+	if _, err = tSvc.StartTournament(context.Background(), organizer.ID, tour.ID); err != nil {
+		t.Fatalf("StartTournament() error = %v", err)
+	}
+
+	err = tSvc.DeleteTournament(context.Background(), organizer.ID, tour.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
+		t.Fatalf("DeleteTournament() ya iniciado: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
+	}
+	if _, err = tSvc.GetTournament(context.Background(), organizer.ID, tour.ID); err != nil {
+		t.Fatalf("GetTournament() tras el borrado rechazado: error = %v, want nil (sigue existiendo)", err)
+	}
+}
+
 func containsAll(haystack []string, needles ...string) bool {
 	for _, needle := range needles {
 		found := false

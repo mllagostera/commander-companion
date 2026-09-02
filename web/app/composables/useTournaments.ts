@@ -33,6 +33,11 @@ export function useTournaments() {
     return apiFetch<TournamentDetail>(`/tournaments/${id}`)
   }
 
+  /** Organizer-only, and only while status is 'registration': undoes a tournament created by mistake. */
+  function deleteTournament(id: string) {
+    return apiFetch<null>(`/tournaments/${id}`, { method: 'DELETE' })
+  }
+
   /** Self-registers the caller with one of their own decks. Only while status is 'registration'. */
   function joinTournament(joinCode: string, deckId: string) {
     return apiFetch<TournamentParticipant>('/tournaments/join', {
@@ -76,6 +81,7 @@ export function useTournaments() {
     listTournamentsPage,
     createTournament,
     getTournament,
+    deleteTournament,
     joinTournament,
     addGuestParticipant,
     startTournament,
@@ -119,6 +125,19 @@ export function addGuestParticipantError(err: unknown): string {
       return t('errors.tournaments.addGuest.closed')
     default:
       return apiErrorMessage(err, t('errors.tournaments.addGuest.generic'))
+  }
+}
+
+/** See ErrTournamentNotFound (404, not yours) and ErrTournamentNotDeletable (409) in internal/tournaments/service.go. */
+export function deleteTournamentError(err: unknown): string {
+  const { t } = useI18n()
+  switch (apiErrorStatus(err)) {
+    case 404:
+      return t('errors.tournaments.delete.notOrganizer')
+    case 409:
+      return t('errors.tournaments.delete.alreadyStarted')
+    default:
+      return apiErrorMessage(err, t('errors.tournaments.delete.generic'))
   }
 }
 

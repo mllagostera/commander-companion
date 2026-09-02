@@ -459,6 +459,7 @@
     "tournamentJoined": "Te has unido al torneo",
     "guestAdded": "{name} añadido al torneo",
     "tournamentStarted": "Torneo iniciado",
+    "tournamentDeleted": "Torneo eliminado",
     "roundAdvanced": "Ronda avanzada",
     "friendRequestSent": "Solicitud de amistad enviada a {username}",
     "friendAdded": "Ahora tú y {username} son amigos",
@@ -557,6 +558,11 @@
         "alreadyStarted": "El torneo ya ha empezado.",
         "generic": "No se pudo iniciar el torneo."
       },
+      "delete": {
+        "notOrganizer": "El torneo no existe o no eres su organizador.",
+        "alreadyStarted": "El torneo ya ha empezado: solo se puede eliminar mientras la inscripción sigue abierta.",
+        "generic": "No se pudo eliminar el torneo."
+      },
       "recordResult": {
         "invalid": "El resultado no coincide con los asientos de esta mesa.",
         "notInProgress": "El torneo no está en curso.",
@@ -636,6 +642,10 @@
       "shareHint": "Comparte este código para que los jugadores se registren y, una vez empiece el torneo, consulten su mesa en cada ronda.",
       "starting": "Iniciando…",
       "start": "Iniciar torneo",
+      "delete": "Eliminar torneo",
+      "deleting": "Eliminando…",
+      "deleteConfirmTitle": "¿Eliminar «{name}»?",
+      "deleteConfirmBody": "Todavía no hay nadie inscrito. Esta acción no se puede deshacer. | Se borrará también la inscripción de {count} participante. Esta acción no se puede deshacer. | Se borrarán también las inscripciones de {count} participantes. Esta acción no se puede deshacer.",
       "participants": {
         "heading": "{count} participante | {count} participantes",
         "close": "Cerrar",

@@ -226,6 +226,27 @@ func (q *Queries) CreateTournament(ctx context.Context, arg CreateTournamentPara
 	return i, err
 }
 
+const deleteParticipantsForTournament = `-- name: DeleteParticipantsForTournament :exec
+DELETE FROM tournament_participants WHERE tournament_id = $1
+`
+
+// Only needed to delete a tournament still in 'registration': rounds/tables/seats
+// don't exist yet at that point (StartTournament is what creates the first ones),
+// so participants are the only rows referencing it. See service.DeleteTournament.
+func (q *Queries) DeleteParticipantsForTournament(ctx context.Context, tournamentID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteParticipantsForTournament, tournamentID)
+	return err
+}
+
+const deleteTournament = `-- name: DeleteTournament :exec
+DELETE FROM tournaments WHERE id = $1
+`
+
+func (q *Queries) DeleteTournament(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteTournament, id)
+	return err
+}
+
 const finishRound = `-- name: FinishRound :one
 UPDATE tournament_rounds SET status = 'finished', finished_at = now() WHERE id = $1 RETURNING id, tournament_id, round_number, status, created_at, finished_at
 `
