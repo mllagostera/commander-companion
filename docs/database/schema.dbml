@@ -12,16 +12,16 @@ Table users {
   created_at timestamp [default: `now()`]
   updated_at timestamp
   moxfield_username varchar [note: 'Linked Moxfield username (optional, no uniqueness). Migration 00009_moxfield_username.sql']
-  email_verified boolean [default: true, note: 'Default true: existing accounts and Google sign-ups (already confirmed by their id_token) are left verified. Only email/password sign-up forces false. Migration 00011_email_verification.sql']
-  is_admin boolean [default: false, note: 'Grants access to the admin dashboard (GET/PATCH /admin/*). Promoted by hand in the DB, no self-service UI. Migration 00018_admin_and_account_status.sql, see ADR-0018']
-  is_active boolean [default: true, note: 'False = account deactivated by an admin: blocks login and refresh, does not delete data. Migration 00018_admin_and_account_status.sql, see ADR-0018']
+  email_verified boolean [not null, default: true, note: 'Default true: existing accounts and Google sign-ups (already confirmed by their id_token) are left verified. Only email/password sign-up forces false. Migration 00011_email_verification.sql']
+  is_admin boolean [not null, default: false, note: 'Grants access to the admin dashboard (GET/PATCH /admin/*). Promoted by hand in the DB, no self-service UI. Migration 00018_admin_and_account_status.sql, see ADR-0018']
+  is_active boolean [not null, default: true, note: 'False = account deactivated by an admin: blocks login and refresh, does not delete data. Migration 00018_admin_and_account_status.sql, see ADR-0018']
 
   Note: 'CHECK: password_hash IS NOT NULL OR google_id IS NOT NULL'
 }
 
 Table refresh_tokens {
   id uuid [primary key]
-  user_id uuid [ref: > users.id]
+  user_id uuid [not null, ref: > users.id]
   token_hash varchar [unique, not null, note: 'SHA-256 of the refresh token; the plaintext token is never persisted']
   expires_at timestamp [not null]
   created_at timestamp [default: `now()`]
@@ -30,7 +30,7 @@ Table refresh_tokens {
 
 Table email_verification_tokens {
   id uuid [primary key]
-  user_id uuid [ref: > users.id]
+  user_id uuid [not null, ref: > users.id]
   token_hash varchar [unique, not null, note: 'SHA-256 of the verification token; the plaintext token is never persisted']
   expires_at timestamp [not null]
   created_at timestamp [default: `now()`]
@@ -50,6 +50,7 @@ Table decks {
   indexes {
     moxfield_id [note: 'Lookup/de-dup of Moxfield imports (migration 00003_indices.sql)']
     (user_id, moxfield_id) [unique, note: 'One deck per user per Moxfield public ID, NULLs excluded (migration 00015_decks_unique_moxfield_id_per_user.sql)']
+    (user_id, created_at, id) [note: 'Keyset pagination over (created_at, id) scoped to one user. Actually created DESC on both sort columns; DBML cannot express index sort order (migration 00005_pagination_indices.sql)']
   }
 }
 
@@ -83,6 +84,7 @@ Table games {
   indexes {
     playgroup_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
     current_turn_player_id [note: 'FK coverage, migration 00014_deck_resync_rls_and_fk_indexes.sql']
+    (created_at, id) [note: 'Keyset pagination over the global game history. Actually created DESC on both columns; DBML cannot express index sort order (migration 00005_pagination_indices.sql)']
   }
 
   Note: 'CHECK: status IN (\'pending\', \'active\', \'finished\') (migration 00004_status_constraints.sql)'
@@ -169,8 +171,8 @@ Table moxfield_import_jobs {
   moxfield_username varchar [not null]
   status varchar [not null, default: 'pending', note: 'pending, in_progress, completed, failed']
   total_decks int [null]
-  imported_count int [default: 0]
-  failed_count int [default: 0]
+  imported_count int [not null, default: 0]
+  failed_count int [not null, default: 0]
   error_message varchar [null]
   created_at timestamp [default: `now()`]
   updated_at timestamp
@@ -192,8 +194,8 @@ Table deck_resync_jobs {
   user_id uuid [ref: > users.id]
   status varchar [not null, default: 'pending', note: 'pending, in_progress, completed, failed']
   total_decks int [not null]
-  updated_count int [default: 0]
-  failed_count int [default: 0]
+  updated_count int [not null, default: 0]
+  failed_count int [not null, default: 0]
   error_message varchar [null]
   created_at timestamp [default: `now()`]
   updated_at timestamp

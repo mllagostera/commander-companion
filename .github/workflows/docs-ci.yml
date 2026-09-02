@@ -27,6 +27,7 @@ jobs:
     outputs:
       openapi: ${{ steps.filter.outputs.openapi }}
       dbml: ${{ steps.filter.outputs.dbml }}
+      schema: ${{ steps.filter.outputs.schema }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -39,6 +40,14 @@ jobs:
               - '.github/workflows/docs-ci.yml'
             dbml:
               - 'docs/database/**'
+              - '.github/workflows/docs-ci.yml'
+            # The drift check compares the DBML against the migrations, so a
+            # migration alone can invalidate it without docs/ being touched at
+            # all -- which is exactly how deck_resync_jobs went undocumented.
+            schema:
+              - 'docs/database/**'
+              - 'backend/migrations/**'
+              - '.github/scripts/check-dbml-matches-migrations.sh'
               - '.github/workflows/docs-ci.yml'
 
   openapi-lint:
@@ -66,3 +75,47 @@ jobs:
           node-version: "20"
       - name: dbml2sql
         run: npx --yes -p @dbml/cli dbml2sql docs/database/schema.dbml --postgres -o /tmp/schema.sql
+
+  # dbml-validate above only proves the DBML is well-formed. This one proves it
+  # is TRUE: it builds the schema twice in the same Postgres -- once from the
+  # goose migrations, once from the compiled DBML -- and diffs what
+  # information_schema reports. See the script for what is and isn't compared.
+  schema-drift:
+    name: schema.dbml matches the migrations
+    needs: changes
+    if: needs.changes.outputs.schema == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      # Same pin as backend-ci.yml's own "Install goose" step, deliberately:
+      # two jobs applying the same migrations with different goose releases is
+      # a difference waiting to be debugged. See that file for why the pin is
+      # v3.27.0 rather than a newer one.
+      - name: Install goose
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
+
+      - name: Compare schema.dbml against the migrations
+        run: bash .github/scripts/check-dbml-matches-migrations.sh
