@@ -20,7 +20,7 @@ object DatabaseModule {
     @Singleton
     fun provideCommanderDatabase(@ApplicationContext context: Context): CommanderDatabase =
         Room.databaseBuilder(context, CommanderDatabase::class.java, "commander_companion.db")
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
     @Provides

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirror of AppBackground in presentation/theme/Color.kt. Only the window/status
+         bar chrome uses this copy; everything Compose draws reads the Kotlin value.
+         Keep the two in sync. -->
+    <color name="app_background">#FF050308</color>
+</resources>
