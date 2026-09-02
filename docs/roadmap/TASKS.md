@@ -225,6 +225,9 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Backend integration tests (real Postgres) across all 9 modules with queries
 - [x] Android unit tests (JUnit + `kotlinx-coroutines-test`, hand-written fakes, no mocking framework)
 - [x] CI/CD: `backend-ci.yml`, `android-ci.yml`, `web-ci.yml`, `docs-ci.yml` — all four follow the same always-reports-a-check `changes`/`dorny-paths-filter` pattern
+- [x] **Every CI check name in English** (2026-09-02): 8 job/step names were still in Spanish. Renaming them moves the identifiers branch protection matches on, so the 4 required contexts affected were updated in the same pass
+- [x] **i18n checks for web and Android** (2026-09-02): `.github/scripts/check-i18n-{web,android}.mjs`. A missing key fails nothing else — Vue renders the key with a 200, Android falls back to the default locale — which is how #101 shipped. Both verify locale parity and that every key used in the source resolves; Android honours `tools:ignore="MissingTranslation"`. Both mutation-tested. Not in the required-checks list yet
+- [ ] **The two production deploys race each other**: Render and Vercel each deploy off their own GitHub integration on a push to `main`, in parallel and unordered, so the new frontend can serve against the old backend for as long as Render takes to build (see [ADR-0015](../decisions/0015-deployment-infrastructure.md)). Note `/health` returns no version or commit marker, so "wait for the backend" can't be resolved by polling it — the old binary answers it identically
 - [x] Branch protection on `main` (8 required checks — `web-ci.yml`'s checks aren't in that list yet, see README.md §6 for the `hadolint` name-collision caveat)
 - [x] `golangci-lint` at 0 issues repo-wide (config migrated to v2, pinned to `v2.12.2`)
 - [x] Real wiring of every `service.go` to its sqlc `Queries` — no dummy modules left

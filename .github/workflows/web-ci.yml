@@ -19,11 +19,11 @@ defaults:
     working-directory: web
 
 jobs:
-  # Sin filtro de path: siempre corre y siempre reporta un check (aunque sea
-  # "skipped"), para que este workflow pueda marcarse como required en
-  # branch protection sin dejar colgados los PRs que no tocan web/.
+  # No path filter on the workflow itself: it always runs and always reports a
+  # check (even a "skipped" one), so it can be marked as required in branch
+  # protection without leaving PRs that don't touch web/ hanging.
   changes:
-    name: Detectar cambios en web/
+    name: Detect changes in web/
     runs-on: ubuntu-latest
     outputs:
       web: ${{ steps.filter.outputs.web }}
@@ -49,21 +49,21 @@ jobs:
               - '.github/workflows/web-ci.yml'
 
   lint-typecheck-build:
-    name: eslint, typecheck y nuxt build
+    name: eslint, typecheck and nuxt build
     needs: changes
     if: needs.changes.outputs.web == 'true' || needs.changes.outputs.web_workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Configurar Node
+      - name: Set up Node
         uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Instalar dependencias
+      - name: Install dependencies
         run: npm ci
 
       - name: ESLint
@@ -74,6 +74,24 @@ jobs:
 
       - name: Build SSR (nuxt build)
         run: npm run build
+
+  # Separate from lint-typecheck-build on purpose: a missing translation key
+  # passes eslint, vue-tsc and `nuxt build` (Vue renders the key and the page
+  # still returns 200), so folding it into that job would only make it look
+  # like those tools cover it. See #101, where /friends shipped showing a
+  # literal "friends.add.heading".
+  i18n:
+    name: i18n keys resolve in every locale
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.web_workflow == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check translation keys
+        run: node .github/scripts/check-i18n-web.mjs
 
   dockerfile-lint:
     name: hadolint (Dockerfile)

@@ -1,4 +1,4 @@
-name: Docs CI (fuentes de verdad)
+name: Docs CI (sources of truth)
 
 # Validates the project's sources of truth (see README.md, section 3):
 # OpenAPI (docs/api/openapi.yaml) and DBML (docs/database/schema.dbml).
@@ -18,11 +18,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
-  # Sin filtro de path: siempre corre y siempre reporta un check (aunque sea
-  # "skipped"), para que estos jobs puedan marcarse como required en branch
-  # protection sin dejar colgados los PRs que no tocan estos archivos.
+  # No path filter on the workflow itself: it always runs and always reports a
+  # check (even a "skipped" one), so these jobs can be marked as required in
+  # branch protection without leaving PRs that don't touch these files hanging.
   changes:
-    name: Detectar cambios en docs
+    name: Detect changes in docs
     runs-on: ubuntu-latest
     outputs:
       openapi: ${{ steps.filter.outputs.openapi }}
@@ -55,7 +55,7 @@ jobs:
         run: npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml --ruleset .spectral.yaml
 
   dbml-validate:
-    name: Validar DBML (compila a SQL)
+    name: Validate DBML (compiles to SQL)
     needs: changes
     if: needs.changes.outputs.dbml == 'true'
     runs-on: ubuntu-latest

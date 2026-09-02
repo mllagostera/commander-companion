@@ -86,14 +86,16 @@ Rule: if you're going to change how backend and Android communicate, edit `opena
 
 ## 6. Quality gates (GitHub Actions)
 
-In `.github/workflows/` there are four pipelines that run on every push/PR (each with a `changes`/`dorny-paths-filter` job that always reports a check, so none is left "hanging" on PRs that don't touch its folder):
+In `.github/workflows/` there are four quality pipelines that run on every push/PR (each with a `changes`/`dorny-paths-filter` job that always reports a check, so none is left "hanging" on PRs that don't touch its folder). Every check name is in English; they double as the identifiers branch protection matches on, so renaming one means updating the protection settings in the same pass.
 
 - **`backend-ci.yml`**: gofmt + `go vet`, `golangci-lint`, verifies that `sqlc generate` leaves no uncommitted diffs, build + `go test -race` + applies the goose migrations against a real Postgres from the job, and `hadolint` on `backend/Dockerfile`.
-- **`android-ci.yml`**: Android Lint, unit tests (`testDebugUnitTest`), `assembleDebug`.
-- **`web-ci.yml`**: ESLint + typecheck (`vue-tsc`) + `nuxt build` (SSR), and `hadolint` on `web/Dockerfile`.
+- **`android-ci.yml`**: Android Lint, unit tests (`testDebugUnitTest`), `assembleDebug`, and `string resources translated in every locale`.
+- **`web-ci.yml`**: ESLint + typecheck (`vue-tsc`) + `nuxt build` (SSR), `i18n keys resolve in every locale`, and `hadolint` on `web/Dockerfile`.
 - **`docs-ci.yml`**: validates that the sources of truth remain valid — Spectral lint on `openapi.yaml` and `schema.dbml` compiling to SQL.
 
-**Note on branch protection**: the *required* checks on `main` today are only 8, all from `backend-ci.yml`/`android-ci.yml`/`docs-ci.yml` — `web-ci.yml` was added after branch protection was configured and its checks aren't in the required list yet. Non-obvious detail: the `hadolint (Dockerfile)` job in `web-ci.yml` has the same name as the one in `backend-ci.yml`, so today either one satisfies that required check (GitHub matches by job name, not by workflow) — but `eslint, typecheck and nuxt build` from `web-ci.yml` isn't required by anything.
+**The i18n checks** (`.github/scripts/check-i18n-{web,android}.mjs`) exist because a missing translation key fails nothing else: on the web Vue renders the key itself and the page still returns 200; on Android the string falls back to the default locale and shows up in Spanish. Both run in seconds without a build. Each verifies that the locales define the same keys and that every key referenced in the source resolves. Android resources deliberately left untranslated must carry `tools:ignore="MissingTranslation"`, the same annotation Android Lint honours.
+
+**Note on branch protection**: the *required* checks on `main` are 8, all from `backend-ci.yml`/`android-ci.yml`/`docs-ci.yml` — `web-ci.yml` was added after branch protection was configured and its checks aren't in the required list yet, and neither are the two new i18n ones. Non-obvious detail: the `hadolint (Dockerfile)` job in `web-ci.yml` has the same name as the one in `backend-ci.yml`, so today either one satisfies that required check (GitHub matches by job name, not by workflow) — but `eslint, typecheck and nuxt build` from `web-ci.yml` isn't required by anything.
 
 Before considering a task done, these gates must pass locally (or at least not introduce new issues) for whatever you touched: `make lint` / `make test` in backend, `./gradlew lintDebug testDebugUnitTest` in Android. They require the repo to be connected to GitHub to run; locally they're just the Makefile / Gradle commands.
 
