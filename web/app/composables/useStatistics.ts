@@ -1,4 +1,5 @@
 import type {
+  Dashboard,
   DeckStats,
   FinishedGame,
   OpponentStats,
@@ -53,7 +54,26 @@ export function useStatistics() {
     return apiFetch<PaginatedResponse<FinishedGame>>('/statistics/games', { query: cursor ? { cursor } : undefined })
   }
 
-  return { userStats, deckStats, allDeckStats, playgroupStats, playgroupGameCounts, opponentStats, listFinishedGames }
+  /**
+   * The whole dashboard in one request. Replaces the fan-out that screen used
+   * to do -- userStats + every deck page + every playgroup + allDeckStats +
+   * one listPlaygroupGames per group -- which cost 30 requests and 539 KB on a
+   * 400-game account to render four games and a handful of cards.
+   */
+  function dashboard() {
+    return apiFetch<Dashboard>('/statistics/dashboard')
+  }
+
+  return {
+    userStats,
+    deckStats,
+    allDeckStats,
+    playgroupStats,
+    playgroupGameCounts,
+    opponentStats,
+    listFinishedGames,
+    dashboard,
+  }
 }
 
 /** Formatted win percentage, tolerant of 0 games. */

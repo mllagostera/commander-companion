@@ -1,108 +1,32 @@
 <script setup lang="ts">
-import type { Deck, DeckStats, Game, Playgroup } from '~/types/api'
+import type { DashboardGame } from '~/types/api'
 
 const { d } = useI18n()
 const { user } = useAuth()
-const { userStats, allDeckStats } = useStatistics()
-const { listAllDecks } = useDecks()
-const { listPlaygroups } = usePlaygroups()
-const { listPlaygroupGames } = useGames()
+const { dashboard } = useStatistics()
 
-interface RecentGame { game: Game, groupName: string, won: boolean, deck: Deck | null, opponents: string[] }
-interface GroupSummary extends Playgroup { memberCount: number, gamesPlayed: number }
-interface DeckWithStats { deck: Deck, stats: DeckStats | null }
-
-const { data, error, refresh } = await useAsyncData('dashboard', async () => {
-  const [stats, decks, playgroups, deckStatsList] = await Promise.all([
-    userStats(), listAllDecks(), listPlaygroups(), allDeckStats(),
-  ])
-  const statsByDeckId = new Map(deckStatsList.map((s) => [s.deck_id, s]))
-  const deckById = new Map(decks.map((deck) => [deck.id, deck]))
-
-  const groupsWithGames = await Promise.all(
-    playgroups.map(async (playgroup) => ({
-      playgroup,
-      // Best-effort: if the history call fails for a group it doesn't take down the rest of the dashboard.
-      games: await listPlaygroupGames(playgroup.id).catch(() => [] as Game[]),
-    })),
-  )
-
-  // Game.players only carries user_id, but every game shown here belongs to a
-  // playgroup whose members (with usernames) we already fetched — so opponents
-  // can be named without another request.
-  const usernameByUserId = new Map<string, string>()
-  for (const { playgroup } of groupsWithGames) {
-    for (const member of playgroup.members ?? []) usernameByUserId.set(member.user_id, member.username)
-  }
-
-  const groups: GroupSummary[] = groupsWithGames.map(({ playgroup, games }) => ({
-    ...playgroup,
-    memberCount: playgroup.members?.length ?? 0,
-    gamesPlayed: games.filter((g) => g.status === 'finished').length,
-  }))
-
-  const userId = user.value?.id
-  const recentGames: RecentGame[] = groupsWithGames
-    .flatMap(({ playgroup, games }) =>
-      games
-        .filter((g) => g.status === 'finished')
-        .map((g) => {
-          const me = g.players?.find((p) => p.user_id === userId)
-          return {
-            game: g,
-            groupName: playgroup.name,
-            won: !!me && !me.is_eliminated,
-            deck: me?.deck_id ? deckById.get(me.deck_id) ?? null : null,
-            opponents: (g.players ?? [])
-              .filter((p) => p.user_id !== userId)
-              .map((p) => usernameByUserId.get(p.user_id) ?? '')
-              .filter(Boolean),
-          }
-        }),
-    )
-    .sort((a, b) => {
-      const at = new Date(a.game.finished_at ?? a.game.started_at ?? 0).getTime()
-      const bt = new Date(b.game.finished_at ?? b.game.started_at ?? 0).getTime()
-      return bt - at
-    })
-
-  // Current streak: consecutive equal results starting from the most recent game.
-  let streak = 0
-  if (recentGames.length) {
-    const latestResult = recentGames[0]!.won
-    for (const rg of recentGames) {
-      if (rg.won !== latestResult) break
-      streak++
-    }
-  }
-
-  const deckEntries: DeckWithStats[] = decks.map((deck) => ({ deck, stats: statsByDeckId.get(deck.id) ?? null }))
-  const bestDeckEntry = [...deckEntries]
-    .filter((e) => e.stats && e.stats.games_played > 0)
-    .sort((a, b) => (b.stats!.games_won / b.stats!.games_played) - (a.stats!.games_won / a.stats!.games_played))[0]
-    ?? null
-  const dashboardDecks = [...deckEntries]
-    .sort((a, b) => (b.stats?.games_played ?? 0) - (a.stats?.games_played ?? 0))
-    .slice(0, 4)
-
-  return {
-    stats,
-    decks,
-    groups,
-    dashboardGroups: groups.slice(0, 3),
-    dashboardDecks,
-    recentGames: recentGames.slice(0, 4),
-    streak,
-    streakWon: recentGames[0]?.won ?? null,
-    bestDeckEntry,
-  }
-})
+/**
+ * One request. This screen used to assemble itself client-side from six
+ * endpoints — every deck page, then every playgroup's entire game history —
+ * which cost 30 requests and 539 KB on a 400-game account to show four games
+ * (measured 2026-09-02, see docs/roadmap/DECISIONS-LOG.md). The server now
+ * returns the screen, already sliced and already resolved from this user's
+ * seat, in a fixed number of queries.
+ */
+const { data, error, refresh } = await useAsyncData('dashboard', () => dashboard())
 
 // useAsyncData reuses the cached payload when returning to this page in the same session (e.g.
 // after finishing a game on Android): without this refresh, the summary would be stale.
-onMounted(() => refresh())
+//
+// It's skipped during hydration, where the payload was fetched by this very
+// render and re-fetching it only doubles the cost of every hard load.
+const nuxtApp = useNuxtApp()
+onMounted(() => {
+  if (nuxtApp.isHydrating) return
+  refresh()
+})
 
-function gameDate(game: Game): string {
+function gameDate(game: DashboardGame): string {
   const iso = game.finished_at ?? game.started_at
   return iso ? d(new Date(iso), 'short') : '—'
 }
@@ -129,12 +53,12 @@ function gameDate(game: Game): string {
       <!-- Spotlight: the best deck's art carries the page, with performance beside it. -->
       <section class="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_1fr]">
         <NuxtLink
-          v-if="data.bestDeckEntry"
+          v-if="data.best_deck"
           to="/statistics"
           class="group relative flex min-h-[230px] flex-col justify-end overflow-hidden rounded-[var(--radius-xl)] border p-6"
           style="border-color: var(--card-border);"
         >
-          <DeckArt :deck="data.bestDeckEntry.deck" fill image-position="right" class="transition-transform duration-500 group-hover:scale-[1.03]" />
+          <DeckArt :deck="data.best_deck" fill image-position="right" class="transition-transform duration-500 group-hover:scale-[1.03]" />
           <div
             class="absolute inset-0"
             style="background: linear-gradient(100deg, rgba(10,7,20,0.95) 25%, rgba(10,7,20,0.72) 60%, rgba(10,7,20,0.35) 100%);"
@@ -149,18 +73,18 @@ function gameDate(game: Game): string {
             <p class="text-[11px] uppercase tracking-wide" style="color: #c4b5fd;">
               {{ $t('dashboard.bestDeck.heading') }}
             </p>
-            <p class="mt-2 text-2xl font-semibold leading-tight text-white">{{ data.bestDeckEntry.deck.name }}</p>
-            <p class="mt-1 text-[13px] text-white/70">{{ data.bestDeckEntry.deck.commander }}</p>
+            <p class="mt-2 text-2xl font-semibold leading-tight text-white">{{ data.best_deck.name }}</p>
+            <p class="mt-1 text-[13px] text-white/70">{{ data.best_deck.commander }}</p>
             <div class="mt-5 flex items-end gap-6">
               <span>
                 <span class="block text-[11px] uppercase tracking-wide text-white/60">{{ $t('dashboard.stats.winRate') }}</span>
                 <span class="text-xl font-semibold" style="color: #5eead4;">
-                  {{ winRate(data.bestDeckEntry.stats!.games_played, data.bestDeckEntry.stats!.games_won) }}
+                  {{ winRate(data.best_deck.games_played, data.best_deck.games_won) }}
                 </span>
               </span>
               <span>
                 <span class="block text-[11px] uppercase tracking-wide text-white/60">{{ $t('dashboard.stats.games') }}</span>
-                <span class="text-xl font-semibold text-white">{{ data.bestDeckEntry.stats!.games_played }}</span>
+                <span class="text-xl font-semibold text-white">{{ data.best_deck.games_played }}</span>
               </span>
             </div>
           </div>
@@ -196,7 +120,7 @@ function gameDate(game: Game): string {
           <div
             class="rounded-[var(--radius-md)] px-4 py-3"
             :style="data.streak
-              ? { background: data.streakWon ? 'var(--win-bg)' : 'var(--lose-bg)' }
+              ? { background: data.streak_won ? 'var(--win-bg)' : 'var(--lose-bg)' }
               : { background: 'var(--dim-bg)' }"
           >
             <!-- --text-muted, not --text-dim like the other section labels: this
@@ -208,9 +132,9 @@ function gameDate(game: Game): string {
             <p
               v-if="data.streak"
               class="mt-0.5 text-sm font-semibold"
-              :style="{ color: data.streakWon ? 'var(--win)' : 'var(--lose)' }"
+              :style="{ color: data.streak_won ? 'var(--win)' : 'var(--lose)' }"
             >
-              {{ data.streakWon
+              {{ data.streak_won
                 ? $t('dashboard.streak.wins', { count: data.streak })
                 : $t('dashboard.streak.losses', { count: data.streak }) }}
             </p>
@@ -220,8 +144,8 @@ function gameDate(game: Game): string {
           <p class="text-[13px]" style="color: var(--text-dim);">
             {{ $t('dashboard.performance.totals', {
               games: data.stats.games_played,
-              decks: data.decks.length,
-              groups: data.groups.length,
+              decks: data.total_decks,
+              groups: data.total_playgroups,
             }) }}
           </p>
         </div>
@@ -232,13 +156,13 @@ function gameDate(game: Game): string {
         <div>
           <div class="mb-3.5 flex items-baseline justify-between">
             <h2 class="text-[15px] font-medium">{{ $t('dashboard.recentGames.heading') }}</h2>
-            <NuxtLink v-if="data.recentGames.length" to="/statistics" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
+            <NuxtLink v-if="data.recent_games.length" to="/statistics" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
               {{ $t('dashboard.recentGames.viewAll') }}
             </NuxtLink>
           </div>
 
           <EmptyState
-            v-if="!data.recentGames.length"
+            v-if="!data.recent_games.length"
             :title="$t('dashboard.recentGames.emptyTitle')"
             :body="$t('dashboard.recentGames.emptyBody')"
             :cta-label="$t('dashboard.recentGames.emptyCta')"
@@ -246,8 +170,8 @@ function gameDate(game: Game): string {
           />
           <div v-else class="flex flex-col gap-2.5">
             <div
-              v-for="rg in data.recentGames"
-              :key="rg.game.id"
+              v-for="rg in data.recent_games"
+              :key="rg.id"
               class="flex items-center gap-3.5 rounded-[var(--radius-md)] border px-4 py-3"
               style="border-color: var(--card-border); background: var(--card-bg);"
             >
@@ -270,7 +194,7 @@ function gameDate(game: Game): string {
                 <p class="truncate text-xs" style="color: var(--text-dim);">
                   {{ rg.opponents.length
                     ? $t('dashboard.recentGames.versus', { opponents: rg.opponents.join(', ') })
-                    : rg.groupName }}
+                    : rg.playgroup_name }}
                 </p>
               </div>
 
@@ -284,7 +208,7 @@ function gameDate(game: Game): string {
                 <!-- The group name is dropped on phones: with it, this column is wide
                      enough to truncate the deck name down to a few characters. -->
                 <span class="whitespace-nowrap text-[11px]" style="color: var(--text-dim);">
-                  {{ gameDate(rg.game) }}<span class="hidden sm:inline"> · {{ rg.groupName }}</span>
+                  {{ gameDate(rg) }}<span v-if="rg.playgroup_name" class="hidden sm:inline"> · {{ rg.playgroup_name }}</span>
                 </span>
               </div>
             </div>
@@ -294,13 +218,13 @@ function gameDate(game: Game): string {
         <div>
           <div class="mb-3.5 flex items-baseline justify-between">
             <h2 class="text-[15px] font-medium">{{ $t('dashboard.decksSection.heading') }}</h2>
-            <NuxtLink v-if="data.dashboardDecks.length" to="/statistics" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
+            <NuxtLink v-if="data.decks.length" to="/statistics" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
               {{ $t('dashboard.decksSection.viewStats') }}
             </NuxtLink>
           </div>
 
           <EmptyState
-            v-if="!data.dashboardDecks.length"
+            v-if="!data.decks.length"
             :title="$t('dashboard.decksSection.emptyTitle')"
             :body="$t('dashboard.decksSection.emptyBody')"
             :cta-label="$t('dashboard.decksSection.emptyCta')"
@@ -308,23 +232,24 @@ function gameDate(game: Game): string {
           />
           <div v-else class="flex flex-col gap-2.5">
             <NuxtLink
-              v-for="entry in data.dashboardDecks"
-              :key="entry.deck.id"
+              v-for="entry in data.decks"
+              :key="entry.id"
               to="/decks"
               class="flex items-center gap-3 rounded-[var(--radius-md)] border px-3.5 py-2.5 transition-all hover:translate-x-1"
               style="border-color: var(--card-border); background: var(--card-bg); color: var(--text);"
             >
-              <DeckArt :deck="entry.deck" class="h-12 w-12 flex-shrink-0" rounded="rounded-[var(--radius-sm)]" />
+              <DeckArt :deck="entry" class="h-12 w-12 flex-shrink-0" rounded="rounded-[var(--radius-sm)]" />
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium">{{ entry.deck.name }}</p>
-                <p class="truncate text-xs" style="color: var(--text-dim);">{{ entry.deck.commander }}</p>
+                <p class="truncate text-sm font-medium">{{ entry.name }}</p>
+                <p class="truncate text-xs" style="color: var(--text-dim);">{{ entry.commander }}</p>
               </div>
               <div class="flex-shrink-0 text-right">
+                <!-- winRate already renders an em dash at zero games. -->
                 <p class="text-sm font-semibold" style="color: var(--accent-link);">
-                  {{ entry.stats ? winRate(entry.stats.games_played, entry.stats.games_won) : '—' }}
+                  {{ winRate(entry.games_played, entry.games_won) }}
                 </p>
                 <p class="text-[11px]" style="color: var(--text-dim);">
-                  {{ $t('dashboard.decksSection.gamesPlayed', entry.stats?.games_played ?? 0) }}
+                  {{ $t('dashboard.decksSection.gamesPlayed', entry.games_played) }}
                 </p>
               </div>
             </NuxtLink>
@@ -336,13 +261,13 @@ function gameDate(game: Game): string {
       <section>
         <div class="mb-3.5 flex items-baseline justify-between">
           <h2 class="text-[15px] font-medium">{{ $t('dashboard.groups.heading') }}</h2>
-          <NuxtLink v-if="data.dashboardGroups.length" to="/playgroups" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
+          <NuxtLink v-if="data.playgroups.length" to="/playgroups" class="-my-1 py-1 text-[13px]" style="color: var(--accent-link);">
             {{ $t('dashboard.groups.viewAll') }}
           </NuxtLink>
         </div>
 
         <EmptyState
-          v-if="!data.dashboardGroups.length"
+          v-if="!data.playgroups.length"
           :title="$t('dashboard.groups.emptyTitle')"
           :body="$t('dashboard.groups.emptyBody')"
           :cta-label="$t('dashboard.groups.emptyCta')"
@@ -350,7 +275,7 @@ function gameDate(game: Game): string {
         />
         <div v-else class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
           <NuxtLink
-            v-for="g in data.dashboardGroups"
+            v-for="g in data.playgroups"
             :key="g.id"
             :to="`/playgroups/${g.id}`"
             class="flex flex-col gap-3.5 rounded-[var(--radius-lg)] border p-[18px] transition-all hover:-translate-y-1 hover:shadow-[0_14px_34px_rgba(129,140,248,0.18)]"
@@ -359,12 +284,13 @@ function gameDate(game: Game): string {
             <div>
               <p class="text-sm font-medium">{{ g.name }}</p>
               <p class="mt-0.5 text-xs" style="color: var(--text-dim);">
-                {{ $t('dashboard.groups.summary', { members: g.memberCount, games: g.gamesPlayed }) }}
+                {{ $t('dashboard.groups.summary', { members: g.member_count, games: g.games_played }) }}
               </p>
             </div>
             <div class="flex">
+              <!-- Already capped server-side to what this strip shows. -->
               <span
-                v-for="(member, i) in (g.members ?? []).slice(0, 4)"
+                v-for="(member, i) in g.members"
                 :key="member.user_id"
                 class="-ml-2 flex h-7 w-7 items-center justify-center rounded-full border-2 text-[11px] font-semibold text-[#0a0714] first:ml-0"
                 :style="{ background: avatarColor(i), borderColor: 'var(--page-solid)' }"

@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDecksForUser = `-- name: CountDecksForUser :one
+SELECT COUNT(*) FROM decks WHERE user_id = $1
+`
+
+func (q *Queries) CountDecksForUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countDecksForUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countFinishedGamesForPlaygroup = `-- name: CountFinishedGamesForPlaygroup :one
 SELECT COUNT(*) FROM games WHERE playgroup_id = $1 AND status = 'finished'
 `
@@ -20,6 +31,108 @@ func (q *Queries) CountFinishedGamesForPlaygroup(ctx context.Context, playgroupI
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countPlaygroupsForUser = `-- name: CountPlaygroupsForUser :one
+SELECT COUNT(*) FROM playgroup_members WHERE user_id = $1
+`
+
+func (q *Queries) CountPlaygroupsForUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countPlaygroupsForUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getCurrentStreakForUser = `-- name: GetCurrentStreakForUser :one
+WITH results AS (
+  SELECT
+    (winner.id IS NOT NULL) AS won,
+    ROW_NUMBER() OVER (ORDER BY g.created_at DESC, g.id DESC) AS rn
+  FROM game_players gp
+  JOIN games g ON g.id = gp.game_id AND g.status = 'finished'
+  LEFT JOIN (
+    SELECT id, game_id
+    FROM (
+      SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count
+      FROM game_players
+      WHERE NOT is_eliminated
+    ) alive
+    WHERE alive_count = 1
+  ) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
+  WHERE gp.user_id = $1
+)
+SELECT
+  -- The streak ends one game before the first result that differs from the
+  -- latest one; if none differs, every game counts.
+  COALESCE(
+    (SELECT MIN(rn) FROM results WHERE won IS DISTINCT FROM (SELECT won FROM results WHERE rn = 1)) - 1,
+    (SELECT COUNT(*) FROM results)
+  )::int AS streak,
+  COALESCE((SELECT won FROM results WHERE rn = 1), false)::boolean AS streak_won,
+  (SELECT COUNT(*) FROM results)::int AS total_games
+`
+
+type GetCurrentStreakForUserRow struct {
+	Streak     int32 `json:"streak"`
+	StreakWon  bool  `json:"streak_won"`
+	TotalGames int32 `json:"total_games"`
+}
+
+// How many finished games in a row, counting back from the most recent, ended
+// the same way for this user. Computed in SQL and returned as a single row: the
+// naive version ships every game the user ever played to the client just to
+// count a handful of them off the top.
+//
+// `won` uses the same sole-survivor rule as ListPlaygroupMemberGameStats and
+// ListPlayersForGames, so the streak agrees with the win rate shown next to it.
+func (q *Queries) GetCurrentStreakForUser(ctx context.Context, userID pgtype.UUID) (GetCurrentStreakForUserRow, error) {
+	row := q.db.QueryRow(ctx, getCurrentStreakForUser, userID)
+	var i GetCurrentStreakForUserRow
+	err := row.Scan(&i.Streak, &i.StreakWon, &i.TotalGames)
+	return i, err
+}
+
+const getDashboardBestDeckForUser = `-- name: GetDashboardBestDeckForUser :one
+SELECT
+  d.id AS deck_id,
+  d.name,
+  d.commander,
+  d.image_url,
+  COALESCE(s.games_played, 0)::int AS games_played,
+  COALESCE(s.games_won, 0)::int AS games_won
+FROM decks d
+JOIN deck_statistics_summary s ON s.deck_id = d.id
+WHERE d.user_id = $1 AND s.games_played > 0
+ORDER BY (s.games_won::numeric / s.games_played) DESC, s.games_played DESC
+LIMIT 1
+`
+
+type GetDashboardBestDeckForUserRow struct {
+	DeckID      pgtype.UUID `json:"deck_id"`
+	Name        string      `json:"name"`
+	Commander   string      `json:"commander"`
+	ImageUrl    pgtype.Text `json:"image_url"`
+	GamesPlayed int32       `json:"games_played"`
+	GamesWon    int32       `json:"games_won"`
+}
+
+// The spotlight card: highest win rate among the user's decks that have
+// actually been played. games_played > 0 both defines "has a win rate" and
+// keeps the division safe. Ties break towards the deck with more games -- a
+// single lucky win shouldn't outrank a long winning record.
+func (q *Queries) GetDashboardBestDeckForUser(ctx context.Context, userID pgtype.UUID) (GetDashboardBestDeckForUserRow, error) {
+	row := q.db.QueryRow(ctx, getDashboardBestDeckForUser, userID)
+	var i GetDashboardBestDeckForUserRow
+	err := row.Scan(
+		&i.DeckID,
+		&i.Name,
+		&i.Commander,
+		&i.ImageUrl,
+		&i.GamesPlayed,
+		&i.GamesWon,
+	)
+	return i, err
 }
 
 const getDeckByID = `-- name: GetDeckByID :one
@@ -79,6 +192,158 @@ func (q *Queries) GetUserStatistics(ctx context.Context, userID pgtype.UUID) (Us
 		&i.LastRecalculatedAt,
 	)
 	return i, err
+}
+
+const listDashboardDecksForUser = `-- name: ListDashboardDecksForUser :many
+SELECT
+  d.id AS deck_id,
+  d.name,
+  d.commander,
+  d.image_url,
+  COALESCE(s.games_played, 0)::int AS games_played,
+  COALESCE(s.games_won, 0)::int AS games_won
+FROM decks d
+LEFT JOIN deck_statistics_summary s ON s.deck_id = d.id
+WHERE d.user_id = $1
+ORDER BY COALESCE(s.games_played, 0) DESC, d.created_at DESC
+LIMIT $2
+`
+
+type ListDashboardDecksForUserParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	DeckLimit int32       `json:"deck_limit"`
+}
+
+type ListDashboardDecksForUserRow struct {
+	DeckID      pgtype.UUID `json:"deck_id"`
+	Name        string      `json:"name"`
+	Commander   string      `json:"commander"`
+	ImageUrl    pgtype.Text `json:"image_url"`
+	GamesPlayed int32       `json:"games_played"`
+	GamesWon    int32       `json:"games_won"`
+}
+
+// The decks the dashboard's "your decks" strip shows: most played first, capped
+// at the handful that fit. Same decks LEFT JOIN summary shape as
+// ListDeckStatisticsForUser (a deck never played has no summary row), but
+// ordered and limited here instead of returning the whole collection for the
+// client to sort and slice.
+func (q *Queries) ListDashboardDecksForUser(ctx context.Context, arg ListDashboardDecksForUserParams) ([]ListDashboardDecksForUserRow, error) {
+	rows, err := q.db.Query(ctx, listDashboardDecksForUser, arg.UserID, arg.DeckLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDashboardDecksForUserRow
+	for rows.Next() {
+		var i ListDashboardDecksForUserRow
+		if err := rows.Scan(
+			&i.DeckID,
+			&i.Name,
+			&i.Commander,
+			&i.ImageUrl,
+			&i.GamesPlayed,
+			&i.GamesWon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDashboardPlaygroupMembers = `-- name: ListDashboardPlaygroupMembers :many
+SELECT pm.playgroup_id, pm.user_id, u.username
+FROM playgroup_members pm
+JOIN users u ON u.id = pm.user_id
+WHERE pm.playgroup_id = ANY($1::uuid[])
+ORDER BY pm.playgroup_id, pm.joined_at
+`
+
+type ListDashboardPlaygroupMembersRow struct {
+	PlaygroupID pgtype.UUID `json:"playgroup_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+	Username    string      `json:"username"`
+}
+
+// Members of the groups the dashboard is about to render, batched in one round
+// trip (same game_id = ANY(...) shape as ListPlayersForGames below). Only feeds
+// the avatar strip, so the service keeps the first few per group.
+func (q *Queries) ListDashboardPlaygroupMembers(ctx context.Context, playgroupIds []pgtype.UUID) ([]ListDashboardPlaygroupMembersRow, error) {
+	rows, err := q.db.Query(ctx, listDashboardPlaygroupMembers, playgroupIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDashboardPlaygroupMembersRow
+	for rows.Next() {
+		var i ListDashboardPlaygroupMembersRow
+		if err := rows.Scan(&i.PlaygroupID, &i.UserID, &i.Username); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDashboardPlaygroupsForUser = `-- name: ListDashboardPlaygroupsForUser :many
+SELECT
+  p.id AS playgroup_id,
+  p.name AS playgroup_name,
+  (SELECT COUNT(*) FROM playgroup_members m WHERE m.playgroup_id = p.id)::int AS member_count,
+  (SELECT COUNT(*) FROM games g WHERE g.playgroup_id = p.id AND g.status = 'finished')::int AS games_played
+FROM playgroups p
+JOIN playgroup_members pm ON pm.playgroup_id = p.id
+WHERE pm.user_id = $1
+ORDER BY p.created_at DESC, p.id DESC
+LIMIT $2
+`
+
+type ListDashboardPlaygroupsForUserParams struct {
+	UserID         pgtype.UUID `json:"user_id"`
+	PlaygroupLimit int32       `json:"playgroup_limit"`
+}
+
+type ListDashboardPlaygroupsForUserRow struct {
+	PlaygroupID   pgtype.UUID `json:"playgroup_id"`
+	PlaygroupName string      `json:"playgroup_name"`
+	MemberCount   int32       `json:"member_count"`
+	GamesPlayed   int32       `json:"games_played"`
+}
+
+// The group cards, in the same order GET /playgroups uses (newest first), so
+// the dashboard shows the same first groups the playgroups screen does.
+// games_played counts the group's finished games, not the caller's -- that's
+// what the card says ("N games played" for the group).
+func (q *Queries) ListDashboardPlaygroupsForUser(ctx context.Context, arg ListDashboardPlaygroupsForUserParams) ([]ListDashboardPlaygroupsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listDashboardPlaygroupsForUser, arg.UserID, arg.PlaygroupLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDashboardPlaygroupsForUserRow
+	for rows.Next() {
+		var i ListDashboardPlaygroupsForUserRow
+		if err := rows.Scan(
+			&i.PlaygroupID,
+			&i.PlaygroupName,
+			&i.MemberCount,
+			&i.GamesPlayed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDeckStatisticsForUser = `-- name: ListDeckStatisticsForUser :many

@@ -25,6 +25,17 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/statistics/playgroups", h.ListPlaygroupGameCounts)
 	router.Get("/statistics/opponents", h.ListOpponentStats)
 	router.Get("/statistics/games", h.ListFinishedGames)
+	router.Get("/statistics/dashboard", h.GetDashboard)
+}
+
+// GetDashboard returns everything the web dashboard renders, in one request.
+func (h *Handler) GetDashboard(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.GetDashboard(c.Context(), userID)
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
 }
 
 // GetUserStats returns the authenticated user's statistics.

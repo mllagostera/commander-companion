@@ -142,13 +142,18 @@ func mustFinishGame(t *testing.T, svc games.Service, gameID, userID string) {
 	}
 }
 
+// lethalCombatDamage is the starting life total, so one hit takes a player from
+// full life to 0 and the server auto-eliminates them. Every caller wants
+// exactly that -- the amount was a parameter that never varied.
+const lethalCombatDamage = 40
+
 func mustRecordCombatDamage(
-	t *testing.T, svc gameactions.Service, gameID, callerID, actorID, targetID string, amount float64,
+	t *testing.T, svc gameactions.Service, gameID, callerID, actorID, targetID string,
 ) {
 	t.Helper()
 	_, err := svc.RecordAction(context.Background(), gameID, callerID, gameactions.CreateActionRequest{
 		ActorID: actorID, TargetID: targetID, ActionType: "CombatDamage",
-		Payload: map[string]interface{}{"amount": amount},
+		Payload: map[string]interface{}{"amount": float64(lethalCombatDamage)},
 	})
 	if err != nil {
 		t.Fatalf("RecordAction(CombatDamage) error = %v", err)
@@ -259,7 +264,7 @@ func TestRecalculateForGame_WinnerGetsCreditForWinAndDamage(t *testing.T) {
 	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
 
 	// player1 eliminates player2 with pure CombatDamage; player1 survives at full life.
-	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
+	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
 	winnerStats := mustGetUserStats(t, g.stats, g.user1.ID)
@@ -357,7 +362,7 @@ func setupListDeckStatsFixture(t *testing.T, pool *pgxpool.Pool) (*twoPlayerGame
 		t.Fatalf("creating unplayed deck: %v", err)
 	}
 
-	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
+	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 	return g, unplayedDeck
 }
@@ -425,7 +430,7 @@ func TestGetPlaygroupStats_AggregatesFinishedGames(t *testing.T) {
 	}
 
 	g := setupTwoPlayerGame(t, pool, founder.ID, playgroup.ID)
-	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID, 40)
+	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
 	res, err := g.stats.GetPlaygroupStats(ctx, playgroup.ID, founder.ID)
