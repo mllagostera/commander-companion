@@ -48,6 +48,22 @@ jobs:
             android_workflow:
               - '.github/workflows/android-ci.yml'
 
+  # Runs without Gradle, in seconds, and catches what a build can't: Android
+  # falls back to the default locale, so a string missing from values-en shows
+  # up in Spanish to an English user with nothing failing anywhere.
+  i18n:
+    name: string resources translated in every locale
+    needs: changes
+    if: needs.changes.outputs.android == 'true' || needs.changes.outputs.android_workflow == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check string resources
+        run: node .github/scripts/check-i18n-android.mjs
+
   lint-test-build:
     name: lint, unit tests and assembleDebug
     needs: changes

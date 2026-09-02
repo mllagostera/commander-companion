@@ -28,7 +28,7 @@ jobs:
   # branch protection without leaving PRs that don't touch backend/ blocked
   # (a required check that never fires leaves the PR hanging).
   changes:
-    name: Detectar cambios en backend/
+    name: Detect changes in backend/
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
@@ -91,7 +91,7 @@ jobs:
           args: --timeout=5m
 
   sqlc-diff:
-    name: sqlc generate (sin diffs pendientes)
+    name: sqlc generate (no pending diffs)
     needs: changes
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
@@ -102,7 +102,7 @@ jobs:
           sqlc-version: "1.27.0"
       - name: sqlc generate
         run: sqlc generate
-      - name: Verificar que el código generado está actualizado
+      - name: Verify the generated code is up to date
         run: |
           if ! git diff --quiet -- internal; then
             echo "El código generado por sqlc no coincide con los query.sql / migraciones."
@@ -112,7 +112,7 @@ jobs:
           fi
 
   build-test-migrate:
-    name: build, test y migraciones contra PostgreSQL
+    name: build, test and migrations against PostgreSQL
     needs: changes
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.backend_workflow == 'true'
     runs-on: ubuntu-latest
@@ -139,12 +139,12 @@ jobs:
           go-version-file: backend/go.mod
       - name: go build
         run: go build ./...
-      - name: Instalar goose
+      - name: Install goose
         # Pinned version (not @latest): v3.27.0 is the latest one compatible with the Go
         # version pinned by backend/go.mod (1.25.0). v3.27.3 requires go >=1.25.7 and breaks this
         # step with @latest.
         run: go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
-      - name: Aplicar migraciones
+      - name: Apply migrations
         run: goose -dir migrations postgres "$DB_URL" up
       - name: go test
         # -p 1: the integration tests (auth, decks) share a single Postgres
