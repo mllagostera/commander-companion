@@ -1,0 +1,26 @@
+# Line endings are decided here, not by each clone's core.autocrlf.
+#
+# Why this file exists: most of this repo's generated code is written by tools
+# running in Linux containers -- `sqlc generate`, golangci-lint, the pre-push
+# checks -- and they emit LF. A Windows checkout with core.autocrlf=true writes
+# CRLF instead, so every `sqlc generate` left ~29 files that `git status`
+# reported as modified while `git diff` showed nothing at all: the content was
+# identical once normalized, only the bytes on disk differed. That noise buried
+# real changes and had to be cleaned up by hand each time (it is also why
+# .githooks/pre-push strips CR before running gofmt).
+#
+# The index has always stored LF, so pinning eol=lf changes no blob -- it only
+# makes the working tree match what those tools already produce.
+
+* text=auto eol=lf
+
+# cmd.exe requires CRLF: a batch file with LF line endings fails in ways that
+# are hard to read. The Gradle wrapper ships one (android/gradlew.bat).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary: never normalized, never diffed as text. Git already detects these by
+# content; listing them makes the intent explicit and skips the sniffing.
+*.png binary
+*.ico binary
+*.jar binary
