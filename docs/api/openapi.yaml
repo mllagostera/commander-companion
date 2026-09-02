@@ -622,6 +622,150 @@ components:
           nullable: true
         won:
           type: boolean
+    DashboardResponse:
+      type: object
+      description: >-
+        Everything GET /statistics/dashboard returns. The list lengths are the
+        dashboard's layout, fixed server-side; the `total_*` fields are the real
+        collection sizes, which the screen prints while listing only the first few.
+      required:
+        [stats, total_decks, total_playgroups, best_deck, decks, playgroups, recent_games, streak, streak_won]
+      properties:
+        stats:
+          $ref: '#/components/schemas/UserStatsResponse'
+        total_decks:
+          type: integer
+          format: int32
+        total_playgroups:
+          type: integer
+          format: int32
+        best_deck:
+          allOf:
+            - $ref: '#/components/schemas/DashboardDeck'
+          nullable: true
+          description: Highest win rate among decks with at least one game played; null until something has been played.
+        decks:
+          type: array
+          description: The user's decks, most played first.
+          items:
+            $ref: '#/components/schemas/DashboardDeck'
+        playgroups:
+          type: array
+          description: The user's playgroups, newest first (same order as GET /playgroups).
+          items:
+            $ref: '#/components/schemas/DashboardPlaygroup'
+        recent_games:
+          type: array
+          description: The user's last finished games, most recent first.
+          items:
+            $ref: '#/components/schemas/DashboardGame'
+        streak:
+          type: integer
+          format: int32
+          description: How many finished games in a row ended the same way, counting back from the most recent.
+        streak_won:
+          type: boolean
+          nullable: true
+          description: >-
+            Which way the streak went. Null exactly when `streak` is 0 (no
+            finished games yet) — false means a losing streak, not "no data".
+    DashboardDeck:
+      type: object
+      description: A deck and its record, flattened — the dashboard always shows the two together.
+      required: [id, name, commander, games_played, games_won]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        commander:
+          type: string
+        image_url:
+          type: string
+          nullable: true
+        games_played:
+          type: integer
+          format: int32
+        games_won:
+          type: integer
+          format: int32
+    DashboardPlaygroup:
+      type: object
+      required: [id, name, member_count, games_played, members]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        member_count:
+          type: integer
+          format: int32
+          description: The group's full roster, even though `members` only carries enough for the avatar strip.
+        games_played:
+          type: integer
+          format: int32
+          description: The group's finished games, not only the caller's.
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardMember'
+    DashboardMember:
+      type: object
+      required: [user_id, username]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        username:
+          type: string
+    DashboardGame:
+      type: object
+      description: One finished game seen from the caller's seat.
+      required: [id, won, deck, opponents]
+      properties:
+        id:
+          type: string
+          format: uuid
+        playgroup_name:
+          type: string
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        won:
+          type: boolean
+          description: Whether the caller was the game's sole survivor.
+        deck:
+          allOf:
+            - $ref: '#/components/schemas/DashboardDeckRef'
+          nullable: true
+          description: The deck the caller played; null if it can no longer be resolved.
+        opponents:
+          type: array
+          description: The other seats' usernames.
+          items:
+            type: string
+    DashboardDeckRef:
+      type: object
+      required: [id, name, commander]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        commander:
+          type: string
+        image_url:
+          type: string
+          nullable: true
     Tournament:
       type: object
       properties:
@@ -2092,6 +2236,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FinishedGameListResponse'
+
+  /statistics/dashboard:
+    get:
+      summary: Get everything the dashboard renders, in one request
+      description: >-
+        A read model shaped after the dashboard screen rather than after the
+        domain: totals, the best deck by win rate, the most played decks, the
+        first playgroups with their avatar strips, the last finished games
+        resolved from the caller's own seat, and the current win/loss streak.
+
+
+        It exists to collapse a fan-out. Assembling the same screen from
+        `/statistics/user` + `/decks` + `/playgroups` + `/statistics/decks` +
+        one `/games` per playgroup cost 30 requests and 539 KB for a 400-game
+        account, of which the page displayed almost nothing. This endpoint runs
+        a fixed number of queries regardless of account size.
+
+
+        The list lengths are fixed server-side because they are the screen's
+        layout, not the caller's choice. Anything that needs the complete lists
+        still has `/decks`, `/playgroups` and `/statistics/games`.
+      responses:
+        '200':
+          description: The dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
 
   /sync/moxfield:
     post:

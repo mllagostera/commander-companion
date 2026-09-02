@@ -11,10 +11,40 @@ import (
 )
 
 type Querier interface {
+	CountDecksForUser(ctx context.Context, userID pgtype.UUID) (int64, error)
 	CountFinishedGamesForPlaygroup(ctx context.Context, playgroupID pgtype.UUID) (int64, error)
+	CountPlaygroupsForUser(ctx context.Context, userID pgtype.UUID) (int64, error)
+	// How many finished games in a row, counting back from the most recent, ended
+	// the same way for this user. Computed in SQL and returned as a single row: the
+	// naive version ships every game the user ever played to the client just to
+	// count a handful of them off the top.
+	//
+	// `won` uses the same sole-survivor rule as ListPlaygroupMemberGameStats and
+	// ListPlayersForGames, so the streak agrees with the win rate shown next to it.
+	GetCurrentStreakForUser(ctx context.Context, userID pgtype.UUID) (GetCurrentStreakForUserRow, error)
+	// The spotlight card: highest win rate among the user's decks that have
+	// actually been played. games_played > 0 both defines "has a win rate" and
+	// keeps the division safe. Ties break towards the deck with more games -- a
+	// single lucky win shouldn't outrank a long winning record.
+	GetDashboardBestDeckForUser(ctx context.Context, userID pgtype.UUID) (GetDashboardBestDeckForUserRow, error)
 	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetDeckStatistics(ctx context.Context, deckID pgtype.UUID) (DeckStatisticsSummary, error)
 	GetUserStatistics(ctx context.Context, userID pgtype.UUID) (UserStatisticsSummary, error)
+	// The decks the dashboard's "your decks" strip shows: most played first, capped
+	// at the handful that fit. Same decks LEFT JOIN summary shape as
+	// ListDeckStatisticsForUser (a deck never played has no summary row), but
+	// ordered and limited here instead of returning the whole collection for the
+	// client to sort and slice.
+	ListDashboardDecksForUser(ctx context.Context, arg ListDashboardDecksForUserParams) ([]ListDashboardDecksForUserRow, error)
+	// Members of the groups the dashboard is about to render, batched in one round
+	// trip (same game_id = ANY(...) shape as ListPlayersForGames below). Only feeds
+	// the avatar strip, so the service keeps the first few per group.
+	ListDashboardPlaygroupMembers(ctx context.Context, playgroupIds []pgtype.UUID) ([]ListDashboardPlaygroupMembersRow, error)
+	// The group cards, in the same order GET /playgroups uses (newest first), so
+	// the dashboard shows the same first groups the playgroups screen does.
+	// games_played counts the group's finished games, not the caller's -- that's
+	// what the card says ("N games played" for the group).
+	ListDashboardPlaygroupsForUser(ctx context.Context, arg ListDashboardPlaygroupsForUserParams) ([]ListDashboardPlaygroupsForUserRow, error)
 	// Every deck owned by the user, LEFT JOINed against its summary row (a deck
 	// never played has none) so a single query replaces the GetDeckStats N+1 the
 	// web dashboard used to do (one request per deck): see internal/decks for

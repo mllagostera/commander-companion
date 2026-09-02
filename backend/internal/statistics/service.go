@@ -23,6 +23,16 @@ const (
 	actionElimination     = "Elimination"
 )
 
+// How much of each list the dashboard actually renders. These live here rather
+// than as query params because they're the screen's layout, not the caller's
+// choice -- see DashboardResponse's doc for why the endpoint is shaped that way.
+const (
+	dashboardDeckLimit       = 4
+	dashboardPlaygroupLimit  = 3
+	dashboardRecentGameLimit = 4
+	dashboardAvatarLimit     = 4
+)
+
 var (
 	// ErrDeckNotFound indicates that the deck doesn't exist or doesn't belong to the authenticated user.
 	ErrDeckNotFound = common.NotFound("deck not found")
@@ -64,6 +74,10 @@ type Service interface {
 	// enriched with each seat's username/deck (unlike games.ListGames, which is
 	// intentionally lean).
 	ListFinishedGames(ctx context.Context, page common.PageRequest, userID string) (*FinishedGameListResponse, error)
+	// GetDashboard returns everything the web dashboard renders in one payload,
+	// in a fixed number of queries regardless of how many decks, groups or games
+	// the account has (see DashboardResponse).
+	GetDashboard(ctx context.Context, userID string) (*DashboardResponse, error)
 	// RecalculateForGame recalculates the aggregated user and deck statistics from
 	// the result and actions of an already-finished game.
 	RecalculateForGame(ctx context.Context, gameID string) error

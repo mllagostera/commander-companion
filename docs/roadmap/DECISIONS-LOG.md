@@ -25,6 +25,104 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-02 — Dashboard load: measured, and found to be a fan-out problem,
+not a latency one.** Started from a UX complaint about the login splash
+disappearing while the destination page was still loading (fixed first, see
+Stage 4b), which raised the follow-up question of whether the dashboard
+should render its shell first and load data afterwards. Rather than answer
+from intuition, the account was seeded at four sizes against the local
+docker-compose stack and measured.
+
+- **Fixture.** A benchmark user with deterministic ids (fixed UUID prefixes
+  per entity kind, so it can be re-seeded and wiped without touching real dev
+  rows): N playgroups of 4 seats each, N decks, N finished games per group,
+  with `user_statistics_summary`/`deck_statistics_summary` filled to agree
+  with the seeded games. Timings come from curl's own counters, medians of
+  7 runs, backend warm, everything on one machine (**RTT ≈ 0** — these are a
+  floor, not a production estimate; the Render free tier's ~50s cold start
+  (ADR-0015) is on top and wasn't measured).
+
+- **Results.** SSR TTFB (what the browser waits on with a blank tab, because
+  `pages/index.vue` awaits `useAsyncData` at the top level) and the total
+  games JSON the page pulls down:
+
+  | groups / decks / games | SSR TTFB | games JSON |
+  |---|---|---|
+  | 2 / 8 / 20 | 32.5 ms | 27 KB |
+  | 5 / 25 / 125 | 42.9 ms | 168 KB |
+  | 10 / 60 / 400 | 76.3 ms | 539 KB |
+  | 20 / 120 / 2000 | 179.2 ms | 2.7 MB |
+
+- **The time was never the problem; the fan-out is.** At a realistic heavy
+  account (10/60/400) the whole server side costs 76 ms warm. But to render
+  4 recent games, 3 group cards and 4 decks, the page downloads **539 KB** of
+  game JSON and throws away almost all of it. One render issues **30 HTTP
+  requests** to the backend (`/auth/me`, 6 sequential `/decks` pages,
+  `/statistics/user`, `/statistics/decks`, `/playgroups`, then one `/games`
+  per playgroup) — and since every client call goes through the Nitro proxy
+  (`useApi.ts`), from the browser each of those is two network hops.
+
+- **Two multipliers behind it, both confirmed by measurement, not reading.**
+  With `log_statement='all'`, a single dashboard render at 20/120/2000 issued
+  **2000** `SELECT ... FROM game_players WHERE game_id = $1` — the per-game
+  loop in `internal/games/service.go: ListGamesForPlaygroup`. And
+  `listAllDecks` follows `next_cursor` 20 at a time, so 120 decks is 6
+  strictly sequential round trips before the `/games` batch can even start:
+  7 levels deep, which is what multiplies by RTT in production. Measured
+  under concurrency the fan-out also contends on the pool — a `/games` call
+  timed alone at 32 ms took 55-60 ms when all 20 ran together.
+
+- **So the shell-first/skeleton idea was dropped as the first move.** It
+  addresses neither multiplier: warm there is nothing to disguise (76 ms),
+  and cold a skeleton still sits over 539 KB in flight. The fix is to stop
+  fetching data the screen doesn't show — a purpose-built dashboard read
+  endpoint — with the `/games` N+1 next, and the client-side render question
+  reopened only if it still reads slow afterwards. Skeletons stay on the
+  table, demoted.
+
+- **Also found, not yet fixed:** `onMounted(() => refresh())` in
+  `index.vue` re-runs the whole waterfall on hydration, so a hard load pays
+  for it twice (SSR + client). Read from the code; the measurement above
+  covers the SSR half only.
+
+- **`GET /statistics/dashboard`, built the same day.** A read model shaped
+  after the screen: totals, best deck by win rate, most played decks, first
+  playgroups with their avatar strips, last finished games resolved from the
+  caller's own seat, and the current streak. It lives in `internal/statistics`
+  because that module is already the cross-module read surface — it owns the
+  same "one query instead of a client-side loop" endpoints (`/statistics/
+  playgroups`, `/statistics/opponents`) and already joins decks, games,
+  playgroups and users.
+
+  - **10 queries and 4.4 KB, flat with account size**, against the same
+    400-game fixture that previously cost 30 requests and 539 KB. Confirmed by
+    the same `log_statement='all'` method: the call issues exactly the ten
+    named queries and nothing per-game or per-group.
+  - **The list caps live server-side** (4 decks, 3 groups, 4 games) because
+    they're the screen's layout, not the caller's choice — that's what makes
+    the cost constant. The full collections still have `/decks`,
+    `/playgroups` and `/statistics/games`.
+  - **The streak is computed in SQL** (`GetCurrentStreakForUser`, a window
+    function returning one row). The client's version counted consecutive
+    results off the top of an array it could only build by downloading every
+    game the user had ever played.
+  - **Recent games reuse `ListFinishedGamesPage` + `ListPlayersForGames`**
+    rather than new queries — the finished-games history already returns the
+    denormalized seat/deck/username data, batched, and already applies the
+    sole-survivor win rule.
+  - **One deliberate behaviour change for the client to absorb**: `won` is now
+    the backend's sole-survivor rule, the same one the statistics screen and
+    the win-rate summaries use. The dashboard used to compute it as "my seat
+    isn't eliminated", which disagrees whenever a game ended with two or more
+    players alive. The two numbers on the same screen now come from the same
+    definition.
+  - **Verified**: 7 integration tests against real Postgres (fresh account,
+    the caller's seat and the losing seat of the same game, caps vs totals,
+    streak counting back past a loss, best deck by rate rather than volume),
+    the full backend suite green under `-race`, `golangci-lint` clean for the
+    module's new files, Spectral 0 errors, and a live call against the seeded
+    account through the rebuilt container.
+
 **2026-09-02 — Deleting a tournament created by mistake (`DELETE
 /tournaments/{id}`).** The user asked whether there was any way to delete a
 tournament created by mistake. There wasn't: the module shipped with nine
