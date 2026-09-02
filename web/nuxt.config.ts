@@ -4,6 +4,22 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n'],
   css: ['~/assets/css/main.css'],
+  features: {
+    // Inlines the CSS into the SSR HTML instead of linking `/_nuxt/entry.*.css`.
+    // Nuxt's default only inlines styles defined inside .vue components, so the
+    // global bundle (Tailwind + assets/css/main.css, ~29 kB raw / ~6 kB brotli)
+    // stayed a render-blocking <link>: a whole extra round trip before the first
+    // paint, which on mobile is what Lighthouse flagged as ~150 ms. Inlining
+    // costs almost nothing in bytes (the document goes from ~2.3 kB to ~7.9 kB
+    // brotli, roughly what the separate stylesheet weighed) and removes the
+    // request. The trade-off is that the CSS is no longer cached on its own
+    // across full page loads — acceptable here because the document itself is
+    // never cached (`max-age=0, must-revalidate`) and navigation after
+    // hydration is client-side, so a session pays for it once.
+    // No CSP impact: style-src already needs 'unsafe-inline' for the
+    // attribute-level `:style` bindings (see server/utils/security-headers.ts).
+    inlineStyles: true,
+  },
   app: {
     head: {
       title: 'Commander Companion',
