@@ -230,6 +230,79 @@ export interface FinishedGame {
 }
 
 /**
+ * `GET /statistics/dashboard`: the whole dashboard screen in one payload.
+ *
+ * It's a read model shaped after that page, not a slice of the domain — the
+ * list lengths are the layout, fixed server-side, which is what keeps the cost
+ * flat as an account grows. Anything needing the complete collections uses
+ * `/decks`, `/playgroups` or `/statistics/games` instead.
+ */
+export interface Dashboard {
+  stats: UserStats
+  /** The real collection sizes, which the summary line prints while only a few are listed. */
+  total_decks: number
+  total_playgroups: number
+  /** Highest win rate among played decks; null until something has been played. */
+  best_deck: DashboardDeck | null
+  /** Most played first. */
+  decks: DashboardDeck[]
+  /** Newest first, same order as `GET /playgroups`. */
+  playgroups: DashboardPlaygroup[]
+  /** Most recent first. */
+  recent_games: DashboardGame[]
+  /** Finished games in a row ending the same way, counting back from the most recent. */
+  streak: number
+  /** Null exactly when `streak` is 0 — `false` means a losing streak, not "no data". */
+  streak_won: boolean | null
+}
+
+/** A deck and its record, flattened: the dashboard always shows the two together. */
+export interface DashboardDeck {
+  id: string
+  name: string
+  commander: string
+  image_url: string | null
+  games_played: number
+  games_won: number
+}
+
+export interface DashboardPlaygroup {
+  id: string
+  name: string
+  /** The full roster, even though `members` only carries enough for the avatar strip. */
+  member_count: number
+  /** The group's finished games, not only the caller's. */
+  games_played: number
+  members: DashboardMember[]
+}
+
+export interface DashboardMember {
+  user_id: string
+  username: string
+}
+
+/** One finished game seen from the caller's own seat. */
+export interface DashboardGame {
+  id: string
+  playgroup_name: string | null
+  started_at: string | null
+  finished_at: string | null
+  /** Whether the caller was the game's sole survivor. */
+  won: boolean
+  /** Null if the deck they played can no longer be resolved. */
+  deck: DashboardDeckRef | null
+  /** The other seats' usernames. */
+  opponents: string[]
+}
+
+export interface DashboardDeckRef {
+  id: string
+  name: string
+  commander: string
+  image_url: string | null
+}
+
+/**
  * Standalone Swiss-format Commander tournament (`GET/POST /tournaments`,
  * `GET /tournaments/{id}`). Not tied to a playgroup — any authenticated user
  * can create one. `join_code` is what participants use to self-register

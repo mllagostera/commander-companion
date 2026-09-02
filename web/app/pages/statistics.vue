@@ -366,7 +366,7 @@ function formatDuration(game: FinishedGame): string {
                       :style="player.won ? 'background: rgba(52,211,153,0.10); box-shadow: 0 0 0 1.5px var(--win) inset;' : ''"
                     >
                       <DeckArt
-                        :deck="{ id: player.deck_id, user_id: '', name: player.deck_name, commander: player.deck_commander, moxfield_id: null, image_url: player.deck_image_url }"
+                        :deck="{ commander: player.deck_commander, image_url: player.deck_image_url }"
                         class="h-12 w-12 sm:h-14 sm:w-14"
                         rounded="rounded-[var(--radius-sm)]"
                       />

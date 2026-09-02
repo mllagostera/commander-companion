@@ -123,6 +123,36 @@ docker-compose stack and measured.
     module's new files, Spectral 0 errors, and a live call against the seeded
     account through the rebuilt container.
 
+- **The client half, same day.** `pages/index.vue` lost its entire assembly
+  step — the per-group `/games` fan-out, the `listAllDecks` cursor chain, the
+  opponent-name lookup built from playgroup members, the local sort/slice, and
+  the streak loop — and now awaits one `useAsyncData` over the new endpoint.
+  Measured on the same 400-game account: **30 backend requests → 1**, SSR TTFB
+  **76 → 38 ms**, and the hydration payload **25.7 KB → 5.1 KB** (it used to
+  serialize all 60 decks and 10 groups into the HTML so the client could redo
+  the same slicing after hydration).
+
+  - **A measurement trap worth recording**: the raw document went from 48.7 KB
+    to 76.3 KB across this change, which looks like a regression and isn't.
+    The container image serving the "before" number predated commit `5400083`
+    ("Inline the global CSS to unblock the first paint"), so it still linked
+    `/_nuxt/entry.*.css` as a render-blocking `<link>`; the rebuild inlines
+    that ~49 KB of CSS by design. The part attributable to this change is the
+    payload, which shrank. Rebuild both sides before comparing bytes.
+  - **`onMounted(() => refresh())` now skips hydration** (`nuxtApp.isHydrating`).
+    It exists so a stale summary refreshes when returning to the page in the
+    same session (e.g. after finishing a game on Android); on the initial load
+    it re-ran a fetch whose result the page had just rendered. Cheap now that
+    it's one request, but still exactly double.
+  - **`DeckArt`'s prop narrowed** to `Pick<Deck, 'commander' | 'image_url'>`,
+    the only two fields it reads. It had demanded a full `Deck`, which is why
+    `statistics.vue` was constructing a literal with a dummy `user_id: ''` and
+    `moxfield_id: null` to satisfy it; that literal is gone too.
+  - **Still unresolved by this pass:** `playgroups/[id].vue` legitimately reads
+    one group's full history through `GET /games?playgroup_id=`, so the N+1 in
+    `ListGamesForPlaygroup` still costs one query per game there — see the open
+    Stage 1 task.
+
 **2026-09-02 — Deleting a tournament created by mistake (`DELETE
 /tournaments/{id}`).** The user asked whether there was any way to delete a
 tournament created by mistake. There wasn't: the module shipped with nine

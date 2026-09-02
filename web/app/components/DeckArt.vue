@@ -3,7 +3,13 @@ import type { Deck } from '~/types/api'
 
 const props = withDefaults(
   defineProps<{
-    deck: Deck
+    /**
+     * Only the two fields the art actually needs, so any deck-shaped payload
+     * fits -- a full `Deck`, or the trimmed deck the dashboard's read model
+     * carries (`DashboardDeck`/`DashboardDeckRef`), which has no `user_id` or
+     * `moxfield_id` because that screen never uses them.
+     */
+    deck: Pick<Deck, 'commander' | 'image_url'>
     aspectRatio?: string
     rounded?: string
     imagePosition?: 'center' | 'right'
