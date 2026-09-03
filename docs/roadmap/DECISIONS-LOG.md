@@ -25,6 +25,48 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-03 — Android life tracker rebuilt against the Claude Design
+handoff.** The design bundle exported from Claude Design (`Android
+Tracker.dc.html`, plus seven chat transcripts recording how it got there) was
+implemented into `GameTrackerScreen.kt`. Presentation only: no ViewModel, state
+or navigation change.
+
+- **Life is now the seat itself, not two small buttons.** Tapping the left half
+  of a quadrant subtracts, the right half adds; the oversized ± at the edges are
+  decoration over those zones. Each half flashes white on press, which is the
+  only feedback the player gets that the right half registered. Read-only seats
+  (joined mode, `GameState.localSeatId`) get no tap zones at all, as before.
+- **Commander damage is always on screen**, as a mini grid laid out with the
+  same top/bottom split as the seat grid (`seatRows`, now shared by both), so an
+  opponent's cell sits where that opponent is actually sitting. The seat's own
+  cell carries a person mark instead of a number. Tapping the block opens the
+  same layout at editing size; tapping anywhere outside the controls closes it —
+  without that there is no way back to the board on a phone.
+- **Elimination** fades the seat to near-black behind a skull and a red rim that
+  pulses only at the edges, fading out towards the centre so the text stays
+  readable.
+- **The design's white-on-violet seat text was not copied literally.** The
+  design draws seats in the brand's violet ramp; the shipped seat palette is the
+  lighter mana one (`PlayerColorPalette`), where white text is illegible. Text,
+  ornament and cell colors are therefore derived from each seat's luminance
+  (`inkFor`). Swapping the palette itself for the design's violets would change
+  the meaning of the persisted `colorKey` vocabulary ("white" mana rendered as
+  violet) and every screen that shows a swatch, so it was left for a separate,
+  deliberate call. This also keeps the door open on the AAA-contrast item
+  already open for the web tracker (Stage 3), which is the same problem: fixed
+  text color over arbitrary per-player colors.
+- **Two new strings** (`tracker_life_decrease`/`tracker_life_increase`) in all
+  three locales, used as `onClickLabel` on the tap zones — the ± buttons they
+  replace carried their own accessible names, and half a seat with no label
+  would have lost that.
+- **Not verified by a build.** The session that wrote this ran in an
+  environment whose network policy blocks `dl.google.com`, so Gradle could not
+  resolve the Android Gradle Plugin and neither `assembleDebug` nor
+  `lintDebug`/`testDebugUnitTest` could run; the code was reviewed statically
+  only. `.github/scripts/check-architecture.sh` passes (it needs no network).
+  The TASKS.md item stays unchecked until someone runs the Android gate and
+  plays a game on a device.
+
 **2026-09-02 — The `/games?playgroup_id=` N+1, the last multiplier from the
 dashboard measurement.** `ListGamesForPlaygroup` fetched a group's games in one
 query and then ran `ListGamePlayers` once per game. The listing is deliberately

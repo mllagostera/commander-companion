@@ -2,6 +2,7 @@ package com.commandercompanion.presentation.screens.game
 
 import android.content.res.Configuration
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -10,25 +11,33 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -61,6 +70,16 @@ private const val RANDOMIZE_STEPS = 10
 /** How long one full lap of the orbiting turn label takes around the pause button. */
 private const val ORBIT_SPIN_DURATION_MS = 9000
 private val ORBIT_RADIUS = 62.dp
+
+/** One pulse of the red rim that flashes over an eliminated seat. */
+private const val ELIMINATION_FLASH_PERIOD_MS = 1600
+
+private val QuadrantShape = RoundedCornerShape(22.dp)
+
+/** Overlay scrims, taken from the design: expanded panel and starter banner, pause, and summary. */
+private val OverlayScrim = Color(0xD9050308)
+private val PauseScrim = Color(0xEB050308)
+private val SummaryScrim = Color(0xF7050308)
 
 @Composable
 fun GameTrackerScreen(
@@ -153,6 +172,16 @@ fun GameTrackerScreen(
     }
 }
 
+/**
+ * Splits the table the way it is seated: the first half sits "at the top" (rotated 180°), the rest
+ * below. Both the seat grid and each seat's commander-damage grid use this, so a seat occupies the
+ * same relative position in either — which is what makes the damage grid readable at a glance.
+ */
+private fun seatRows(players: List<PlayerState>): Pair<List<PlayerState>, List<PlayerState>> {
+    val topCount = (players.size + 1) / 2
+    return players.take(topCount) to players.drop(topCount)
+}
+
 /** Seat grid: first half "at the top of the table" (rotated 180°), the rest below. Works for 2-6. */
 @Composable
 private fun QuadrantGrid(
@@ -168,7 +197,7 @@ private fun QuadrantGrid(
     randomizingStarter: Boolean,
     randomHighlightId: Int?
 ) {
-    val topCount = (players.size + 1) / 2
+    val (topSeats, bottomSeats) = seatRows(players)
     // While the starter draw is spinning, its highlight takes over the ring from whoever's turn it
     // actually is; once it lands, the ring reverts to reflecting the real turn owner.
     fun ringFor(playerId: Int): SeatRing? = when {
@@ -176,48 +205,35 @@ private fun QuadrantGrid(
         !randomizingStarter && activeTurnPlayerId == playerId -> SeatRing.ActiveTurn
         else -> null
     }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            players.take(topCount).forEach { player ->
-                // Null localSeatId = pass-and-play (host mode): every seat on this one device is
-                // editable, as it's always been. Non-null = joined mode: only the local seat is.
-                val editable = localSeatId == null || player.id == localSeatId
-                PlayerQuadrant(
-                    player = player,
-                    opponents = players.filter { it.id != player.id },
-                    editable = editable,
-                    expanded = expandedPlayerId == player.id,
-                    onToggleExpand = { onToggleExpand(player.id) },
-                    onLifeChange = { delta -> onLifeChange(player.id, delta) },
-                    onCommanderDamageChange = { attackerId, delta -> onCommanderDamageChange(player.id, attackerId, delta) },
-                    onPoisonChange = { delta -> onPoisonChange(player.id, delta) },
-                    onPassTurn = onPassTurn,
-                    ring = ringFor(player.id),
-                    rotated = true,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-            }
-        }
-        Row(modifier = Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            players.drop(topCount).forEach { player ->
-                val editable = localSeatId == null || player.id == localSeatId
-                PlayerQuadrant(
-                    player = player,
-                    opponents = players.filter { it.id != player.id },
-                    editable = editable,
-                    expanded = expandedPlayerId == player.id,
-                    onToggleExpand = { onToggleExpand(player.id) },
-                    onLifeChange = { delta -> onLifeChange(player.id, delta) },
-                    onCommanderDamageChange = { attackerId, delta -> onCommanderDamageChange(player.id, attackerId, delta) },
-                    onPoisonChange = { delta -> onPoisonChange(player.id, delta) },
-                    onPassTurn = onPassTurn,
-                    ring = ringFor(player.id),
-                    rotated = false,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
+        listOf(topSeats to true, bottomSeats to false).forEach { (seats, rotated) ->
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                seats.forEach { player ->
+                    // Null localSeatId = pass-and-play (host mode): every seat on this one device is
+                    // editable, as it's always been. Non-null = joined mode: only the local seat is.
+                    val editable = localSeatId == null || player.id == localSeatId
+                    PlayerQuadrant(
+                        player = player,
+                        table = players,
+                        editable = editable,
+                        expanded = expandedPlayerId == player.id,
+                        onToggleExpand = { onToggleExpand(player.id) },
+                        onLifeChange = { delta -> onLifeChange(player.id, delta) },
+                        onCommanderDamageChange = { attackerId, delta -> onCommanderDamageChange(player.id, attackerId, delta) },
+                        onPoisonChange = { delta -> onPoisonChange(player.id, delta) },
+                        onPassTurn = onPassTurn,
+                        ring = ringFor(player.id),
+                        rotated = rotated,
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    )
+                }
             }
         }
     }
@@ -226,10 +242,43 @@ private fun QuadrantGrid(
 /** Which ring, if any, wraps a seat's quadrant this frame — see [QuadrantGrid]'s `ringFor`. */
 private enum class SeatRing { Randomizing, ActiveTurn }
 
+/**
+ * Text and ornament colors for one seat.
+ *
+ * The design paints white text over its violet seats, but the shipped seat palette is the lighter
+ * mana one ([com.commandercompanion.presentation.theme.PlayerColorPalette]), where white is
+ * illegible — so the pair is derived from the seat's own luminance instead of hard-coded.
+ */
+private data class SeatInk(
+    val primary: Color,
+    val secondary: Color,
+    val cell: Color,
+    val onLightSeat: Boolean
+)
+
+private fun inkFor(seat: Color): SeatInk = if (seat.luminance() > 0.35f) {
+    SeatInk(
+        primary = Color.Black.copy(alpha = 0.85f),
+        secondary = Color.Black.copy(alpha = 0.6f),
+        cell = Color.Black.copy(alpha = 0.16f),
+        onLightSeat = true
+    )
+} else {
+    SeatInk(
+        primary = Color.White,
+        secondary = Color.White.copy(alpha = 0.72f),
+        cell = Color.White.copy(alpha = 0.22f),
+        onLightSeat = false
+    )
+}
+
+/** Drop shadow that keeps the life total readable over a dark seat, as in the design. */
+private val SeatTextShadow = Shadow(color = Color(0x800A0714), offset = Offset(0f, 2f), blurRadius = 6f)
+
 @Composable
 private fun PlayerQuadrant(
     player: PlayerState,
-    opponents: List<PlayerState>,
+    table: List<PlayerState>,
     editable: Boolean,
     expanded: Boolean,
     onToggleExpand: () -> Unit,
@@ -243,6 +292,7 @@ private fun PlayerQuadrant(
 ) {
     val eliminated = player.isEliminated()
     val deathAlpha by animateFloatAsState(targetValue = if (eliminated) 1f else 0f, animationSpec = tween(900), label = "death")
+    val ink = inkFor(player.color)
     val ringColor = when (ring) {
         SeatRing.Randomizing -> AppOnBackground
         SeatRing.ActiveTurn -> AccentSoft
@@ -252,10 +302,17 @@ private fun PlayerQuadrant(
     Box(
         modifier = modifier
             .then(if (rotated) Modifier.rotate(180f) else Modifier)
-            .clip(RoundedCornerShape(22.dp))
+            // The active seat's ring glows; the starter-draw one is a plain white outline.
+            .then(
+                if (ring == SeatRing.ActiveTurn) {
+                    Modifier.shadow(14.dp, QuadrantShape, ambientColor = AccentSoft, spotColor = AccentSoft)
+                } else {
+                    Modifier
+                }
+            )
+            .clip(QuadrantShape)
             .background(player.color)
-            .then(if (ringColor != null) Modifier.border(4.dp, ringColor, RoundedCornerShape(22.dp)) else Modifier)
-            .clickable(onClick = onToggleExpand)
+            .then(if (ringColor != null) Modifier.border(4.dp, ringColor, QuadrantShape) else Modifier)
     ) {
         Box(
             modifier = Modifier
@@ -263,59 +320,80 @@ private fun PlayerQuadrant(
                 .background(Brush.verticalGradient(listOf(Color(0x0D0A0714), Color(0x730A0714))))
         )
 
+        // Life is adjusted by tapping either half of the seat — the whole quadrant is the control,
+        // the ± glyphs below are only decoration. Read-only seats (joined mode) get no tap zones.
+        if (editable) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                LifeTapZone(
+                    onClick = { onLifeChange(-1) },
+                    label = stringResource(R.string.tracker_life_decrease),
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                LifeTapZone(
+                    onClick = { onLifeChange(1) },
+                    label = stringResource(R.string.tracker_life_increase),
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+            }
+            LifeStepGlyph("−", Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
+            LifeStepGlyph("+", Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))
+        }
+
+        // Not clickable itself, so taps that miss its buttons fall through to the tap zones above.
         Column(
-            modifier = Modifier.fillMaxSize().padding(10.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(player.name, color = Color.Black.copy(alpha = 0.75f), fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                Text(
+                    player.name,
+                    color = ink.primary.copy(alpha = 0.9f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp,
+                    style = LocalTextStyle.current.copy(
+                        shadow = SeatTextShadow.takeIf { !ink.onLightSeat }
+                    )
+                )
                 if (player.mulligans > 0) {
                     Text(
                         stringResource(R.string.tracker_mulligans_suffix, player.mulligans),
-                        color = Color.Black.copy(alpha = 0.55f),
+                        color = ink.secondary,
                         fontSize = 9.sp
                     )
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                if (editable) LifeStepButton("−", onClick = { onLifeChange(-1) })
-                Text(player.life.toString(), color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 38.sp)
-                if (editable) LifeStepButton("+", onClick = { onLifeChange(1) })
-            }
+            Text(
+                player.life.toString(),
+                color = ink.primary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 38.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(min = 56.dp),
+                style = LocalTextStyle.current.copy(
+                    shadow = SeatTextShadow.takeIf { !ink.onLightSeat }
+                )
+            )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.heightIn(min = 14.dp)
-            ) {
-                if (player.poison > 0) {
-                    Text("☠ ${player.poison}", color = StatusPoison.copy(alpha = 0.9f), fontSize = 10.sp)
-                }
-                opponents.forEach { opponent ->
-                    val damage = player.commanderDamage[opponent.id] ?: 0
-                    if (damage > 0) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(7.dp).clip(CircleShape).background(opponent.color))
-                            Spacer(Modifier.width(3.dp))
-                            Text(damage.toString(), color = Color.Black.copy(alpha = 0.65f), fontSize = 10.sp)
-                        }
-                    }
-                }
-            }
+            CommanderDamageMiniGrid(
+                player = player,
+                table = table,
+                ink = ink,
+                onClick = onToggleExpand
+            )
 
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(percent = 50))
-                    .border(1.dp, Color.Black.copy(alpha = 0.3f), RoundedCornerShape(percent = 50))
-                    .background(Color.White.copy(alpha = 0.2f))
+                    .clip(CircleShape)
+                    .border(1.dp, ink.primary.copy(alpha = 0.35f), CircleShape)
+                    .background(Color.Black.copy(alpha = 0.25f))
                     .clickable { onPassTurn() }
                     .padding(horizontal = 14.dp, vertical = 5.dp)
             ) {
                 Text(
                     stringResource(R.string.tracker_pass_turn),
-                    color = Color.Black.copy(alpha = 0.75f),
+                    color = if (ink.onLightSeat) ink.primary else Color.White,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 10.sp
                 )
@@ -324,86 +402,180 @@ private fun PlayerQuadrant(
 
         if (expanded) {
             CommanderDamagePanel(
-                opponents = opponents,
-                commanderDamage = player.commanderDamage,
-                poison = player.poison,
+                player = player,
+                table = table,
                 editable = editable,
                 onCommanderDamageChange = onCommanderDamageChange,
                 onPoisonChange = onPoisonChange,
-                modifier = Modifier.fillMaxSize().clickable(onClick = onToggleExpand)
+                onDismiss = onToggleExpand,
+                modifier = Modifier.fillMaxSize()
             )
         }
 
         if (deathAlpha > 0f) {
+            EliminationOverlay(alpha = deathAlpha, modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+/** Half of a seat: tapping it steps life, and flashes so the player sees which half registered. */
+@Composable
+private fun LifeTapZone(onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val flash by animateFloatAsState(
+        targetValue = if (pressed) 0.16f else 0f,
+        animationSpec = tween(durationMillis = if (pressed) 0 else 260),
+        label = "life-tap-flash"
+    )
+    Box(
+        modifier = modifier
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClickLabel = label,
+                onClick = onClick
+            )
+            .background(Color.White.copy(alpha = flash))
+    )
+}
+
+/** The oversized ± at each edge of a seat: decoration for the tap zones, not a button. */
+@Composable
+private fun LifeStepGlyph(symbol: String, modifier: Modifier = Modifier) {
+    Text(
+        text = symbol,
+        color = Color.Black.copy(alpha = 0.38f),
+        fontWeight = FontWeight.Light,
+        fontSize = 42.sp,
+        modifier = modifier
+    )
+}
+
+/**
+ * Always-visible summary of the commander damage this seat has taken, laid out like the table
+ * itself (see [seatRows]) so each opponent sits where they are actually sitting. The seat's own
+ * cell shows a person mark instead of a number, and poison hangs underneath when there is any.
+ * Tapping the block opens [CommanderDamagePanel].
+ */
+@Composable
+private fun CommanderDamageMiniGrid(
+    player: PlayerState,
+    table: List<PlayerState>,
+    ink: SeatInk,
+    onClick: () -> Unit
+) {
+    val (topSeats, bottomSeats) = seatRows(table)
+
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.Black.copy(alpha = 0.22f))
+            .clickable(onClick = onClick)
+            .padding(5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        MiniDamageRow(seats = topSeats, player = player, ink = ink)
+        MiniDamageRow(seats = bottomSeats, player = player, ink = ink)
+        if (player.poison > 0) {
+            Text("☠ ${player.poison}", color = StatusPoison, fontSize = 9.sp)
+        }
+    }
+}
+
+/** One row of the mini grid: the seat's own cell carries a person mark, the rest their damage. */
+@Composable
+private fun MiniDamageRow(seats: List<PlayerState>, player: PlayerState, ink: SeatInk) {
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        seats.forEach { seat ->
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.9f * deathAlpha)),
+                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).background(ink.cell),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    stringResource(R.string.tracker_dead),
-                    color = Color.White.copy(alpha = deathAlpha),
-                    fontWeight = FontWeight.Light,
-                    fontSize = 19.sp,
-                    letterSpacing = 2.sp
-                )
+                if (seat.id == player.id) {
+                    SelfMark(color = ink.primary.copy(alpha = 0.85f), scale = 0.6f)
+                } else {
+                    Text(
+                        (player.commanderDamage[seat.id] ?: 0).toString(),
+                        color = ink.primary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
             }
         }
     }
 }
 
+/** Head-and-shoulders mark that stands in for "this is you" in the commander-damage grids. */
 @Composable
-private fun LifeStepButton(label: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.12f))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+private fun SelfMark(color: Color, scale: Float) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(11.dp * scale).clip(CircleShape).background(color))
+        Box(
+            Modifier
+                .padding(top = 1.dp * scale)
+                .size(width = 18.dp * scale, height = 9.dp * scale)
+                .clip(RoundedCornerShape(topStart = 9.dp, topEnd = 9.dp))
+                .background(color)
+        )
     }
 }
 
+/**
+ * Expanded editor over a seat: one cell per opponent, in the table's own layout, plus the poison
+ * row. Tapping anywhere outside the controls closes it — without that there is no way back to the
+ * board on a phone.
+ */
 @Composable
 private fun CommanderDamagePanel(
-    opponents: List<PlayerState>,
-    commanderDamage: Map<Int, Int>,
-    poison: Int,
+    player: PlayerState,
+    table: List<PlayerState>,
     editable: Boolean,
     onCommanderDamageChange: (attackerId: Int, delta: Int) -> Unit,
     onPoisonChange: (Int) -> Unit,
+    onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val (topSeats, bottomSeats) = seatRows(table)
+
     Box(
-        modifier = modifier.background(Color(0xF7050308)),
+        modifier = modifier
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
+            .background(OverlayScrim),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(stringResource(R.string.tracker_commander_damage), color = AccentSoft, fontSize = 9.sp, letterSpacing = 0.5.sp)
-            opponents.forEach { opponent ->
-                val amount = commanderDamage[opponent.id] ?: 0
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(Modifier.size(10.dp).clip(CircleShape).background(opponent.color))
-                    if (editable) MiniStepButton("−") { onCommanderDamageChange(opponent.id, -1) }
-                    Text(
-                        amount.toString(),
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.width(16.dp)
-                    )
-                    if (editable) MiniStepButton("+") { onCommanderDamageChange(opponent.id, 1) }
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                stringResource(R.string.tracker_commander_damage),
+                color = AccentSoft,
+                fontSize = 9.sp,
+                letterSpacing = 0.5.sp
+            )
+            DamageEditorRow(
+                seats = topSeats,
+                player = player,
+                editable = editable,
+                onCommanderDamageChange = onCommanderDamageChange
+            )
+            DamageEditorRow(
+                seats = bottomSeats,
+                player = player,
+                editable = editable,
+                onCommanderDamageChange = onCommanderDamageChange
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+            ) {
                 Text(stringResource(R.string.tracker_poison), color = StatusPoison, fontSize = 9.sp)
                 if (editable) MiniStepButton("−") { onPoisonChange(-1) }
                 Text(
-                    poison.toString(),
+                    player.poison.toString(),
                     color = Color.White,
                     fontSize = 11.sp,
                     textAlign = TextAlign.Center,
@@ -415,17 +587,104 @@ private fun CommanderDamagePanel(
     }
 }
 
+/** One row of the expanded editor: a coloured cell per seat, with ± for every opponent. */
+@Composable
+private fun DamageEditorRow(
+    seats: List<PlayerState>,
+    player: PlayerState,
+    editable: Boolean,
+    onCommanderDamageChange: (attackerId: Int, delta: Int) -> Unit
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        // Swallows taps between cells so a miss does not dismiss the panel mid-edit.
+        modifier = Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null
+        ) {}
+    ) {
+        seats.forEach { seat ->
+            Box(
+                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(seat.color),
+                contentAlignment = Alignment.Center
+            ) {
+                if (seat.id == player.id) {
+                    SelfMark(color = Color.Black.copy(alpha = 0.5f), scale = 1f)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (editable) MiniStepButton("−") { onCommanderDamageChange(seat.id, -1) }
+                        Text(
+                            (player.commanderDamage[seat.id] ?: 0).toString(),
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        if (editable) MiniStepButton("+") { onCommanderDamageChange(seat.id, 1) }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MiniStepButton(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(18.dp)
+            .size(16.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.12f))
+            .background(Color.Black.copy(alpha = 0.2f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = Color.White, fontSize = 10.sp)
+        Text(label, color = Color.Black, fontSize = 10.sp)
+    }
+}
+
+/** Fades a dead seat to black with a skull and a red rim that keeps pulsing while it is out. */
+@Composable
+private fun EliminationOverlay(alpha: Float, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "elimination")
+    val flash by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(ELIMINATION_FLASH_PERIOD_MS / 2, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "elimination-flash"
+    )
+
+    Box(modifier = modifier.background(Color(0xFF0A0000).copy(alpha = 0.72f * alpha))) {
+        // Red only at the edges, fading out towards the middle, so the skull stays readable.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        0.38f to Color.Transparent,
+                        1f to Color(0xFFDC1414).copy(alpha = 0.55f * flash * alpha)
+                    )
+                )
+        )
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("💀", fontSize = 34.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.tracker_dead),
+                color = AppOnBackground.copy(alpha = alpha),
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 15.sp,
+                letterSpacing = 1.5.sp,
+                style = LocalTextStyle.current.copy(
+                    shadow = Shadow(color = Color.Black, offset = Offset(1f, 1f), blurRadius = 0f)
+                )
+            )
+        }
     }
 }
 
@@ -481,7 +740,7 @@ private fun PauseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 
 @Composable
 private fun StarterBanner(name: String, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.background(Color(0xF7050308)), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.background(OverlayScrim), contentAlignment = Alignment.Center) {
         Text(
             text = stringResource(R.string.tracker_starter_banner, name),
             color = AppOnBackground,
@@ -525,7 +784,7 @@ private fun PauseOverlay(
     onEnd: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.background(Color(0xF7050308)), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.background(PauseScrim), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(stringResource(R.string.tracker_paused), color = AppOnBackground, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Text(stringResource(R.string.tracker_paused_subtitle), color = AppFaint, fontSize = 12.sp)
@@ -563,7 +822,7 @@ private fun GameSummary(state: GameState, onBack: () -> Unit) {
         stringResource(R.string.summary_column_status)
     )
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 18.dp),
+        modifier = Modifier.fillMaxSize().background(SummaryScrim).padding(horizontal = 26.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(

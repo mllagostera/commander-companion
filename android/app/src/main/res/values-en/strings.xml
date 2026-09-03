@@ -85,6 +85,8 @@
     <!-- Tracker de partida -->
     <string name="tracker_rotate_prompt">Rotate your device\nto start the game</string>
     <string name="tracker_mulligans_suffix">%1$d mulligan(s)</string>
+    <string name="tracker_life_decrease">Decrease life</string>
+    <string name="tracker_life_increase">Increase life</string>
     <string name="tracker_pass_turn">Pass turn</string>
     <string name="tracker_turn_label">Turn %1$d</string>
     <string name="tracker_dead">DEAD</string>
