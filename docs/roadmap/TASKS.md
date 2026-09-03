@@ -161,7 +161,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Full visual redesign (violet/dark palette, `AppComponents.kt`, landscape seat grid, pause overlay, game summary) + real poison counter + registration flow (`RegisterScreen`)
 - [x] Internationalization: literals extracted to `strings.xml`, copy moved from Argentine "voseo" to Spain's "tuteo"; `values-en`/`values-ca` added; manual language switcher in Settings (`AppCompatDelegate.setApplicationLocales`)
 - [x] Account Settings screen (username, Moxfield username, password change — gated on `has_password`)
-- [ ] Improve the Android life tracker — no detailed scope yet (new life-change mechanic, elimination animation, commander-damage flow polish)
+- [ ] Improve the Android life tracker — built 2026-09-03 from the Claude Design handoff (`Android Tracker.dc.html`): half-seat tap zones for life with a press flash and decorative ±, always-visible commander-damage mini grid laid out like the table (own seat marked with a person mark), expanded editor in that same layout with tap-outside-to-close, skull + pulsing red-rim elimination overlay, glowing turn ring. **Not yet verified on a device or emulator** — the build could not run where it was written (see [DECISIONS-LOG.md](DECISIONS-LOG.md)), so `./gradlew lintDebug testDebugUnitTest assembleDebug` and a real playthrough are still pending before this can be checked off
 - [ ] Improve `PreGameScreen` — no detailed scope yet (single "Play" button instead of draw+start, deck thumbnails in the picker)
 
 ## Stage 5: Android ↔ Backend Integration
