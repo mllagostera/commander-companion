@@ -148,6 +148,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 
 - [x] Project initialized: Compose, Material 3, Navigation, Hilt, Room, Retrofit, kotlinx.serialization
 - [x] Base theming + navigation with routes
+- [ ] **Pin the navigation bar to the app's own background** — the theme declared `statusBarColor` but never `navigationBarColor`, and `CommanderCompanionTheme` set `isAppearanceLightStatusBars` but never `isAppearanceLightNavigationBars`, so the bottom bar of a forced-dark app followed the *system* light/dark setting instead (`values/themes.xml`, `presentation/theme/Theme.kt`). **Not yet confirmed on the device that reported it** — no Android SDK where this was written, and the report is from HyperOS with gesture navigation, where the system may bypass `navigationBarColor` entirely; if it persists, the real fix is going edge-to-edge (see [DECISIONS-LOG.md](DECISIONS-LOG.md))
 - [x] Complete local life tracker (Room-persisted): setup, tracker, commander damage, history — 100% local, no backend
 - [x] Pre-game screen: turn draw randomizer + per-player mulligan counter
 - [x] Navigation flow defined (`LoginRoute → DashboardRoute → ... `), later connected to the real backend

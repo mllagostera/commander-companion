@@ -25,6 +25,41 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-03 — The navigation bar never had a color of its own.** Reported from
+a HyperOS device: a light bar at the bottom of an app that forces dark. The
+cause is a gap, not a wrong value — `values/themes.xml` pinned
+`android:statusBarColor` to `@color/app_background` and left
+`android:navigationBarColor` undeclared, and `CommanderCompanionTheme` set
+`isAppearanceLightStatusBars` and not `isAppearanceLightNavigationBars`. Both
+halves of the window chrome were being handled for the top bar and for nothing
+else, so the bottom one fell back to the platform parent's default and, above
+it, to whatever the OEM skin derives from the *system* light/dark setting —
+which has no relation to the theme this app forces on itself. Fixed by
+declaring both, in the two places their top-bar counterparts already lived.
+
+- **Not verified.** There is no Android SDK where this was written, so
+  `lintDebug`/`testDebugUnitTest`/`assembleDebug` did not run, and the device
+  that reported it is not reachable from here. The change is two declarations
+  next to two that already work, which is as low-risk as an unverified change
+  gets, but it is a hypothesis about the mechanism until someone looks.
+- **It may not be enough, and the reason matters.** The report is with *gesture*
+  navigation, where Android 10+ can force the navigation bar transparent and
+  ignore `navigationBarColor` outright; there the appearance flag is the half
+  doing the work. Worse, both declarations are on a clock:
+  `Window.setNavigationBarColor` and the theme attribute behind it are ignored
+  from `targetSdk 35`, where edge-to-edge is mandatory.
+- **The durable fix, deliberately not taken here.** Call `enableEdgeToEdge()`
+  with explicit dark `SystemBarStyle`s and let the app paint that strip itself —
+  `MainActivity` already wraps everything in a `Surface(fillMaxSize,
+  AppBackground)`, so the color would come for free and no OEM default could
+  reach it. What stops it today is the other half of the job: **no screen in the
+  app consumes window insets** (no `Scaffold`, no `systemBarsPadding`, no
+  `WindowInsets` anywhere under `presentation/`), so going edge-to-edge without
+  a root `safeDrawingPadding()` and a pass over all eleven screens puts content
+  under both bars and under the keyboard. That is a UI change needing a
+  screenshot per screen (§8), not a two-line fix, and it has to happen before
+  `targetSdk` moves to 35 regardless.
+
 **2026-09-03 — Android life tracker rebuilt against the Claude Design
 handoff.** The design bundle exported from Claude Design (`Android
 Tracker.dc.html`, plus seven chat transcripts recording how it got there) was

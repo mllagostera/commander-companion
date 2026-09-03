@@ -37,11 +37,19 @@ fun CommanderCompanionTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            // The status bar *color* is set in themes.xml (Window.setStatusBarColor is
-            // deprecated on API 35+); only the icon tint has to be driven from here,
-            // since it follows the composable's darkTheme argument.
+            // The bar *colors* are set in themes.xml (Window.setStatusBarColor and
+            // setNavigationBarColor are deprecated on API 35+); only the icon tint has to
+            // be driven from here, since it follows the composable's darkTheme argument.
+            //
+            // Both bars, not just the status bar. The navigation bar was left out until a
+            // light bar was reported at the bottom of a dark app: with the appearance flag
+            // unset the system tints the gesture handle and the three-button icons for the
+            // *system* light/dark setting, which has nothing to do with the theme this app
+            // forces on itself.
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

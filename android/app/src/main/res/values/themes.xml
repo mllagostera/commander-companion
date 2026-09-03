@@ -4,13 +4,20 @@
          color scheme unconditionally, and with a Light parent the window background
          flashed white between the activity opening and Compose drawing its first frame.
 
-         statusBarColor lives here rather than being assigned from Compose because
-         Window.setStatusBarColor() is deprecated on API 35+. Declaring it in the theme
-         keeps the same result (the app is not edge-to-edge: no screen handles window
-         insets, so the system still draws and colors the status bar for targetSdk 34).
-         The value must track AppBackground in Color.kt. -->
+         The bar colors live here rather than being assigned from Compose because
+         Window.setStatusBarColor()/setNavigationBarColor() are deprecated on API 35+.
+         Declaring them in the theme keeps the same result (the app is not edge-to-edge:
+         no screen handles window insets, so the system still draws and colors both bars
+         for targetSdk 34).
+
+         navigationBarColor was missing until a light bar was reported at the bottom of
+         a dark app: only the status bar had ever been pinned, so the navigation bar fell
+         back to whatever the platform parent or the OEM skin defaults to, which follows
+         the *system* light/dark setting rather than the app's forced dark theme. Both
+         values must track AppBackground in Color.kt. -->
     <style name="Theme.CommanderCompanion" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@color/app_background</item>
+        <item name="android:navigationBarColor">@color/app_background</item>
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 </resources>
