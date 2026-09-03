@@ -1,0 +1,37 @@
+name: Architecture CI
+
+# Enforces the architectural invariants that ARCHITECTURE.md and
+# PROJECT-STRUCTURE.md state in prose, plus the README's own rule that every
+# document is linked from the hub. See .github/scripts/check-architecture.sh
+# for the full list and the rationale.
+#
+# Deliberately has NO path filter and no `changes` job, unlike the other four
+# pipelines: the invariants are cross-cutting (a backend edit can break the
+# OpenAPI check, a docs edit can break the hub check, a web edit can break the
+# BFF boundary), and the whole thing is a handful of greps that finish in
+# seconds. Filtering would cost more in complexity than it saves in runtime.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Same rationale as docs-ci.yml: a push to main never cancels an earlier
+# commit's run, because a cancelled run leaves that commit with no check result.
+concurrency:
+  group: architecture-ci-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
+
+jobs:
+  invariants:
+    name: architecture invariants hold
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The TASKS.md freshness check counts commits since the review date,
+          # so it needs history, not the default shallow clone.
+          fetch-depth: 0
+
+      - name: Run architecture checks
+        run: sh .github/scripts/check-architecture.sh

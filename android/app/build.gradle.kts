@@ -145,6 +145,9 @@ dependencies {
     testImplementation(libs.junit)
     // runTest + Dispatchers.setMain to test ViewModels and repositories with coroutines.
     testImplementation(libs.kotlinx.coroutines.test)
+    // Konsist: the layering rules in docs/architecture/ARCHITECTURE.md, asserted
+    // as unit tests so they run inside the existing testDebugUnitTest gate.
+    testImplementation(libs.konsist)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -36,9 +36,10 @@ commander-companion/
 │       │   ├── repository/ # GameRepository, DeckRepository — decide Room vs. backend
 │       │   ├── local/      # Room (DAOs, entities)
 │       │   └── session/    # SessionManager (DataStore)
-│       ├── presentation/ # screens, viewmodels, navigation, theme — go straight against repository/API
+│       ├── domain/       # use cases + repository interfaces that data/ implements
+│       ├── presentation/ # screens, viewmodels, navigation, theme — depend on domain/
 │       └── core/         # DI (Hilt) and utilities
-│       # note: there is no `domain/` layer yet (use cases), see docs/roadmap/TASKS.md Stage 4
+│       # note: the auth screens (Login/Register/Settings) deliberately stay outside domain/, see docs/roadmap/TASKS.md Stage 4
 ├── web/                  # Web client (Nuxt 4 SSR + Tailwind), see ADR-0004
 │   ├── server/           # Nitro layer (BFF): the only place that touches session cookies
 │   │   └── api/          # auth/{register,login,google,logout,session}, backend/[...path] (authenticated proxy)
@@ -51,7 +52,7 @@ commander-companion/
 │   ├── architecture/     # ARCHITECTURE.md (principles and patterns)
 │   ├── database/         # schema.dbml (source of truth for the data model)
 │   ├── api/               # openapi.yaml (source of truth for the REST contract)
-│   ├── decisions/        # ADRs 0001-0010 (technical decisions and their rationale)
+│   ├── decisions/        # ADRs (technical decisions and their rationale)
 │   ├── diagrams/         # additional Mermaid diagrams (ER, state machine, Android navigation)
 │   └── ux/                # use-cases.md, wireframes.md, screenshots.md
 └── docker-compose.yml    # db + api + web, to try the full stack locally
@@ -65,9 +66,11 @@ Rule: if you're going to change how backend and Android communicate, edit `opena
 
 ## 4. How to proceed (for AI agents)
 
+> Full instructions for agents live in [AGENTS.md](AGENTS.md) — CodeGraph usage, language rules, architecture rules per area, quality gates and git workflow. What follows is the summary.
+
 1. **Read `docs/roadmap/TASKS.md` first.** It's the list of pending tasks organized by stage, with real status audited against the code (not against what "should" exist). It's a compact checklist on purpose — for the narrative behind any item (why, gotchas, how it was verified), see [docs/roadmap/DECISIONS-LOG.md](docs/roadmap/DECISIONS-LOG.md); don't read the whole log up front, only the entries you actually need.
 2. **Don't trust that something is finished just because the file exists.** Much of the backend is scaffolding: several modules' `service.go` return dummy data instead of using the injected repository. Verify by reading the code before assuming a function does what its name suggests.
-3. **Follow the already-established layer pattern** — backend (Handler → Service → Repository), Android (MVVM + UDF, no `domain/` layer yet), Web (SSR + Nitro BFF). Full detail in [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) §"System Architecture".
+3. **Follow the already-established layer pattern** — backend (Handler → Service → Repository), Android (MVVM + UDF, presentation → domain → data), Web (SSR + Nitro BFF). Full detail in [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) §"System Architecture".
 4. **Respect the suggested work order** at the end of `TASKS.md`, unless the user explicitly asks to prioritize something else.
 5. **If you make a non-trivial technical decision** (choosing a library, a pattern, a data structure that wasn't already defined), record it as an ADR in `docs/decisions/`.
 6. **If the work touches the API contract or the DB schema**, update `openapi.yaml` / `schema.dbml` (and the corresponding migration) as part of the same change, not afterward.
@@ -86,12 +89,16 @@ Rule: if you're going to change how backend and Android communicate, edit `opena
 
 ## 6. Quality gates (GitHub Actions)
 
-In `.github/workflows/` there are four quality pipelines that run on every push/PR (each with a `changes`/`dorny-paths-filter` job that always reports a check, so none is left "hanging" on PRs that don't touch its folder). Every check name is in English; they double as the identifiers branch protection matches on, so renaming one means updating the protection settings in the same pass.
+In `.github/workflows/` there are five quality pipelines that run on every push/PR (the four per-area ones each carry a `changes`/`dorny-paths-filter` job that always reports a check, so none is left "hanging" on PRs that do not touch its folder; `architecture-ci.yml` deliberately has none, see below). Every check name is in English; they double as the identifiers branch protection matches on, so renaming one means updating the protection settings in the same pass.
 
 - **`backend-ci.yml`**: gofmt + `go vet`, `golangci-lint`, verifies that `sqlc generate` leaves no uncommitted diffs, build + `go test -race` + applies the goose migrations against a real Postgres from the job, and `hadolint` on `backend/Dockerfile`.
 - **`android-ci.yml`**: Android Lint, unit tests (`testDebugUnitTest`), `assembleDebug`, and `string resources translated in every locale`.
 - **`web-ci.yml`**: ESLint + typecheck (`vue-tsc`) + `nuxt build` (SSR), `i18n keys resolve in every locale`, and `hadolint` on `web/Dockerfile`.
 - **`docs-ci.yml`**: validates that the sources of truth remain valid — Spectral lint on `openapi.yaml`, `schema.dbml` compiling to SQL, and `schema.dbml matches the migrations`, which builds the schema twice in one Postgres (once with goose, once from the compiled DBML) and diffs `information_schema`. Compiling only proves the DBML is well-formed; this proves it is true. It compares tables, columns, types and nullability — not indexes or constraints, since DBML cannot express partial indexes and `dbml2sql` renders unique constraints as unique indexes, so those comparisons report differences that aren't drift. It runs when `backend/migrations/**` changes too, not just `docs/`: a migration alone can invalidate the DBML, which is how `deck_resync_jobs` went undocumented for weeks.
+- **`architecture-ci.yml`**: runs [`.github/scripts/check-architecture.sh`](.github/scripts/check-architecture.sh), which enforces what `ARCHITECTURE.md` and `PROJECT-STRUCTURE.md` otherwise only assert in prose — the Handler layer free of persistence, no slice reaching into another slice's sqlc `Queries`, SQL confined to `query.sql`, the web client never bypassing the Nitro BFF, every registered route present in `openapi.yaml` and no phantom paths, and every document under `docs/` linked from this hub (§8). It also warns, without blocking, when `TASKS.md`'s review date has fallen behind the code. Unlike the other four it has **no path filter**: the invariants are cross-cutting (a backend edit breaks the OpenAPI check, a docs edit breaks the hub check) and the whole script is a handful of greps. It exists because of a 2026-09-03 audit: every rule with a check was at 100% compliance, while three that lived only in prose — link new ADRs from the hub, keep `TASKS.md` fresh, keep `ARCHITECTURE.md` true — had all drifted despite being clearly written. In a repo worked on only by agents, each starting cold, a rule that isn't checked isn't a rule.
+
+
+**Architecture guardrails.** Beyond the pipelines above, the layering itself is enforced by four mechanisms, each owning the rules it can express natively and **nothing checked twice**: `depguard` in [`backend/.golangci.yml`](backend/.golangci.yml) (a handler must not import a database driver), [Konsist](android/app/src/test/java/com/commandercompanion/architecture/ArchitectureTest.kt) as unit tests in `testDebugUnitTest` (Android layering, the enumerated auth exception, and two ratchets that freeze known debt so it can only shrink), `eslint-plugin-boundaries` plus `no-restricted-imports` in [`web/eslint.config.mjs`](web/eslint.config.mjs) (`app/` ↔ `server/`, both directions), and [`check-architecture.sh`](.github/scripts/check-architecture.sh) for everything that is not an import. The three native tools ride gates that already exist, so they cost no new CI job. Full breakdown of who owns what, and why the cross-slice `Queries` rule can only live in the script, in [AGENTS.md](AGENTS.md) §7.
 
 **The i18n checks** (`.github/scripts/check-i18n-{web,android}.mjs`) exist because a missing translation key fails nothing else: on the web Vue renders the key itself and the page still returns 200; on Android the string falls back to the default locale and shows up in Spanish. Both run in seconds without a build. Each verifies that the locales define the same keys and that every key referenced in the source resolves. Android resources deliberately left untranslated must carry `tools:ignore="MissingTranslation"`, the same annotation Android Lint honours.
 
@@ -138,10 +145,12 @@ for a new module), add it to this list too in the same change.
 
 **Start here:**
 
+- [AGENTS.md](AGENTS.md) — how any AI agent works in this repo: CodeGraph, language rules, standards, quality gates, git workflow. Read it before touching code.
 - [docs/roadmap/TASKS.md](docs/roadmap/TASKS.md) — **the source of truth for real status**, audited against the code, not against what "should" exist. Read it before anything else. Kept deliberately compact — one line per item.
 - [docs/roadmap/DECISIONS-LOG.md](docs/roadmap/DECISIONS-LOG.md) — the narrative behind TASKS.md's items (why, gotchas, verification, dates), plus the chronological audit/session history. Read only the entries you need, not the whole file.
 - [docs/roadmap/ROADMAP.md](docs/roadmap/ROADMAP.md) — vision, philosophy, high-level stages (original intent document; for real status see TASKS.md).
 - [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — the 4 sources of truth, design principles, and layer patterns (backend, Android, Web).
+- [docs/architecture/PROJECT-STRUCTURE.md](docs/architecture/PROJECT-STRUCTURE.md) — the file-by-file map of the three apps and the step-by-step for adding an endpoint, a migration, a page or a screen.
 
 **Sources of truth (see §3, full detail in ARCHITECTURE.md):**
 
@@ -162,6 +171,7 @@ for a new module), add it to this list too in the same change.
 
 **ADRs — technical decisions (`docs/decisions/`):**
 
+- [docs/decisions/TEMPLATE.md](docs/decisions/TEMPLATE.md) — copy this to start a new ADR; it carries the "link it from this hub" reminder at the point of use.
 - [0001 — Authentication strategy (JWT + refresh token)](docs/decisions/0001-auth-jwt-refresh-token-strategy.md)
 - [0002 — Google Sign-In as an additional provider](docs/decisions/0002-google-sign-in.md)
 - [0003 — Permissive CORS in dev](docs/decisions/0003-permissive-cors-in-dev.md)
@@ -172,7 +182,15 @@ for a new module), add it to this list too in the same change.
 - [0008 — sqlc + goose (data access and migrations)](docs/decisions/0008-sqlc-goose.md)
 - [0009 — Native Android vs. cross-platform](docs/decisions/0009-android-native-vs-crossplatform.md)
 - [0010 — Modular monolith vs. microservices](docs/decisions/0010-modular-monolith-vs-microservices.md)
+- [0011 — Migration naming strategy and statistics recompute](docs/decisions/0011-migration-strategy-and-statistics-recalculation.md)
+- [0012 — Email verification at registration with Resend](docs/decisions/0012-email-verification-resend.md)
+- [0013 — Proxy-join and action authorization](docs/decisions/0013-proxy-join-and-action-authorization.md)
+- [0014 — Web internationalization with @nuxtjs/i18n](docs/decisions/0014-web-internationalization.md)
+- [0015 — Deployment infrastructure (Render + Vercel + Supabase)](docs/decisions/0015-deployment-infrastructure.md)
+- [0016 — Standalone Swiss-format tournaments](docs/decisions/0016-swiss-tournament-format.md)
+- [0017 — Friend requests and profile QR](docs/decisions/0017-friends-system.md)
 - [0018 — Admin role and user moderation](docs/decisions/0018-admin-role-and-user-moderation.md)
+- [0019 — The Android domain layer owns its types](docs/decisions/0019-android-domain-owns-its-types.md)
 
 **READMEs per module:**
 
