@@ -42,7 +42,6 @@ import com.commandercompanion.BuildConfig
 import com.commandercompanion.R
 import com.commandercompanion.core.util.QrEncoder
 import com.commandercompanion.core.util.friendQrLink
-import com.google.zxing.common.BitMatrix
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.AuthTextField
 import com.commandercompanion.presentation.components.CircleIconButton
@@ -53,6 +52,7 @@ import com.commandercompanion.presentation.components.SectionEyebrow
 import com.commandercompanion.presentation.theme.AppFaint
 import com.commandercompanion.presentation.theme.AppOnBackground
 import com.commandercompanion.presentation.theme.StatusDanger
+import com.google.zxing.common.BitMatrix
 
 @Composable
 fun SettingsScreen(

@@ -7,17 +7,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.core.util.ApiError
 import com.commandercompanion.core.util.toUserMessage
-import com.commandercompanion.data.remote.dto.GameActionDto
-import com.commandercompanion.data.remote.dto.GameActionType
-import com.commandercompanion.data.remote.dto.GameDto
-import com.commandercompanion.data.remote.dto.amount
-import com.commandercompanion.data.remote.ws.GameSocketEvent
 import com.commandercompanion.data.session.AccessTokenProvider
+import com.commandercompanion.domain.model.Game
+import com.commandercompanion.domain.model.GameAction
+import com.commandercompanion.domain.model.GameActionType
+import com.commandercompanion.domain.model.GameSocketEvent
 import com.commandercompanion.domain.model.LocalSeat
 import com.commandercompanion.domain.model.LocalSeatResult
 import com.commandercompanion.domain.model.PlayerOutcome
 import com.commandercompanion.domain.model.RemoteGameSession
 import com.commandercompanion.domain.model.SeatAssignment
+import com.commandercompanion.domain.model.amount
 import com.commandercompanion.domain.repository.GameRepository
 import com.commandercompanion.domain.repository.PlaygroupRepository
 import com.commandercompanion.domain.usecase.ReplayCommanderDamageUseCase
@@ -27,11 +27,11 @@ import com.commandercompanion.presentation.navigation.decodePlayerConfigs
 import com.commandercompanion.presentation.theme.PlayerColorPalette
 import com.commandercompanion.presentation.theme.colorForKey
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import javax.inject.Inject
 
 private const val HTTP_CONFLICT = 409
 
@@ -238,7 +238,7 @@ class GameViewModel @Inject constructor(
     }
 
     /** Replays the `CommanderDamage` actions of [game]'s timeline into a per-seat, per-attacker-seat map. */
-    private suspend fun replayCommanderDamage(game: GameDto): Map<Int, Map<Int, Int>> {
+    private suspend fun replayCommanderDamage(game: Game): Map<Int, Map<Int, Int>> {
         val seatByPlayerId = game.players.mapIndexed { index, player -> player.id to (index + 1) }.toMap()
         val actions = gameRepository.timeline(game.id).getOrElse { return emptyMap() }
         return replayCommanderDamageUseCase(actions, seatByPlayerId)
@@ -451,7 +451,7 @@ class GameViewModel @Inject constructor(
      * a host-mode device receiving a proxy-joined teammate's own echo under a different seat) are
      * silently ignored, same as an owned seat's echo.
      */
-    private fun applyRemoteAction(action: GameActionDto) {
+    private fun applyRemoteAction(action: GameAction) {
         val session = remoteSession ?: return
         val actorSeatId = seatIdForPlayer(session, action.actorId) ?: return
         if (actorSeatId in ownedSeatIds) return

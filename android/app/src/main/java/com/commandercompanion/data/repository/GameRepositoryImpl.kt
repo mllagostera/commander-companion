@@ -7,24 +7,27 @@ import com.commandercompanion.data.local.entity.GameEntity
 import com.commandercompanion.data.local.entity.GameWithPlayers
 import com.commandercompanion.data.local.entity.PlayerResultEntity
 import com.commandercompanion.data.remote.api.CommanderApi
-import com.commandercompanion.data.remote.dto.CreateActionRequest
 import com.commandercompanion.data.remote.dto.CreateGameRequest
-import com.commandercompanion.data.remote.dto.GameActionDto
-import com.commandercompanion.data.remote.dto.GameActionType
-import com.commandercompanion.data.remote.dto.GameDto
-import com.commandercompanion.data.remote.dto.GamePlayerDto
-import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.remote.dto.JoinGameRequest
-import com.commandercompanion.data.remote.dto.amountPayload
 import com.commandercompanion.data.remote.ws.GameSocketClient
-import com.commandercompanion.data.remote.ws.GameSocketEvent
+import com.commandercompanion.domain.model.Game
+import com.commandercompanion.domain.model.GameAction
+import com.commandercompanion.domain.model.GameActionType
+import com.commandercompanion.domain.model.GamePlayer
+import com.commandercompanion.domain.model.GameSocketEvent
+import com.commandercompanion.domain.model.GameStatus
 import com.commandercompanion.domain.model.LocalSeat
 import com.commandercompanion.domain.model.LocalSeatResult
+import com.commandercompanion.domain.model.NewGameAction
+import com.commandercompanion.domain.model.PlayedGame
+import com.commandercompanion.domain.model.PlayedSeat
 import com.commandercompanion.domain.model.RemoteGameSession
 import com.commandercompanion.domain.model.SeatAssignment
+import com.commandercompanion.domain.model.amountPayload
 import com.commandercompanion.domain.repository.GameRepository
-import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * [GameRepository] implementation: decides what goes to the backend and what goes to Room.
@@ -52,7 +55,30 @@ class GameRepositoryImpl @Inject constructor(
 
     // ------------------------------------------------------------ local (Room)
 
-    override fun observeHistory(): Flow<List<GameWithPlayers>> = gameDao.getGamesWithPlayers()
+    /**
+     * Maps Room's relation class to the domain model at the boundary, so nothing above this
+     * layer sees `@Embedded`/`@Relation` or has to compare `status` against the literal
+     * "FINISHED". Seats come out ordered by index; the DAO already orders the games.
+     */
+    override fun observeHistory(): Flow<List<PlayedGame>> =
+        gameDao.getGamesWithPlayers().map { entries -> entries.map { it.toPlayedGame() } }
+
+    private fun GameWithPlayers.toPlayedGame() = PlayedGame(
+        id = game.id,
+        startedAtEpochMillis = game.startTime,
+        isFinished = game.status == LOCAL_STATUS_FINISHED,
+        playerCount = game.playerCount,
+        seats = players.sortedBy { it.seatIndex }.map { player ->
+            PlayedSeat(
+                seatIndex = player.seatIndex,
+                name = player.name,
+                colorKey = player.colorKey,
+                finalLife = player.finalLife,
+                mulligans = player.mulligans,
+                won = player.won
+            )
+        }
+    )
 
     override suspend fun persistNewLocalGame(gameId: String, seats: List<LocalSeat>) {
         gameDao.insertGame(
@@ -95,8 +121,8 @@ class GameRepositoryImpl @Inject constructor(
 
     // ----------------------------------------------------------- remote (API)
 
-    override suspend fun listGames(): Result<List<GameDto>> {
-        val all = mutableListOf<GameDto>()
+    override suspend fun listGames(): Result<List<Game>> {
+        val all = mutableListOf<Game>()
         var cursor: String? = null
         do {
             val page = apiCall { api.listGames(cursor) }.getOrElse { return Result.failure(it) }
@@ -106,27 +132,27 @@ class GameRepositoryImpl @Inject constructor(
         return Result.success(all)
     }
 
-    override suspend fun listGamesForPlaygroup(playgroupId: String): Result<List<GameDto>> =
+    override suspend fun listGamesForPlaygroup(playgroupId: String): Result<List<Game>> =
         apiCall { api.listGamesForPlaygroup(playgroupId).items }
 
-    override suspend fun getGame(gameId: String): Result<GameDto> = apiCall { api.getGame(gameId) }
+    override suspend fun getGame(gameId: String): Result<Game> = apiCall { api.getGame(gameId) }
 
-    override suspend fun createGame(playgroupId: String?): Result<GameDto> =
+    override suspend fun createGame(playgroupId: String?): Result<Game> =
         apiCall { api.createGame(CreateGameRequest(playgroupId)) }
 
-    override suspend fun joinGame(gameId: String, deckId: String, userId: String?): Result<GamePlayerDto> =
+    override suspend fun joinGame(gameId: String, deckId: String, userId: String?): Result<GamePlayer> =
         apiCall { api.joinGame(gameId, JoinGameRequest(deckId, userId)) }
 
     override suspend fun leaveGame(gameId: String): Result<Unit> = apiCall { api.leaveGame(gameId) }
 
-    override suspend fun startGame(gameId: String): Result<GameDto> = apiCall { api.startGame(gameId) }
+    override suspend fun startGame(gameId: String): Result<Game> = apiCall { api.startGame(gameId) }
 
-    override suspend fun finishGame(gameId: String): Result<GameDto> = apiCall { api.finishGame(gameId) }
+    override suspend fun finishGame(gameId: String): Result<Game> = apiCall { api.finishGame(gameId) }
 
-    override suspend fun timeline(gameId: String): Result<List<GameActionDto>> =
+    override suspend fun timeline(gameId: String): Result<List<GameAction>> =
         apiCall { api.getTimeline(gameId) }
 
-    override suspend fun recordAction(gameId: String, request: CreateActionRequest): Result<GameActionDto> =
+    override suspend fun recordAction(gameId: String, request: NewGameAction): Result<GameAction> =
         apiCall { api.recordAction(gameId, request) }
 
     override fun observeGameEvents(gameId: String, accessToken: suspend () -> String?): Flow<GameSocketEvent> =
@@ -164,10 +190,10 @@ class GameRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun recordLifeChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto> =
+    override suspend fun recordLifeChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameAction> =
         recordAction(
             gameId = session.gameId,
-            request = CreateActionRequest(
+            request = NewGameAction(
                 actorId = playerId,
                 actionType = GameActionType.LIFE_CHANGE,
                 payload = amountPayload(amount)
@@ -176,10 +202,10 @@ class GameRepositoryImpl @Inject constructor(
 
     override suspend fun recordCommanderDamage(
         session: RemoteGameSession, attackerPlayerId: String, defenderPlayerId: String, amount: Int
-    ): Result<GameActionDto> =
+    ): Result<GameAction> =
         recordAction(
             gameId = session.gameId,
-            request = CreateActionRequest(
+            request = NewGameAction(
                 actorId = attackerPlayerId,
                 targetId = defenderPlayerId,
                 actionType = GameActionType.COMMANDER_DAMAGE,
@@ -187,10 +213,10 @@ class GameRepositoryImpl @Inject constructor(
             )
         )
 
-    override suspend fun recordPoisonChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto> =
+    override suspend fun recordPoisonChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameAction> =
         recordAction(
             gameId = session.gameId,
-            request = CreateActionRequest(
+            request = NewGameAction(
                 actorId = playerId,
                 actionType = GameActionType.POISON_COUNTER,
                 payload = amountPayload(amount)

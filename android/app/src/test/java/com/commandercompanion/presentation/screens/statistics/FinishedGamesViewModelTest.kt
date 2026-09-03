@@ -1,7 +1,7 @@
 package com.commandercompanion.presentation.screens.statistics
 
-import com.commandercompanion.data.remote.dto.PagedResponse
 import com.commandercompanion.data.repository.StatisticsRepositoryImpl
+import com.commandercompanion.domain.model.Page
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.finishedGameDto
 import com.commandercompanion.testing.httpException
@@ -40,7 +40,7 @@ class FinishedGamesViewModelTest {
 
     @Test
     fun `carga la primera pagina al iniciar`() = runTest {
-        api.onListFinishedGames = { PagedResponse(items = listOf(finishedGameDto("game-1")), nextCursor = "cursor-1") }
+        api.onListFinishedGames = { Page(items = listOf(finishedGameDto("game-1")), nextCursor = "cursor-1") }
 
         val viewModel = viewModel()
         advanceUntilIdle()
@@ -56,9 +56,9 @@ class FinishedGamesViewModelTest {
     fun `loadMore anade la siguiente pagina sin descartar la anterior`() = runTest {
         api.onListFinishedGames = { cursor ->
             if (cursor == null) {
-                PagedResponse(items = listOf(finishedGameDto("game-1")), nextCursor = "cursor-1")
+                Page(items = listOf(finishedGameDto("game-1")), nextCursor = "cursor-1")
             } else {
-                PagedResponse(items = listOf(finishedGameDto("game-2")), nextCursor = null)
+                Page(items = listOf(finishedGameDto("game-2")), nextCursor = null)
             }
         }
 
@@ -74,7 +74,7 @@ class FinishedGamesViewModelTest {
 
     @Test
     fun `loadMore no hace nada si no hay siguiente pagina`() = runTest {
-        api.onListFinishedGames = { PagedResponse(items = listOf(finishedGameDto("game-1")), nextCursor = null) }
+        api.onListFinishedGames = { Page(items = listOf(finishedGameDto("game-1")), nextCursor = null) }
 
         val viewModel = viewModel()
         advanceUntilIdle()

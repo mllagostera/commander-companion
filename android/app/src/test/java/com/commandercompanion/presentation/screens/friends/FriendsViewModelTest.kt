@@ -1,7 +1,7 @@
 package com.commandercompanion.presentation.screens.friends
 
-import com.commandercompanion.data.remote.dto.FriendRequestDto
 import com.commandercompanion.data.repository.FriendsRepositoryImpl
+import com.commandercompanion.domain.model.FriendRequestResult
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.friendDto
 import com.commandercompanion.testing.friendRequestDto
@@ -9,6 +9,7 @@ import com.commandercompanion.testing.httpException
 import com.commandercompanion.testing.incomingFriendRequestDto
 import com.commandercompanion.testing.outgoingFriendRequestDto
 import com.commandercompanion.testing.userSearchResultDto
+import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,7 +26,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FriendsViewModelTest {
@@ -133,7 +133,7 @@ class FriendsViewModelTest {
 
     @Test
     fun `enviar una solicitud normal reporta REQUEST_SENT`() = runTest(dispatcher) {
-        api.onSendFriendRequest = { friendRequestDto(status = FriendRequestDto.STATUS_PENDING) }
+        api.onSendFriendRequest = { friendRequestDto(status = FriendRequestResult.STATUS_PENDING) }
         val vm = viewModel()
         advanceUntilIdle()
 
@@ -149,7 +149,7 @@ class FriendsViewModelTest {
      */
     @Test
     fun `si habia solicitud inversa reporta FRIENDS_NOW`() = runTest(dispatcher) {
-        api.onSendFriendRequest = { friendRequestDto(status = FriendRequestDto.STATUS_ACCEPTED) }
+        api.onSendFriendRequest = { friendRequestDto(status = FriendRequestResult.STATUS_ACCEPTED) }
         val vm = viewModel()
         advanceUntilIdle()
 

@@ -36,8 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.commandercompanion.R
-import com.commandercompanion.data.remote.dto.DeckDto
-import com.commandercompanion.data.remote.dto.PlaygroupMemberDto
+import com.commandercompanion.domain.model.Deck
+import com.commandercompanion.domain.model.PlaygroupMember
 import com.commandercompanion.presentation.components.DeckArtChip
 import com.commandercompanion.presentation.components.RotateDevicePrompt
 import com.commandercompanion.presentation.components.SelectableChip
@@ -171,12 +171,12 @@ private fun SeatGrid(
     onIncrement: (Int) -> Unit,
     onDecrement: (Int) -> Unit,
     playgroupId: String?,
-    availableMembers: List<PlaygroupMemberDto>,
+    availableMembers: List<PlaygroupMember>,
     ownUsername: String?,
     seatMemberUserIds: List<String?>,
     seatMemberUsernames: List<String?>,
-    onMemberSelected: (index: Int, member: PlaygroupMemberDto?) -> Unit,
-    memberDecksFor: (userId: String) -> List<DeckDto>,
+    onMemberSelected: (index: Int, member: PlaygroupMember?) -> Unit,
+    memberDecksFor: (userId: String) -> List<Deck>,
     seatDeckIds: List<String?>,
     onDeckSelected: (index: Int, deckId: String?) -> Unit
 ) {
@@ -247,12 +247,12 @@ private fun SeatCard(
     onDecrement: () -> Unit,
     rotated: Boolean,
     playgroupId: String?,
-    availableMembers: List<PlaygroupMemberDto>,
+    availableMembers: List<PlaygroupMember>,
     ownUsername: String?,
     assignedUserId: String?,
     assignedUsername: String?,
-    onMemberSelected: (PlaygroupMemberDto?) -> Unit,
-    memberDecks: List<DeckDto>,
+    onMemberSelected: (PlaygroupMember?) -> Unit,
+    memberDecks: List<Deck>,
     selectedDeckId: String?,
     onDeckSelected: (String?) -> Unit,
     modifier: Modifier = Modifier
@@ -317,9 +317,9 @@ private fun SeatCard(
 /** Group mode, seat not assigned yet: pick a Guest or an available playgroup member — locks in once tapped. */
 @Composable
 private fun GroupSeatMemberPicker(
-    availableMembers: List<PlaygroupMemberDto>,
+    availableMembers: List<PlaygroupMember>,
     ownUsername: String?,
-    onMemberSelected: (PlaygroupMemberDto?) -> Unit
+    onMemberSelected: (PlaygroupMember?) -> Unit
 ) {
     val youSuffix = stringResource(R.string.common_you_suffix)
     FlowRow(
@@ -343,7 +343,7 @@ private fun GroupSeatMemberPicker(
 @Composable
 private fun GroupSeatAssigned(
     assignedUsername: String?,
-    memberDecks: List<DeckDto>,
+    memberDecks: List<Deck>,
     selectedDeckId: String?,
     onDeckSelected: (String?) -> Unit
 ) {

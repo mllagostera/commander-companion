@@ -4,12 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.core.util.ApiError
 import com.commandercompanion.core.util.parseScannedFriendCode
-import com.commandercompanion.data.remote.dto.FriendDto
-import com.commandercompanion.data.remote.dto.IncomingFriendRequestDto
-import com.commandercompanion.data.remote.dto.OutgoingFriendRequestDto
-import com.commandercompanion.data.remote.dto.UserSearchResultDto
+import com.commandercompanion.domain.model.Friend
+import com.commandercompanion.domain.model.IncomingFriendRequest
+import com.commandercompanion.domain.model.OutgoingFriendRequest
+import com.commandercompanion.domain.model.UserSearchResult
 import com.commandercompanion.domain.repository.FriendsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -19,7 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /** Matches the web client's search debounce (see playgroups/[id].vue). */
 private const val SEARCH_DEBOUNCE_MS = 300L
@@ -48,13 +48,13 @@ enum class SendOutcome { REQUEST_SENT, FRIENDS_NOW }
 data class FriendsUiState(
     val isLoading: Boolean = true,
     val loadError: FriendsError? = null,
-    val friends: List<FriendDto> = emptyList(),
-    val incoming: List<IncomingFriendRequestDto> = emptyList(),
-    val outgoing: List<OutgoingFriendRequestDto> = emptyList(),
+    val friends: List<Friend> = emptyList(),
+    val incoming: List<IncomingFriendRequest> = emptyList(),
+    val outgoing: List<OutgoingFriendRequest> = emptyList(),
 
     val query: String = "",
     val isSearching: Boolean = false,
-    val results: List<UserSearchResultDto> = emptyList(),
+    val results: List<UserSearchResult> = emptyList(),
 
     /** Ids with an action in flight, so only that row shows as busy. */
     val busyIds: Set<String> = emptySet(),

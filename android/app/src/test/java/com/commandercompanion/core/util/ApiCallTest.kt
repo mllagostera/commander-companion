@@ -1,14 +1,14 @@
 package com.commandercompanion.core.util
 
 import com.commandercompanion.testing.httpException
+import java.io.IOException
+import java.net.UnknownHostException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
-import java.io.IOException
-import java.net.UnknownHostException
 
 /** Mapping of network exceptions to [ApiError] — the basis of the repositories' error handling. */
 class ApiCallTest {

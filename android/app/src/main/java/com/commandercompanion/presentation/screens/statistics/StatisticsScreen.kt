@@ -30,12 +30,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.commandercompanion.R
-import com.commandercompanion.data.remote.dto.FinishedGameDto
-import com.commandercompanion.data.remote.dto.FinishedGamePlayerDto
-import com.commandercompanion.data.remote.dto.OpponentStatsDto
-import com.commandercompanion.data.remote.dto.PlaygroupGameCountDto
-import com.commandercompanion.data.remote.dto.UserStatsDto
 import com.commandercompanion.domain.model.DeckWithStats
+import com.commandercompanion.domain.model.FinishedGame
+import com.commandercompanion.domain.model.FinishedGamePlayer
+import com.commandercompanion.domain.model.OpponentStats
+import com.commandercompanion.domain.model.PlaygroupGameCount
+import com.commandercompanion.domain.model.UserStats
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.CircleIconButton
 import com.commandercompanion.presentation.components.DeckThumbnail
@@ -124,7 +124,7 @@ fun StatisticsScreen(
 }
 
 @Composable
-private fun GlobalStatsSection(stats: UserStatsDto) {
+private fun GlobalStatsSection(stats: UserStats) {
     Column {
         SectionEyebrow(text = stringResource(R.string.statistics_global_heading))
         Spacer(modifier = Modifier.height(10.dp))
@@ -144,9 +144,9 @@ private fun GlobalStatsSection(stats: UserStatsDto) {
     }
 }
 
-/** "Who you play the most" / "Archenemy" cards, derived from [OpponentStatsDto]. */
+/** "Who you play the most" / "Archenemy" cards, derived from [OpponentStats]. */
 @Composable
-private fun HeadToHeadSection(mostPlayed: OpponentStatsDto?, archenemy: OpponentStatsDto?) {
+private fun HeadToHeadSection(mostPlayed: OpponentStats?, archenemy: OpponentStats?) {
     Column {
         SectionEyebrow(text = stringResource(R.string.statistics_head_to_head_heading))
         Spacer(modifier = Modifier.height(10.dp))
@@ -191,7 +191,7 @@ private fun HeadToHeadCard(label: String, username: String, detail: String, modi
 }
 
 @Composable
-private fun MostPlayedGroupSection(group: PlaygroupGameCountDto?) {
+private fun MostPlayedGroupSection(group: PlaygroupGameCount?) {
     Column {
         SectionEyebrow(text = stringResource(R.string.statistics_most_played_group_label))
         Spacer(modifier = Modifier.height(10.dp))
@@ -322,7 +322,7 @@ private fun FinishedGamesSection(state: FinishedGamesUiState, onLoadMore: () -> 
 }
 
 @Composable
-private fun FinishedGameCard(game: FinishedGameDto) {
+private fun FinishedGameCard(game: FinishedGame) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -347,7 +347,7 @@ private fun FinishedGameCard(game: FinishedGameDto) {
 }
 
 @Composable
-private fun FinishedGamePlayerRow(player: FinishedGamePlayerDto) {
+private fun FinishedGamePlayerRow(player: FinishedGamePlayer) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,

@@ -7,28 +7,28 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.core.util.ApiError
 import com.commandercompanion.core.util.toUserMessage
-import com.commandercompanion.data.remote.dto.DeckDto
-import com.commandercompanion.data.remote.dto.GameDto
-import com.commandercompanion.data.remote.dto.GameStatus
-import com.commandercompanion.data.remote.dto.PlaygroupDto
+import com.commandercompanion.data.session.SessionManager
+import com.commandercompanion.domain.model.Deck
+import com.commandercompanion.domain.model.Game
+import com.commandercompanion.domain.model.GameStatus
+import com.commandercompanion.domain.model.Playgroup
 import com.commandercompanion.domain.repository.DeckRepository
 import com.commandercompanion.domain.repository.GameRepository
 import com.commandercompanion.domain.repository.PlaygroupRepository
-import com.commandercompanion.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 /** Same seat cap `PlayerSetupScreen`/`GameTrackerScreen`'s quadrant grid supports (2-6). */
 private const val MAX_SEATS = 6
 
 data class JoinGameUiState(
-    val playgroups: List<PlaygroupDto> = emptyList(),
-    val selectedPlaygroup: PlaygroupDto? = null,
+    val playgroups: List<Playgroup> = emptyList(),
+    val selectedPlaygroup: Playgroup? = null,
     val isLoadingGames: Boolean = false,
-    val joinableGames: List<GameDto> = emptyList(),
+    val joinableGames: List<Game> = emptyList(),
     val selectedGameId: String? = null,
-    val ownDecks: List<DeckDto> = emptyList(),
+    val ownDecks: List<Deck> = emptyList(),
     val selectedDeckId: String? = null,
     val isJoining: Boolean = false,
     val error: String? = null
@@ -70,7 +70,7 @@ class JoinGameViewModel @Inject constructor(
         }
     }
 
-    fun selectPlaygroup(playgroup: PlaygroupDto) {
+    fun selectPlaygroup(playgroup: Playgroup) {
         uiState = uiState.copy(
             selectedPlaygroup = playgroup,
             joinableGames = emptyList(),

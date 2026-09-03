@@ -4,19 +4,14 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * DTOs for `/decks`, following the `Deck`/`CreateDeckRequest`/`ImportMoxfieldRequest` schemas
- * from `docs/api/openapi.yaml` (and the real structs from `backend/internal/decks/dto.go`).
+ * Request bodies for `/decks`, following the `CreateDeckRequest`/`ImportMoxfieldRequest`
+ * schemas from `docs/api/openapi.yaml` (and the real structs from
+ * `backend/internal/decks/dto.go`).
+ *
+ * The response shape lives in `domain/model/Deck.kt`: the repository interfaces
+ * name it, so it belongs to the domain. These bodies stay here because nothing
+ * outside `data/` ever names them.
  */
-
-@Serializable
-data class DeckDto(
-    val id: String,
-    @SerialName("user_id") val userId: String,
-    val name: String,
-    val commander: String,
-    @SerialName("moxfield_id") val moxfieldId: String? = null,
-    @SerialName("image_url") val imageUrl: String? = null
-)
 
 @Serializable
 data class CreateDeckRequest(

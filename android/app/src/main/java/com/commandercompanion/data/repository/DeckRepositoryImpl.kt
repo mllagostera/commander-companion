@@ -5,8 +5,8 @@ import com.commandercompanion.data.local.dao.DeckDao
 import com.commandercompanion.data.local.entity.DeckEntity
 import com.commandercompanion.data.remote.api.CommanderApi
 import com.commandercompanion.data.remote.dto.CreateDeckRequest
-import com.commandercompanion.data.remote.dto.DeckDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
+import com.commandercompanion.domain.model.Deck
 import com.commandercompanion.domain.repository.DeckRepository
 import javax.inject.Inject
 
@@ -26,7 +26,7 @@ class DeckRepositoryImpl @Inject constructor(
     private val deckDao: DeckDao
 ) : DeckRepository {
 
-    override suspend fun listDecks(): Result<List<DeckDto>> {
+    override suspend fun listDecks(): Result<List<Deck>> {
         val networkResult = fetchAllPages()
         return networkResult.fold(
             onSuccess = { decks ->
@@ -41,8 +41,8 @@ class DeckRepositoryImpl @Inject constructor(
         )
     }
 
-    private suspend fun fetchAllPages(): Result<List<DeckDto>> {
-        val all = mutableListOf<DeckDto>()
+    private suspend fun fetchAllPages(): Result<List<Deck>> {
+        val all = mutableListOf<Deck>()
         var cursor: String? = null
         do {
             val page = apiCall { api.listDecks(cursor) }.getOrElse { return Result.failure(it) }
@@ -52,17 +52,17 @@ class DeckRepositoryImpl @Inject constructor(
         return Result.success(all)
     }
 
-    override suspend fun getDeck(deckId: String): Result<DeckDto> = apiCall { api.getDeck(deckId) }
+    override suspend fun getDeck(deckId: String): Result<Deck> = apiCall { api.getDeck(deckId) }
 
     override suspend fun createDeck(
         name: String,
         commander: String,
         moxfieldId: String?
-    ): Result<DeckDto> = apiCall {
+    ): Result<Deck> = apiCall {
         api.createDeck(CreateDeckRequest(name = name, commander = commander, moxfieldId = moxfieldId))
     }.onSuccess { deck -> deckDao.insert(deck.toEntity()) }
 
-    override suspend fun importFromMoxfield(urlOrPublicId: String): Result<DeckDto> = apiCall {
+    override suspend fun importFromMoxfield(urlOrPublicId: String): Result<Deck> = apiCall {
         api.importMoxfieldDeck(ImportMoxfieldRequest(urlOrPublicId))
     }.onSuccess { deck -> deckDao.insert(deck.toEntity()) }
 
@@ -70,6 +70,6 @@ class DeckRepositoryImpl @Inject constructor(
         apiCall { api.deleteDeck(deckId) }.onSuccess { deckDao.deleteById(deckId) }
 }
 
-private fun DeckDto.toEntity() = DeckEntity(id = id, userId = userId, name = name, commander = commander, moxfieldId = moxfieldId, imageUrl = imageUrl)
+private fun Deck.toEntity() = DeckEntity(id = id, userId = userId, name = name, commander = commander, moxfieldId = moxfieldId, imageUrl = imageUrl)
 
-private fun DeckEntity.toDto() = DeckDto(id = id, userId = userId, name = name, commander = commander, moxfieldId = moxfieldId, imageUrl = imageUrl)
+private fun DeckEntity.toDto() = Deck(id = id, userId = userId, name = name, commander = commander, moxfieldId = moxfieldId, imageUrl = imageUrl)

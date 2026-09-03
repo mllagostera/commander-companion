@@ -1,10 +1,10 @@
 package com.commandercompanion.domain.usecase
 
-import com.commandercompanion.data.remote.dto.DeckStatsDto
-import com.commandercompanion.data.remote.dto.PagedResponse
-import com.commandercompanion.data.remote.dto.UserStatsDto
 import com.commandercompanion.data.repository.DeckRepositoryImpl
 import com.commandercompanion.data.repository.StatisticsRepositoryImpl
+import com.commandercompanion.domain.model.DeckStats
+import com.commandercompanion.domain.model.Page
+import com.commandercompanion.domain.model.UserStats
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeDeckDao
 import com.commandercompanion.testing.deckDto
@@ -28,9 +28,9 @@ class LoadStatisticsUseCaseTest {
 
     @Test
     fun `carga las estadisticas globales, por deck y por grupo`() = runTest {
-        api.onGetUserStats = { UserStatsDto(userId = "user-1", gamesPlayed = 10, gamesWon = 4) }
-        api.onListDecks = { PagedResponse(items = listOf(deckDto("deck-a"), deckDto("deck-b"))) }
-        api.onGetDeckStats = { id -> DeckStatsDto(deckId = id, gamesPlayed = 5, gamesWon = 2) }
+        api.onGetUserStats = { UserStats(userId = "user-1", gamesPlayed = 10, gamesWon = 4) }
+        api.onListDecks = { Page(items = listOf(deckDto("deck-a"), deckDto("deck-b"))) }
+        api.onGetDeckStats = { id -> DeckStats(deckId = id, gamesPlayed = 5, gamesWon = 2) }
         api.onListPlaygroupGameCounts = { listOf(playgroupGameCountDto(playgroupId = "group-1", gamesPlayed = 3)) }
         api.onGetOpponentStats = { listOf(opponentStatsDto(userId = "user-2", gamesTogether = 2)) }
 
@@ -66,7 +66,7 @@ class LoadStatisticsUseCaseTest {
 
     @Test
     fun `un deck sin estadisticas todavia no rompe la carga del resto`() = runTest {
-        api.onListDecks = { PagedResponse(items = listOf(deckDto("deck-a"))) }
+        api.onListDecks = { Page(items = listOf(deckDto("deck-a"))) }
         api.onGetDeckStats = { throw httpException(404) }
 
         val snapshot = loadSnapshot()!!

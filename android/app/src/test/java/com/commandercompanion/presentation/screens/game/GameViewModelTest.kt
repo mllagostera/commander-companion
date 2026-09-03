@@ -1,14 +1,14 @@
 package com.commandercompanion.presentation.screens.game
 
 import androidx.lifecycle.SavedStateHandle
-import com.commandercompanion.data.remote.dto.CreateActionRequest
-import com.commandercompanion.data.remote.dto.GameActionType
-import com.commandercompanion.data.remote.dto.GameStatus
-import com.commandercompanion.data.remote.dto.amountPayload
-import com.commandercompanion.data.remote.ws.GameSocketEvent
 import com.commandercompanion.data.repository.GameRepositoryImpl
 import com.commandercompanion.data.repository.PlaygroupRepositoryImpl
 import com.commandercompanion.data.session.AccessTokenProvider
+import com.commandercompanion.domain.model.GameActionType
+import com.commandercompanion.domain.model.GameSocketEvent
+import com.commandercompanion.domain.model.GameStatus
+import com.commandercompanion.domain.model.NewGameAction
+import com.commandercompanion.domain.model.amountPayload
 import com.commandercompanion.domain.usecase.ReplayCommanderDamageUseCase
 import com.commandercompanion.domain.usecase.ResolveGameOutcomeUseCase
 import com.commandercompanion.presentation.navigation.PlayerConfig
@@ -22,6 +22,7 @@ import com.commandercompanion.testing.gamePlayerDto
 import com.commandercompanion.testing.httpException
 import com.commandercompanion.testing.playgroupDto
 import com.commandercompanion.testing.playgroupMemberDto
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,7 +37,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.IOException
 
 /**
  * Covers the mapping of network errors to UI state and the mirroring of actions against the
@@ -448,7 +448,7 @@ class GameViewModelTest {
             GameSocketEvent.ActionReceived(
                 gameActionDto(
                     "game-1",
-                    CreateActionRequest(actorId = "gp-user-2", actionType = GameActionType.LIFE_CHANGE, payload = amountPayload(-3))
+                    NewGameAction(actorId = "gp-user-2", actionType = GameActionType.LIFE_CHANGE, payload = amountPayload(-3))
                 )
             )
         )
@@ -472,7 +472,7 @@ class GameViewModelTest {
             GameSocketEvent.ActionReceived(
                 gameActionDto(
                     "game-1",
-                    CreateActionRequest(actorId = "gp-user-1", actionType = GameActionType.LIFE_CHANGE, payload = amountPayload(-10))
+                    NewGameAction(actorId = "gp-user-1", actionType = GameActionType.LIFE_CHANGE, payload = amountPayload(-10))
                 )
             )
         )
@@ -488,7 +488,7 @@ class GameViewModelTest {
             listOf(
                 gameActionDto(
                     "game-1",
-                    CreateActionRequest(actorId = "gp-user-2", targetId = "gp-user-1", actionType = GameActionType.COMMANDER_DAMAGE, payload = amountPayload(7))
+                    NewGameAction(actorId = "gp-user-2", targetId = "gp-user-1", actionType = GameActionType.COMMANDER_DAMAGE, payload = amountPayload(7))
                 )
             )
         }

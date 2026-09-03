@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Local cache mirror of [com.commandercompanion.data.remote.dto.DeckDto], keyed by the same
+ * Local cache mirror of [com.commandercompanion.domain.model.Deck], keyed by the same
  * backend `id` — see `DeckRepository`'s offline-first `listDecks()`.
  */
 @Entity(tableName = "decks")

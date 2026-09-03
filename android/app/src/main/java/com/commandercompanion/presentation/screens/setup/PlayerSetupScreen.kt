@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.commandercompanion.R
-import com.commandercompanion.data.remote.dto.PlaygroupDto
+import com.commandercompanion.domain.model.Playgroup
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.GlassCard
 import com.commandercompanion.presentation.components.GradientButton
@@ -42,7 +42,7 @@ import java.util.UUID
 private const val MIN_PLAYERS = 2
 private const val MAX_PLAYERS = 6
 
-/** Casual: zero network, zero stats — the usual life tracker. Group: see [PlaygroupDto]. */
+/** Casual: zero network, zero stats — the usual life tracker. Group: see [Playgroup]. */
 private enum class SetupMode { CASUAL, GROUP }
 
 /**
@@ -67,7 +67,7 @@ fun PlayerSetupScreen(
         mutableStateListOf(*Array(MAX_PLAYERS) { PlayerColorPalette[it % PlayerColorPalette.size].first })
     }
 
-    var selectedPlaygroup by remember { mutableStateOf<PlaygroupDto?>(null) }
+    var selectedPlaygroup by remember { mutableStateOf<Playgroup?>(null) }
 
     AppScreenBackground {
         // A single scrolling LazyColumn (header + player rows + the start button all as
@@ -168,9 +168,9 @@ fun PlayerSetupScreen(
 
 @Composable
 private fun PlaygroupPicker(
-    playgroups: List<PlaygroupDto>,
-    selected: PlaygroupDto?,
-    onSelected: (PlaygroupDto) -> Unit
+    playgroups: List<Playgroup>,
+    selected: Playgroup?,
+    onSelected: (Playgroup) -> Unit
 ) {
     Column {
         SectionEyebrow(stringResource(R.string.setup_group_label))

@@ -1,6 +1,7 @@
 package com.commandercompanion.data.remote.ws
 
-import com.commandercompanion.data.remote.dto.amount
+import com.commandercompanion.domain.model.GameSocketEvent
+import com.commandercompanion.domain.model.amount
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

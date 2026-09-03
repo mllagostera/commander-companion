@@ -1,5 +1,6 @@
 package com.commandercompanion.data.remote.ws
 
+import com.commandercompanion.domain.model.GameSocketEvent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow

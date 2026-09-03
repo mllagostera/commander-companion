@@ -1,6 +1,7 @@
 package com.commandercompanion.data.remote.ws
 
-import com.commandercompanion.data.remote.dto.GameActionDto
+import com.commandercompanion.domain.model.GameAction
+import com.commandercompanion.domain.model.GameSocketEvent
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -42,7 +43,7 @@ internal fun parseEnvelope(json: Json, text: String): GameSocketEvent? {
         EVENT_CONNECTED -> GameSocketEvent.Connected
         EVENT_GAME_FINISHED -> GameSocketEvent.GameFinished
         EVENT_GAME_ACTION -> envelope.payload
-            ?.let { payload -> runCatching { json.decodeFromJsonElement<GameActionDto>(payload) }.getOrNull() }
+            ?.let { payload -> runCatching { json.decodeFromJsonElement<GameAction>(payload) }.getOrNull() }
             ?.let { GameSocketEvent.ActionReceived(it) }
         else -> null
     }

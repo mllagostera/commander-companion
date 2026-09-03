@@ -9,19 +9,19 @@ import com.commandercompanion.data.remote.ws.GameSocketClient
 import com.commandercompanion.data.remote.ws.OkHttpGameSocketClient
 import com.commandercompanion.data.session.AccessTokenProvider
 import com.commandercompanion.data.session.SessionManager
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.TimeUnit
+import javax.inject.Qualifier
+import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.Retrofit
-import java.util.concurrent.TimeUnit
-import javax.inject.Qualifier
-import javax.inject.Singleton
 
 /** Client/Retrofit WITHOUT the session interceptor — used by [AuthApi] (login/google/refresh/logout). */
 @Qualifier

@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.commandercompanion.R
-import com.commandercompanion.data.local.entity.GameWithPlayers
+import com.commandercompanion.domain.model.PlayedGame
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.CircleIconButton
 import com.commandercompanion.presentation.components.GlassCard
@@ -75,7 +75,7 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 20.dp)
                 ) {
-                    items(games, key = { it.game.id }) { entry ->
+                    items(games, key = { it.id }) { entry ->
                         GameHistoryCard(entry)
                     }
                 }
@@ -85,10 +85,10 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun GameHistoryCard(entry: GameWithPlayers) {
+private fun GameHistoryCard(entry: PlayedGame) {
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
-    val winner = entry.players.firstOrNull { it.won }
-    val finished = entry.game.status == "FINISHED"
+    val winner = entry.seats.firstOrNull { it.won }
+    val finished = entry.isFinished
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -102,7 +102,7 @@ private fun GameHistoryCard(entry: GameWithPlayers) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = dateFormat.format(Date(entry.game.startTime)),
+                    text = dateFormat.format(Date(entry.startedAtEpochMillis)),
                     color = AppMuted,
                     fontSize = 11.sp
                 )
@@ -115,7 +115,7 @@ private fun GameHistoryCard(entry: GameWithPlayers) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = winner?.let { stringResource(R.string.history_winner, it.name) }
-                    ?: stringResource(R.string.history_player_count, entry.game.playerCount),
+                    ?: stringResource(R.string.history_player_count, entry.playerCount),
                 color = AppOnBackground,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
@@ -125,7 +125,7 @@ private fun GameHistoryCard(entry: GameWithPlayers) {
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                entry.players.sortedBy { it.seatIndex }.forEach { player ->
+                entry.seats.forEach { player ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier

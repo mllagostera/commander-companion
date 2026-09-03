@@ -2,21 +2,21 @@ package com.commandercompanion.presentation.screens.statistics
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.commandercompanion.data.remote.dto.FinishedGameDto
+import com.commandercompanion.domain.model.FinishedGame
 import com.commandercompanion.domain.repository.StatisticsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class FinishedGamesUiState(
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
     val loadError: Boolean = false,
-    val games: List<FinishedGameDto> = emptyList(),
+    val games: List<FinishedGame> = emptyList(),
     val nextCursor: String? = null
 ) {
     val hasMore: Boolean get() = nextCursor != null

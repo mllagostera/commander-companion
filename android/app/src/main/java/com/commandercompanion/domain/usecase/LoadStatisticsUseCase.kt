@@ -4,10 +4,10 @@ import com.commandercompanion.domain.model.DeckWithStats
 import com.commandercompanion.domain.model.StatisticsSnapshot
 import com.commandercompanion.domain.repository.DeckRepository
 import com.commandercompanion.domain.repository.StatisticsRepository
+import javax.inject.Inject
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import javax.inject.Inject
 
 /**
  * Fetches everything `StatisticsScreen` needs in one shot (except the finished-games tab, which

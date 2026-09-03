@@ -1,8 +1,8 @@
 package com.commandercompanion.domain.usecase
 
-import com.commandercompanion.data.remote.dto.GameActionDto
-import com.commandercompanion.data.remote.dto.GameActionType
-import com.commandercompanion.data.remote.dto.amount
+import com.commandercompanion.domain.model.GameAction
+import com.commandercompanion.domain.model.GameActionType
+import com.commandercompanion.domain.model.amount
 import javax.inject.Inject
 
 /**
@@ -14,7 +14,7 @@ import javax.inject.Inject
 class ReplayCommanderDamageUseCase @Inject constructor() {
 
     /** [seatByPlayerId] maps a `GamePlayer.id` to its 1-based seat id (`PlayerState.id`). */
-    operator fun invoke(actions: List<GameActionDto>, seatByPlayerId: Map<String, Int>): Map<Int, Map<Int, Int>> {
+    operator fun invoke(actions: List<GameAction>, seatByPlayerId: Map<String, Int>): Map<Int, Map<Int, Int>> {
         val damage = mutableMapOf<Int, MutableMap<Int, Int>>()
         actions.filter { it.actionType == GameActionType.COMMANDER_DAMAGE }.forEach { action ->
             val attackerSeat = seatByPlayerId[action.actorId] ?: return@forEach
