@@ -343,6 +343,7 @@ Then the parts a script cannot judge:
 - [ ] Code works, not just compiles (no stub left returning dummy data).
 - [ ] Relevant gate passes locally: `make lint && make test` / `npm run lint && npm run typecheck && npm run build` / `./gradlew lintDebug testDebugUnitTest`.
 - [ ] New user-facing strings added to **all** locales.
+- [ ] Visual change to the web or the Android app → screenshot attached to the PR (see §8).
 - [ ] `TASKS.md` updated for what you actually did; `DECISIONS-LOG.md` entry if there's narrative worth keeping.
 - [ ] A non-trivial technical decision recorded as an ADR (copy [`docs/decisions/TEMPLATE.md`](docs/decisions/TEMPLATE.md)).
 
@@ -362,6 +363,13 @@ what stays here is only what needs judgement.
 - **Commit subjects: imperative English, no conventional-commit prefix.**
   "Batch the seat lookup in ListGamesForPlaygroup", not "fix(games): ...".
 - Merge into `main` **through a PR** — the repo history is PR merges.
+- **A PR that changes what the web or the Android app looks like must attach an
+  image of the change.** A screenshot of the affected screen — before/after when
+  the change is a modification rather than something new, a short clip or a GIF
+  when it is an animation or a flow. Paste it into the PR description; one image
+  per screen touched. This covers any change a user could see: layout, styles,
+  components, icons, copy in the UI. Nothing can check this for you — a reviewer
+  cannot judge a visual change from a diff.
 - Only commit or push when the user asks for it.
 - **Line endings are decided by `.gitattributes`** (`* text=auto eol=lf`), not by
   each clone's `core.autocrlf`. Generated code comes out of Linux containers as
