@@ -1,10 +1,13 @@
-package com.commandercompanion.data.remote.ws
-
-import com.commandercompanion.data.remote.dto.GameActionDto
+package com.commandercompanion.domain.model
 
 /**
- * Events emitted by [GameSocketClient] for a single game room, translated from the server's
- * envelope (see the backend's ADR-0005: `docs/decisions/0005-websocket-protocol.md`).
+ * Events emitted for a single game room, translated from the server's envelope
+ * by `data/remote/ws/GameSocketClient` (see the backend's ADR-0005:
+ * `docs/decisions/0005-websocket-protocol.md`).
+ *
+ * Lives in `domain/` because [com.commandercompanion.domain.repository.GameRepository]
+ * exposes a `Flow` of these: the transport that produces them is a data-layer
+ * detail, the events themselves are what the game logic reacts to.
  */
 sealed class GameSocketEvent {
 
@@ -13,10 +16,10 @@ sealed class GameSocketEvent {
 
     /**
      * A `game_actions` action (any of the 7 action types) was just recorded for this game.
-     * `payload` is exactly the `GameActionResponse` the REST API already returns, so a client
+     * The payload is exactly the `GameActionResponse` the REST API already returns, so a client
      * that knows how to render the timeline already knows how to interpret this too.
      */
-    data class ActionReceived(val action: GameActionDto) : GameSocketEvent()
+    data class ActionReceived(val action: GameAction) : GameSocketEvent()
 
     /**
      * The game ended. Carries no state of its own — the server closes the room right after

@@ -10,6 +10,7 @@ linters:
     - bidichk
     - bodyclose
     - cyclop
+    - depguard
     - dupl
     - durationcheck
     - err113
@@ -29,7 +30,7 @@ linters:
     - godox
     - goheader
     - gomoddirectives
-    - gomodguard
+    - gomodguard_v2
     - goprintffuncname
     - gosec
     - govet
@@ -59,6 +60,27 @@ linters:
     - wastedassign
     - whitespace
   settings:
+    depguard:
+      rules:
+        # ARCHITECTURE.md: "Handler: transport layer -- the only layer that's
+        # actually decoupled from infrastructure. It knows nothing about SQL or
+        # the Postgres driver, only about Service."
+        #
+        # This is the import-level half of that rule, checked natively here
+        # instead of by a grep in .github/scripts/check-architecture.sh, so it
+        # rides the golangci-lint gate that branch protection already requires.
+        # The half depguard cannot express -- a slice reaching into ANOTHER
+        # slice's sqlc Queries -- stays in that script, because Service and
+        # Queries live in the same Go package and no import-level tool can tell
+        # the two apart.
+        handlers-know-no-persistence:
+          files:
+            - "**/internal/*/handler.go"
+          deny:
+            - pkg: "github.com/jackc/pgx"
+              desc: "the Handler talks to the Service only; move persistence into service.go"
+            - pkg: "database/sql"
+              desc: "the Handler talks to the Service only; move persistence into service.go"
     goconst:
       min-len: 3
       min-occurrences: 3

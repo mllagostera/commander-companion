@@ -1,12 +1,12 @@
 package com.commandercompanion.data.remote.interceptor
 
 import com.commandercompanion.data.session.SessionManager
+import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
 import okhttp3.Authenticator
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.Route
-import javax.inject.Inject
 
 /**
  * On a 401 from the authenticated HTTP client, tries to refresh the access token once and

@@ -1,20 +1,20 @@
 package com.commandercompanion.data.repository
 
 import com.commandercompanion.core.util.ApiError
-import com.commandercompanion.data.remote.dto.FriendRequestDto
+import com.commandercompanion.domain.model.FriendRequestResult
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.friendDto
 import com.commandercompanion.testing.friendRequestDto
+import com.commandercompanion.testing.httpException
 import com.commandercompanion.testing.incomingFriendRequestDto
 import com.commandercompanion.testing.outgoingFriendRequestDto
 import com.commandercompanion.testing.userSearchResultDto
-import com.commandercompanion.testing.httpException
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.IOException
 
 class FriendsRepositoryImplTest {
 
@@ -68,11 +68,11 @@ class FriendsRepositoryImplTest {
      */
     @Test
     fun `sendRequest marca la auto-aceptacion cuando ya habia solicitud inversa`() = runTest {
-        api.onSendFriendRequest = { friendRequestDto(status = FriendRequestDto.STATUS_ACCEPTED) }
+        api.onSendFriendRequest = { friendRequestDto(status = FriendRequestResult.STATUS_ACCEPTED) }
 
         assertTrue(repository.sendRequest("user-2").getOrThrow().wasAutoAccepted)
 
-        api.onSendFriendRequest = { friendRequestDto(status = FriendRequestDto.STATUS_PENDING) }
+        api.onSendFriendRequest = { friendRequestDto(status = FriendRequestResult.STATUS_PENDING) }
 
         assertFalse(repository.sendRequest("user-2").getOrThrow().wasAutoAccepted)
     }

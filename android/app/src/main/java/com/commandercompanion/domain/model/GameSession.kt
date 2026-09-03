@@ -1,6 +1,6 @@
 package com.commandercompanion.domain.model
 
-import com.commandercompanion.data.remote.dto.GameStatus
+import com.commandercompanion.domain.model.GameStatus
 
 /** A local tracker seat, as configured by the user in `PlayerSetupScreen`. */
 data class LocalSeat(

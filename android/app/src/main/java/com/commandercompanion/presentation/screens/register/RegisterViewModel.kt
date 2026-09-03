@@ -5,14 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.commandercompanion.data.remote.api.AuthApi
 import com.commandercompanion.data.remote.dto.RegisterRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.IOException
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
-import java.io.IOException
-import javax.inject.Inject
 
 private const val MIN_PASSWORD_LENGTH = 8
 

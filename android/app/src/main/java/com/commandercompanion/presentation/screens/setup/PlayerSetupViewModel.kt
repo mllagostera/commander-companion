@@ -5,11 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.commandercompanion.data.remote.dto.PlaygroupDto
+import com.commandercompanion.domain.model.Playgroup
 import com.commandercompanion.domain.repository.PlaygroupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 /**
  * Data for [PlayerSetupScreen]'s Group mode: the authenticated user's playgroups, to pick which
@@ -25,7 +25,7 @@ class PlayerSetupViewModel @Inject constructor(
     private val playgroupRepository: PlaygroupRepository
 ) : ViewModel() {
 
-    var playgroups by mutableStateOf<List<PlaygroupDto>>(emptyList())
+    var playgroups by mutableStateOf<List<Playgroup>>(emptyList())
         private set
 
     init {

@@ -3,7 +3,6 @@ package com.commandercompanion.presentation.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -31,8 +31,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -251,7 +251,7 @@ fun SelectableChip(
 
 /**
  * Selectable deck card for the pregame deck picker: shows the commander's art crop
- * ([com.commandercompanion.data.remote.dto.DeckDto.imageUrl], populated for Moxfield-imported
+ * ([com.commandercompanion.domain.model.Deck.imageUrl], populated for Moxfield-imported
  * decks) with the deck name captioned over a bottom scrim, matching the mockup's deck thumbnails.
  * Manually-created decks have no art yet, so this falls back to a plain [SelectableChip]-style
  * card with just the name.

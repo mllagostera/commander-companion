@@ -26,6 +26,10 @@ To ensure the project can scale and that parallel development (including collabo
 
 ## System Architecture
 
+The file-by-file map of each app, and the step-by-step for adding an endpoint,
+a migration, a page or a screen, is in
+[PROJECT-STRUCTURE.md](PROJECT-STRUCTURE.md).
+
 ### Backend (Go)
 - **Pattern:** Modular Monolith, one package per feature under `internal/`
   (`auth`, `decks`, `games`, `playgroups`, `statistics`, ...), each a
@@ -56,11 +60,23 @@ To ensure the project can scale and that parallel development (including collabo
   - `Domain`: use cases (`LoadStatisticsUseCase`, `ResolveGameOutcomeUseCase`,
     `ReplayCommanderDamageUseCase`) and repository interfaces
     (`GameRepository`, `DeckRepository`, `PlaygroupRepository`,
-    `StatisticsRepository`) that `Data` implements. Most `ViewModel`s
-    (game, history, join-game, player setup, statistics) depend on this
-    layer, not on `Data` directly. The one deliberate exception is auth:
-    `LoginViewModel` still goes straight against the API (`AuthApi`,
-    Retrofit) — see `docs/roadmap/TASKS.md`, Stage 4.
+    `StatisticsRepository`, `FriendsRepository`) that `Data` implements. Most
+    `ViewModel`s (game, history, join-game, player setup, statistics, friends)
+    depend on this layer, not on `Data` directly. The deliberate exception is
+    the whole auth surface — `LoginViewModel`, `RegisterViewModel` and
+    `SettingsViewModel` inject `AuthApi`/`CommanderApi`/`SessionManager`
+    straight from `Data` — see `docs/roadmap/TASKS.md`, Stage 4, which records
+    that as intentional rather than pending.
+
+    `Domain` **owns its types** (`domain/model/`): the payload shapes the
+    repository interfaces name — `Deck`, `Game`, `GameAction`, `Playgroup`,
+    `Friend`, the statistics models — live there and keep their
+    `@Serializable` annotations, so Retrofit deserializes straight into them
+    and `Data` depends on `Domain` rather than the other way round. See
+    [ADR-0019](../decisions/0019-android-domain-owns-its-types.md) for why that
+    trade-off was preferred over a parallel set of DTOs plus mappers.
+    Persistence types are the exception and *are* mapped: Room's
+    `GameWithPlayers` becomes `PlayedGame` in `GameRepositoryImpl`.
   - `Data`: repositories (`GameRepository`, `DeckRepository`) that decide
     what's persisted in Room (local) and what calls the real backend (Retrofit,
     `CommanderApi`) — not a purely pass-through layer, it already holds the

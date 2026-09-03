@@ -1,10 +1,10 @@
 package com.commandercompanion.data.remote.interceptor
 
 import com.commandercompanion.data.session.SessionManager
+import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.Response
-import javax.inject.Inject
 
 /**
  * Attaches the access token (if there's a session) as a Bearer to every request of the

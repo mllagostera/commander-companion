@@ -6,13 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.commandercompanion.data.remote.dto.DeckDto
-import com.commandercompanion.data.remote.dto.PlaygroupDto
 import com.commandercompanion.data.session.SessionManager
+import com.commandercompanion.domain.model.Deck
+import com.commandercompanion.domain.model.Playgroup
 import com.commandercompanion.domain.repository.PlaygroupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 /**
  * Data for [PreGameScreen]'s Group-mode seat assignment: the playgroup's members (to assign
@@ -29,14 +29,14 @@ class PreGameViewModel @Inject constructor(
     private val sessionManager: SessionManager
 ) : ViewModel() {
 
-    var playgroup by mutableStateOf<PlaygroupDto?>(null)
+    var playgroup by mutableStateOf<Playgroup?>(null)
         private set
 
     /** Own username, only to mark "(tú)" in the member picker. */
     var ownUsername by mutableStateOf<String?>(null)
         private set
 
-    private val memberDecks = mutableStateMapOf<String, List<DeckDto>>()
+    private val memberDecks = mutableStateMapOf<String, List<Deck>>()
 
     fun loadPlaygroup(playgroupId: String) {
         if (playgroup != null) return
@@ -49,7 +49,7 @@ class PreGameViewModel @Inject constructor(
     }
 
     /** Decks already loaded for a member (own or someone else's). Empty until [loadMemberDecks] resolves. */
-    fun decksFor(userId: String): List<DeckDto> = memberDecks[userId] ?: emptyList()
+    fun decksFor(userId: String): List<Deck> = memberDecks[userId] ?: emptyList()
 
     fun loadMemberDecks(playgroupId: String, userId: String) {
         if (memberDecks.containsKey(userId)) return

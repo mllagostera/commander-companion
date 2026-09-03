@@ -1,11 +1,11 @@
 package com.commandercompanion.presentation.screens.statistics
 
-import com.commandercompanion.data.remote.dto.DeckStatsDto
-import com.commandercompanion.data.remote.dto.PagedResponse
-import com.commandercompanion.data.remote.dto.UserStatsDto
 import com.commandercompanion.data.repository.DeckRepositoryImpl
 import com.commandercompanion.data.repository.StatisticsRepositoryImpl
+import com.commandercompanion.domain.model.DeckStats
 import com.commandercompanion.domain.model.DeckWithStats
+import com.commandercompanion.domain.model.Page
+import com.commandercompanion.domain.model.UserStats
 import com.commandercompanion.domain.usecase.LoadStatisticsUseCase
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeDeckDao
@@ -53,9 +53,9 @@ class StatisticsViewModelTest {
 
     @Test
     fun `carga las estadisticas globales, por deck y por grupo`() = runTest {
-        api.onGetUserStats = { UserStatsDto(userId = "user-1", gamesPlayed = 10, gamesWon = 4) }
-        api.onListDecks = { PagedResponse(items = listOf(deckDto("deck-a"), deckDto("deck-b"))) }
-        api.onGetDeckStats = { id -> DeckStatsDto(deckId = id, gamesPlayed = 5, gamesWon = 2) }
+        api.onGetUserStats = { UserStats(userId = "user-1", gamesPlayed = 10, gamesWon = 4) }
+        api.onListDecks = { Page(items = listOf(deckDto("deck-a"), deckDto("deck-b"))) }
+        api.onGetDeckStats = { id -> DeckStats(deckId = id, gamesPlayed = 5, gamesWon = 2) }
         api.onListPlaygroupGameCounts = { listOf(playgroupGameCountDto(playgroupId = "group-1", gamesPlayed = 3)) }
         api.onGetOpponentStats = { listOf(opponentStatsDto(userId = "user-2", gamesTogether = 2)) }
 
@@ -89,7 +89,7 @@ class StatisticsViewModelTest {
 
     @Test
     fun `un deck sin estadisticas todavia no rompe la carga del resto`() = runTest {
-        api.onListDecks = { PagedResponse(items = listOf(deckDto("deck-a"))) }
+        api.onListDecks = { Page(items = listOf(deckDto("deck-a"))) }
         api.onGetDeckStats = { throw httpException(404) }
 
         val viewModel = viewModel()
@@ -149,8 +149,8 @@ class StatisticsViewModelTest {
 
     @Test
     fun `sortedDeckStats ordena por porcentaje de victorias`() {
-        val lowWinRate = DeckWithStats(deckDto("deck-a"), DeckStatsDto(deckId = "deck-a", gamesPlayed = 10, gamesWon = 2))
-        val highWinRate = DeckWithStats(deckDto("deck-b"), DeckStatsDto(deckId = "deck-b", gamesPlayed = 4, gamesWon = 3))
+        val lowWinRate = DeckWithStats(deckDto("deck-a"), DeckStats(deckId = "deck-a", gamesPlayed = 10, gamesWon = 2))
+        val highWinRate = DeckWithStats(deckDto("deck-b"), DeckStats(deckId = "deck-b", gamesPlayed = 4, gamesWon = 3))
         val state = StatisticsUiState(
             deckStats = listOf(lowWinRate, highWinRate),
             deckSortOrder = DeckSortOrder.WIN_RATE

@@ -1,13 +1,13 @@
 package com.commandercompanion.domain.repository
 
-import com.commandercompanion.data.local.entity.GameWithPlayers
-import com.commandercompanion.data.remote.dto.CreateActionRequest
-import com.commandercompanion.data.remote.dto.GameActionDto
-import com.commandercompanion.data.remote.dto.GameDto
-import com.commandercompanion.data.remote.dto.GamePlayerDto
-import com.commandercompanion.data.remote.ws.GameSocketEvent
+import com.commandercompanion.domain.model.Game
+import com.commandercompanion.domain.model.GameAction
+import com.commandercompanion.domain.model.GamePlayer
+import com.commandercompanion.domain.model.GameSocketEvent
 import com.commandercompanion.domain.model.LocalSeat
 import com.commandercompanion.domain.model.LocalSeatResult
+import com.commandercompanion.domain.model.NewGameAction
+import com.commandercompanion.domain.model.PlayedGame
 import com.commandercompanion.domain.model.RemoteGameSession
 import com.commandercompanion.domain.model.SeatAssignment
 import kotlinx.coroutines.flow.Flow
@@ -21,8 +21,8 @@ interface GameRepository {
 
     // ------------------------------------------------------------ local (Room)
 
-    /** History of games played on this device. */
-    fun observeHistory(): Flow<List<GameWithPlayers>>
+    /** History of games played on this device, newest first, seats ordered by index. */
+    fun observeHistory(): Flow<List<PlayedGame>>
 
     suspend fun persistNewLocalGame(gameId: String, seats: List<LocalSeat>)
 
@@ -30,27 +30,27 @@ interface GameRepository {
 
     // ----------------------------------------------------------- remote (API)
 
-    suspend fun listGames(): Result<List<GameDto>>
+    suspend fun listGames(): Result<List<Game>>
 
     /** Full history of a playgroup's games — used by `JoinGameScreen` to list open (`pending`) ones. */
-    suspend fun listGamesForPlaygroup(playgroupId: String): Result<List<GameDto>>
+    suspend fun listGamesForPlaygroup(playgroupId: String): Result<List<Game>>
 
-    suspend fun getGame(gameId: String): Result<GameDto>
+    suspend fun getGame(gameId: String): Result<Game>
 
-    suspend fun createGame(playgroupId: String? = null): Result<GameDto>
+    suspend fun createGame(playgroupId: String? = null): Result<Game>
 
     /** [userId] null or omitted = self-join. Different = proxy-join (see the backend's ADR-0013). */
-    suspend fun joinGame(gameId: String, deckId: String, userId: String? = null): Result<GamePlayerDto>
+    suspend fun joinGame(gameId: String, deckId: String, userId: String? = null): Result<GamePlayer>
 
     suspend fun leaveGame(gameId: String): Result<Unit>
 
-    suspend fun startGame(gameId: String): Result<GameDto>
+    suspend fun startGame(gameId: String): Result<Game>
 
-    suspend fun finishGame(gameId: String): Result<GameDto>
+    suspend fun finishGame(gameId: String): Result<Game>
 
-    suspend fun timeline(gameId: String): Result<List<GameActionDto>>
+    suspend fun timeline(gameId: String): Result<List<GameAction>>
 
-    suspend fun recordAction(gameId: String, request: CreateActionRequest): Result<GameActionDto>
+    suspend fun recordAction(gameId: String, request: NewGameAction): Result<GameAction>
 
     /**
      * Live updates for [gameId] over WebSocket (see `GameSocketClient`/ADR-0005) — connects,
@@ -79,7 +79,7 @@ interface GameRepository {
     ): Result<RemoteGameSession?>
 
     /** Mirrors a life change of [playerId] on the backend. No `target_id`: the action affects the actor itself. */
-    suspend fun recordLifeChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto>
+    suspend fun recordLifeChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameAction>
 
     /**
      * Mirrors commander damage from [attackerPlayerId] against [defenderPlayerId]. Only makes
@@ -90,8 +90,8 @@ interface GameRepository {
         attackerPlayerId: String,
         defenderPlayerId: String,
         amount: Int
-    ): Result<GameActionDto>
+    ): Result<GameAction>
 
     /** Mirrors a poison counter change of [playerId] on the backend (no `target_id`). */
-    suspend fun recordPoisonChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameActionDto>
+    suspend fun recordPoisonChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameAction>
 }

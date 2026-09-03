@@ -16,8 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.commandercompanion.R
-import com.commandercompanion.data.remote.dto.GameDto
-import com.commandercompanion.data.remote.dto.PlaygroupDto
+import com.commandercompanion.domain.model.Game
+import com.commandercompanion.domain.model.Playgroup
 import com.commandercompanion.presentation.components.AppScreenBackground
 import com.commandercompanion.presentation.components.CircleIconButton
 import com.commandercompanion.presentation.components.GlassCard
@@ -149,8 +149,8 @@ fun JoinGameScreen(
 
 @Composable
 private fun GameRow(
-    game: GameDto,
-    playgroup: PlaygroupDto?,
+    game: Game,
+    playgroup: Playgroup?,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier

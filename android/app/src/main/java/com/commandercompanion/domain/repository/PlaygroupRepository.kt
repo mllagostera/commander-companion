@@ -1,7 +1,7 @@
 package com.commandercompanion.domain.repository
 
-import com.commandercompanion.data.remote.dto.DeckDto
-import com.commandercompanion.data.remote.dto.PlaygroupDto
+import com.commandercompanion.domain.model.Deck
+import com.commandercompanion.domain.model.Playgroup
 
 /**
  * Access to the authenticated user's play groups (`playgroups`). Used by `PlayerSetupScreen`'s
@@ -10,9 +10,9 @@ import com.commandercompanion.data.remote.dto.PlaygroupDto
  */
 interface PlaygroupRepository {
 
-    suspend fun listPlaygroups(): Result<List<PlaygroupDto>>
+    suspend fun listPlaygroups(): Result<List<Playgroup>>
 
-    suspend fun getPlaygroup(playgroupId: String): Result<PlaygroupDto>
+    suspend fun getPlaygroup(playgroupId: String): Result<Playgroup>
 
-    suspend fun getMemberDecks(playgroupId: String, userId: String): Result<List<DeckDto>>
+    suspend fun getMemberDecks(playgroupId: String, userId: String): Result<List<Deck>>
 }

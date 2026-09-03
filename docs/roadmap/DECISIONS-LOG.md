@@ -1691,3 +1691,72 @@ the Settings-screen pass, documented there instead of left half-done — but
 it's a real architectural change, not part of the domain-layer refactor
 that did happen (see the 2026-08-01 domain-layer entry above, which
 deliberately left auth out of scope for the same reason).
+
+### 2026-09-03 — Architecture guardrails, and the domain-layer inversion they found
+
+**What prompted it.** An audit of whether the documented architecture was
+actually being followed. The code came out clean on every invariant that had a
+check — handlers free of persistence, no slice touching another slice's sqlc
+`Queries`, no raw SQL outside `query.sql`, the web client never bypassing the
+Nitro BFF, and all 69 registered routes present in `openapi.yaml` with no
+phantom paths. What had drifted were the rules that lived only in prose: seven
+ADRs (0011–0017) were never linked from the README hub despite §8 saying every
+document must be, `TASKS.md`'s review date was 17 code commits stale, and
+`ARCHITECTURE.md` claimed one deliberate exception to the Android domain layer
+where `TASKS.md` correctly recorded three.
+
+The pattern was the point: **every rule with an automated check was at 100%
+compliance; every rule that depended on someone remembering it had decayed.**
+Only agents work in this repo, and an agent starts each session cold, so a rule
+it doesn't happen to re-read at the moment it breaks it simply doesn't happen.
+
+**What was built.** Four guardrails, each owning what it can express natively,
+with nothing checked twice:
+
+- `depguard` enabled in the existing `golangci-lint` (no new tooling) for "a
+  handler must not import a database driver".
+- Konsist as unit tests in the existing `testDebugUnitTest` gate for the Android
+  layering rules.
+- `eslint-plugin-boundaries` plus `no-restricted-imports` in the existing lint
+  gate for `app/` ↔ `server/`. Both are needed: `boundaries` catches relative
+  imports including unenumerated ones but silently skips what it cannot resolve
+  (it reported nothing at all until `eslint-import-resolver-typescript` was
+  configured — a guardrail passing green while checking nothing), while
+  `no-restricted-imports` matches the Nuxt alias spellings literally and cannot
+  be defeated by a resolution gap.
+- `.github/scripts/check-architecture.sh` + `architecture-ci.yml` for what no
+  import-level tool can state: SQL inside a string literal, the web client
+  reaching the API *by URL*, routes vs `openapi.yaml`, README-hub links, and the
+  `TASKS.md` date (advisory, deliberately non-blocking — blocking it would only
+  teach an agent to bump a date without auditing anything). Plus the one import
+  rule that is genuinely inexpressible elsewhere: a slice reaching into another
+  slice's `Queries`, because `Service` and `Queries` live in the same Go package.
+
+The rule about linking new ADRs also moved to `docs/decisions/TEMPLATE.md` — the
+file an agent has open when it would otherwise forget it.
+
+**What that found.** Writing the Konsist tests surfaced a real inversion the
+grep-based audit had missed, because it only looked at `presentation → data`:
+**`domain/` depended on `data/` in eight files.** The domain's repository
+interfaces were declared in terms of Retrofit DTOs and `GameRepository` returned
+Room's `GameWithPlayers`. Rather than waive it, the tests first froze it as a
+ratchet — the exact set of files, in a list that could only shrink — and the
+debt was then paid off in the same session: payload types moved to
+`domain/model/` keeping their `@Serializable` annotations, `data` now depends on
+`domain`, and the Room relation is mapped to `PlayedGame` at the boundary. Both
+ratchets emptied and became plain invariants. Full rationale, including why a
+parallel DTO+mapper layer was rejected (the same argument `ARCHITECTURE.md`
+already makes for not wrapping sqlc's `Querier` in the backend), in
+[ADR-0019](../decisions/0019-android-domain-owns-its-types.md).
+
+Verified end to end: each guardrail was tested with a deliberately injected
+violation, not just observed passing. `./gradlew testDebugUnitTest lintDebug
+assembleDebug`, `golangci-lint run` (0 issues), `npm run lint`/`typecheck`, and
+the script itself all green afterwards.
+
+**Left open.** `architecture invariants hold` is not yet in the required checks
+on `main` — that is a manual change in GitHub's branch protection settings, and
+until it is made the check reports but does not block. `TASKS.md`'s review date
+was deliberately *not* bumped: this session audited the architecture, not the
+task-by-task status, and updating the date without that audit is exactly the
+behaviour the advisory warning exists to discourage.

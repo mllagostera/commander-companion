@@ -26,7 +26,10 @@ Thumbs.db
 .mcp.json
 GEMINI.md
 
-# --- Entornos ---
+# --- Environments ---
 .env
 *.env.local
 .env.demo
+
+# Build artifacts copied out of android/app/build/ for manual install.
+*.apk

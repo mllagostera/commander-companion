@@ -48,6 +48,24 @@ if [ -z "$push_sha" ]; then
   exit 0
 fi
 
+# Architectural invariants (.github/scripts/check-architecture.sh): handler
+# layer purity, no slice reaching into another's Queries, SQL only in query.sql,
+# the web client not bypassing the Nitro BFF, routes matching openapi.yaml, and
+# every doc linked from the README hub.
+#
+# Runs first and unconditionally, before the backend/web early exits below: it
+# needs no Docker, finishes in seconds, and catches docs-only pushes that those
+# checks skip entirely. It inspects the working tree rather than a clean export
+# of the pushed commit — cheaper, and none of these checks are sensitive to
+# line endings the way gofmt is.
+if [ -f .github/scripts/check-architecture.sh ]; then
+  if ! sh .github/scripts/check-architecture.sh; then
+    echo ""
+    echo "pre-push: architecture checks failed — push cancelled (use 'git push --no-verify' to deliberately skip this)."
+    exit 1
+  fi
+fi
+
 if [ "$backend_changed" = 0 ] && [ "$web_changed" = 0 ]; then
   echo "pre-push: no changes in backend/ or web/, skipping local checks."
   exit 0

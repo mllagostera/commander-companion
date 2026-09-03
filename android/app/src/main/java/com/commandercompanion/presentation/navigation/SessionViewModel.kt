@@ -3,8 +3,8 @@ package com.commandercompanion.presentation.navigation
 import androidx.lifecycle.ViewModel
 import com.commandercompanion.data.session.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharedFlow
 import javax.inject.Inject
+import kotlinx.coroutines.flow.SharedFlow
 
 /**
  * Bridge between [SessionManager] (which lives outside Compose, including on the OkHttp thread

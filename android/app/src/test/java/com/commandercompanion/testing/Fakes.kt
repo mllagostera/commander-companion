@@ -8,37 +8,37 @@ import com.commandercompanion.data.local.entity.GameWithPlayers
 import com.commandercompanion.data.local.entity.PlayerResultEntity
 import com.commandercompanion.data.remote.api.CommanderApi
 import com.commandercompanion.data.remote.dto.ChangePasswordRequest
-import com.commandercompanion.data.remote.dto.CreateActionRequest
 import com.commandercompanion.data.remote.dto.CreateDeckRequest
 import com.commandercompanion.data.remote.dto.CreateGameRequest
-import com.commandercompanion.data.remote.dto.DeckDto
-import com.commandercompanion.data.remote.dto.DeckStatsDto
-import com.commandercompanion.data.remote.dto.FinishedGameDto
-import com.commandercompanion.data.remote.dto.FinishedGamePlayerDto
-import com.commandercompanion.data.remote.dto.FriendDto
-import com.commandercompanion.data.remote.dto.FriendRequestDto
-import com.commandercompanion.data.remote.dto.GameActionDto
-import com.commandercompanion.data.remote.dto.GameDto
-import com.commandercompanion.data.remote.dto.GamePlayerDto
-import com.commandercompanion.data.remote.dto.GameStatus
 import com.commandercompanion.data.remote.dto.HealthDto
 import com.commandercompanion.data.remote.dto.ImportMoxfieldRequest
-import com.commandercompanion.data.remote.dto.IncomingFriendRequestDto
 import com.commandercompanion.data.remote.dto.JoinGameRequest
-import com.commandercompanion.data.remote.dto.OpponentStatsDto
-import com.commandercompanion.data.remote.dto.OutgoingFriendRequestDto
-import com.commandercompanion.data.remote.dto.PagedResponse
-import com.commandercompanion.data.remote.dto.PlaygroupDto
-import com.commandercompanion.data.remote.dto.PlaygroupGameCountDto
-import com.commandercompanion.data.remote.dto.PlaygroupMemberDto
-import com.commandercompanion.data.remote.dto.PlaygroupStatsDto
 import com.commandercompanion.data.remote.dto.SendFriendRequestRequest
 import com.commandercompanion.data.remote.dto.UpdateProfileRequest
 import com.commandercompanion.data.remote.dto.UserDto
-import com.commandercompanion.data.remote.dto.UserSearchResultDto
-import com.commandercompanion.data.remote.dto.UserStatsDto
 import com.commandercompanion.data.remote.ws.GameSocketClient
-import com.commandercompanion.data.remote.ws.GameSocketEvent
+import com.commandercompanion.domain.model.Deck
+import com.commandercompanion.domain.model.DeckStats
+import com.commandercompanion.domain.model.FinishedGame
+import com.commandercompanion.domain.model.FinishedGamePlayer
+import com.commandercompanion.domain.model.Friend
+import com.commandercompanion.domain.model.FriendRequestResult
+import com.commandercompanion.domain.model.Game
+import com.commandercompanion.domain.model.GameAction
+import com.commandercompanion.domain.model.GamePlayer
+import com.commandercompanion.domain.model.GameSocketEvent
+import com.commandercompanion.domain.model.GameStatus
+import com.commandercompanion.domain.model.IncomingFriendRequest
+import com.commandercompanion.domain.model.NewGameAction
+import com.commandercompanion.domain.model.OpponentStats
+import com.commandercompanion.domain.model.OutgoingFriendRequest
+import com.commandercompanion.domain.model.Page
+import com.commandercompanion.domain.model.Playgroup
+import com.commandercompanion.domain.model.PlaygroupGameCount
+import com.commandercompanion.domain.model.PlaygroupMember
+import com.commandercompanion.domain.model.PlaygroupStats
+import com.commandercompanion.domain.model.UserSearchResult
+import com.commandercompanion.domain.model.UserStats
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -53,7 +53,7 @@ fun httpException(code: Int, body: String = """{"message":"boom"}"""): HttpExcep
 
 // --------------------------------------------------------------------- fixture DTOs
 
-fun deckDto(id: String = "deck-1", name: String = "Atraxa", imageUrl: String? = null) = DeckDto(
+fun deckDto(id: String = "deck-1", name: String = "Atraxa", imageUrl: String? = null) = Deck(
     id = id,
     userId = "user-1",
     name = name,
@@ -66,8 +66,8 @@ fun gameDto(
     id: String = "game-1",
     status: String = GameStatus.PENDING,
     playgroupId: String? = null,
-    players: List<GamePlayerDto> = emptyList()
-) = GameDto(
+    players: List<GamePlayer> = emptyList()
+) = Game(
     id = id,
     playgroupId = playgroupId,
     status = status,
@@ -75,16 +75,16 @@ fun gameDto(
 )
 
 fun gamePlayerDto(id: String = "gp-1", gameId: String = "game-1", userId: String = "user-1", deckId: String = "deck-1") =
-    GamePlayerDto(id = id, gameId = gameId, userId = userId, deckId = deckId)
+    GamePlayer(id = id, gameId = gameId, userId = userId, deckId = deckId)
 
 fun playgroupMemberDto(playgroupId: String = "playgroup-1", userId: String = "user-1", username: String = "user-1") =
-    PlaygroupMemberDto(playgroupId = playgroupId, userId = userId, username = username)
+    PlaygroupMember(playgroupId = playgroupId, userId = userId, username = username)
 
 fun playgroupDto(
     id: String = "playgroup-1",
     name: String = "Grupo de test",
-    members: List<PlaygroupMemberDto> = listOf(playgroupMemberDto(playgroupId = id))
-) = PlaygroupDto(id = id, name = name, members = members)
+    members: List<PlaygroupMember> = listOf(playgroupMemberDto(playgroupId = id))
+) = Playgroup(id = id, name = name, members = members)
 
 fun userDto(
     id: String = "user-1",
@@ -103,14 +103,14 @@ fun userDto(
 private const val TEST_TIMESTAMP = "2026-08-16T10:00:00Z"
 
 fun friendDto(id: String = "user-2", username: String = "ana") =
-    FriendDto(id = id, username = username, friendsSince = TEST_TIMESTAMP)
+    Friend(id = id, username = username, friendsSince = TEST_TIMESTAMP)
 
 fun friendRequestDto(
     id: String = "req-1",
     addresseeId: String = "user-2",
     addresseeUsername: String = "ana",
-    status: String = FriendRequestDto.STATUS_PENDING
-) = FriendRequestDto(
+    status: String = FriendRequestResult.STATUS_PENDING
+) = FriendRequestResult(
     id = id,
     addresseeId = addresseeId,
     addresseeUsername = addresseeUsername,
@@ -122,7 +122,7 @@ fun incomingFriendRequestDto(
     id: String = "req-in-1",
     requesterId: String = "user-3",
     requesterUsername: String = "bruno"
-) = IncomingFriendRequestDto(
+) = IncomingFriendRequest(
     id = id,
     requesterId = requesterId,
     requesterUsername = requesterUsername,
@@ -133,7 +133,7 @@ fun outgoingFriendRequestDto(
     id: String = "req-out-1",
     addresseeId: String = "user-4",
     addresseeUsername: String = "carla"
-) = OutgoingFriendRequestDto(
+) = OutgoingFriendRequest(
     id = id,
     addresseeId = addresseeId,
     addresseeUsername = addresseeUsername,
@@ -141,7 +141,7 @@ fun outgoingFriendRequestDto(
 )
 
 fun userSearchResultDto(id: String = "user-2", username: String = "ana") =
-    UserSearchResultDto(id = id, username = username)
+    UserSearchResult(id = id, username = username)
 
 fun opponentStatsDto(
     userId: String = "user-2",
@@ -149,7 +149,7 @@ fun opponentStatsDto(
     gamesTogether: Int = 1,
     timesYouEliminatedThem: Int = 0,
     timesEliminatedByOpponent: Int = 0
-) = OpponentStatsDto(
+) = OpponentStats(
     userId = userId,
     username = username,
     gamesTogether = gamesTogether,
@@ -158,7 +158,7 @@ fun opponentStatsDto(
 )
 
 fun playgroupGameCountDto(playgroupId: String = "playgroup-1", playgroupName: String = "Grupo de test", gamesPlayed: Int = 1) =
-    PlaygroupGameCountDto(playgroupId = playgroupId, playgroupName = playgroupName, gamesPlayed = gamesPlayed)
+    PlaygroupGameCount(playgroupId = playgroupId, playgroupName = playgroupName, gamesPlayed = gamesPlayed)
 
 fun finishedGamePlayerDto(
     userId: String = "user-1",
@@ -166,7 +166,7 @@ fun finishedGamePlayerDto(
     deckId: String = "deck-1",
     deckName: String = "Atraxa",
     won: Boolean = true
-) = FinishedGamePlayerDto(
+) = FinishedGamePlayer(
     userId = userId,
     username = username,
     deckId = deckId,
@@ -178,15 +178,15 @@ fun finishedGamePlayerDto(
 fun finishedGameDto(
     id: String = "game-1",
     playgroupId: String? = null,
-    players: List<FinishedGamePlayerDto> = listOf(finishedGamePlayerDto())
-) = FinishedGameDto(
+    players: List<FinishedGamePlayer> = listOf(finishedGamePlayerDto())
+) = FinishedGame(
     id = id,
     playgroupId = playgroupId,
     finishedAt = "2026-07-27T10:00:00Z",
     players = players
 )
 
-fun gameActionDto(gameId: String, request: CreateActionRequest) = GameActionDto(
+fun gameActionDto(gameId: String, request: NewGameAction) = GameAction(
     id = "action-1",
     gameId = gameId,
     actorId = request.actorId,
@@ -205,95 +205,95 @@ fun gameActionDto(gameId: String, request: CreateActionRequest) = GameActionDto(
 class FakeCommanderApi : CommanderApi {
 
     /** All the actions received by `POST /games/{id}/actions`, in order. */
-    val recordedActions = mutableListOf<Pair<String, CreateActionRequest>>()
+    val recordedActions = mutableListOf<Pair<String, NewGameAction>>()
 
     /** Names of the endpoints invoked, in order — to assert the bootstrap sequence. */
     val calls = mutableListOf<String>()
 
-    var onListDecks: suspend (cursor: String?) -> PagedResponse<DeckDto> = { PagedResponse(items = listOf(deckDto())) }
-    var onListGames: suspend (cursor: String?) -> PagedResponse<GameDto> = { PagedResponse(items = listOf(gameDto())) }
-    var onListGamesForPlaygroup: suspend (String) -> List<GameDto> = { emptyList() }
-    var onImportMoxfield: suspend (ImportMoxfieldRequest) -> DeckDto = { deckDto() }
+    var onListDecks: suspend (cursor: String?) -> Page<Deck> = { Page(items = listOf(deckDto())) }
+    var onListGames: suspend (cursor: String?) -> Page<Game> = { Page(items = listOf(gameDto())) }
+    var onListGamesForPlaygroup: suspend (String) -> List<Game> = { emptyList() }
+    var onImportMoxfield: suspend (ImportMoxfieldRequest) -> Deck = { deckDto() }
     var onDeleteDeck: suspend (String) -> Unit = { }
-    var onCreateGame: suspend (CreateGameRequest) -> GameDto = { gameDto() }
-    var onJoinGame: suspend (String, JoinGameRequest) -> GamePlayerDto = { gameId, request ->
+    var onCreateGame: suspend (CreateGameRequest) -> Game = { gameDto() }
+    var onJoinGame: suspend (String, JoinGameRequest) -> GamePlayer = { gameId, request ->
         gamePlayerDto(gameId = gameId, userId = request.userId ?: "user-1", deckId = request.deckId)
     }
-    var onStartGame: suspend (String) -> GameDto = { id -> gameDto(id, GameStatus.ACTIVE) }
-    var onFinishGame: suspend (String) -> GameDto = { id -> gameDto(id, GameStatus.FINISHED) }
-    var onRecordAction: suspend (String, CreateActionRequest) -> GameActionDto = { id, request ->
+    var onStartGame: suspend (String) -> Game = { id -> gameDto(id, GameStatus.ACTIVE) }
+    var onFinishGame: suspend (String) -> Game = { id -> gameDto(id, GameStatus.FINISHED) }
+    var onRecordAction: suspend (String, NewGameAction) -> GameAction = { id, request ->
         gameActionDto(id, request)
     }
-    var onGetGame: suspend (String) -> GameDto = { id -> gameDto(id) }
-    var onGetTimeline: suspend (String) -> List<GameActionDto> = { emptyList() }
-    var onListPlaygroups: suspend () -> List<PlaygroupDto> = { emptyList() }
-    var onGetPlaygroup: suspend (String) -> PlaygroupDto = { id -> playgroupDto(id = id) }
-    var onGetMemberDecks: suspend (String, String) -> List<DeckDto> = { _, _ -> emptyList() }
+    var onGetGame: suspend (String) -> Game = { id -> gameDto(id) }
+    var onGetTimeline: suspend (String) -> List<GameAction> = { emptyList() }
+    var onListPlaygroups: suspend () -> List<Playgroup> = { emptyList() }
+    var onGetPlaygroup: suspend (String) -> Playgroup = { id -> playgroupDto(id = id) }
+    var onGetMemberDecks: suspend (String, String) -> List<Deck> = { _, _ -> emptyList() }
     var onUpdateProfile: suspend (String, UpdateProfileRequest) -> UserDto = { id, request ->
         userDto(id = id, username = request.username ?: "user-1", moxfieldUsername = request.moxfieldUsername)
     }
     var onChangePassword: suspend (String, ChangePasswordRequest) -> Unit = { _, _ -> }
-    var onGetUserStats: suspend () -> UserStatsDto = { UserStatsDto(userId = "user-1") }
-    var onGetDeckStats: suspend (String) -> DeckStatsDto = { id -> DeckStatsDto(deckId = id) }
-    var onGetPlaygroupStats: suspend (String) -> PlaygroupStatsDto = { id -> PlaygroupStatsDto(playgroupId = id) }
-    var onListPlaygroupGameCounts: suspend () -> List<PlaygroupGameCountDto> = { emptyList() }
-    var onGetOpponentStats: suspend () -> List<OpponentStatsDto> = { emptyList() }
-    var onListFinishedGames: suspend (cursor: String?) -> PagedResponse<FinishedGameDto> = { PagedResponse(items = emptyList()) }
-    var onSearchUsers: suspend (String) -> List<UserSearchResultDto> = { emptyList() }
-    var onListFriends: suspend () -> List<FriendDto> = { emptyList() }
-    var onListIncomingFriendRequests: suspend () -> List<IncomingFriendRequestDto> = { emptyList() }
-    var onListOutgoingFriendRequests: suspend () -> List<OutgoingFriendRequestDto> = { emptyList() }
-    var onSendFriendRequest: suspend (SendFriendRequestRequest) -> FriendRequestDto = { request ->
+    var onGetUserStats: suspend () -> UserStats = { UserStats(userId = "user-1") }
+    var onGetDeckStats: suspend (String) -> DeckStats = { id -> DeckStats(deckId = id) }
+    var onGetPlaygroupStats: suspend (String) -> PlaygroupStats = { id -> PlaygroupStats(playgroupId = id) }
+    var onListPlaygroupGameCounts: suspend () -> List<PlaygroupGameCount> = { emptyList() }
+    var onGetOpponentStats: suspend () -> List<OpponentStats> = { emptyList() }
+    var onListFinishedGames: suspend (cursor: String?) -> Page<FinishedGame> = { Page(items = emptyList()) }
+    var onSearchUsers: suspend (String) -> List<UserSearchResult> = { emptyList() }
+    var onListFriends: suspend () -> List<Friend> = { emptyList() }
+    var onListIncomingFriendRequests: suspend () -> List<IncomingFriendRequest> = { emptyList() }
+    var onListOutgoingFriendRequests: suspend () -> List<OutgoingFriendRequest> = { emptyList() }
+    var onSendFriendRequest: suspend (SendFriendRequestRequest) -> FriendRequestResult = { request ->
         friendRequestDto(addresseeId = request.addresseeId)
     }
-    var onAcceptFriendRequest: suspend (String) -> FriendDto = { friendDto() }
+    var onAcceptFriendRequest: suspend (String) -> Friend = { friendDto() }
     var onRejectFriendRequest: suspend (String) -> Unit = { }
     var onCancelFriendRequest: suspend (String) -> Unit = { }
     var onRemoveFriend: suspend (String) -> Unit = { }
 
     override suspend fun checkHealth(): HealthDto = HealthDto(status = "ok", db = "ok")
 
-    override suspend fun listDecks(cursor: String?): PagedResponse<DeckDto> {
+    override suspend fun listDecks(cursor: String?): Page<Deck> {
         calls += "listDecks"
         return onListDecks(cursor)
     }
 
-    override suspend fun createDeck(request: CreateDeckRequest): DeckDto =
+    override suspend fun createDeck(request: CreateDeckRequest): Deck =
         deckDto(name = request.name)
 
-    override suspend fun getDeck(deckId: String): DeckDto = deckDto(id = deckId)
+    override suspend fun getDeck(deckId: String): Deck = deckDto(id = deckId)
 
     override suspend fun deleteDeck(deckId: String) {
         calls += "deleteDeck"
         onDeleteDeck(deckId)
     }
 
-    override suspend fun importMoxfieldDeck(request: ImportMoxfieldRequest): DeckDto {
+    override suspend fun importMoxfieldDeck(request: ImportMoxfieldRequest): Deck {
         calls += "importMoxfieldDeck"
         return onImportMoxfield(request)
     }
 
-    override suspend fun listGames(cursor: String?): PagedResponse<GameDto> {
+    override suspend fun listGames(cursor: String?): Page<Game> {
         calls += "listGames"
         return onListGames(cursor)
     }
 
-    override suspend fun listGamesForPlaygroup(playgroupId: String): PagedResponse<GameDto> {
+    override suspend fun listGamesForPlaygroup(playgroupId: String): Page<Game> {
         calls += "listGamesForPlaygroup"
-        return PagedResponse(items = onListGamesForPlaygroup(playgroupId))
+        return Page(items = onListGamesForPlaygroup(playgroupId))
     }
 
-    override suspend fun createGame(request: CreateGameRequest): GameDto {
+    override suspend fun createGame(request: CreateGameRequest): Game {
         calls += "createGame"
         return onCreateGame(request)
     }
 
-    override suspend fun getGame(gameId: String): GameDto {
+    override suspend fun getGame(gameId: String): Game {
         calls += "getGame"
         return onGetGame(gameId)
     }
 
-    override suspend fun joinGame(gameId: String, request: JoinGameRequest): GamePlayerDto {
+    override suspend fun joinGame(gameId: String, request: JoinGameRequest): GamePlayer {
         calls += "joinGame"
         return onJoinGame(gameId, request)
     }
@@ -302,71 +302,71 @@ class FakeCommanderApi : CommanderApi {
         calls += "leaveGame"
     }
 
-    override suspend fun startGame(gameId: String): GameDto {
+    override suspend fun startGame(gameId: String): Game {
         calls += "startGame"
         return onStartGame(gameId)
     }
 
-    override suspend fun finishGame(gameId: String): GameDto {
+    override suspend fun finishGame(gameId: String): Game {
         calls += "finishGame"
         return onFinishGame(gameId)
     }
 
     override suspend fun recordAction(
         gameId: String,
-        request: CreateActionRequest
-    ): GameActionDto {
+        request: NewGameAction
+    ): GameAction {
         calls += "recordAction"
         recordedActions += gameId to request
         return onRecordAction(gameId, request)
     }
 
-    override suspend fun getTimeline(gameId: String): List<GameActionDto> {
+    override suspend fun getTimeline(gameId: String): List<GameAction> {
         calls += "getTimeline"
         return onGetTimeline(gameId)
     }
 
-    override suspend fun listPlaygroups(): List<PlaygroupDto> {
+    override suspend fun listPlaygroups(): List<Playgroup> {
         calls += "listPlaygroups"
         return onListPlaygroups()
     }
 
-    override suspend fun getPlaygroup(playgroupId: String): PlaygroupDto {
+    override suspend fun getPlaygroup(playgroupId: String): Playgroup {
         calls += "getPlaygroup"
         return onGetPlaygroup(playgroupId)
     }
 
-    override suspend fun getMemberDecks(playgroupId: String, userId: String): List<DeckDto> {
+    override suspend fun getMemberDecks(playgroupId: String, userId: String): List<Deck> {
         calls += "getMemberDecks"
         return onGetMemberDecks(playgroupId, userId)
     }
 
-    override suspend fun getUserStats(): UserStatsDto {
+    override suspend fun getUserStats(): UserStats {
         calls += "getUserStats"
         return onGetUserStats()
     }
 
-    override suspend fun getDeckStats(deckId: String): DeckStatsDto {
+    override suspend fun getDeckStats(deckId: String): DeckStats {
         calls += "getDeckStats"
         return onGetDeckStats(deckId)
     }
 
-    override suspend fun getPlaygroupStats(playgroupId: String): PlaygroupStatsDto {
+    override suspend fun getPlaygroupStats(playgroupId: String): PlaygroupStats {
         calls += "getPlaygroupStats"
         return onGetPlaygroupStats(playgroupId)
     }
 
-    override suspend fun listPlaygroupGameCounts(): List<PlaygroupGameCountDto> {
+    override suspend fun listPlaygroupGameCounts(): List<PlaygroupGameCount> {
         calls += "listPlaygroupGameCounts"
         return onListPlaygroupGameCounts()
     }
 
-    override suspend fun getOpponentStats(): List<OpponentStatsDto> {
+    override suspend fun getOpponentStats(): List<OpponentStats> {
         calls += "getOpponentStats"
         return onGetOpponentStats()
     }
 
-    override suspend fun listFinishedGames(cursor: String?): PagedResponse<FinishedGameDto> {
+    override suspend fun listFinishedGames(cursor: String?): Page<FinishedGame> {
         calls += "listFinishedGames"
         return onListFinishedGames(cursor)
     }
@@ -381,27 +381,27 @@ class FakeCommanderApi : CommanderApi {
         onChangePassword(userId, request)
     }
 
-    override suspend fun searchUsers(query: String): List<UserSearchResultDto> {
+    override suspend fun searchUsers(query: String): List<UserSearchResult> {
         calls += "searchUsers"
         return onSearchUsers(query)
     }
 
-    override suspend fun sendFriendRequest(request: SendFriendRequestRequest): FriendRequestDto {
+    override suspend fun sendFriendRequest(request: SendFriendRequestRequest): FriendRequestResult {
         calls += "sendFriendRequest"
         return onSendFriendRequest(request)
     }
 
-    override suspend fun listIncomingFriendRequests(direction: String): List<IncomingFriendRequestDto> {
+    override suspend fun listIncomingFriendRequests(direction: String): List<IncomingFriendRequest> {
         calls += "listIncomingFriendRequests"
         return onListIncomingFriendRequests()
     }
 
-    override suspend fun listOutgoingFriendRequests(direction: String): List<OutgoingFriendRequestDto> {
+    override suspend fun listOutgoingFriendRequests(direction: String): List<OutgoingFriendRequest> {
         calls += "listOutgoingFriendRequests"
         return onListOutgoingFriendRequests()
     }
 
-    override suspend fun acceptFriendRequest(requestId: String): FriendDto {
+    override suspend fun acceptFriendRequest(requestId: String): Friend {
         calls += "acceptFriendRequest"
         return onAcceptFriendRequest(requestId)
     }
@@ -416,7 +416,7 @@ class FakeCommanderApi : CommanderApi {
         onCancelFriendRequest(requestId)
     }
 
-    override suspend fun listFriends(): List<FriendDto> {
+    override suspend fun listFriends(): List<Friend> {
         calls += "listFriends"
         return onListFriends()
     }

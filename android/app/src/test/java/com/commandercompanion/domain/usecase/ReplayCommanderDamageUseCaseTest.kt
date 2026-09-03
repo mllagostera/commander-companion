@@ -1,8 +1,8 @@
 package com.commandercompanion.domain.usecase
 
-import com.commandercompanion.data.remote.dto.CreateActionRequest
-import com.commandercompanion.data.remote.dto.GameActionType
-import com.commandercompanion.data.remote.dto.amountPayload
+import com.commandercompanion.domain.model.GameActionType
+import com.commandercompanion.domain.model.NewGameAction
+import com.commandercompanion.domain.model.amountPayload
 import com.commandercompanion.testing.gameActionDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -17,7 +17,7 @@ class ReplayCommanderDamageUseCaseTest {
 
     private fun commanderDamage(actorId: String, targetId: String?, amount: Int) = gameActionDto(
         gameId = "game-1",
-        request = CreateActionRequest(
+        request = NewGameAction(
             actorId = actorId,
             targetId = targetId,
             actionType = GameActionType.COMMANDER_DAMAGE,
@@ -67,7 +67,7 @@ class ReplayCommanderDamageUseCaseTest {
         val actions = listOf(
             gameActionDto(
                 gameId = "game-1",
-                request = CreateActionRequest(actorId = "gp-a", actionType = GameActionType.LIFE_CHANGE, payload = amountPayload(-5))
+                request = NewGameAction(actorId = "gp-a", actionType = GameActionType.LIFE_CHANGE, payload = amountPayload(-5))
             )
         )
 
@@ -92,7 +92,7 @@ class ReplayCommanderDamageUseCaseTest {
     fun `ignora acciones sin amount en el payload`() {
         val malformed = gameActionDto(
             gameId = "game-1",
-            request = CreateActionRequest(actorId = "gp-a", targetId = "gp-b", actionType = GameActionType.COMMANDER_DAMAGE, payload = null)
+            request = NewGameAction(actorId = "gp-a", targetId = "gp-b", actionType = GameActionType.COMMANDER_DAMAGE, payload = null)
         )
 
         assertTrue(useCase(listOf(malformed), seatByPlayerId).isEmpty())

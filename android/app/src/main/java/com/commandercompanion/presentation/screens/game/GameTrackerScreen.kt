@@ -49,10 +49,10 @@ import com.commandercompanion.presentation.theme.AppOnBackground
 import com.commandercompanion.presentation.theme.AppOutline
 import com.commandercompanion.presentation.theme.StatusDanger
 import com.commandercompanion.presentation.theme.StatusPoison
-import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlinx.coroutines.delay
 
 /** How long the starter-draw ring spins across the seats before landing, and how fast each step advances. */
 private const val RANDOMIZE_STEP_DELAY_MS = 130L

@@ -1,11 +1,11 @@
 package com.commandercompanion.data.repository
 
 import com.commandercompanion.core.util.ApiError
-import com.commandercompanion.data.remote.dto.GameActionType
-import com.commandercompanion.data.remote.dto.GameStatus
-import com.commandercompanion.data.remote.dto.PagedResponse
+import com.commandercompanion.domain.model.GameActionType
+import com.commandercompanion.domain.model.GameStatus
 import com.commandercompanion.domain.model.LocalSeat
 import com.commandercompanion.domain.model.LocalSeatResult
+import com.commandercompanion.domain.model.Page
 import com.commandercompanion.domain.model.RemoteGameSession
 import com.commandercompanion.domain.model.SeatAssignment
 import com.commandercompanion.testing.FakeCommanderApi
@@ -219,8 +219,8 @@ class GameRepositoryImplTest {
     fun `listGames sigue next_cursor hasta la ultima pagina`() = runTest {
         api.onListGames = { cursor ->
             when (cursor) {
-                null -> PagedResponse(items = listOf(gameDto("game-a"), gameDto("game-b")), nextCursor = "page-2")
-                "page-2" -> PagedResponse(items = listOf(gameDto("game-c")), nextCursor = null)
+                null -> Page(items = listOf(gameDto("game-a"), gameDto("game-b")), nextCursor = "page-2")
+                "page-2" -> Page(items = listOf(gameDto("game-c")), nextCursor = null)
                 else -> error("cursor inesperado: $cursor")
             }
         }

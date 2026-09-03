@@ -2,6 +2,8 @@ package com.commandercompanion.data.remote.ws
 
 import com.commandercompanion.BuildConfig
 import com.commandercompanion.core.di.WebSocketOkHttpClient
+import com.commandercompanion.domain.model.GameSocketEvent
+import javax.inject.Inject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -12,7 +14,6 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import javax.inject.Inject
 
 private const val NORMAL_CLOSURE_CODE = 1000
 

@@ -152,7 +152,9 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Pre-game screen: turn draw randomizer + per-player mulligan counter
 - [x] Navigation flow defined (`LoginRoute → DashboardRoute → ... `), later connected to the real backend
 - [x] Real auth: Credential Manager + Google Identity Services, `LoginViewModel` against `POST /auth/login`/`/auth/google`, session in `SessionManager` (DataStore), real logout
+- [ ] **Improve `mapGoogleSignInError` in `LoginViewModel`** — every Credential Manager failure collapses into the generic "No se pudo iniciar sesión con Google"; the `else` branch swallows the `GetCredentialException` that carries the real cause, so a misconfigured Google Cloud client is indistinguishable from a network error from the device (found 2026-09-03 while diagnosing the missing Android OAuth client)
 - [x] Domain layer: `domain/repository/` interfaces + `*Impl`, Hilt `RepositoryModule`, `domain/usecase/` (`ResolveGameOutcomeUseCase`, `ReplayCommanderDamageUseCase`, `LoadStatisticsUseCase`) each with its own test — auth (`LoginViewModel`/`RegisterViewModel`/`SettingsViewModel`/etc.) deliberately stays outside it, still injects `AuthApi`/`SessionManager` directly
+- [x] Domain owns its types: payload models moved to `domain/model/`, `data` now depends on `domain`, Room's `GameWithPlayers` mapped to `PlayedGame` — [ADR-0019](../decisions/0019-android-domain-owns-its-types.md), asserted by `ArchitectureTest`
 - [x] Real repositories in `data/repository/` (decide Room vs. backend)
 - [x] `CommanderApi.kt` with 15 real endpoints; separate `AuthApi.kt`
 - [x] `GameState.kt`: life/turn/commander-damage/poison for 2-6 players
@@ -222,6 +224,8 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 
 ## Cross-cutting (quality, infrastructure, security)
 
+- [x] Architecture guardrails: `depguard` (backend), Konsist (Android), `eslint-plugin-boundaries` (web) and `.github/scripts/check-architecture.sh` + `architecture-ci.yml` for what no import-level tool can express — see AGENTS.md §7
+- [ ] **Add `architecture invariants hold` to the required checks on `main`** — external manual step in GitHub's branch protection settings; until then `architecture-ci.yml` reports but does not block (the other three guardrails ride gates that are already required)
 - [x] Backend integration tests (real Postgres) across all 9 modules with queries
 - [x] Android unit tests (JUnit + `kotlinx-coroutines-test`, hand-written fakes, no mocking framework)
 - [x] CI/CD: `backend-ci.yml`, `android-ci.yml`, `web-ci.yml`, `docs-ci.yml` — all four follow the same always-reports-a-check `changes`/`dorny-paths-filter` pattern
@@ -244,12 +248,52 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 
 ## Suggested order of work
 
-1. ~~Quick hygiene: minimal ADRs for what's already decided~~ — done.
-2. ~~Real auth (Stage 1): JWT + bcrypt + middleware~~ — done. Only the external manual step remains: Google Cloud OAuth credentials.
-3. ~~Connect services to the real database (Cross-cutting)~~ — done, backend 100% wired.
-4. ~~Real statistics (Stage 7): recalculation on game finish~~ — done, but see the Stage 1 caveat on double-counting under concurrent `FinishGame` calls.
-5. ~~Complete the OpenAPI contract~~ (Stage 3) — done; `/games/{id}/timeline` is the one listing deliberately left unpaginated (see Stage 3 entry above for why).
-6. ~~Android: real auth (Stage 4-5)~~ — done. Pending the external Google Cloud Web Client ID to test the Google flow end to end.
-7. ~~WebSocket (Stage 6)~~ — server + Android client done; no heartbeat (see Stage 6 gap above).
-8. **Moxfield integration** (Stage 8) — single-deck import and resync work; bulk import by username still blocked on confirming the real Moxfield endpoint.
-9. **Tests + CI** — in place and kept current as modules are built, not left for the end.
+The original 9-step ordering (auth → database → statistics → OpenAPI → Android →
+WebSocket → Moxfield) is **complete**; each of its steps survives as `[x]` items
+in its own stage above, so nothing is lost by not repeating it here. It was also
+carrying three caveats that had stopped being true: `FinishGame`'s
+double-counting (fixed 2026-08-01), the missing WebSocket heartbeat (fixed
+2026-08-10), and the bulk Moxfield import being blocked on confirming the real
+endpoint (confirmed end to end 2026-08-03).
+
+What is left is no longer a sequence of build-outs. It splits three ways:
+
+**Blocked on you, not on code** — nothing here can be finished by writing Go or
+Kotlin, and two of them are what still keeps the app in alpha:
+
+1. **Google Cloud OAuth credentials** (Web + Android Client ID) — until they
+   exist, Google Sign-In cannot be tested against real Google on either client
+   (Stage 1). Both sides are implemented and waiting on the value.
+2. **A verified domain on Resend** (SPF/DKIM/DMARC) + a real dashboard template,
+   to turn on `REQUIRE_EMAIL_VERIFICATION=true` and leave alpha (Stage 1).
+3. **Add `architecture invariants hold` to the required checks on `main`** —
+   a change in GitHub's branch protection settings. Until it is made, the
+   guardrails added on 2026-09-03 report but do not block (Cross-cutting).
+
+**Worth fixing next, in this order** — real problems with a known shape:
+
+4. **The Render/Vercel deploy race** (Cross-cutting) — the two production
+   deploys run in parallel and unordered on a push to `main`, so the new
+   frontend can serve against the old backend. This is the only open item that
+   can produce a broken production, which is why it leads. Note the constraint
+   recorded with it: `/health` exposes no version or commit marker, so "wait for
+   the backend" cannot be solved by polling it as-is.
+5. **The deferred WCAG 2.2 AAA findings** (Stage 4b) — the audit's technical
+   fixes all landed; what remains needs a **design decision**, not code: the
+   contrast of `--text-dim`/`--accent-link`/`--text-muted`, and the tracker's
+   fixed black text over arbitrary per-player colors. Decide the palette, and
+   the implementation is small.
+6. **Admin dashboard Phase 2+** (Stage 10) — games/tournaments/decks moderation,
+   an admin-promotion UI (`is_admin` is set by hand in the DB today), an audit
+   log, and full session revocation on deactivation (bounded to one access-token
+   TTL today, see [ADR-0018](../decisions/0018-admin-role-and-user-moderation.md)).
+
+**Needs scoping before it can be ordered** — these are currently one-line wishes,
+and the first useful step on each is deciding what it actually means:
+
+7. Android life tracker improvements and the `PreGameScreen` pass (Stage 4).
+8. The web client's visual polish pass, and whether the dashboard wants
+   shell-first rendering + skeletons now that the endpoint has landed (Stage 4b).
+
+Ongoing, not steps: record an ADR for each non-trivial decision, and keep tests
+and CI current with the module being built rather than leaving them for the end.

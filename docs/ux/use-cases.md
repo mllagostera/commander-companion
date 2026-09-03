@@ -334,8 +334,9 @@ only of device.
 ### Today (Android, `HistoryScreen` + `HistoryViewModel`)
 
 1. From `DashboardScreen`, the **"HISTORY"** button → `HistoryRoute`.
-2. `HistoryViewModel` exposes `gameDao.getGamesWithPlayers()` as
-   `StateFlow<List<GameWithPlayers>>` — **it is local game history for this
+2. `HistoryViewModel` exposes the repository's history as
+   `StateFlow<List<PlayedGame>>` (a domain model; `GameRepositoryImpl` maps
+   Room's `GameWithPlayers` at the boundary) — **it is local game history for this
    device, not aggregated statistics** (no win rate, no damage totals, no
    charts).
 3. For each game (`GameHistoryCard`): formatted start date/time, status

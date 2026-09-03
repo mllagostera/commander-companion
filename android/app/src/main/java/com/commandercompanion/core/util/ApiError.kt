@@ -1,8 +1,8 @@
 package com.commandercompanion.core.util
 
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
-import java.io.IOException
 
 /**
  * Normalized error from an API call.

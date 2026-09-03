@@ -2,19 +2,19 @@ package com.commandercompanion.presentation.screens.statistics
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.commandercompanion.data.remote.dto.OpponentStatsDto
-import com.commandercompanion.data.remote.dto.PlaygroupGameCountDto
-import com.commandercompanion.data.remote.dto.UserStatsDto
 import com.commandercompanion.domain.model.DeckWithStats
+import com.commandercompanion.domain.model.OpponentStats
+import com.commandercompanion.domain.model.PlaygroupGameCount
+import com.commandercompanion.domain.model.UserStats
 import com.commandercompanion.domain.usecase.LoadStatisticsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-import kotlin.math.roundToInt
 
 /** How [StatisticsUiState.deckStats] should be ordered in the "By deck" tab. */
 enum class DeckSortOrder { RECENT, WIN_RATE, GAMES_PLAYED }
@@ -22,11 +22,11 @@ enum class DeckSortOrder { RECENT, WIN_RATE, GAMES_PLAYED }
 data class StatisticsUiState(
     val isLoading: Boolean = true,
     val loadError: Boolean = false,
-    val userStats: UserStatsDto? = null,
+    val userStats: UserStats? = null,
     val deckStats: List<DeckWithStats> = emptyList(),
     val deckSortOrder: DeckSortOrder = DeckSortOrder.RECENT,
-    val playgroupGameCounts: List<PlaygroupGameCountDto> = emptyList(),
-    val opponentStats: List<OpponentStatsDto> = emptyList()
+    val playgroupGameCounts: List<PlaygroupGameCount> = emptyList(),
+    val opponentStats: List<OpponentStats> = emptyList()
 ) {
     /** [deckStats] ordered by [deckSortOrder] -- the fetch order (backend's `created_at DESC`) is preserved for RECENT. */
     val sortedDeckStats: List<DeckWithStats>
@@ -40,15 +40,15 @@ data class StatisticsUiState(
         }
 
     /** The playgroup the user has played the most finished games in, if any. */
-    val mostPlayedPlaygroup: PlaygroupGameCountDto?
+    val mostPlayedPlaygroup: PlaygroupGameCount?
         get() = playgroupGameCounts.filter { it.gamesPlayed > 0 }.maxByOrNull { it.gamesPlayed }
 
     /** The opponent shared the most finished games with, if any. */
-    val mostPlayedOpponent: OpponentStatsDto?
+    val mostPlayedOpponent: OpponentStats?
         get() = opponentStats.maxByOrNull { it.gamesTogether }
 
     /** The opponent who has eliminated this user the most, if any (0 eliminations doesn't count as an archenemy). */
-    val archenemy: OpponentStatsDto?
+    val archenemy: OpponentStats?
         get() = opponentStats.filter { it.timesEliminatedByOpponent > 0 }.maxByOrNull { it.timesEliminatedByOpponent }
 }
 
