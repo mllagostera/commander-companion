@@ -2,10 +2,10 @@ package com.commandercompanion
 
 import android.graphics.Color
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
@@ -14,8 +14,16 @@ import com.commandercompanion.presentation.theme.AppBackground
 import com.commandercompanion.presentation.theme.CommanderCompanionTheme
 import dagger.hilt.android.AndroidEntryPoint
 
+/**
+ * [AppCompatActivity] rather than a plain `ComponentActivity`, and not for any of AppCompat's UI:
+ * `AppCompatDelegate.setApplicationLocales()` (the language selector in Settings) can only reach
+ * the platform `LocaleManager` through a Context that AppCompat itself has captured, and the only
+ * thing that captures it is an AppCompatActivity being created. With a plain ComponentActivity the
+ * call returned without applying anything and `getApplicationLocales()` stayed empty, so picking a
+ * language did nothing. This also requires an AppCompat parent theme -- see `themes.xml`.
+ */
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Edge-to-edge: the app paints the entire window, status bar and gesture bar included,
         // so the system no longer reserves (and colours) a strip of its own at either end -- which

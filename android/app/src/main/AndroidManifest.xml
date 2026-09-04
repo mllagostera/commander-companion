@@ -14,11 +14,27 @@
         android:theme="@style/Theme.CommanderCompanion"
         tools:targetApi="31">
 
-        <!-- Lets AppCompat persist the per-app language chosen in Settings across restarts
-             (LocaleManager on API 33+, its own SharedPreferences-backed store below that). -->
-        <meta-data
-            android:name="autoStoreLocales"
-            android:value="true" />
+        <!-- The language picked in Settings is applied and persisted through this service, and
+             it has to be declared here by hand.
+
+             `autoStoreLocales` used to sit directly under <application>, where AppCompat never
+             looks for it, and this service was not declared at all. The effect was that
+             AppCompatDelegate.setApplicationLocales() had no Context to reach the platform
+             LocaleManager with (MainActivity is a plain ComponentActivity, so AppCompat is
+             never initialized by an AppCompatActivity either): the call kept the value in
+             memory and applied nothing. The language selector looked like it worked only
+             because the chip was driven from the ViewModel's own copy of the choice.
+
+             android:enabled="false" is deliberate and comes from AppCompat's own docs: the
+             service is never started, it exists purely to hold the meta-data. -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
 
         <!-- Downloads the barcode scanner module at install time instead of on
              the first scan, so the friends screen's "scan a code" doesn't stall

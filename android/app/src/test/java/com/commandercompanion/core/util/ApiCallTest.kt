@@ -66,23 +66,23 @@ class ApiCallTest {
         assertTrue(result.exceptionOrNull() is ApiError.Http)
     }
 
+    /**
+     * Asserts the [ApiFailure] case, not prose: the wording lives in `strings.xml` in three
+     * locales, so a string assertion here would only pin down one of them.
+     */
     @Test
-    fun `toUserMessage distingue sesion expirada, conflicto y sin red`() {
-        assertEquals(
-            "Tu sesión expiró, iniciá sesión de nuevo",
-            ApiError.Http(401).toUserMessage()
-        )
-        assertEquals(
-            "La partida no está en un estado válido para esta acción",
-            ApiError.Http(409).toUserMessage()
-        )
-        assertEquals(
-            "No se pudo conectar con el servidor",
-            ApiError.Network(IOException()).toUserMessage()
-        )
-        assertEquals(
-            "El servidor respondió con un error (500)",
-            ApiError.Http(500).toUserMessage()
-        )
+    fun `toFailure distingue sesion expirada, conflicto y sin red`() {
+        assertEquals(ApiFailure.SessionExpired, ApiError.Http(401).toFailure())
+        assertEquals(ApiFailure.Forbidden, ApiError.Http(403).toFailure())
+        assertEquals(ApiFailure.NotFound, ApiError.Http(404).toFailure())
+        assertEquals(ApiFailure.Conflict, ApiError.Http(409).toFailure())
+        assertEquals(ApiFailure.Network, ApiError.Network(IOException()).toFailure())
+        assertEquals(ApiFailure.Unexpected, ApiError.Unexpected(IllegalStateException()).toFailure())
+    }
+
+    /** The status code survives into the message the screen interpolates. */
+    @Test
+    fun `un codigo sin caso propio conserva el numero`() {
+        assertEquals(ApiFailure.Server(500), ApiError.Http(500).toFailure())
     }
 }

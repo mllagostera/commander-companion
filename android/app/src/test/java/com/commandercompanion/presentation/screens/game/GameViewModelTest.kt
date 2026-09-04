@@ -1,6 +1,7 @@
 package com.commandercompanion.presentation.screens.game
 
 import androidx.lifecycle.SavedStateHandle
+import com.commandercompanion.core.util.ApiFailure
 import com.commandercompanion.data.repository.GameRepositoryImpl
 import com.commandercompanion.data.repository.PlaygroupRepositoryImpl
 import com.commandercompanion.data.session.AccessTokenProvider
@@ -137,7 +138,7 @@ class GameViewModelTest {
     }
 
     @Test
-    fun `sin nadie asignado la sincronizacion queda deshabilitada y se explica por que`() =
+    fun `sin nadie asignado la sincronizacion queda deshabilitada`() =
         runTest(dispatcher) {
             val vm = viewModel(
                 ana = PlayerConfig(name = "Ana", colorKey = "blue"),
@@ -145,30 +146,32 @@ class GameViewModelTest {
             )
             advanceUntilIdle()
 
+            // The wording the banner shows for this status lives in strings.xml
+            // (`tracker_sync_local_only`); the status alone is what this asserts.
             assertEquals(RemoteSyncStatus.Disabled, vm.state.value.remoteSync.status)
-            assertTrue(vm.state.value.remoteSync.message!!.contains("solo en este dispositivo"))
+            assertNull(vm.state.value.remoteSync.failure)
         }
 
     @Test
-    fun `sin red el estado es Failed con el mensaje de conexion`() = runTest(dispatcher) {
+    fun `sin red el estado es Failed con el fallo de conexion`() = runTest(dispatcher) {
         api.onCreateGame = { throw IOException("sin red") }
 
         val vm = viewModel()
         advanceUntilIdle()
 
         assertEquals(RemoteSyncStatus.Failed, vm.state.value.remoteSync.status)
-        assertEquals("No se pudo conectar con el servidor", vm.state.value.remoteSync.message)
+        assertEquals(ApiFailure.Network, vm.state.value.remoteSync.failure)
     }
 
     @Test
-    fun `sesion expirada se traduce a un mensaje de re-login`() = runTest(dispatcher) {
+    fun `sesion expirada se traduce al fallo de sesion caducada`() = runTest(dispatcher) {
         api.onCreateGame = { throw httpException(401) }
 
         val vm = viewModel()
         advanceUntilIdle()
 
         assertEquals(RemoteSyncStatus.Failed, vm.state.value.remoteSync.status)
-        assertEquals("Tu sesión expiró, iniciá sesión de nuevo", vm.state.value.remoteSync.message)
+        assertEquals(ApiFailure.SessionExpired, vm.state.value.remoteSync.failure)
     }
 
     @Test

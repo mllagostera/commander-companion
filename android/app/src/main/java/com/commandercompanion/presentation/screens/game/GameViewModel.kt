@@ -6,7 +6,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.core.util.ApiError
-import com.commandercompanion.core.util.toUserMessage
+import com.commandercompanion.core.util.ApiFailure
+import com.commandercompanion.core.util.toFailure
 import com.commandercompanion.data.session.AccessTokenProvider
 import com.commandercompanion.domain.model.Game
 import com.commandercompanion.domain.model.GameAction
@@ -160,17 +161,13 @@ class GameViewModel @Inject constructor(
                     remoteSession = session
                     updateRemoteSync(
                         when {
-                            session == null -> RemoteSyncState(
-                                status = RemoteSyncStatus.Disabled,
-                                message = "Nadie quedó asignado: la partida se juega solo en este dispositivo"
-                            )
+                            session == null -> RemoteSyncState(status = RemoteSyncStatus.Disabled)
                             session.isActive -> {
                                 observeGameSocket(session.gameId)
                                 RemoteSyncState(status = RemoteSyncStatus.Synced, gameId = session.gameId)
                             }
                             else -> RemoteSyncState(
                                 status = RemoteSyncStatus.WaitingForPlayers,
-                                message = "Esperando a que se una otro jugador para iniciarla en el servidor",
                                 gameId = session.gameId
                             )
                         }
@@ -229,7 +226,6 @@ class GameViewModel @Inject constructor(
                 } else {
                     RemoteSyncState(
                         status = RemoteSyncStatus.WaitingForPlayers,
-                        message = "Esperando a que se una otro jugador para iniciarla en el servidor",
                         gameId = game.id
                     )
                 }
@@ -525,8 +521,7 @@ class GameViewModel @Inject constructor(
         updateRemoteSync(
             RemoteSyncState(
                 status = RemoteSyncStatus.Failed,
-                message = (error as? ApiError)?.toUserMessage()
-                    ?: "No se pudo sincronizar la partida con el servidor",
+                failure = (error as? ApiError)?.toFailure() ?: ApiFailure.Unexpected,
                 gameId = remoteSession?.gameId
             )
         )

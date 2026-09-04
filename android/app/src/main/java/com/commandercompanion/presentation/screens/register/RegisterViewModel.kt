@@ -16,9 +16,19 @@ import retrofit2.HttpException
 
 private const val MIN_PASSWORD_LENGTH = 8
 
+/** What went wrong, for the screen to translate — see `LoginError` for the reasoning. */
+sealed interface RegisterError {
+    data object EmptyFields : RegisterError
+    data class PasswordTooShort(val minLength: Int) : RegisterError
+    data object Network : RegisterError
+    data object AlreadyExists : RegisterError
+    data object InvalidData : RegisterError
+    data class Unknown(val code: Int) : RegisterError
+}
+
 data class RegisterUiState(
     val isLoading: Boolean = false,
-    val error: String? = null,
+    val error: RegisterError? = null,
     /** Non-null once registration succeeds: triggers the "check your email" screen. */
     val registeredEmail: String? = null
 )
@@ -40,11 +50,11 @@ class RegisterViewModel @Inject constructor(
 
     fun register(username: String, email: String, password: String) {
         if (username.isBlank() || email.isBlank() || password.isBlank()) {
-            _uiState.update { it.copy(error = "Completá todos los campos") }
+            _uiState.update { it.copy(error = RegisterError.EmptyFields) }
             return
         }
         if (password.length < MIN_PASSWORD_LENGTH) {
-            _uiState.update { it.copy(error = "La contraseña debe tener al menos $MIN_PASSWORD_LENGTH caracteres") }
+            _uiState.update { it.copy(error = RegisterError.PasswordTooShort(MIN_PASSWORD_LENGTH)) }
             return
         }
         viewModelScope.launch {
@@ -55,14 +65,14 @@ class RegisterViewModel @Inject constructor(
             } catch (e: HttpException) {
                 _uiState.update { it.copy(isLoading = false, error = mapRegisterError(e)) }
             } catch (e: IOException) {
-                _uiState.update { it.copy(isLoading = false, error = "No se pudo conectar con el servidor") }
+                _uiState.update { it.copy(isLoading = false, error = RegisterError.Network) }
             }
         }
     }
 
-    private fun mapRegisterError(e: HttpException): String = when (e.code()) {
-        409 -> "Ya existe una cuenta con ese email o nombre de usuario"
-        400 -> "Revisá los datos ingresados"
-        else -> "No se pudo crear la cuenta (error ${e.code()})"
+    private fun mapRegisterError(e: HttpException): RegisterError = when (e.code()) {
+        409 -> RegisterError.AlreadyExists
+        400 -> RegisterError.InvalidData
+        else -> RegisterError.Unknown(e.code())
     }
 }

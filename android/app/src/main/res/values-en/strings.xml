@@ -201,4 +201,54 @@
     <string name="error_friends_request_gone">That request is no longer available</string>
     <string name="error_friends_invalid_code">That code isn\'t a Commander Companion profile</string>
     <string name="error_friends_unknown">Something went wrong</string>
+
+    <!-- BCP-47 tag of the resource bundle Android actually resolved. It is the only reliable
+         source for the language on screen: AppCompatDelegate's override is empty until one is
+         picked by hand, and until then the language comes from the system. -->
+    <string name="app_locale_tag" translatable="false">en</string>
+
+    <!-- Shared API errors (ApiFailure) -->
+    <string name="error_api_network">Couldn\'t reach the server</string>
+    <string name="error_api_session_expired">Your session has expired, log in again</string>
+    <string name="error_api_forbidden">You don\'t have permission to do this</string>
+    <string name="error_api_not_found">Not found on the server</string>
+    <string name="error_api_conflict">The game isn\'t in a valid state for this action</string>
+    <string name="error_api_server">The server responded with an error (%1$d)</string>
+    <string name="error_api_unexpected">Something went wrong</string>
+
+    <!-- Login errors -->
+    <string name="error_login_empty_fields">Fill in your email and password</string>
+    <string name="error_login_bad_credentials">Wrong email or password</string>
+    <string name="error_login_unknown">Couldn\'t log in (error %1$d)</string>
+    <string name="error_login_google_rejected">Google rejected the account (email not verified, or invalid token)</string>
+    <string name="error_login_google_not_configured">Google sign-in isn\'t configured on the server yet</string>
+    <string name="error_login_google_backend">Couldn\'t log in with Google (error %1$d)</string>
+    <string name="error_login_google_no_account">There is no Google account set up on this device</string>
+    <string name="error_login_google_unknown">Couldn\'t log in with Google</string>
+
+    <!-- Registration errors -->
+    <string name="error_register_empty_fields">Fill in every field</string>
+    <string name="error_register_password_too_short">The password must be at least %1$d characters</string>
+    <string name="error_register_already_exists">An account with that email or username already exists</string>
+    <string name="error_register_invalid_data">Check the details you entered</string>
+    <string name="error_register_unknown">Couldn\'t create the account (error %1$d)</string>
+
+    <!-- Settings errors -->
+    <string name="error_settings_profile_load">Couldn\'t load your profile</string>
+    <string name="error_settings_username_empty">The username can\'t be empty</string>
+    <string name="error_settings_username_taken">That username is already taken</string>
+    <string name="error_settings_username_unknown">Couldn\'t save the username (error %1$d)</string>
+    <string name="error_settings_moxfield_save">Couldn\'t save the Moxfield username</string>
+    <string name="error_settings_password_mismatch">The new passwords don\'t match</string>
+    <string name="error_settings_password_too_short">The password must be at least %1$d characters</string>
+    <string name="error_settings_password_wrong_current">The current password isn\'t correct</string>
+    <string name="error_settings_password_unknown">Couldn\'t change the password (error %1$d)</string>
+
+    <!-- Join-a-game errors -->
+    <string name="error_joingame_load">Couldn\'t load the games</string>
+    <string name="error_joingame_join">Couldn\'t join the game</string>
+
+    <!-- Tracker sync with the server -->
+    <string name="tracker_sync_local_only">Nobody was assigned: this game is played on this device only</string>
+    <string name="tracker_sync_waiting_players">Waiting for another player to join before starting it on the server</string>
 </resources>

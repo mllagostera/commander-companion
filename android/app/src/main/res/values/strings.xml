@@ -204,4 +204,54 @@
     <string name="error_friends_request_gone">Esa solicitud ya no está disponible</string>
     <string name="error_friends_invalid_code">Ese código no es de un perfil de Commander Companion</string>
     <string name="error_friends_unknown">Ocurrió un error inesperado</string>
+
+    <!-- Tag BCP-47 del bundle de recursos que Android ha resuelto de verdad. Es la unica
+         fuente fiable del idioma que se esta mostrando: el override de AppCompatDelegate
+         esta vacio mientras no se elija uno a mano, y entonces el idioma sale del sistema. -->
+    <string name="app_locale_tag" translatable="false">es</string>
+
+    <!-- Errores de API compartidos (ApiFailure) -->
+    <string name="error_api_network">No se pudo conectar con el servidor</string>
+    <string name="error_api_session_expired">Tu sesión ha caducado, inicia sesión de nuevo</string>
+    <string name="error_api_forbidden">No tienes permiso para hacer esto</string>
+    <string name="error_api_not_found">No se encontró en el servidor</string>
+    <string name="error_api_conflict">La partida no está en un estado válido para esta acción</string>
+    <string name="error_api_server">El servidor respondió con un error (%1$d)</string>
+    <string name="error_api_unexpected">Ha ocurrido un error inesperado</string>
+
+    <!-- Errores de login -->
+    <string name="error_login_empty_fields">Rellena el email y la contraseña</string>
+    <string name="error_login_bad_credentials">Email o contraseña incorrectos</string>
+    <string name="error_login_unknown">No se pudo iniciar sesión (error %1$d)</string>
+    <string name="error_login_google_rejected">Google rechazó la cuenta (email no verificado o token no válido)</string>
+    <string name="error_login_google_not_configured">El inicio de sesión con Google todavía no está configurado en el servidor</string>
+    <string name="error_login_google_backend">No se pudo iniciar sesión con Google (error %1$d)</string>
+    <string name="error_login_google_no_account">No hay ninguna cuenta de Google configurada en este dispositivo</string>
+    <string name="error_login_google_unknown">No se pudo iniciar sesión con Google</string>
+
+    <!-- Errores de registro -->
+    <string name="error_register_empty_fields">Rellena todos los campos</string>
+    <string name="error_register_password_too_short">La contraseña debe tener al menos %1$d caracteres</string>
+    <string name="error_register_already_exists">Ya existe una cuenta con ese email o nombre de usuario</string>
+    <string name="error_register_invalid_data">Revisa los datos introducidos</string>
+    <string name="error_register_unknown">No se pudo crear la cuenta (error %1$d)</string>
+
+    <!-- Errores de ajustes -->
+    <string name="error_settings_profile_load">No se pudo cargar tu perfil</string>
+    <string name="error_settings_username_empty">El nombre de usuario no puede estar vacío</string>
+    <string name="error_settings_username_taken">Ese nombre de usuario ya está en uso</string>
+    <string name="error_settings_username_unknown">No se pudo guardar el nombre de usuario (error %1$d)</string>
+    <string name="error_settings_moxfield_save">No se pudo guardar el usuario de Moxfield</string>
+    <string name="error_settings_password_mismatch">Las contraseñas nuevas no coinciden</string>
+    <string name="error_settings_password_too_short">La contraseña debe tener al menos %1$d caracteres</string>
+    <string name="error_settings_password_wrong_current">La contraseña actual no es correcta</string>
+    <string name="error_settings_password_unknown">No se pudo cambiar la contraseña (error %1$d)</string>
+
+    <!-- Errores al unirse a una partida -->
+    <string name="error_joingame_load">No se pudieron cargar las partidas</string>
+    <string name="error_joingame_join">No se pudo unir a la partida</string>
+
+    <!-- Sincronización del tracker con el servidor -->
+    <string name="tracker_sync_local_only">Nadie quedó asignado: la partida se juega solo en este dispositivo</string>
+    <string name="tracker_sync_waiting_players">Esperando a que se una otro jugador para iniciarla en el servidor</string>
 </resources>

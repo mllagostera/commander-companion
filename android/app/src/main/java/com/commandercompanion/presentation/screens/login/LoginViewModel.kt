@@ -20,9 +20,27 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
+/**
+ * What went wrong, for the screen to turn into a string resource — same reasoning as
+ * `FriendsError`: a literal here could not be translated into the three locales the app ships.
+ * Sealed rather than an enum because the two "unknown" cases carry the status code their
+ * message interpolates.
+ */
+sealed interface LoginError {
+    data object EmptyFields : LoginError
+    data object Network : LoginError
+    data object BadCredentials : LoginError
+    data class Unknown(val code: Int) : LoginError
+    data object GoogleRejected : LoginError
+    data object GoogleNotConfigured : LoginError
+    data class GoogleBackend(val code: Int) : LoginError
+    data object GoogleNoAccount : LoginError
+    data object GoogleUnknown : LoginError
+}
+
 data class LoginUiState(
     val isLoading: Boolean = false,
-    val error: String? = null,
+    val error: LoginError? = null,
     val loginSucceeded: Boolean = false
 )
 
@@ -38,7 +56,7 @@ class LoginViewModel @Inject constructor(
 
     fun loginWithPassword(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
-            _uiState.update { it.copy(error = "Completá email y contraseña") }
+            _uiState.update { it.copy(error = LoginError.EmptyFields) }
             return
         }
         viewModelScope.launch {
@@ -50,7 +68,7 @@ class LoginViewModel @Inject constructor(
             } catch (e: HttpException) {
                 _uiState.update { it.copy(isLoading = false, error = mapPasswordError(e)) }
             } catch (e: IOException) {
-                _uiState.update { it.copy(isLoading = false, error = "No se pudo conectar con el servidor") }
+                _uiState.update { it.copy(isLoading = false, error = LoginError.Network) }
             }
         }
     }
@@ -78,7 +96,7 @@ class LoginViewModel @Inject constructor(
         } catch (e: HttpException) {
             _uiState.update { it.copy(isLoading = false, error = mapGoogleBackendError(e)) }
         } catch (e: IOException) {
-            _uiState.update { it.copy(isLoading = false, error = "No se pudo conectar con el servidor") }
+            _uiState.update { it.copy(isLoading = false, error = LoginError.Network) }
         }
     }
 
@@ -86,21 +104,23 @@ class LoginViewModel @Inject constructor(
         _uiState.update { it.copy(error = null) }
     }
 
-    private fun mapPasswordError(e: HttpException): String = when (e.code()) {
-        401 -> "Email o contraseña incorrectos"
-        else -> "No se pudo iniciar sesión (error ${e.code()})"
+    private fun mapPasswordError(e: HttpException): LoginError = when (e.code()) {
+        401 -> LoginError.BadCredentials
+        else -> LoginError.Unknown(e.code())
     }
 
-    private fun mapGoogleBackendError(e: HttpException): String = when (e.code()) {
-        400 -> "Google rechazó la cuenta (email no verificado o token inválido)"
-        501 -> "El inicio de sesión con Google no está configurado en el servidor todavía"
-        else -> "No se pudo iniciar sesión con Google (error ${e.code()})"
+    private fun mapGoogleBackendError(e: HttpException): LoginError = when (e.code()) {
+        400 -> LoginError.GoogleRejected
+        501 -> LoginError.GoogleNotConfigured
+        else -> LoginError.GoogleBackend(e.code())
     }
 
-    private fun mapGoogleSignInError(throwable: Throwable): String? = when (throwable) {
+    private fun mapGoogleSignInError(throwable: Throwable): LoginError? = when (throwable) {
         // The user closed the account picker: not an error, we don't show a banner.
         is GoogleSignInCancelledException -> null
-        is NoGoogleAccountException -> throwable.message
-        else -> "No se pudo iniciar sesión con Google"
+        is NoGoogleAccountException -> LoginError.GoogleNoAccount
+        // TODO(TASKS.md Stage 4): every other Credential Manager failure still collapses here,
+        // swallowing the GetCredentialException that carries the real cause.
+        else -> LoginError.GoogleUnknown
     }
 }

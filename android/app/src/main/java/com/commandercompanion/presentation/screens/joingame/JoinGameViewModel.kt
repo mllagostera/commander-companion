@@ -6,7 +6,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.commandercompanion.core.util.ApiError
-import com.commandercompanion.core.util.toUserMessage
+import com.commandercompanion.core.util.ApiFailure
+import com.commandercompanion.core.util.toFailure
 import com.commandercompanion.data.session.SessionManager
 import com.commandercompanion.domain.model.Deck
 import com.commandercompanion.domain.model.Game
@@ -22,6 +23,16 @@ import kotlinx.coroutines.launch
 /** Same seat cap `PlayerSetupScreen`/`GameTrackerScreen`'s quadrant grid supports (2-6). */
 private const val MAX_SEATS = 6
 
+/**
+ * What went wrong, for the screen to translate — see `LoginError` for the reasoning. [failure]
+ * is the underlying API error when there was one, so the screen can say *why* rather than only
+ * which step failed.
+ */
+sealed interface JoinGameError {
+    data class Load(val failure: ApiFailure?) : JoinGameError
+    data class Join(val failure: ApiFailure?) : JoinGameError
+}
+
 data class JoinGameUiState(
     val playgroups: List<Playgroup> = emptyList(),
     val selectedPlaygroup: Playgroup? = null,
@@ -31,7 +42,7 @@ data class JoinGameUiState(
     val ownDecks: List<Deck> = emptyList(),
     val selectedDeckId: String? = null,
     val isJoining: Boolean = false,
-    val error: String? = null
+    val error: JoinGameError? = null
 )
 
 /**
@@ -93,7 +104,7 @@ class JoinGameViewModel @Inject constructor(
                 onFailure = { error ->
                     uiState = uiState.copy(
                         isLoadingGames = false,
-                        error = (error as? ApiError)?.toUserMessage() ?: "No se pudieron cargar las partidas"
+                        error = JoinGameError.Load((error as? ApiError)?.toFailure())
                     )
                 }
             )
@@ -130,7 +141,7 @@ class JoinGameViewModel @Inject constructor(
                 onFailure = { error ->
                     uiState = uiState.copy(
                         isJoining = false,
-                        error = (error as? ApiError)?.toUserMessage() ?: "No se pudo unir a la partida"
+                        error = JoinGameError.Join((error as? ApiError)?.toFailure())
                     )
                 }
             )

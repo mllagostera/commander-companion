@@ -36,6 +36,7 @@ import com.commandercompanion.presentation.components.GradientOutlineButton
 import com.commandercompanion.presentation.components.GradientTitle
 import com.commandercompanion.presentation.components.ThinDivider
 import com.commandercompanion.presentation.screens.login.LoginViewModel
+import com.commandercompanion.presentation.screens.login.message
 import com.commandercompanion.presentation.theme.AccentSoft
 import com.commandercompanion.presentation.theme.AppFaint
 import com.commandercompanion.presentation.theme.AppOnBackground
@@ -49,6 +50,18 @@ import com.commandercompanion.presentation.theme.AppOnBackground
  * A successful password registration does NOT leave a session started (same contract as the web
  * client): instead of navigating to the dashboard, the screen itself switches to show "check your email".
  */
+/** Maps the ViewModel's error type onto the translated strings (see [RegisterError]). */
+@Composable
+private fun RegisterError.message(): String = when (this) {
+    RegisterError.EmptyFields -> stringResource(R.string.error_register_empty_fields)
+    is RegisterError.PasswordTooShort ->
+        stringResource(R.string.error_register_password_too_short, minLength)
+    RegisterError.Network -> stringResource(R.string.error_api_network)
+    RegisterError.AlreadyExists -> stringResource(R.string.error_register_already_exists)
+    RegisterError.InvalidData -> stringResource(R.string.error_register_invalid_data)
+    is RegisterError.Unknown -> stringResource(R.string.error_register_unknown, code)
+}
+
 @Composable
 fun RegisterScreen(
     onLoginSuccess: () -> Unit,
@@ -123,18 +136,18 @@ fun RegisterScreen(
                             visualTransformation = PasswordVisualTransformation()
                         )
 
-                        uiState.error?.let { message ->
+                        uiState.error?.let { error ->
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = message,
+                                text = error.message(),
                                 color = MaterialTheme.colorScheme.error,
                                 fontSize = 12.sp
                             )
                         }
-                        googleUiState.error?.let { message ->
+                        googleUiState.error?.let { error ->
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = message,
+                                text = error.message(),
                                 color = MaterialTheme.colorScheme.error,
                                 fontSize = 12.sp
                             )

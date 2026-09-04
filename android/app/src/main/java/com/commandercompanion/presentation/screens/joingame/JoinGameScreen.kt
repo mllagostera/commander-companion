@@ -24,9 +24,24 @@ import com.commandercompanion.presentation.components.GlassCard
 import com.commandercompanion.presentation.components.GradientButton
 import com.commandercompanion.presentation.components.SectionEyebrow
 import com.commandercompanion.presentation.components.SelectableChip
+import com.commandercompanion.presentation.components.message
 import com.commandercompanion.presentation.theme.AppFaint
 import com.commandercompanion.presentation.theme.AppOnBackground
 import com.commandercompanion.presentation.theme.StatusDanger
+
+/** Maps the ViewModel's error type onto the translated strings (see [JoinGameError]). */
+@Composable
+private fun JoinGameError.message(): String {
+    val step = when (this) {
+        is JoinGameError.Load -> stringResource(R.string.error_joingame_load)
+        is JoinGameError.Join -> stringResource(R.string.error_joingame_join)
+    }
+    val cause = when (this) {
+        is JoinGameError.Load -> failure
+        is JoinGameError.Join -> failure
+    }?.message()
+    return if (cause == null) step else "$step: $cause"
+}
 
 @Composable
 fun JoinGameScreen(
@@ -141,7 +156,7 @@ fun JoinGameScreen(
 
                     if (state.error != null) {
                         Spacer(modifier = Modifier.height(10.dp))
-                        Text(state.error, color = StatusDanger, fontSize = 12.sp)
+                        Text(state.error.message(), color = StatusDanger, fontSize = 12.sp)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
