@@ -30,9 +30,14 @@
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="barcode_ui" />
 
+        <!-- adjustResize is what makes the WindowInsets.ime inset reported under edge-to-edge:
+             the window no longer resizes itself around the system bars, so the screens' own
+             safeDrawing padding (see AppScreenBackground) is the only thing keeping a focused
+             text field above the keyboard. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.CommanderCompanion">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

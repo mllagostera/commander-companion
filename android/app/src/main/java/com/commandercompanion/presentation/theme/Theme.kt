@@ -37,11 +37,14 @@ fun CommanderCompanionTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            // The status bar *color* is set in themes.xml (Window.setStatusBarColor is
-            // deprecated on API 35+); only the icon tint has to be driven from here,
-            // since it follows the composable's darkTheme argument.
+            // The window is edge-to-edge (see MainActivity), so neither bar has a colour to set --
+            // both are transparent and the app paints under them. All that is left is the icon
+            // tint, which has to be driven from here because it follows the composable's
+            // darkTheme argument rather than anything declared in themes.xml.
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

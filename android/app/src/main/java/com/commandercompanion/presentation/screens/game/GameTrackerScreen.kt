@@ -111,13 +111,27 @@ fun GameTrackerScreen(
 
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    // Edge-to-edge: the deep violet fills the whole window, and the safe-area padding is applied
+    // per child rather than on this Box. Anything the player *touches* is inset -- in landscape the
+    // safe area excludes the side gesture bar and any display cutout, which would otherwise swallow
+    // taps on the life counters at the screen edges. The full-screen scrims (pause, starter banner)
+    // deliberately stay full-bleed: a modal that stopped at the safe area would leave an
+    // un-dimmed strip under the status bar and the gesture bar.
     Box(modifier = Modifier.fillMaxSize().background(AppBackgroundDeep)) {
         when {
-            !isLandscape -> RotateDevicePrompt(message = stringResource(R.string.tracker_rotate_prompt))
-            state.isFinished -> GameSummary(state = state, onBack = onFinish)
-            state.players.isEmpty() -> LoadingTable(remoteSync = state.remoteSync, onBack = onFinish)
+            !isLandscape -> RotateDevicePrompt(
+                message = stringResource(R.string.tracker_rotate_prompt),
+                modifier = Modifier.safeDrawingPadding()
+            )
+            state.isFinished -> Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+                GameSummary(state = state, onBack = onFinish)
+            }
+            state.players.isEmpty() -> Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+                LoadingTable(remoteSync = state.remoteSync, onBack = onFinish)
+            }
             else -> {
                 QuadrantGrid(
+                    modifier = Modifier.safeDrawingPadding(),
                     players = state.players,
                     localSeatId = state.localSeatId,
                     expandedPlayerId = expandedPlayerId,
@@ -141,7 +155,11 @@ fun GameTrackerScreen(
 
                 RemoteSyncBanner(
                     remoteSync = state.remoteSync,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 4.dp)
+                    // Anchored to the window's top edge, which is now behind the status bar.
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                        .padding(top = 4.dp)
                 )
 
                 OrbitingTurnLabel(turn = state.currentTurn, modifier = Modifier.align(Alignment.Center))
@@ -185,6 +203,7 @@ private fun seatRows(players: List<PlayerState>): Pair<List<PlayerState>, List<P
 /** Seat grid: first half "at the top of the table" (rotated 180°), the rest below. Works for 2-6. */
 @Composable
 private fun QuadrantGrid(
+    modifier: Modifier = Modifier,
     players: List<PlayerState>,
     localSeatId: Int?,
     expandedPlayerId: Int?,
@@ -207,7 +226,7 @@ private fun QuadrantGrid(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(4.dp),
+        modifier = modifier.fillMaxSize().padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         listOf(topSeats to true, bottomSeats to false).forEach { (seats, rotated) ->

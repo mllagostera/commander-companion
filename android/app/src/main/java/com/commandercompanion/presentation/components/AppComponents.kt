@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -437,10 +440,18 @@ fun StatusPill(
 /**
  * Full-screen dark background with two soft violet glow orbs, matching the portrait-flow
  * screens in the mockup (Login, Dashboard, History, Setup).
+ *
+ * The window is edge-to-edge, so the background and the orbs deliberately bleed the full height,
+ * *behind* the transparent status bar and gesture bar; only [content] is inset, by
+ * [contentWindowInsets]. That is what keeps the app's own colour under the system bars instead of
+ * the system-drawn strip. Screens whose content should scroll under the gesture bar rather than
+ * stop above it (the list screens) pass insets without the bottom side and add it to their own
+ * list padding instead.
  */
 @Composable
 fun AppScreenBackground(
     modifier: Modifier = Modifier,
+    contentWindowInsets: WindowInsets = WindowInsets.safeDrawing,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(modifier = modifier.fillMaxSize().background(AppBackground)) {
@@ -468,7 +479,10 @@ fun AppScreenBackground(
                     CircleShape
                 )
         )
-        content()
+        Box(
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(contentWindowInsets),
+            content = content
+        )
     }
 }
 
