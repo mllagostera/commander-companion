@@ -46,7 +46,16 @@ fun HistoryScreen(
 ) {
     val games by viewModel.games.collectAsState()
 
-    AppScreenBackground {
+    // Bottom system inset (the gesture bar) added to the list's own padding, since
+    // AppScreenBackground deliberately does not consume it -- see the call below.
+    val bottomInset = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+
+    // The list underneath scrolls *under* the gesture bar instead of stopping above it, so the
+    // bottom inset is left out here and folded into the LazyColumn's contentPadding below.
+    AppScreenBackground(
+        contentWindowInsets = WindowInsets.safeDrawing
+            .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(20.dp, 20.dp, 20.dp, 12.dp),
@@ -73,7 +82,7 @@ fun HistoryScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 20.dp)
+                    contentPadding = PaddingValues(bottom = 20.dp + bottomInset)
                 ) {
                     items(games, key = { it.id }) { entry ->
                         GameHistoryCard(entry)

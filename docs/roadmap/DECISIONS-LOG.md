@@ -25,6 +25,61 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-04 — Edge-to-edge window, and the life tracker finally verified on a
+device.** Started from a user report: a pale strip under the gesture handle on a
+Xiaomi 13 Ultra, on a screen that is otherwise near-black. The cause was not a
+colour bug. The app was not edge-to-edge — no screen consumed window insets, so
+the system inset the window and drew its own strip at each end. `themes.xml` set
+`statusBarColor` but never `navigationBarColor`, so the top matched the app and
+the bottom did not, and `AppScreenBackground`'s glow orbs visibly cut off at the
+boundary.
+
+- **`enableEdgeToEdge()` with `SystemBarStyle.dark(TRANSPARENT)` on both bars**,
+  rather than the default auto-scrim: every screen sits on the same near-black
+  gradient, so the light icons already have contrast. `statusBarColor` was
+  dropped from `themes.xml` — it is ignored outright from `targetSdk` 35 on, so
+  this is the only forward-compatible shape. Raising `targetSdk` past 34 is now
+  unblocked; it was going to force this work anyway.
+- **Insets are consumed per screen, not globally.** `AppScreenBackground` gained
+  a `contentWindowInsets` parameter (default `safeDrawing`) that pads only its
+  content while the background and orbs stay full-bleed — that one seam covers
+  nine of the eleven screens. The three list screens pass insets without the
+  bottom side and fold it into their `LazyColumn`'s `contentPadding`, so the list
+  scrolls under the gesture bar instead of stopping above it.
+- **The two landscape screens took a second pass.** Putting `safeDrawingPadding()`
+  on their root `Box` looked right until the pause overlay was opened on the
+  emulator: its scrim, anchored with `matchParentSize()`, was being clipped to the
+  safe area and left an un-dimmed band under the status bar and over the gesture
+  bar. A modal has to cover the window. The padding moved down to the children
+  that are actually touched — `QuadrantGrid` and `SeatGrid` gained a `modifier`
+  parameter — while the scrims stay full-bleed and `RemoteSyncBanner`, anchored to
+  the top edge, takes its own status-bar inset. Worth recording because the
+  mistake is the intuitive one: the root `Box` is the wrong place for the padding
+  the moment anything inside it is a full-screen overlay.
+- **`windowSoftInputMode="adjustResize"`** was added to the manifest. Under
+  edge-to-edge the window no longer resizes itself, so the screens' own
+  `safeDrawing` padding — which includes the IME inset — is the only thing
+  keeping a focused text field above the keyboard.
+
+**How it was verified.** An emulator finally ran here, which is what the
+2026-09-03 entry could not do. `Xiaomi_13_Ultra` (API 37, 1440×3200, 560 dpi,
+gesture navigation enabled via the `navbar.gestural` overlay) against the
+Compose-side backend in Docker. Note for the next session: this SDK's
+`opengl32sw` fails to load, so `-gpu swiftshader_indirect` hangs the boot at
+`offline` forever — `-gpu host` boots in 40 seconds.
+
+All eleven screens were walked through with a real account and a real game, plus
+the states that are not screens of their own (register with the keyboard open,
+pause overlay, game summary, rotate prompt). That playthrough doubles as the
+device verification the life tracker item had been waiting on since it was built,
+so it is checked off in TASKS.md in this same change; `./gradlew lintDebug
+testDebugUnitTest assembleDebug` is green.
+
+**Found and not fixed** — both pre-existing, both outside this change: the
+tracker's "nobody was assigned" banner renders in Spanish while the rest of the
+UI is in English, and Settings shows "Español" selected while the app renders in
+English, so the chip and the effective locale disagree.
+
 **2026-09-03 — Android life tracker rebuilt against the Claude Design
 handoff.** The design bundle exported from Claude Design (`Android
 Tracker.dc.html`, plus seven chat transcripts recording how it got there) was

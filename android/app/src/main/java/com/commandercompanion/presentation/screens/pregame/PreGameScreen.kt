@@ -114,11 +114,18 @@ fun PreGameScreen(
     }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
+    // Edge-to-edge: the deep violet fills the whole window, and the safe-area padding goes on the
+    // children that are touched rather than on this Box, so the seat grid stays clear of the
+    // landscape gesture bar and any display cutout. The play button is centred, so it needs none.
     Box(modifier = Modifier.fillMaxSize().background(AppBackgroundDeep)) {
         if (!isLandscape) {
-            RotateDevicePrompt(message = stringResource(R.string.pregame_rotate_prompt))
+            RotateDevicePrompt(
+                message = stringResource(R.string.pregame_rotate_prompt),
+                modifier = Modifier.safeDrawingPadding()
+            )
         } else {
             SeatGrid(
+                modifier = Modifier.safeDrawingPadding(),
                 configs = configs,
                 mulligans = mulligans,
                 onIncrement = { index -> mulligans[index] = mulligans[index] + 1 },
@@ -166,6 +173,7 @@ fun PreGameScreen(
 
 @Composable
 private fun SeatGrid(
+    modifier: Modifier = Modifier,
     configs: List<PlayerConfig>,
     mulligans: List<Int>,
     onIncrement: (Int) -> Unit,
@@ -182,7 +190,7 @@ private fun SeatGrid(
 ) {
     val topCount = (configs.size + 1) / 2
     Column(
-        modifier = Modifier.fillMaxSize().padding(4.dp),
+        modifier = modifier.fillMaxSize().padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Row(
