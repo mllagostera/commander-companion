@@ -42,6 +42,24 @@ import com.commandercompanion.presentation.theme.AppFaint
  * against `POST /auth/google`, both via [LoginViewModel]. This used to be a pure navigation
  * shell that didn't authenticate against anything (see the decision history in `docs/roadmap/TASKS.md`).
  */
+/**
+ * Maps the ViewModel's error type onto the translated strings (see [LoginError]).
+ * `internal` rather than private because `RegisterScreen` drives the same Google flow through
+ * [LoginViewModel] and renders its errors too.
+ */
+@Composable
+internal fun LoginError.message(): String = when (this) {
+    LoginError.EmptyFields -> stringResource(R.string.error_login_empty_fields)
+    LoginError.Network -> stringResource(R.string.error_api_network)
+    LoginError.BadCredentials -> stringResource(R.string.error_login_bad_credentials)
+    is LoginError.Unknown -> stringResource(R.string.error_login_unknown, code)
+    LoginError.GoogleRejected -> stringResource(R.string.error_login_google_rejected)
+    LoginError.GoogleNotConfigured -> stringResource(R.string.error_login_google_not_configured)
+    is LoginError.GoogleBackend -> stringResource(R.string.error_login_google_backend, code)
+    LoginError.GoogleNoAccount -> stringResource(R.string.error_login_google_no_account)
+    LoginError.GoogleUnknown -> stringResource(R.string.error_login_google_unknown)
+}
+
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
@@ -99,10 +117,10 @@ fun LoginScreen(
                         visualTransformation = PasswordVisualTransformation()
                     )
 
-                    uiState.error?.let { message ->
+                    uiState.error?.let { error ->
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = message,
+                            text = error.message(),
                             color = MaterialTheme.colorScheme.error,
                             fontSize = 12.sp
                         )

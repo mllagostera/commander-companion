@@ -16,11 +16,15 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingExcept
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// Both messages are *developer* strings for logs and stack traces. What the user sees is
+// picked by LoginScreen from LoginError, so it can be translated into the three shipped locales
+// -- NoGoogleAccountException's message used to be surfaced verbatim, in Spanish.
+
 /** The Google account picker was cancelled (the user closed the bottom sheet). */
-class GoogleSignInCancelledException : Exception("El usuario canceló el picker de cuentas de Google")
+class GoogleSignInCancelledException : Exception("google account picker cancelled")
 
 /** There is no Google account configured on the device. */
-class NoGoogleAccountException : Exception("No hay ninguna cuenta de Google configurada en este dispositivo")
+class NoGoogleAccountException : Exception("no google account on this device")
 
 /**
  * Wrapper over Credential Manager + Google Identity Services to obtain the `id_token`

@@ -54,6 +54,25 @@ import com.commandercompanion.presentation.theme.AppOnBackground
 import com.commandercompanion.presentation.theme.StatusDanger
 import com.google.zxing.common.BitMatrix
 
+/** Maps the ViewModel's error type onto the translated strings (see [SettingsError]). */
+@Composable
+private fun SettingsError.message(): String = when (this) {
+    SettingsError.Network -> stringResource(R.string.error_api_network)
+    SettingsError.ProfileLoad -> stringResource(R.string.error_settings_profile_load)
+    SettingsError.UsernameEmpty -> stringResource(R.string.error_settings_username_empty)
+    SettingsError.UsernameTaken -> stringResource(R.string.error_settings_username_taken)
+    is SettingsError.UsernameUnknown ->
+        stringResource(R.string.error_settings_username_unknown, code)
+    SettingsError.MoxfieldSave -> stringResource(R.string.error_settings_moxfield_save)
+    SettingsError.PasswordMismatch -> stringResource(R.string.error_settings_password_mismatch)
+    is SettingsError.PasswordTooShort ->
+        stringResource(R.string.error_settings_password_too_short, minLength)
+    SettingsError.PasswordWrongCurrent ->
+        stringResource(R.string.error_settings_password_wrong_current)
+    is SettingsError.PasswordUnknown ->
+        stringResource(R.string.error_settings_password_unknown, code)
+}
+
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -81,7 +100,8 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.Center
                 ) { CircularProgressIndicator() }
 
-                state.loadError != null -> Text(state.loadError!!, color = StatusDanger, fontSize = 13.sp)
+                state.loadError != null ->
+                    Text(state.loadError!!.message(), color = StatusDanger, fontSize = 13.sp)
 
                 state.user != null -> Column(
                     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
@@ -89,7 +109,7 @@ fun SettingsScreen(
                 ) {
                     ProfileSection(state = state, onSaveUsername = viewModel::updateUsername)
                     FriendQrSection(userId = state.user!!.id)
-                    LanguageSection(state = state, onSelect = viewModel::changeLanguage)
+                    LanguageSection(onSelect = viewModel::changeLanguage)
                     MoxfieldSection(state = state, onSave = viewModel::updateMoxfieldUsername)
                     SecuritySection(
                         state = state,
@@ -172,9 +192,9 @@ private fun ProfileSection(state: SettingsUiState, onSaveUsername: (String) -> U
                 onValueChange = { username = it },
                 enabled = !state.isSavingUsername
             )
-            state.usernameError?.let { message ->
+            state.usernameError?.let { error ->
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Text(error.message(), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
             }
             Spacer(modifier = Modifier.height(10.dp))
             GradientButton(
@@ -190,15 +210,23 @@ private fun ProfileSection(state: SettingsUiState, onSaveUsername: (String) -> U
     }
 }
 
+/**
+ * The selected chip comes from `app_locale_tag` — the tag declared by whichever `values`
+ * bundle Android actually resolved — and not from a copy held in the ViewModel. Those two used
+ * to disagree: `AppCompatDelegate.getApplicationLocales()` is empty until a language is picked
+ * by hand, so a device running in English showed "Español" selected while every other string on
+ * screen was English. Reading the resources cannot drift, and it needs no state of its own:
+ * `setApplicationLocales` recreates the Activity, so this recomposes with the new bundle.
+ */
 @Composable
-private fun LanguageSection(state: SettingsUiState, onSelect: (AppLanguage) -> Unit) {
+private fun LanguageSection(onSelect: (AppLanguage) -> Unit) {
     GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(modifier = Modifier.fillMaxWidth()) {
             SectionEyebrow(stringResource(R.string.settings_language_heading))
             Spacer(modifier = Modifier.height(12.dp))
             PillSegmentedControl(
                 options = AppLanguage.entries.map { it to stringResource(it.labelRes) },
-                selected = state.language,
+                selected = AppLanguage.fromTag(stringResource(R.string.app_locale_tag)),
                 onSelected = onSelect
             )
         }
@@ -221,9 +249,9 @@ private fun MoxfieldSection(state: SettingsUiState, onSave: (String) -> Unit) {
                 onValueChange = { moxfieldUsername = it },
                 enabled = !state.isSavingMoxfieldUsername
             )
-            state.moxfieldUsernameError?.let { message ->
+            state.moxfieldUsernameError?.let { error ->
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Text(error.message(), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
             }
             Spacer(modifier = Modifier.height(10.dp))
             GradientButton(
@@ -286,9 +314,9 @@ private fun SecuritySection(
                     enabled = !state.isChangingPassword,
                     visualTransformation = PasswordVisualTransformation()
                 )
-                state.passwordError?.let { message ->
+                state.passwordError?.let { error ->
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    Text(error.message(), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
                 if (state.passwordChanged) {
                     Spacer(modifier = Modifier.height(6.dp))

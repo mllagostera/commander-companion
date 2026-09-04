@@ -22,22 +22,34 @@ import retrofit2.HttpException
 
 private const val MIN_PASSWORD_LENGTH = 8
 
+/** What went wrong, for the screen to translate — see `LoginError` for the reasoning. */
+sealed interface SettingsError {
+    data object Network : SettingsError
+    data object ProfileLoad : SettingsError
+    data object UsernameEmpty : SettingsError
+    data object UsernameTaken : SettingsError
+    data class UsernameUnknown(val code: Int) : SettingsError
+    data object MoxfieldSave : SettingsError
+    data object PasswordMismatch : SettingsError
+    data class PasswordTooShort(val minLength: Int) : SettingsError
+    data object PasswordWrongCurrent : SettingsError
+    data class PasswordUnknown(val code: Int) : SettingsError
+}
+
 data class SettingsUiState(
     val isLoadingProfile: Boolean = true,
     val user: UserDto? = null,
-    val loadError: String? = null,
+    val loadError: SettingsError? = null,
 
     val isSavingUsername: Boolean = false,
-    val usernameError: String? = null,
+    val usernameError: SettingsError? = null,
 
     val isSavingMoxfieldUsername: Boolean = false,
-    val moxfieldUsernameError: String? = null,
+    val moxfieldUsernameError: SettingsError? = null,
 
     val isChangingPassword: Boolean = false,
-    val passwordError: String? = null,
-    val passwordChanged: Boolean = false,
-
-    val language: AppLanguage = AppLanguage.SPANISH
+    val passwordError: SettingsError? = null,
+    val passwordChanged: Boolean = false
 )
 
 /**
@@ -57,9 +69,7 @@ class SettingsViewModel @Inject constructor(
     private val sessionManager: SessionManager
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(
-        SettingsUiState(language = AppLanguage.fromTag(AppCompatDelegate.getApplicationLocales().toLanguageTags()))
-    )
+    private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
@@ -71,11 +81,11 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { it.copy(isLoadingProfile = true, loadError = null) }
             try {
                 val token = sessionManager.currentAccessToken()
-                    ?: throw IllegalStateException("no hay sesión activa")
+                    ?: throw IllegalStateException("no active session")
                 val user = authApi.me("Bearer $token")
                 _uiState.update { it.copy(isLoadingProfile = false, user = user) }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoadingProfile = false, loadError = "No se pudo cargar tu perfil") }
+                _uiState.update { it.copy(isLoadingProfile = false, loadError = SettingsError.ProfileLoad) }
             }
         }
     }
@@ -83,7 +93,7 @@ class SettingsViewModel @Inject constructor(
     fun updateUsername(username: String) {
         val userId = _uiState.value.user?.id ?: return
         if (username.isBlank()) {
-            _uiState.update { it.copy(usernameError = "El nombre de usuario no puede estar vacío") }
+            _uiState.update { it.copy(usernameError = SettingsError.UsernameEmpty) }
             return
         }
         viewModelScope.launch {
@@ -94,7 +104,7 @@ class SettingsViewModel @Inject constructor(
             } catch (e: HttpException) {
                 _uiState.update { it.copy(isSavingUsername = false, usernameError = mapUsernameError(e)) }
             } catch (e: IOException) {
-                _uiState.update { it.copy(isSavingUsername = false, usernameError = "No se pudo conectar con el servidor") }
+                _uiState.update { it.copy(isSavingUsername = false, usernameError = SettingsError.Network) }
             }
         }
     }
@@ -111,11 +121,11 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(isSavingMoxfieldUsername = false, user = updated) }
             } catch (e: HttpException) {
                 _uiState.update {
-                    it.copy(isSavingMoxfieldUsername = false, moxfieldUsernameError = "No se pudo guardar el usuario de Moxfield")
+                    it.copy(isSavingMoxfieldUsername = false, moxfieldUsernameError = SettingsError.MoxfieldSave)
                 }
             } catch (e: IOException) {
                 _uiState.update {
-                    it.copy(isSavingMoxfieldUsername = false, moxfieldUsernameError = "No se pudo conectar con el servidor")
+                    it.copy(isSavingMoxfieldUsername = false, moxfieldUsernameError = SettingsError.Network)
                 }
             }
         }
@@ -124,11 +134,11 @@ class SettingsViewModel @Inject constructor(
     fun changePassword(currentPassword: String, newPassword: String, newPasswordConfirm: String) {
         val userId = _uiState.value.user?.id ?: return
         if (newPassword != newPasswordConfirm) {
-            _uiState.update { it.copy(passwordError = "Las contraseñas nuevas no coinciden") }
+            _uiState.update { it.copy(passwordError = SettingsError.PasswordMismatch) }
             return
         }
         if (newPassword.length < MIN_PASSWORD_LENGTH) {
-            _uiState.update { it.copy(passwordError = "La contraseña debe tener al menos $MIN_PASSWORD_LENGTH caracteres") }
+            _uiState.update { it.copy(passwordError = SettingsError.PasswordTooShort(MIN_PASSWORD_LENGTH)) }
             return
         }
         viewModelScope.launch {
@@ -139,7 +149,7 @@ class SettingsViewModel @Inject constructor(
             } catch (e: HttpException) {
                 _uiState.update { it.copy(isChangingPassword = false, passwordError = mapChangePasswordError(e)) }
             } catch (e: IOException) {
-                _uiState.update { it.copy(isChangingPassword = false, passwordError = "No se pudo conectar con el servidor") }
+                _uiState.update { it.copy(isChangingPassword = false, passwordError = SettingsError.Network) }
             }
         }
     }
@@ -153,7 +163,6 @@ class SettingsViewModel @Inject constructor(
      * required (AppCompat 1.6.0+).
      */
     fun changeLanguage(language: AppLanguage) {
-        _uiState.update { it.copy(language = language) }
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language.tag))
     }
 
@@ -164,15 +173,15 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun mapUsernameError(e: HttpException): String = when (e.code()) {
-        409 -> "Ese nombre de usuario ya está en uso"
-        400 -> "El nombre de usuario no puede estar vacío"
-        else -> "No se pudo guardar el nombre de usuario (error ${e.code()})"
+    private fun mapUsernameError(e: HttpException): SettingsError = when (e.code()) {
+        409 -> SettingsError.UsernameTaken
+        400 -> SettingsError.UsernameEmpty
+        else -> SettingsError.UsernameUnknown(e.code())
     }
 
-    private fun mapChangePasswordError(e: HttpException): String = when (e.code()) {
-        400 -> "La contraseña nueva debe tener al menos $MIN_PASSWORD_LENGTH caracteres"
-        401 -> "La contraseña actual no es correcta"
-        else -> "No se pudo cambiar la contraseña (error ${e.code()})"
+    private fun mapChangePasswordError(e: HttpException): SettingsError = when (e.code()) {
+        400 -> SettingsError.PasswordTooShort(MIN_PASSWORD_LENGTH)
+        401 -> SettingsError.PasswordWrongCurrent
+        else -> SettingsError.PasswordUnknown(e.code())
     }
 }

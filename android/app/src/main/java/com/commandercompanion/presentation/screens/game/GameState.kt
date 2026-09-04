@@ -1,6 +1,7 @@
 package com.commandercompanion.presentation.screens.game
 
 import androidx.compose.ui.graphics.Color
+import com.commandercompanion.core.util.ApiFailure
 
 /** Commander elimination rules, shared by [GameViewModel] and the tracker UI. */
 const val COMMANDER_DAMAGE_LETHAL = 21
@@ -41,7 +42,13 @@ enum class RemoteSyncStatus {
 
 data class RemoteSyncState(
     val status: RemoteSyncStatus = RemoteSyncStatus.Connecting,
-    val message: String? = null,
+    /**
+     * Only set when [status] is [RemoteSyncStatus.Failed]: what went wrong, for the screen to
+     * turn into a string resource. Every other status already says all there is to say, so its
+     * wording is picked from [status] alone. It used to be a `String` built here, which could
+     * not be translated into the three locales the app ships.
+     */
+    val failure: ApiFailure? = null,
     val gameId: String? = null
 )
 

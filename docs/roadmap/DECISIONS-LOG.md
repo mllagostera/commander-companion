@@ -25,6 +25,64 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-04 — The Spanish leftovers, and a language selector that never worked.**
+Two things spotted while walking the app for the edge-to-edge pass (entry below): the
+tracker's "nobody was assigned" banner rendered in Spanish on an English UI, and
+Settings showed "Español" selected while everything else was English. Neither was
+what it looked like.
+
+**The banner was one of about thirty.** `ApiError.toUserMessage()`, `GoogleAuthClient`'s
+two exception messages and the Login/Register/Settings/JoinGame/Game ViewModels all
+built user-facing prose as Kotlin literals, so `values-en/` and `values-ca/` could not
+reach them. Several still used the Argentine "voseo" ("Completá", "Revisá", "No tenés")
+that the rest of the copy moved away from when `strings.xml` was written. The friends
+screen had already solved this — `FriendsError` is an enum the screen turns into a
+resource, and its KDoc even names `toUserMessage()` as the holdout — so the fix was to
+finish the job rather than invent anything: `LoginError`, `RegisterError`,
+`SettingsError`, `JoinGameError` and a shared `ApiFailure`. They are sealed interfaces
+rather than enums only because the "unknown" cases carry the HTTP status code their
+message interpolates. `RemoteSyncState.message: String?` became
+`failure: ApiFailure?`; its other statuses already said everything, so their wording now
+comes from the status alone.
+
+**The language chip was hiding a dead selector.** The first suspicion was that the chip
+was simply never initialised from the applied locale. It was — `SettingsViewModel` did
+call `AppLanguage.fromTag(...)`. The real problem showed up only on a device: tapping
+"Català" changed nothing at all. `adb shell cmd locale get-app-locales` stayed empty,
+and a temporary log proved the click arrived and that
+`AppCompatDelegate.getApplicationLocales()` was still empty immediately after
+`setApplicationLocales()` returned.
+
+The cause is that AppCompat can only reach the platform `LocaleManager` through a
+Context it captured itself, and the only thing that captures one is an
+`AppCompatActivity` being created. `MainActivity` was a plain `ComponentActivity` — a
+choice a comment in `SettingsViewModel` explicitly defended ("works with a plain
+ComponentActivity, no AppCompatActivity required") — so the call had nowhere to go and
+failed silently. `autoStoreLocales` was also sitting directly under `<application>`
+instead of inside the `AppLocalesMetadataHolderService` AppCompat reads it from, and
+that service was not declared at all.
+
+So: `MainActivity` is now an `AppCompatActivity`, which forces the theme parent from
+`android:Theme.Material.NoActionBar` to `Theme.AppCompat.NoActionBar` (AppCompatActivity
+throws at startup otherwise), and the service is declared with the meta-data nested
+inside it. The chip itself no longer mirrors anything: it reads `app_locale_tag`, a
+`translatable="false"` string each `values*` bundle declares with its own tag, so it
+reports whichever bundle Android actually resolved. That is the part that could not
+drift — the previous mismatch came from `getApplicationLocales()` being empty until a
+language is chosen by hand, which `fromTag` mapped to Spanish while the device was
+running the app in English.
+
+**Verified on the emulator**, since a screenshot cannot show a no-op: picked Català in
+Settings and the whole UI plus the chip followed, switched back to English through the
+UI, and confirmed `get-app-locales` reporting `[ca]` then `[en]`. The tracker banner
+then read "Nobody was assigned: this game is played on this device only". `./gradlew
+lintDebug testDebugUnitTest assembleDebug`, the i18n check and `check-architecture.sh`
+all green.
+
+**Left open.** `mapGoogleSignInError` still collapses every Credential Manager failure
+into one case — that is a behaviour bug, tracked separately in TASKS.md, and only its
+literal was touched here.
+
 **2026-09-04 — Edge-to-edge window, and the life tracker finally verified on a
 device.** Started from a user report: a pale strip under the gesture handle on a
 Xiaomi 13 Ultra, on a screen that is otherwise near-black. The cause was not a

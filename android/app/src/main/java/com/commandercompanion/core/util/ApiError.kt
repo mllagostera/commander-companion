@@ -8,8 +8,10 @@ import retrofit2.HttpException
  * Normalized error from an API call.
  *
  * Exists so repositories always return the same failure type and `ViewModel`s don't have to
- * know about Retrofit/OkHttp (today `LoginViewModel` catches `HttpException`/`IOException`
- * by hand in each method; everything new goes through here).
+ * know about Retrofit/OkHttp.
+ *
+ * The `message` of each subclass is a *developer* string (logs, stack traces) and is never
+ * shown to anyone — see [ApiFailure] for what reaches the screen.
  */
 sealed class ApiError(message: String, cause: Throwable? = null) : Exception(message, cause) {
 
@@ -17,23 +19,40 @@ sealed class ApiError(message: String, cause: Throwable? = null) : Exception(mes
     class Http(val code: Int, cause: Throwable? = null) : ApiError("HTTP $code", cause)
 
     /** Couldn't reach the server (no network, timeout, DNS, etc.). */
-    class Network(cause: IOException) : ApiError("Sin conexión con el servidor", cause)
+    class Network(cause: IOException) : ApiError("network unreachable", cause)
 
     /** Anything else: JSON parsing, a programming error, etc. */
-    class Unexpected(cause: Throwable) : ApiError(cause.message ?: "Error inesperado", cause)
+    class Unexpected(cause: Throwable) : ApiError(cause.message ?: "unexpected failure", cause)
 }
 
-/** Message ready to show in the UI. Deliberately generic: each screen can refine it. */
-fun ApiError.toUserMessage(): String = when (this) {
+/**
+ * What went wrong, for the screen to turn into a string resource.
+ *
+ * Same reasoning as `FriendsError`: the app ships `values/`, `values-en/` and `values-ca/`, so
+ * a literal built down here would be untranslatable. It is a sealed interface rather than an
+ * enum only because [Server] has to carry the status code the message interpolates.
+ */
+sealed interface ApiFailure {
+    data object Network : ApiFailure
+    data object SessionExpired : ApiFailure
+    data object Forbidden : ApiFailure
+    data object NotFound : ApiFailure
+    data object Conflict : ApiFailure
+    data class Server(val code: Int) : ApiFailure
+    data object Unexpected : ApiFailure
+}
+
+/** Generic mapping; a screen with something better to say for a code refines it itself. */
+fun ApiError.toFailure(): ApiFailure = when (this) {
+    is ApiError.Network -> ApiFailure.Network
+    is ApiError.Unexpected -> ApiFailure.Unexpected
     is ApiError.Http -> when (code) {
-        401 -> "Tu sesión expiró, iniciá sesión de nuevo"
-        403 -> "No tenés permiso para hacer esto"
-        404 -> "No se encontró en el servidor"
-        409 -> "La partida no está en un estado válido para esta acción"
-        else -> "El servidor respondió con un error ($code)"
+        401 -> ApiFailure.SessionExpired
+        403 -> ApiFailure.Forbidden
+        404 -> ApiFailure.NotFound
+        409 -> ApiFailure.Conflict
+        else -> ApiFailure.Server(code)
     }
-    is ApiError.Network -> "No se pudo conectar con el servidor"
-    is ApiError.Unexpected -> "Ocurrió un error inesperado"
 }
 
 /**

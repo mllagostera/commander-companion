@@ -32,9 +32,9 @@ private const val MIN_QUERY_LENGTH = 2
  *
  * The ViewModel deliberately does NOT build the message itself: the app ships
  * `values/`, `values-en/` and `values-ca/`, and a hardcoded literal here would
- * be untranslatable. (`ApiError.toUserMessage()` does hardcode Spanish — it
- * predates the other two locales and is not followed here.) It also keeps the
- * unit tests asserting an enum instead of prose.
+ * be untranslatable. It also keeps the unit tests asserting an enum instead of
+ * prose. This was the first screen to do it; the rest of the app followed later
+ * (`LoginError`, `RegisterError`, `SettingsError`, `JoinGameError`, `ApiFailure`).
  */
 enum class FriendsError { NETWORK, SELF, USER_NOT_FOUND, ALREADY_RELATED, REQUEST_GONE, INVALID_CODE, UNKNOWN }
 

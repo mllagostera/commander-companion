@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Parent is the *dark* Material theme: CommanderCompanionTheme forces the dark
-         color scheme unconditionally, and with a Light parent the window background
-         flashed white between the activity opening and Compose drawing its first frame.
+    <!-- Parent is the *dark* AppCompat theme. Dark because CommanderCompanionTheme forces the
+         dark color scheme unconditionally, and with a Light parent the window background flashed
+         white between the activity opening and Compose drawing its first frame. AppCompat rather
+         than the framework's android:Theme.Material because MainActivity is an AppCompatActivity
+         (see its KDoc for why the language selector needs that), and AppCompatActivity throws at
+         startup under a non-AppCompat theme.
 
          There is deliberately no statusBarColor/navigationBarColor here: MainActivity calls
          enableEdgeToEdge(), which makes both bars transparent and lets the app draw under
          them, and those attributes are ignored outright from targetSdk 35 on. Only
          windowBackground remains, for the pre-first-frame window; it must track AppBackground
          in Color.kt. -->
-    <style name="Theme.CommanderCompanion" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.CommanderCompanion" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 </resources>

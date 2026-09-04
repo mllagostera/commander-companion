@@ -50,6 +50,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.commandercompanion.R
 import com.commandercompanion.presentation.components.GradientButton
 import com.commandercompanion.presentation.components.RotateDevicePrompt
+import com.commandercompanion.presentation.components.message
 import com.commandercompanion.presentation.theme.AccentSoft
 import com.commandercompanion.presentation.theme.AppBackgroundDeep
 import com.commandercompanion.presentation.theme.AppFaint
@@ -784,7 +785,7 @@ private fun LoadingTable(remoteSync: RemoteSyncState, onBack: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = remoteSync.message ?: stringResource(R.string.tracker_loading_joined_game),
+            text = remoteSync.failure?.message() ?: stringResource(R.string.tracker_loading_joined_game),
             color = if (isError) StatusDanger else AppOnBackground,
             fontSize = 14.sp,
             textAlign = TextAlign.Center
@@ -933,9 +934,10 @@ private fun RemoteSyncBanner(remoteSync: RemoteSyncState, modifier: Modifier = M
     val label = when (remoteSync.status) {
         RemoteSyncStatus.Connecting -> stringResource(R.string.tracker_connecting_to_server)
         RemoteSyncStatus.Synced -> null
-        RemoteSyncStatus.Disabled,
-        RemoteSyncStatus.WaitingForPlayers,
-        RemoteSyncStatus.Failed -> remoteSync.message
+        RemoteSyncStatus.Disabled -> stringResource(R.string.tracker_sync_local_only)
+        RemoteSyncStatus.WaitingForPlayers -> stringResource(R.string.tracker_sync_waiting_players)
+        RemoteSyncStatus.Failed ->
+            remoteSync.failure?.message() ?: stringResource(R.string.error_api_unexpected)
     } ?: return
 
     val isError = remoteSync.status == RemoteSyncStatus.Failed
