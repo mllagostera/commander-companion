@@ -1,6 +1,7 @@
 package com.commandercompanion.presentation.navigation
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PlayerConfigCodecTest {
@@ -41,6 +42,31 @@ class PlayerConfigCodecTest {
         val decoded = decodePlayerConfigs(encodePlayerConfigs(configs))
 
         assertEquals("ana|beto,pepe", decoded.single().assignedUsername)
+    }
+
+    @Test
+    fun `the deck art url survives the encode-decode`() {
+        val art = "https://cards.scryfall.io/art_crop/front/a/b/ab-cd.jpg?1699"
+        val configs = listOf(
+            PlayerConfig(
+                name = "Ana", colorKey = "blue",
+                assignedUserId = "user-1", assignedUsername = "ana", deckId = "deck-a",
+                deckImageUrl = art
+            )
+        )
+
+        val decoded = decodePlayerConfigs(encodePlayerConfigs(configs))
+
+        assertEquals(art, decoded.single().deckImageUrl)
+    }
+
+    /** A seat encoded before the art field existed still decodes — the field is simply absent. */
+    @Test
+    fun `an entry without the deck art field decodes to a seat with no art`() {
+        val decoded = decodePlayerConfigs("Ana|blue|0|user-1|ana|deck-a")
+
+        assertEquals("deck-a", decoded.single().deckId)
+        assertNull(decoded.single().deckImageUrl)
     }
 
     @Test

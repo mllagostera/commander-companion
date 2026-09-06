@@ -109,7 +109,8 @@ class GameViewModel @Inject constructor(
                         id = index + 1,
                         name = config.name,
                         color = colorForKey(config.colorKey),
-                        mulligans = config.mulligans
+                        mulligans = config.mulligans,
+                        deckImageUrl = config.deckImageUrl
                     )
                 },
                 startingPlayerId = startingPlayerSeat.takeIf { it >= 0 }?.plus(1)
@@ -218,6 +219,7 @@ class GameViewModel @Inject constructor(
                 )
             }
             _state.value = _state.value.copy(players = players, localSeatId = localSeatId)
+            loadJoinedDeckArt(game)
 
             updateRemoteSync(
                 if (remoteSession?.isActive == true) {
@@ -228,6 +230,39 @@ class GameViewModel @Inject constructor(
                         status = RemoteSyncStatus.WaitingForPlayers,
                         gameId = game.id
                     )
+                }
+            )
+        }
+    }
+
+    /**
+     * Paints each seat with its deck's art, AFTER the table is already on screen.
+     *
+     * Joined mode has no `PlayerConfig` to carry the art the way host mode does (the route only
+     * knows the game id), and `GamePlayer` exposes `deck_id` but no image, so it is resolved the
+     * same way the usernames above are: through the game's playgroup, one
+     * `GET /playgroups/{id}/members/{userId}/decks` per distinct seated user. That fan-out runs in
+     * its own coroutine on purpose — the seats must not wait on it to appear, and a failure just
+     * leaves them on their flat colour, like a guest's.
+     *
+     * If it ever becomes visible, the fix is a `deck_image_url` on `GamePlayerResponse` (additive,
+     * non-breaking), not a blocking fetch here.
+     */
+    private fun loadJoinedDeckArt(game: Game) {
+        val gamePlaygroupId = game.playgroupId ?: return
+        viewModelScope.launch {
+            val artByDeckId = game.players.map { it.userId }.distinct()
+                .flatMap { userId ->
+                    playgroupRepository.getMemberDecks(gamePlaygroupId, userId).getOrDefault(emptyList())
+                }
+                .mapNotNull { deck -> deck.imageUrl?.let { url -> deck.id to url } }
+                .toMap()
+            if (artByDeckId.isEmpty()) return@launch
+
+            val deckIdBySeat = game.players.mapIndexed { index, player -> (index + 1) to player.deckId }.toMap()
+            _state.value = _state.value.copy(
+                players = _state.value.players.map { player ->
+                    player.copy(deckImageUrl = artByDeckId[deckIdBySeat[player.id]] ?: player.deckImageUrl)
                 }
             )
         }

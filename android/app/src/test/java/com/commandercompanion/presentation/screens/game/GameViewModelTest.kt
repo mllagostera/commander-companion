@@ -17,6 +17,7 @@ import com.commandercompanion.presentation.navigation.encodePlayerConfigs
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeGameDao
 import com.commandercompanion.testing.FakeGameSocketClient
+import com.commandercompanion.testing.deckDto
 import com.commandercompanion.testing.gameActionDto
 import com.commandercompanion.testing.gameDto
 import com.commandercompanion.testing.gamePlayerDto
@@ -577,5 +578,53 @@ class GameViewModelTest {
 
         assertEquals(1, vm.state.value.currentTurnPlayerId)
         assertEquals(1, vm.state.value.currentTurn)
+    }
+
+    @Test
+    fun `a seat with a chosen deck carries its art into the tracker`() = runTest(dispatcher) {
+        val vm = viewModel(
+            ana = PlayerConfig(
+                name = "Ana",
+                colorKey = "blue",
+                assignedUserId = "user-1",
+                deckId = "deck-1",
+                deckImageUrl = "https://art/atraxa.jpg"
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals("https://art/atraxa.jpg", vm.state.value.players.first { it.id == 1 }.deckImageUrl)
+        // Beto is a guest: no deck, no art, the seat keeps its flat colour.
+        assertNull(vm.state.value.players.first { it.id == 2 }.deckImageUrl)
+    }
+
+    @Test
+    fun `joined mode resolves each seat's deck art through the playgroup`() = runTest(dispatcher) {
+        givenTwoSeatGame()
+        api.onGetMemberDecks = { _, userId ->
+            when (userId) {
+                "user-1" -> listOf(deckDto(id = "deck-1", imageUrl = "https://art/atraxa.jpg"))
+                else -> listOf(deckDto(id = "deck-2", name = "Krenko", imageUrl = null))
+            }
+        }
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+
+        assertEquals("https://art/atraxa.jpg", vm.state.value.players.first { it.id == 1 }.deckImageUrl)
+        // A deck with no art (not imported from Moxfield) leaves its seat as it was.
+        assertNull(vm.state.value.players.first { it.id == 2 }.deckImageUrl)
+    }
+
+    @Test
+    fun `a failing deck lookup leaves the joined table on screen without art`() = runTest(dispatcher) {
+        givenTwoSeatGame()
+        api.onGetMemberDecks = { _, _ -> throw httpException(500) }
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+
+        assertEquals(2, vm.state.value.players.size)
+        assertTrue(vm.state.value.players.all { it.deckImageUrl == null })
     }
 }

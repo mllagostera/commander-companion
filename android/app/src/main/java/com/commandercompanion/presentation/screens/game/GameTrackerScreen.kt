@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import coil3.compose.AsyncImage
 import com.commandercompanion.R
 import com.commandercompanion.presentation.components.GradientButton
 import com.commandercompanion.presentation.components.RotateDevicePrompt
@@ -268,6 +270,24 @@ private data class SeatInk(
     val onLightSeat: Boolean
 )
 
+/**
+ * Ink for a seat painted with commander art. The art's luminance is not the seat colour's, and it
+ * varies across the crop, so the pair is not derived at all: the art always goes under a dark
+ * scrim ([ArtScrim]) and the text on top is always white.
+ */
+private val ArtSeatInk = SeatInk(
+    primary = Color.White,
+    secondary = Color.White.copy(alpha = 0.72f),
+    cell = Color.White.copy(alpha = 0.22f),
+    onLightSeat = false
+)
+
+/**
+ * What keeps the life total readable over an arbitrary art crop. Heavier than the decorative
+ * gradient a flat seat gets, and the reason [ArtSeatInk] can assume white text.
+ */
+private val ArtScrim = listOf(Color(0x990A0714), Color(0xCC0A0714))
+
 private fun inkFor(seat: Color): SeatInk = if (seat.luminance() > 0.35f) {
     SeatInk(
         primary = Color.Black.copy(alpha = 0.85f),
@@ -304,12 +324,17 @@ private fun PlayerQuadrant(
 ) {
     val eliminated = player.isEliminated()
     val deathAlpha by animateFloatAsState(targetValue = if (eliminated) 1f else 0f, animationSpec = tween(900), label = "death")
-    val ink = inkFor(player.color)
+    val art = player.deckImageUrl
+    val ink = if (art != null) ArtSeatInk else inkFor(player.color)
     val ringColor = when (ring) {
         SeatRing.Randomizing -> AppOnBackground
         SeatRing.ActiveTurn -> AccentSoft
         null -> null
     }
+    // The art covers the seat colour, which is also how the commander-damage grids name their
+    // opponents, so the colour comes back as the seat's outline whenever no ring is claiming it.
+    val outlineColor = ringColor ?: player.color.takeIf { art != null }
+    val outlineWidth = if (ringColor != null) 4.dp else 3.dp
 
     Box(
         modifier = modifier
@@ -324,12 +349,28 @@ private fun PlayerQuadrant(
             )
             .clip(QuadrantShape)
             .background(player.color)
-            .then(if (ringColor != null) Modifier.border(4.dp, ringColor, QuadrantShape) else Modifier)
+            .then(if (outlineColor != null) Modifier.border(outlineWidth, outlineColor, QuadrantShape) else Modifier)
     ) {
+        // A known player's seat wears their commander art; everyone else keeps the flat colour.
+        // The seat colour stays underneath, so it is what shows while the image loads (or if it
+        // never does).
+        if (art != null) {
+            AsyncImage(
+                model = art,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color(0x0D0A0714), Color(0x730A0714))))
+                .background(
+                    Brush.verticalGradient(
+                        if (art != null) ArtScrim else listOf(Color(0x0D0A0714), Color(0x730A0714))
+                    )
+                )
         )
 
         // Life is adjusted by tapping either half of the seat — the whole quadrant is the control,
@@ -347,8 +388,8 @@ private fun PlayerQuadrant(
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
             }
-            LifeStepGlyph("−", Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
-            LifeStepGlyph("+", Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))
+            LifeStepGlyph("−", ink, Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
+            LifeStepGlyph("+", ink, Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))
         }
 
         // Not clickable itself, so taps that miss its buttons fall through to the tap zones above.
@@ -452,12 +493,16 @@ private fun LifeTapZone(onClick: () -> Unit, label: String, modifier: Modifier =
     )
 }
 
-/** The oversized ± at each edge of a seat: decoration for the tap zones, not a button. */
+/**
+ * The oversized ± at each edge of a seat: decoration for the tap zones, not a button. Tinted with
+ * the seat's own ink rather than a fixed black, which vanishes over commander art (and was already
+ * hard to see on the darkest seat colours).
+ */
 @Composable
-private fun LifeStepGlyph(symbol: String, modifier: Modifier = Modifier) {
+private fun LifeStepGlyph(symbol: String, ink: SeatInk, modifier: Modifier = Modifier) {
     Text(
         text = symbol,
-        color = Color.Black.copy(alpha = 0.38f),
+        color = ink.primary.copy(alpha = 0.38f),
         fontWeight = FontWeight.Light,
         fontSize = 42.sp,
         modifier = modifier
