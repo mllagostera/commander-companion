@@ -70,6 +70,29 @@ Transaction pooler, because this backend uses prepared statements via pgx),
 `CORS_ALLOWED_ORIGINS`, and `WEB_APP_URL` (the frontend's domain on Vercel). See
 [`.env.example`](.env.example) for the rest.
 
+### Knowing which build is live
+
+`GET /health` reports the git SHA the running binary was built from, on both
+its 200 and its 503 branch, so a deploy can be told apart from the one before
+it (see [ADR-0020](../docs/decisions/0020-build-provenance-in-health.md)):
+
+```json
+{ "status": "ok", "db": "ok", "commit": "b9516c59…", "started_at": "2026-09-06T19:26:48Z" }
+```
+
+The SHA comes from the linker (`GIT_COMMIT` build argument), else from the
+binary's VCS stamp, else from `RENDER_GIT_COMMIT` — which Render sets by
+itself, so nothing needs configuring for the current deployment. Building the
+image anywhere else, pass it explicitly:
+
+```bash
+docker build --build-arg GIT_COMMIT="$(git rev-parse HEAD)" backend/
+```
+
+`commit` reads `unknown` when none of the three applies (a plain `go build`
+outside a git checkout). Treat that as "cannot tell", never as "not deployed
+yet".
+
 ## Notes
 
 - Much of the code is still actively evolving — before assuming

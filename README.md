@@ -191,6 +191,7 @@ for a new module), add it to this list too in the same change.
 - [0017 — Friend requests and profile QR](docs/decisions/0017-friends-system.md)
 - [0018 — Admin role and user moderation](docs/decisions/0018-admin-role-and-user-moderation.md)
 - [0019 — The Android domain layer owns its types](docs/decisions/0019-android-domain-owns-its-types.md)
+- [0020 — `GET /health` reports which build is answering](docs/decisions/0020-build-provenance-in-health.md)
 
 **READMEs per module:**
 
