@@ -17,6 +17,7 @@ import com.commandercompanion.presentation.navigation.encodePlayerConfigs
 import com.commandercompanion.testing.FakeCommanderApi
 import com.commandercompanion.testing.FakeGameDao
 import com.commandercompanion.testing.FakeGameSocketClient
+import com.commandercompanion.testing.deckDto
 import com.commandercompanion.testing.gameActionDto
 import com.commandercompanion.testing.gameDto
 import com.commandercompanion.testing.gamePlayerDto
@@ -96,6 +97,30 @@ class GameViewModelTest {
         return GameViewModel(
             savedStateHandle = SavedStateHandle(
                 mapOf("gameId" to gameId, "localPlayerId" to localPlayerId)
+            ),
+            gameRepository = repository,
+            playgroupRepository = PlaygroupRepositoryImpl(api),
+            accessTokenProvider = accessTokenProvider,
+            resolveGameOutcomeUseCase = ResolveGameOutcomeUseCase(),
+            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase()
+        )
+    }
+
+    /**
+     * A four-seat pass-and-play table of guests (no assigned user, so nothing is mirrored
+     * remotely): the smallest table where the seating ring and the seat list disagree.
+     */
+    private fun fourSeatViewModel(): GameViewModel {
+        val configs = listOf("Ana" to "blue", "Beto" to "red", "Carla" to "green", "Dani" to "white")
+            .map { (name, colorKey) -> PlayerConfig(name = name, colorKey = colorKey) }
+        val repository = GameRepositoryImpl(api, dao, socket)
+        return GameViewModel(
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "gameId" to "game-local",
+                    "playersEncoded" to encodePlayerConfigs(configs),
+                    "startingPlayerSeat" to 0
+                )
             ),
             gameRepository = repository,
             playgroupRepository = PlaygroupRepositoryImpl(api),
@@ -512,5 +537,94 @@ class GameViewModelTest {
         assertEquals(RemoteSyncStatus.Failed, vm.state.value.remoteSync.status)
         assertTrue(vm.state.value.players.isEmpty())
         assertNull(vm.state.value.localSeatId)
+    }
+
+    @Test
+    fun `the turn goes around the table clockwise, not down the seat list`() = runTest(dispatcher) {
+        val vm = fourSeatViewModel()
+        advanceUntilIdle()
+
+        // Seats 1 and 2 sit on the top row, 3 and 4 below them: seat 3 is under seat 1, so the
+        // ring is 1 -> 2 -> 4 -> 3 and not the 1 -> 2 -> 3 -> 4 the list order used to give.
+        val visited = (1..4).map {
+            vm.nextTurn()
+            vm.state.value.currentTurnPlayerId
+        }
+
+        assertEquals(listOf(2, 4, 3, 1), visited)
+        assertEquals(5, vm.state.value.currentTurn)
+    }
+
+    @Test
+    fun `an eliminated seat is skipped instead of being handed the turn`() = runTest(dispatcher) {
+        val vm = fourSeatViewModel()
+        advanceUntilIdle()
+        vm.adjustLife(playerId = 2, amount = -STARTING_LIFE)
+
+        vm.nextTurn()
+
+        // Seat 2 is next around the ring but dead, so the turn moves on to seat 4.
+        assertEquals(4, vm.state.value.currentTurnPlayerId)
+        assertEquals(2, vm.state.value.currentTurn)
+    }
+
+    @Test
+    fun `a finished game does not keep passing the turn`() = runTest(dispatcher) {
+        val vm = fourSeatViewModel()
+        advanceUntilIdle()
+        vm.finishGame(winnerId = 1)
+
+        vm.nextTurn()
+
+        assertEquals(1, vm.state.value.currentTurnPlayerId)
+        assertEquals(1, vm.state.value.currentTurn)
+    }
+
+    @Test
+    fun `a seat with a chosen deck carries its art into the tracker`() = runTest(dispatcher) {
+        val vm = viewModel(
+            ana = PlayerConfig(
+                name = "Ana",
+                colorKey = "blue",
+                assignedUserId = "user-1",
+                deckId = "deck-1",
+                deckImageUrl = "https://art/atraxa.jpg"
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals("https://art/atraxa.jpg", vm.state.value.players.first { it.id == 1 }.deckImageUrl)
+        // Beto is a guest: no deck, no art, the seat keeps its flat colour.
+        assertNull(vm.state.value.players.first { it.id == 2 }.deckImageUrl)
+    }
+
+    @Test
+    fun `joined mode resolves each seat's deck art through the playgroup`() = runTest(dispatcher) {
+        givenTwoSeatGame()
+        api.onGetMemberDecks = { _, userId ->
+            when (userId) {
+                "user-1" -> listOf(deckDto(id = "deck-1", imageUrl = "https://art/atraxa.jpg"))
+                else -> listOf(deckDto(id = "deck-2", name = "Krenko", imageUrl = null))
+            }
+        }
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+
+        assertEquals("https://art/atraxa.jpg", vm.state.value.players.first { it.id == 1 }.deckImageUrl)
+        // A deck with no art (not imported from Moxfield) leaves its seat as it was.
+        assertNull(vm.state.value.players.first { it.id == 2 }.deckImageUrl)
+    }
+
+    @Test
+    fun `a failing deck lookup leaves the joined table on screen without art`() = runTest(dispatcher) {
+        givenTwoSeatGame()
+        api.onGetMemberDecks = { _, _ -> throw httpException(500) }
+
+        val vm = joinedViewModel(localPlayerId = "gp-user-1")
+        advanceUntilIdle()
+
+        assertEquals(2, vm.state.value.players.size)
+        assertTrue(vm.state.value.players.all { it.deckImageUrl == null })
     }
 }

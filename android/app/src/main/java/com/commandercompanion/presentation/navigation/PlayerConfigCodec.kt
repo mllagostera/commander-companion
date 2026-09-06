@@ -18,7 +18,15 @@ data class PlayerConfig(
     val mulligans: Int = 0,
     val assignedUserId: String? = null,
     val assignedUsername: String? = null,
-    val deckId: String? = null
+    val deckId: String? = null,
+    /**
+     * Art crop of [deckId] ([Deck.imageUrl][com.commandercompanion.domain.model.Deck.imageUrl]),
+     * carried here rather than looked up again in the tracker: `PreGameScreen` already holds the
+     * `Deck` it drew the picker from, and a seat that has to wait for a request to paint its
+     * background is a seat that pops. Null for guests, for Casual mode, and for decks with no art
+     * (everything not imported from Moxfield).
+     */
+    val deckImageUrl: String? = null
 )
 
 private const val ENTRY_SEPARATOR = ","
@@ -30,19 +38,22 @@ fun encodePlayerConfigs(configs: List<PlayerConfig>): String =
         val userIdField = config.assignedUserId?.let { URLEncoder.encode(it, CHARSET) } ?: ""
         val usernameField = config.assignedUsername?.let { URLEncoder.encode(it, CHARSET) } ?: ""
         val deckField = config.deckId?.let { URLEncoder.encode(it, CHARSET) } ?: ""
+        val deckImageField = config.deckImageUrl?.let { URLEncoder.encode(it, CHARSET) } ?: ""
         "${URLEncoder.encode(config.name, CHARSET)}$FIELD_SEPARATOR${config.colorKey}$FIELD_SEPARATOR" +
-            "${config.mulligans}$FIELD_SEPARATOR$userIdField$FIELD_SEPARATOR$usernameField$FIELD_SEPARATOR$deckField"
+            "${config.mulligans}$FIELD_SEPARATOR$userIdField$FIELD_SEPARATOR$usernameField$FIELD_SEPARATOR" +
+            "$deckField$FIELD_SEPARATOR$deckImageField"
     }
 
 fun decodePlayerConfigs(encoded: String): List<PlayerConfig> =
     encoded.split(ENTRY_SEPARATOR).filter { it.isNotBlank() }.map { entry ->
-        val parts = entry.split(FIELD_SEPARATOR, limit = 6)
+        val parts = entry.split(FIELD_SEPARATOR, limit = 7)
         PlayerConfig(
             name = URLDecoder.decode(parts[0], CHARSET),
             colorKey = parts[1],
             mulligans = parts.getOrNull(2)?.toIntOrNull() ?: 0,
             assignedUserId = parts.getOrNull(3)?.takeIf { it.isNotEmpty() }?.let { URLDecoder.decode(it, CHARSET) },
             assignedUsername = parts.getOrNull(4)?.takeIf { it.isNotEmpty() }?.let { URLDecoder.decode(it, CHARSET) },
-            deckId = parts.getOrNull(5)?.takeIf { it.isNotEmpty() }?.let { URLDecoder.decode(it, CHARSET) }
+            deckId = parts.getOrNull(5)?.takeIf { it.isNotEmpty() }?.let { URLDecoder.decode(it, CHARSET) },
+            deckImageUrl = parts.getOrNull(6)?.takeIf { it.isNotEmpty() }?.let { URLDecoder.decode(it, CHARSET) }
         )
     }

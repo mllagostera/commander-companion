@@ -15,7 +15,14 @@ data class PlayerState(
     val color: Color,
     val mulligans: Int = 0,
     val poison: Int = 0,
-    val commanderDamage: Map<Int, Int> = emptyMap() // Key: Opponent ID, Value: Damage received
+    val commanderDamage: Map<Int, Int> = emptyMap(), // Key: Opponent ID, Value: Damage received
+    /**
+     * Art crop of the deck this seat is playing, when the seat belongs to a known player who
+     * picked one. The tracker paints it behind the seat instead of the flat [color], which stays
+     * as the seat's border and identity (the commander-damage grids read opponents by colour).
+     * Null for guests, for Casual mode and for decks with no art.
+     */
+    val deckImageUrl: String? = null
 )
 
 /** Alive = positive life, no 21+ damage from a single commander, and fewer than 10 poison counters. */

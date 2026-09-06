@@ -109,7 +109,8 @@ class GameViewModel @Inject constructor(
                         id = index + 1,
                         name = config.name,
                         color = colorForKey(config.colorKey),
-                        mulligans = config.mulligans
+                        mulligans = config.mulligans,
+                        deckImageUrl = config.deckImageUrl
                     )
                 },
                 startingPlayerId = startingPlayerSeat.takeIf { it >= 0 }?.plus(1)
@@ -218,6 +219,7 @@ class GameViewModel @Inject constructor(
                 )
             }
             _state.value = _state.value.copy(players = players, localSeatId = localSeatId)
+            loadJoinedDeckArt(game)
 
             updateRemoteSync(
                 if (remoteSession?.isActive == true) {
@@ -228,6 +230,39 @@ class GameViewModel @Inject constructor(
                         status = RemoteSyncStatus.WaitingForPlayers,
                         gameId = game.id
                     )
+                }
+            )
+        }
+    }
+
+    /**
+     * Paints each seat with its deck's art, AFTER the table is already on screen.
+     *
+     * Joined mode has no `PlayerConfig` to carry the art the way host mode does (the route only
+     * knows the game id), and `GamePlayer` exposes `deck_id` but no image, so it is resolved the
+     * same way the usernames above are: through the game's playgroup, one
+     * `GET /playgroups/{id}/members/{userId}/decks` per distinct seated user. That fan-out runs in
+     * its own coroutine on purpose — the seats must not wait on it to appear, and a failure just
+     * leaves them on their flat colour, like a guest's.
+     *
+     * If it ever becomes visible, the fix is a `deck_image_url` on `GamePlayerResponse` (additive,
+     * non-breaking), not a blocking fetch here.
+     */
+    private fun loadJoinedDeckArt(game: Game) {
+        val gamePlaygroupId = game.playgroupId ?: return
+        viewModelScope.launch {
+            val artByDeckId = game.players.map { it.userId }.distinct()
+                .flatMap { userId ->
+                    playgroupRepository.getMemberDecks(gamePlaygroupId, userId).getOrDefault(emptyList())
+                }
+                .mapNotNull { deck -> deck.imageUrl?.let { url -> deck.id to url } }
+                .toMap()
+            if (artByDeckId.isEmpty()) return@launch
+
+            val deckIdBySeat = game.players.mapIndexed { index, player -> (index + 1) to player.deckId }.toMap()
+            _state.value = _state.value.copy(
+                players = _state.value.players.map { player ->
+                    player.copy(deckImageUrl = artByDeckId[deckIdBySeat[player.id]] ?: player.deckImageUrl)
                 }
             )
         }
@@ -290,11 +325,27 @@ class GameViewModel @Inject constructor(
         checkForGameOver()
     }
 
-    /** Advances the turn counter and hands the ring highlight to the next seat, wrapping around. */
+    /**
+     * Advances the turn counter and hands the ring highlight to the next seat that is still alive,
+     * going CLOCKWISE around the table ([clockwiseSeats]) rather than down the seat list: with four
+     * seats the list order jumps from the top-right quadrant to the bottom-left one, which is not
+     * where the turn goes at a real table.
+     */
     fun nextTurn() {
-        val seatIds = _state.value.players.map { it.id }
-        val currentIndex = seatIds.indexOf(_state.value.currentTurnPlayerId)
-        val nextPlayerId = if (currentIndex == -1) seatIds.firstOrNull() else seatIds[(currentIndex + 1) % seatIds.size]
+        if (_state.value.isFinished) return
+        val ring = clockwiseSeats(_state.value.players)
+        if (ring.isEmpty()) return
+        // -1 (no current seat yet) lands on the first seat of the ring, same as before.
+        val currentIndex = ring.indexOfFirst { it.id == _state.value.currentTurnPlayerId }
+        // Walking the ring at most once bounds the search: on a table where every seat is
+        // eliminated there is nobody to skip to, and the turn just moves on to the next seat
+        // instead of looping forever. The game normally finishes before that (one seat left
+        // standing ends it), so this is the corner case, not the common path.
+        val nextPlayerId = (1..ring.size).asSequence()
+            .map { step -> ring[(currentIndex + step).mod(ring.size)] }
+            .firstOrNull { it.isAlive() }
+            ?.id
+            ?: ring[(currentIndex + 1).mod(ring.size)].id
         _state.value = _state.value.copy(currentTurn = _state.value.currentTurn + 1, currentTurnPlayerId = nextPlayerId)
     }
 

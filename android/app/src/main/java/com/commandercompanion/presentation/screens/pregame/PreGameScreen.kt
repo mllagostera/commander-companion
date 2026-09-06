@@ -152,12 +152,20 @@ fun PreGameScreen(
                     val updatedConfigs = configs.mapIndexed { index, config ->
                         if (playgroupId != null) {
                             val userId = seatMemberUserIds[index]?.takeIf { it.isNotEmpty() }
+                            val deckId = userId?.let { seatDeckIds[index] }
+                            // The tracker paints the seat with this art; the deck is already
+                            // loaded here, so it travels with the seat instead of being fetched
+                            // again once the game is on screen.
+                            val deckImageUrl = userId
+                                ?.let { id -> viewModel.decksFor(id).firstOrNull { deck -> deck.id == deckId } }
+                                ?.imageUrl
                             config.copy(
                                 name = displayName(index),
                                 mulligans = mulligans[index],
                                 assignedUserId = userId,
                                 assignedUsername = seatMemberUsernames[index],
-                                deckId = if (userId != null) seatDeckIds[index] else null
+                                deckId = deckId,
+                                deckImageUrl = deckImageUrl
                             )
                         } else {
                             config.copy(mulligans = mulligans[index])
