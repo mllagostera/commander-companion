@@ -2039,6 +2039,13 @@ encoded before the field existed), and a transcription of `nextTurn()`'s ring wa
 minimal seat type, checking the clockwise sequence, the skip, the wrap-around, the
 all-dead fallback and the empty table. Everything that touches Compose, Hilt or the
 `ViewModel` — `GameTrackerScreen`, `GameViewModel`, `PreGameScreen` and their tests — has
-**never been compiled**. Both items therefore stay `[ ]` in TASKS.md until someone runs
-`./gradlew lintDebug testDebugUnitTest assembleDebug` and plays a real table, which is
-also when the screenshots AGENTS.md §8 asks for can be taken.
+**never been compiled**. Everything else waited for CI.
+
+**CI then built it, and it was green first try** ([#110](https://github.com/mllagostera/commander-companion/pull/110),
+run 313 on `140cd8a`): Android Lint, `testDebugUnitTest` — the first execution of the
+`GameViewModel` and Compose-side tests, and of Konsist's architecture assertions — and
+`assembleDebug`, plus the i18n locale check; backend, docs, web and architecture CI green
+too, and the PR mergeable. So the code compiles and its tests pass; what is still missing
+is a real table on a real device, which is why both items stay `[ ]` in TASKS.md and why
+the screenshots AGENTS.md §8 asks for do not exist yet (waived by the repo owner for this
+PR only).
