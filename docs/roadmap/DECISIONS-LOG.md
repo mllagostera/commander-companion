@@ -1963,11 +1963,12 @@ not imported from Moxfield) keep the flat seat colour they have today.
     usernames — `playgroupRepository.getMemberDecks(playgroupId, userId)` per
     distinct seated user, deduplicated, best-effort, matched by `deck_id`. It is a
     startup-only fan-out of at most 5 requests that never blocks the tracker.
-  - Rejected for now: adding `deck_image_url` (and the deck name) to
-    `GamePlayerResponse`. It is the cleaner fix for joined mode and removes the
-    fan-out, but it is a contract + backend change for a cosmetic gain on the one
-    mode that is not the common case. Revisit if the fan-out ever shows up as a
-    visible delay; it is an additive, non-breaking field.
+  - Rejected for now, and confirmed with the user on 2026-09-06: adding
+    `deck_image_url` (and the deck name) to `GamePlayerResponse`. It is the cleaner
+    fix for joined mode and removes the fan-out, but it is a contract + backend
+    change for a cosmetic gain on the one mode that is not the common case. The
+    fan-out ships first; revisit this if it ever shows up as a visible delay, since
+    it is an additive, non-breaking field.
 - Coil's disk cache is already warm for these URLs in Group mode: `DeckArtChip`
   loaded the same URL in `PreGameScreen` seconds earlier. `contentDescription`
   stays null — the art is decoration behind a labelled seat, so this adds no new
@@ -1993,12 +1994,21 @@ rules mean by "the player to your left", is the ring around the quadrants.
   ring visibly travels around the table instead of hopping.
 - Nothing remote changes: the turn is local state, never mirrored over the
   WebSocket, and both devices derive the same order from the same seat list.
-- **Deliberately left out:** skipping eliminated seats. The turn ring can still
-  land on a dead player today, which is arguably wrong at the table, but it is a
-  separate rule change with its own edge case (every remaining seat eliminated),
-  not part of "pass clockwise".
+- **Eliminated seats are skipped** (decided with the user, 2026-09-06, when the
+  scope was reviewed): `nextTurn()` walks the ring from the seat after the current
+  one and stops at the first seat that is not `isEliminated()`. Two guards, because
+  the loop must terminate on a table where everybody is dead: it walks at most as
+  many steps as there are seats and, if no living seat is found, falls back to the
+  plain next seat in the ring so the turn counter still advances; and it no-ops
+  when the game is already finished, like every other mutator on the ViewModel
+  (`nextTurn()` is the one that does not check `isFinished` today). `isAlive()`
+  already exists as a private extension in `GameViewModel`, shared with
+  `checkForGameOver()`. Note the ordinary case is covered anyway — the game
+  finishes automatically when one player is left standing — so the skip only ever
+  matters for the seats eliminated in between.
 
 Tests to write with the change: `SeatLayoutTest` for 2–6 seats and the wrap-around,
-a `GameViewModel` test asserting the clockwise sequence for a 4-seat table, and a
+`GameViewModel` tests asserting the clockwise sequence on a 4-seat table and that an
+eliminated seat is skipped (including the all-eliminated fallback), and a
 `PlayerConfigCodec` round-trip covering the new field and an old string without it.
 Both items are visual, so the PR needs a screenshot per touched screen (AGENTS.md §8).
