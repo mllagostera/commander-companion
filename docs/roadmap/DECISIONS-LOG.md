@@ -1924,11 +1924,12 @@ was deliberately *not* bumped: this session audited the architecture, not the
 task-by-task status, and updating the date without that audit is exactly the
 behaviour the advisory warning exists to discourage.
 
-### Stage 4 — Tracker: commander art per seat, and a clockwise turn order (scoped 2026-09-06)
+### Stage 4 — Tracker: commander art per seat, and a clockwise turn order (scoped and built 2026-09-06)
 
-Two tracker items were requested together and scoped in the same pass. Neither is
-built yet; this entry is the design the implementation is expected to follow, so
-that the two TASKS.md lines can stay one line each.
+Two tracker items were requested together, scoped in the same pass and built later
+the same day. The design below is what was implemented; **"What actually shipped"**
+at the end records the two places the code deviates from it and how far it could be
+verified in this environment.
 
 **1. A known player's seat shows their commander art.**
 
@@ -2012,3 +2013,32 @@ Tests to write with the change: `SeatLayoutTest` for 2–6 seats and the wrap-ar
 eliminated seat is skipped (including the all-eliminated fallback), and a
 `PlayerConfigCodec` round-trip covering the new field and an old string without it.
 Both items are visual, so the PR needs a screenshot per touched screen (AGENTS.md §8).
+
+**What actually shipped.**
+
+- The turn order landed as designed: `SeatLayout.kt` (`seatRows` + `clockwiseSeats`),
+  `nextTurn()` walking that ring and skipping eliminated seats, and the starter draw
+  spinning around it. The all-eliminated fallback stayed in as a bound on the walk,
+  but it is **unreachable through the UI** and therefore untested: nothing eliminates
+  two seats at once, so the game always finishes (one player left standing) before the
+  last seat can die. The tests cover what is reachable — the clockwise sequence, the
+  skip, and `nextTurn()` no-oping on a finished game.
+- The deck art landed as designed, plus one deviation worth naming: the decorative ±
+  glyphs at each edge of a seat were a fixed 38%-black, which disappears over the art
+  scrim. They now take the seat's own ink, which also makes them visible on the darkest
+  flat seat colours — a small visual change to seats that have no art at all.
+
+**How far it was verified.** Not far, and not with Gradle: this sandbox's network policy
+rejects `dl.google.com`, so the Android Gradle Plugin cannot be resolved and **no
+`./gradlew` task ran at all** — not `lintDebug`, not `testDebugUnitTest`, not
+`assembleDebug`. What was actually executed, with a standalone Kotlin 2.4.10 compiler and
+JUnit 4 fetched from Maven Central (the same trick the 2026-08-01 `SingleFlight` entry
+used): `SeatLayout.kt` + `SeatLayoutTest` (7 tests, green), `PlayerConfigCodec.kt` +
+`PlayerConfigCodecTest` (6 tests, green, including the art URL round-trip and an entry
+encoded before the field existed), and a transcription of `nextTurn()`'s ring walk over a
+minimal seat type, checking the clockwise sequence, the skip, the wrap-around, the
+all-dead fallback and the empty table. Everything that touches Compose, Hilt or the
+`ViewModel` — `GameTrackerScreen`, `GameViewModel`, `PreGameScreen` and their tests — has
+**never been compiled**. Both items therefore stay `[ ]` in TASKS.md until someone runs
+`./gradlew lintDebug testDebugUnitTest assembleDebug` and plays a real table, which is
+also when the screenshots AGENTS.md §8 asks for can be taken.
