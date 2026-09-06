@@ -25,6 +25,14 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-06 — Two tracker items scoped, nothing implemented.** The seat of a
+known player should show their commander art, and the turn should pass clockwise
+around the quadrants instead of down the seat list (today it jumps diagonally
+from the top-right seat to the bottom-left one). Both are now `[ ]` items in
+Stage 4 with the design under "Per-stage narrative" below; the `PreGameScreen`
+pass is what is left unscoped there. `TASKS.md`'s review date was not bumped —
+this session scoped two items, it did not audit the task-by-task status.
+
 **2026-09-04 — The Spanish leftovers, and a language selector that never worked.**
 Two things spotted while walking the app for the edge-to-edge pass (entry below): the
 tracker's "nobody was assigned" banner rendered in Spanish on an English UI, and
@@ -1915,3 +1923,82 @@ until it is made the check reports but does not block. `TASKS.md`'s review date
 was deliberately *not* bumped: this session audited the architecture, not the
 task-by-task status, and updating the date without that audit is exactly the
 behaviour the advisory warning exists to discourage.
+
+### Stage 4 — Tracker: commander art per seat, and a clockwise turn order (scoped 2026-09-06)
+
+Two tracker items were requested together and scoped in the same pass. Neither is
+built yet; this entry is the design the implementation is expected to follow, so
+that the two TASKS.md lines can stay one line each.
+
+**1. A known player's seat shows their commander art.**
+
+A seat is "a known player" when Group mode assigned it to a real playgroup member
+*and* a deck was picked for it — `PlayerConfig.assignedUserId` + `deckId`, set in
+`PreGameScreen`. Casual mode, guests, and decks with no `image_url` (everything
+not imported from Moxfield) keep the flat seat colour they have today.
+
+- `PlayerState` gains `deckImageUrl: String?`. `PlayerQuadrant` paints, under the
+  existing gradient, a Coil `AsyncImage` with `ContentScale.Crop` when it is set;
+  the seat colour stays as the quadrant's border and remains the seat's identity,
+  because the commander-damage mini grid identifies opponents by colour and would
+  stop being readable if the colour disappeared from the seat itself.
+- The art forces the dark-seat ink pair (white text + `SeatTextShadow`) instead of
+  deriving it from `player.color`'s luminance: over an arbitrary art crop the seat
+  colour no longer predicts what is behind the life total. The scrim over the art
+  is therefore stronger than the decorative one used over a flat colour. This is
+  the same contrast problem the deferred WCAG item in Stage 4b records for
+  "fixed black text over arbitrary per-player colors" — the art makes it worse
+  unless the scrim is part of the change, not an afterthought.
+- **Where the URL comes from, the one real decision.** Two paths, because the two
+  tracker modes get their table from different places:
+  - *Host mode* (`GameTrackerRoute`): `PreGameScreen` already holds the `Deck`
+    objects it drew the picker chips from, so the URL is carried in the route,
+    as a 7th field of `PlayerConfig`/`PlayerConfigCodec` (URL-encoded like the
+    others, `getOrNull(6)` so an older encoded string still decodes). It costs a
+    longer route argument and buys a seat that is painted on the first frame —
+    the in-game path never waits on a request, per the 2-second rule.
+  - *Joined mode* (`JoinedGameTrackerRoute`): the route carries only `gameId` +
+    `localPlayerId`, and `GamePlayerResponse` exposes `deck_id` but no deck art,
+    so `GameViewModel.initJoinedGame` resolves it the same way it already resolves
+    usernames — `playgroupRepository.getMemberDecks(playgroupId, userId)` per
+    distinct seated user, deduplicated, best-effort, matched by `deck_id`. It is a
+    startup-only fan-out of at most 5 requests that never blocks the tracker.
+  - Rejected for now: adding `deck_image_url` (and the deck name) to
+    `GamePlayerResponse`. It is the cleaner fix for joined mode and removes the
+    fan-out, but it is a contract + backend change for a cosmetic gain on the one
+    mode that is not the common case. Revisit if the fan-out ever shows up as a
+    visible delay; it is an additive, non-breaking field.
+- Coil's disk cache is already warm for these URLs in Group mode: `DeckArtChip`
+  loaded the same URL in `PreGameScreen` seconds earlier. `contentDescription`
+  stays null — the art is decoration behind a labelled seat, so this adds no new
+  string and no new i18n obligation.
+
+**2. The turn passes clockwise around the table.**
+
+`nextTurn()` walks `players` in seat order. The grid does not lay seats out in
+that order: `seatRows` puts the first half of the table on the top row (rotated
+180°) and the rest on the bottom row, both left→right. With four seats, order
+1→2→3→4 is top-left → top-right → **bottom-left** → bottom-right, i.e. the turn
+jumps diagonally across the table and back. What the players see, and what the
+rules mean by "the player to your left", is the ring around the quadrants.
+
+- Extract the layout knowledge out of `GameTrackerScreen` into a plain
+  `presentation/screens/game/SeatLayout.kt` (no Compose, therefore unit-testable):
+  a generic `seatRows(...)` — the current private function, which the seat grid and
+  both commander-damage grids already share — plus `clockwiseSeatOrder(...)` =
+  top row left→right, then bottom row **right→left**. For 4 seats that is
+  1, 2, 4, 3; for 6, 1, 2, 3, 6, 5, 4; for 2 and 3 it is unchanged from today.
+- `GameViewModel.nextTurn()` advances along that sequence instead of `players`.
+  The starter-draw spin in `GameTrackerScreen` iterates the same order, so the
+  ring visibly travels around the table instead of hopping.
+- Nothing remote changes: the turn is local state, never mirrored over the
+  WebSocket, and both devices derive the same order from the same seat list.
+- **Deliberately left out:** skipping eliminated seats. The turn ring can still
+  land on a dead player today, which is arguably wrong at the table, but it is a
+  separate rule change with its own edge case (every remaining seat eliminated),
+  not part of "pass clockwise".
+
+Tests to write with the change: `SeatLayoutTest` for 2–6 seats and the wrap-around,
+a `GameViewModel` test asserting the clockwise sequence for a 4-seat table, and a
+`PlayerConfigCodec` round-trip covering the new field and an old string without it.
+Both items are visual, so the PR needs a screenshot per touched screen (AGENTS.md §8).
