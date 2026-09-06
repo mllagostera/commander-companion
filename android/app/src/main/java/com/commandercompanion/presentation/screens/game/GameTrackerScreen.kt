@@ -96,7 +96,9 @@ fun GameTrackerScreen(
 
     LaunchedEffect(Unit) {
         if (!randomizingStarter) return@LaunchedEffect
-        val seatIds = state.players.map { it.id }
+        // Spins around the table the same way the turn will (see [clockwiseSeats]), so the ring
+        // never jumps diagonally across the quadrants while the starter is being drawn.
+        val seatIds = clockwiseSeats(state.players).map { it.id }
         if (seatIds.isNotEmpty()) {
             repeat(RANDOMIZE_STEPS) { step ->
                 randomHighlightId = seatIds[step % seatIds.size]
@@ -189,16 +191,6 @@ fun GameTrackerScreen(
             }
         }
     }
-}
-
-/**
- * Splits the table the way it is seated: the first half sits "at the top" (rotated 180°), the rest
- * below. Both the seat grid and each seat's commander-damage grid use this, so a seat occupies the
- * same relative position in either — which is what makes the damage grid readable at a glance.
- */
-private fun seatRows(players: List<PlayerState>): Pair<List<PlayerState>, List<PlayerState>> {
-    val topCount = (players.size + 1) / 2
-    return players.take(topCount) to players.drop(topCount)
 }
 
 /** Seat grid: first half "at the top of the table" (rotated 180°), the rest below. Works for 2-6. */

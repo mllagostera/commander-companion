@@ -290,11 +290,27 @@ class GameViewModel @Inject constructor(
         checkForGameOver()
     }
 
-    /** Advances the turn counter and hands the ring highlight to the next seat, wrapping around. */
+    /**
+     * Advances the turn counter and hands the ring highlight to the next seat that is still alive,
+     * going CLOCKWISE around the table ([clockwiseSeats]) rather than down the seat list: with four
+     * seats the list order jumps from the top-right quadrant to the bottom-left one, which is not
+     * where the turn goes at a real table.
+     */
     fun nextTurn() {
-        val seatIds = _state.value.players.map { it.id }
-        val currentIndex = seatIds.indexOf(_state.value.currentTurnPlayerId)
-        val nextPlayerId = if (currentIndex == -1) seatIds.firstOrNull() else seatIds[(currentIndex + 1) % seatIds.size]
+        if (_state.value.isFinished) return
+        val ring = clockwiseSeats(_state.value.players)
+        if (ring.isEmpty()) return
+        // -1 (no current seat yet) lands on the first seat of the ring, same as before.
+        val currentIndex = ring.indexOfFirst { it.id == _state.value.currentTurnPlayerId }
+        // Walking the ring at most once bounds the search: on a table where every seat is
+        // eliminated there is nobody to skip to, and the turn just moves on to the next seat
+        // instead of looping forever. The game normally finishes before that (one seat left
+        // standing ends it), so this is the corner case, not the common path.
+        val nextPlayerId = (1..ring.size).asSequence()
+            .map { step -> ring[(currentIndex + step).mod(ring.size)] }
+            .firstOrNull { it.isAlive() }
+            ?.id
+            ?: ring[(currentIndex + 1).mod(ring.size)].id
         _state.value = _state.value.copy(currentTurn = _state.value.currentTurn + 1, currentTurnPlayerId = nextPlayerId)
     }
 

@@ -105,6 +105,30 @@ class GameViewModelTest {
         )
     }
 
+    /**
+     * A four-seat pass-and-play table of guests (no assigned user, so nothing is mirrored
+     * remotely): the smallest table where the seating ring and the seat list disagree.
+     */
+    private fun fourSeatViewModel(): GameViewModel {
+        val configs = listOf("Ana" to "blue", "Beto" to "red", "Carla" to "green", "Dani" to "white")
+            .map { (name, colorKey) -> PlayerConfig(name = name, colorKey = colorKey) }
+        val repository = GameRepositoryImpl(api, dao, socket)
+        return GameViewModel(
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "gameId" to "game-local",
+                    "playersEncoded" to encodePlayerConfigs(configs),
+                    "startingPlayerSeat" to 0
+                )
+            ),
+            gameRepository = repository,
+            playgroupRepository = PlaygroupRepositoryImpl(api),
+            accessTokenProvider = accessTokenProvider,
+            resolveGameOutcomeUseCase = ResolveGameOutcomeUseCase(),
+            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase()
+        )
+    }
+
     @Test
     fun `partida activa en el backend deja el estado en Synced`() = runTest(dispatcher) {
         api.onStartGame = { id -> gameDto(id, GameStatus.ACTIVE) }
@@ -512,5 +536,46 @@ class GameViewModelTest {
         assertEquals(RemoteSyncStatus.Failed, vm.state.value.remoteSync.status)
         assertTrue(vm.state.value.players.isEmpty())
         assertNull(vm.state.value.localSeatId)
+    }
+
+    @Test
+    fun `the turn goes around the table clockwise, not down the seat list`() = runTest(dispatcher) {
+        val vm = fourSeatViewModel()
+        advanceUntilIdle()
+
+        // Seats 1 and 2 sit on the top row, 3 and 4 below them: seat 3 is under seat 1, so the
+        // ring is 1 -> 2 -> 4 -> 3 and not the 1 -> 2 -> 3 -> 4 the list order used to give.
+        val visited = (1..4).map {
+            vm.nextTurn()
+            vm.state.value.currentTurnPlayerId
+        }
+
+        assertEquals(listOf(2, 4, 3, 1), visited)
+        assertEquals(5, vm.state.value.currentTurn)
+    }
+
+    @Test
+    fun `an eliminated seat is skipped instead of being handed the turn`() = runTest(dispatcher) {
+        val vm = fourSeatViewModel()
+        advanceUntilIdle()
+        vm.adjustLife(playerId = 2, amount = -STARTING_LIFE)
+
+        vm.nextTurn()
+
+        // Seat 2 is next around the ring but dead, so the turn moves on to seat 4.
+        assertEquals(4, vm.state.value.currentTurnPlayerId)
+        assertEquals(2, vm.state.value.currentTurn)
+    }
+
+    @Test
+    fun `a finished game does not keep passing the turn`() = runTest(dispatcher) {
+        val vm = fourSeatViewModel()
+        advanceUntilIdle()
+        vm.finishGame(winnerId = 1)
+
+        vm.nextTurn()
+
+        assertEquals(1, vm.state.value.currentTurnPlayerId)
+        assertEquals(1, vm.state.value.currentTurn)
     }
 }
