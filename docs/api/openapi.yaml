@@ -3,6 +3,9 @@ info:
   title: Commander Companion API
   version: 0.1.0
   description: API for the Commander Companion application.
+  contact:
+    name: Commander Companion
+    url: https://github.com/mllagostera/commander-companion
 servers:
   - url: http://localhost:8080/api/v1
     description: Development server
@@ -1192,6 +1195,51 @@ components:
             restart when `commit` is `unknown` or when a redeploy carries no
             code change.
 
+tags:
+  - name: Health
+    description: Liveness of the process and which build is answering it.
+  - name: Auth
+    description: >-
+      Registration, email confirmation, login (password and Google) and the
+      refresh-token lifecycle. The only routes reachable without a bearer
+      token, and the only ones rate limited per IP.
+  - name: Users
+    description: >-
+      The caller's own profile and password, plus the user lookups the
+      social features are built on.
+  - name: Playgroups
+    description: >-
+      Recurring groups of players and their membership. Membership, not
+      ownership, is what authorizes every operation here.
+  - name: Decks
+    description: >-
+      Commander decks, created by hand or imported from Moxfield. Every
+      deck belongs to exactly one user.
+  - name: Games
+    description: >-
+      The lifecycle of a game -- pending, active, finished -- and the
+      append-only action log the tracker writes while it is played.
+  - name: Statistics
+    description: >-
+      Read-only aggregates over finished games, recalculated when a game
+      finishes rather than computed per request.
+  - name: Moxfield
+    description: >-
+      Keeping decks in step with Moxfield after import: one-deck syncs and
+      the background jobs that do it in bulk.
+  - name: Tournaments
+    description: >-
+      Standalone Swiss-format Commander tournaments -- roster, pairings,
+      table results and round progression (see ADR-0016).
+  - name: Friends
+    description: >-
+      Friend requests and the friendships they become. An accepted request
+      is the friendship; there is no separate object.
+  - name: Admin
+    description: >-
+      Admin-only moderation and global stats. These routes answer 403 to a
+      non-admin rather than hiding behind a 404.
+
 security:
   - bearerAuth: []
 
@@ -1205,6 +1253,9 @@ paths:
           route is registered at the root (internal/common/health.go).
     get:
       summary: Liveness probe and build marker
+      operationId: getHealth
+      tags:
+        - Health
       description: >-
         Used by the external uptime monitor and by anything that needs to know
         which build is live — notably to sequence the Render/Vercel deploys,
@@ -1228,6 +1279,14 @@ paths:
   /auth/register:
     post:
       summary: Register user
+      description: >-
+        Creates the account and returns it; it does not log the caller in
+        -- there is no token in the response, so a client registers and
+        then calls POST /auth/login. A 409 means the username or the email
+        is already taken, as opposed to the 400 for malformed input.
+      operationId: registerUser
+      tags:
+        - Auth
       security: []
       requestBody:
         required: true
@@ -1263,6 +1322,9 @@ paths:
   /users/username-available:
     get:
       summary: Check whether a username is free to register (or to rename to)
+      operationId: checkUsernameAvailability
+      tags:
+        - Users
       description: >-
         Public/unauthenticated, unlike GET /users/search: used by the registration
         form to validate the username before submitting. Exact, case-sensitive match
@@ -1297,6 +1359,14 @@ paths:
   /auth/verify-email:
     post:
       summary: Confirm the account using the verification token sent by email
+      description: >-
+        Consumes the single-use token sent by POST /auth/register (or by
+        POST /auth/resend-verification) and marks the email confirmed.
+        Invalid, already used and expired all answer 400, so a client
+        cannot tell them apart.
+      operationId: verifyEmail
+      tags:
+        - Auth
       security: []
       requestBody:
         required: true
@@ -1322,6 +1392,9 @@ paths:
   /auth/resend-verification:
     post:
       summary: Resend the account verification email
+      operationId: resendVerificationEmail
+      tags:
+        - Auth
       description: >-
         Always responds 204, whether or not the email exists, and whether or
         not it is already verified (reveals nothing, same anti-enumeration
@@ -1345,6 +1418,15 @@ paths:
   /auth/login:
     post:
       summary: Log in with email and password
+      description: >-
+        Returns the access/refresh token pair. The 401 covers a
+        Google-created account too: it has no password to check, so it
+        fails the same way a wrong one does rather than revealing how the
+        account was created. The 403 is the different case -- credentials
+        correct, email confirmation still missing.
+      operationId: login
+      tags:
+        - Auth
       security: []
       requestBody:
         required: true
@@ -1380,6 +1462,15 @@ paths:
   /auth/google:
     post:
       summary: Log in (or register) with Google
+      description: >-
+        Verifies the Google id_token and logs in, creating the account or
+        linking it to an existing one with the same email when needed --
+        one endpoint covers the first sign-in and every later one. The 501
+        is not a failure of the request: it means this deployment has no
+        GOOGLE_CLIENT_ID and therefore does not offer Google sign-in.
+      operationId: loginWithGoogle
+      tags:
+        - Auth
       security: []
       requestBody:
         required: true
@@ -1415,6 +1506,14 @@ paths:
   /auth/refresh:
     post:
       summary: Refresh token
+      description: >-
+        Exchanges a refresh token for a new pair and revokes the one
+        presented, so refresh tokens are single-use and replaying one
+        answers 401. Unknown, expired and already-revoked tokens share
+        that 401.
+      operationId: refreshToken
+      tags:
+        - Auth
       security: []
       requestBody:
         required: true
@@ -1444,6 +1543,13 @@ paths:
   /auth/logout:
     post:
       summary: Log out
+      description: >-
+        Revokes the refresh token supplied in the body. 204 is its only
+        documented response, so a client can log out without first
+        checking whether the session is still valid.
+      operationId: logout
+      tags:
+        - Auth
       security: []
       requestBody:
         required: true
@@ -1457,6 +1563,14 @@ paths:
   /auth/me:
     get:
       summary: Get current profile
+      description: >-
+        Returns the profile of whoever the bearer token identifies, which
+        is how a client resolves its own id and username after a login or
+        a refresh. It takes no parameters: the identity comes entirely
+        from the token.
+      operationId: getCurrentUser
+      tags:
+        - Auth
       responses:
         '200':
           description: Authenticated user's data
@@ -1468,6 +1582,9 @@ paths:
   /users/search:
     get:
       summary: Search users by username (partial) or email (exact)
+      operationId: searchUsers
+      tags:
+        - Users
       description: >-
         For inviting people to a playgroup without knowing their UUID (see
         POST /playgroups/{id}/members). username matches by substring,
@@ -1508,6 +1625,9 @@ paths:
   /users/{id}:
     patch:
       summary: Update your own profile (username and/or moxfield_username)
+      operationId: updateUserProfile
+      tags:
+        - Users
       description: >-
         id must be the authenticated user themselves (via JWT) — 404 in any
         other case, without distinguishing "does not exist" from "is not yours".
@@ -1545,6 +1665,9 @@ paths:
   /users/{id}/password:
     post:
       summary: Change your own password, after validating the current one
+      operationId: changePassword
+      tags:
+        - Users
       description: >-
         id must be the authenticated user themselves (via JWT) — 404 in any
         other case, same criteria as PATCH /users/{id}. Google accounts
@@ -1575,6 +1698,9 @@ paths:
   /playgroups:
     get:
       summary: List the authenticated user's playgroups
+      operationId: listPlaygroups
+      tags:
+        - Playgroups
       description: >-
         Without `cursor`/`limit`, returns the full list (with `members`
         populated on each group). With either query param present, opts into
@@ -1605,6 +1731,13 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create playgroup (the creator becomes its first member)
+      description: >-
+        The creator is added as the first member in the same call, so a
+        playgroup is never left memberless. That membership is what every
+        other /playgroups endpoint authorizes against.
+      operationId: createPlaygroup
+      tags:
+        - Playgroups
       requestBody:
         required: true
         content:
@@ -1627,6 +1760,13 @@ paths:
   /playgroups/{id}:
     get:
       summary: Get playgroup
+      description: >-
+        Membership is required. A playgroup the caller does not belong to
+        answers 404 rather than 403, so the endpoint never reveals that
+        the id exists.
+      operationId: getPlaygroup
+      tags:
+        - Playgroups
       parameters:
         - in: path
           name: id
@@ -1649,6 +1789,14 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Rename the playgroup (only an existing member can edit it)
+      description: >-
+        Only the name changes, and any member can change it -- there is no
+        owner role beyond having created the playgroup. As in GET, one the
+        caller is not a member of is indistinguishable from one that does
+        not exist.
+      operationId: renamePlaygroup
+      tags:
+        - Playgroups
       parameters:
         - in: path
           name: id
@@ -1684,6 +1832,14 @@ paths:
   /playgroups/{id}/members:
     post:
       summary: Add a member to the playgroup (only an existing member can invite)
+      description: >-
+        Any existing member can invite, not only the creator. The 404
+        deliberately covers three cases at once -- unknown playgroup,
+        unknown user, and a caller who is not a member -- while the 409 is
+        the specific case of a user who already belongs.
+      operationId: addPlaygroupMember
+      tags:
+        - Playgroups
       parameters:
         - in: path
           name: id
@@ -1719,6 +1875,9 @@ paths:
   /playgroups/{id}/members/{userId}/decks:
     get:
       summary: List a playgroup member's decks
+      operationId: listPlaygroupMemberDecks
+      tags:
+        - Playgroups
       description: >-
         Allows viewing the decks of ANOTHER member of the same playgroup (see
         ADR-0013) — this is what enables choosing their deck in a proxy-join
@@ -1759,6 +1918,9 @@ paths:
   /decks:
     get:
       summary: List decks
+      operationId: listDecks
+      tags:
+        - Decks
       description: >-
         Returns a page of the authenticated user's decks, from most recent to
         oldest. Pagination is cursor-based (keyset over created_at + id):
@@ -1781,6 +1943,9 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create deck manually
+      operationId: createDeck
+      tags:
+        - Decks
       description: >-
         Creates a deck from a name and a commander typed by the user, as
         opposed to `/decks/import/moxfield`. `image_url` is optional and
@@ -1809,6 +1974,16 @@ paths:
   /decks/import/moxfield:
     post:
       summary: Import from Moxfield
+      description: >-
+        Accepts either the deck's public Moxfield ID or its full URL, and
+        copies name, commander and art at import time; keeping those
+        current afterwards is POST /sync/moxfield's job. Only public decks
+        are reachable, and one with no commander is rejected -- this is a
+        Commander-only tracker. A Moxfield deck maps to at most one deck
+        per user, hence the 409.
+      operationId: importDeckFromMoxfield
+      tags:
+        - Decks
       requestBody:
         required: true
         content:
@@ -1843,6 +2018,12 @@ paths:
   /decks/{id}:
     get:
       summary: Get deck
+      description: >-
+        Ownership is checked: a deck that is not the caller's answers 404
+        rather than 403, so deck ids cannot be probed.
+      operationId: getDeck
+      tags:
+        - Decks
       parameters:
         - in: path
           name: id
@@ -1865,6 +2046,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     delete:
       summary: Delete deck
+      description: >-
+        Same ownership rule as the GET -- a deck that is not the caller's
+        answers 404, without distinguishing 'not yours' from 'not there'.
+      operationId: deleteDeck
+      tags:
+        - Decks
       parameters:
         - in: path
           name: id
@@ -1885,6 +2072,9 @@ paths:
   /games:
     get:
       summary: List games
+      operationId: listGames
+      tags:
+        - Games
       description: >-
         Returns a page of the game history, from most recent to oldest.
         Pagination is cursor-based (keyset over created_at + id): follow
@@ -1919,6 +2109,13 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create game
+      description: >-
+        Creates the game in its pending state. Players are added with POST
+        /games/{id}/join, and it only becomes playable through POST
+        /games/{id}/start.
+      operationId: createGame
+      tags:
+        - Games
       requestBody:
         content:
           application/json:
@@ -1940,6 +2137,9 @@ paths:
   /games/{id}:
     get:
       summary: Get game
+      operationId: getGame
+      tags:
+        - Games
       description: Includes the current state of its players.
       parameters:
         - in: path
@@ -1965,6 +2165,9 @@ paths:
   /games/{id}/join:
     post:
       summary: Join the game with your own deck, or add another player (proxy-join)
+      operationId: joinGame
+      tags:
+        - Games
       description: >-
         Without user_id (or equal to the authenticated user): normal join, no
         changes. With a different user_id: proxy-join (see ADR-0013) — the
@@ -2022,6 +2225,13 @@ paths:
   /games/{id}/leave:
     post:
       summary: Leave the game (only while pending)
+      description: >-
+        Only while the game is still pending; one that has started answers
+        409. A caller who is not one of its players gets 404, so the two
+        failures stay distinguishable.
+      operationId: leaveGame
+      tags:
+        - Games
       parameters:
         - in: path
           name: id
@@ -2047,6 +2257,13 @@ paths:
   /games/{id}/start:
     post:
       summary: Start game
+      description: >-
+        Moves the game from pending to active, which closes it to joining
+        and leaving. It also needs a minimum number of players, so an
+        under-filled game and an already-started one share the 409.
+      operationId: startGame
+      tags:
+        - Games
       parameters:
         - in: path
           name: id
@@ -2070,6 +2287,14 @@ paths:
   /games/{id}/finish:
     post:
       summary: Finish game
+      description: >-
+        Moves an active game to finished and triggers the statistics
+        recalculation every /statistics endpoint then reads -- until a
+        game is finished it contributes nothing to them. Only an active
+        game can be finished, so calling this twice answers 409.
+      operationId: finishGame
+      tags:
+        - Games
       parameters:
         - in: path
           name: id
@@ -2093,6 +2318,15 @@ paths:
   /games/{id}/actions:
     post:
       summary: Register an action in the game
+      description: >-
+        The single write endpoint for everything that happens during a
+        game: life changes, commander damage and eliminations all arrive
+        here, told apart by action_type. Actions are append-only -- there
+        is no update or delete for them, and GET /games/{id}/timeline
+        replays them in order.
+      operationId: createGameAction
+      tags:
+        - Games
       parameters:
         - in: path
           name: id
@@ -2168,6 +2402,14 @@ paths:
   /games/{id}/timeline:
     get:
       summary: Get full action history
+      description: >-
+        Returns the complete action list, deliberately unpaginated: a
+        single game's action count is bounded, and Android replays the
+        whole timeline to reconstruct commander-damage state, which a
+        partial fetch would silently corrupt.
+      operationId: getGameTimeline
+      tags:
+        - Games
       parameters:
         - in: path
           name: id
@@ -2182,6 +2424,13 @@ paths:
   /statistics/user:
     get:
       summary: Get the authenticated user's overall statistics
+      description: >-
+        Aggregated across every finished game the user has played,
+        recalculated when each game finishes rather than computed per
+        request. A user who has never finished one gets zeros, not a 404.
+      operationId: getUserStatistics
+      tags:
+        - Statistics
       responses:
         '200':
           description: User statistics, recalculated when each game finishes (zeros if they never played)
@@ -2192,6 +2441,9 @@ paths:
   /statistics/decks:
     get:
       summary: Get statistics for every deck of the authenticated user
+      operationId: listDeckStatistics
+      tags:
+        - Statistics
       description: >-
         A single call replacing one GET /statistics/deck/{id} per deck --
         used by the web dashboard and the per-deck statistics page, which
@@ -2208,6 +2460,13 @@ paths:
   /statistics/deck/{id}:
     get:
       summary: Get statistics for a deck of the authenticated user
+      description: >-
+        The single-deck form of GET /statistics/decks. Prefer that one
+        when rendering more than one deck: it exists precisely to avoid
+        the N+1 this endpoint causes.
+      operationId: getDeckStatistics
+      tags:
+        - Statistics
       parameters:
         - in: path
           name: id
@@ -2231,6 +2490,9 @@ paths:
   /statistics/playgroup/{id}:
     get:
       summary: Get statistics for a playgroup
+      operationId: getPlaygroupStatistics
+      tags:
+        - Statistics
       description: Calculated live over the playgroup's finished games (there is no precalculated summary table).
       parameters:
         - in: path
@@ -2249,6 +2511,9 @@ paths:
   /statistics/playgroups:
     get:
       summary: Get how many finished games the authenticated user has played in each of their playgroups
+      operationId: listPlaygroupGameCounts
+      tags:
+        - Statistics
       description: >-
         Every playgroup the user belongs to, with its games_played count, in
         a single call -- replaces doing one GET /statistics/playgroup/{id}
@@ -2265,6 +2530,9 @@ paths:
   /statistics/opponents:
     get:
       summary: Get the authenticated user's head-to-head record against every opponent they've played
+      operationId: listOpponentRecords
+      tags:
+        - Statistics
       description: >-
         Calculated live over every finished game the user has shared a seat
         in (there is no precalculated summary table), grouped by opponent.
@@ -2282,6 +2550,9 @@ paths:
   /statistics/games:
     get:
       summary: Get a page of the authenticated user's finished-games history
+      operationId: listFinishedGames
+      tags:
+        - Statistics
       description: >-
         Unlike GET /games (kept lean for the dashboard/join-game flow), each
         entry is enriched with every seat's username and deck name/commander/
@@ -2300,6 +2571,9 @@ paths:
   /statistics/dashboard:
     get:
       summary: Get everything the dashboard renders, in one request
+      operationId: getDashboard
+      tags:
+        - Statistics
       description: >-
         A read model shaped after the dashboard screen rather than after the
         domain: totals, the best deck by win rate, the most played decks, the
@@ -2328,6 +2602,9 @@ paths:
   /sync/moxfield:
     post:
       summary: Re-sync an already imported deck with Moxfield
+      operationId: syncDeckWithMoxfield
+      tags:
+        - Moxfield
       description: >-
         Queries Moxfield again for a deck the user has ALREADY imported and
         updates its name and commander if they changed. It is the counterpart
@@ -2367,6 +2644,9 @@ paths:
   /sync/status:
     get:
       summary: Get a deck's sync status
+      operationId: getDeckSyncStatus
+      tags:
+        - Moxfield
       description: >-
         Returns the saved state of the imported deck, without calling
         Moxfield: how it is currently stored and when its last sync was.
@@ -2400,6 +2680,9 @@ paths:
   /moxfield-import:
     post:
       summary: Import in the background all public decks of the Moxfield username linked to the profile
+      operationId: startMoxfieldBulkImport
+      tags:
+        - Moxfield
       description: >-
         Bulk, asynchronous counterpart to `/decks/import/moxfield` (a single
         deck, synchronous). Returns as soon as the job row exists: listing the
@@ -2429,6 +2712,9 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     get:
       summary: Check the authenticated user's most recently started bulk import job
+      operationId: getLatestMoxfieldBulkImport
+      tags:
+        - Moxfield
       description: >-
         Whatever its status (pending/in_progress/completed/failed) -- lets a
         client that lost track of the job ID (e.g. the web settings page
@@ -2451,6 +2737,9 @@ paths:
   /moxfield-import/{jobId}:
     get:
       summary: Check the progress of a bulk import job
+      operationId: getMoxfieldBulkImport
+      tags:
+        - Moxfield
       description: Scoped to the authenticated user -- 404 if the job is not theirs, without distinguishing from "does not exist".
       parameters:
         - in: path
@@ -2476,6 +2765,9 @@ paths:
   /decks/resync-all:
     post:
       summary: Resync in the background all of the user's decks with moxfield_id
+      operationId: startDeckBulkResync
+      tags:
+        - Moxfield
       description: >-
         Different from `/moxfield-import`: that one brings in NEW decks from
         a Moxfield username; this one updates the decks the user ALREADY HAS
@@ -2506,6 +2798,9 @@ paths:
   /decks/resync-all/{jobId}:
     get:
       summary: Check the progress of a bulk deck resync job
+      operationId: getDeckBulkResync
+      tags:
+        - Moxfield
       description: Scoped to the authenticated user -- 404 if the job is not theirs, without distinguishing from "does not exist".
       parameters:
         - in: path
@@ -2531,6 +2826,9 @@ paths:
   /tournaments:
     get:
       summary: List tournaments the authenticated user organizes or participates in
+      operationId: listTournaments
+      tags:
+        - Tournaments
       description: Cursor-paginated, from most recently created to oldest. See internal/common/pagination.go for the cursor scheme.
       parameters:
         - $ref: '#/components/parameters/CursorParam'
@@ -2550,6 +2848,9 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a standalone Swiss-format Commander tournament
+      operationId: createTournament
+      tags:
+        - Tournaments
       description: The caller becomes its organizer. Always format=commander for now. A join_code is generated for participants to self-register with (POST /tournaments/join) and later look up their table (GET /tournaments/lookup).
       requestBody:
         required: true
@@ -2574,6 +2875,9 @@ paths:
   /tournaments/lookup:
     get:
       summary: "\"Enter the code\": resolve a tournament by its join code"
+      operationId: lookupTournamentByCode
+      tags:
+        - Tournaments
       description: >-
         Returns the tournament's public summary and, if the authenticated
         caller is already a registered participant, their own status: while
@@ -2604,6 +2908,9 @@ paths:
   /tournaments/join:
     post:
       summary: Self-register for a tournament with one of the caller's own decks
+      operationId: joinTournament
+      tags:
+        - Tournaments
       description: Only while the tournament is in `registration`. To add a participant with no account, see POST /tournaments/{id}/participants (organizer-only).
       requestBody:
         required: true
@@ -2634,6 +2941,9 @@ paths:
   /tournaments/{id}:
     get:
       summary: Get tournament detail
+      operationId: getTournament
+      tags:
+        - Tournaments
       description: Standings and, once the tournament has left registration, every round played so far. Visible to its organizer and to any registered participant.
       parameters:
         - in: path
@@ -2657,6 +2967,9 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     delete:
       summary: Delete a tournament (organizer-only)
+      operationId: deleteTournament
+      tags:
+        - Tournaments
       description: >-
         Deletes the tournament and its whole roster. Only while it is still in `registration`:
         once it has started, its rounds and results belong to its participants too, so the
@@ -2687,6 +3000,9 @@ paths:
   /tournaments/{id}/participants:
     post:
       summary: Add a participant with no account (organizer-only)
+      operationId: addTournamentParticipant
+      tags:
+        - Tournaments
       description: Guests can't self-register via POST /tournaments/join since they can't authenticate. Only while the tournament is in `registration`.
       parameters:
         - in: path
@@ -2730,6 +3046,9 @@ paths:
   /tournaments/{id}/start:
     post:
       summary: Lock the roster and seat round 1 (organizer-only)
+      operationId: startTournament
+      tags:
+        - Tournaments
       description: >-
         Requires a participant count with a valid 3-4 player table split
         (every count works except 1, 2, and 5). Computes round_count from the
@@ -2771,6 +3090,9 @@ paths:
   /tournaments/{id}/tables/{tableId}/result:
     post:
       summary: Record a table's finish order (organizer-only)
+      operationId: recordTournamentTableResult
+      tags:
+        - Tournaments
       description: Adds the corresponding points (1st=2, 2nd=1, 3rd/4th=0) to each seated participant's running total.
       parameters:
         - in: path
@@ -2820,6 +3142,9 @@ paths:
   /tournaments/{id}/rounds/next:
     post:
       summary: Finish the current round and seat the next one, or finish the tournament (organizer-only)
+      operationId: advanceTournamentRound
+      tags:
+        - Tournaments
       description: Requires every table in the current round to have a recorded result. If the current round was the last one (round_count), finishes the tournament instead of seating another.
       parameters:
         - in: path
@@ -2850,6 +3175,9 @@ paths:
   /friends/requests:
     post:
       summary: Send a friend request
+      operationId: sendFriendRequest
+      tags:
+        - Friends
       description: >-
         If the addressee already has a pending request TO the authenticated
         user, auto-accepts that existing request instead of creating a
@@ -2887,6 +3215,14 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     get:
       summary: List the authenticated user's pending friend requests
+      description: >-
+        The direction parameter selects which side of the request to list
+        and changes the response shape with it: incoming returns the
+        requester's profile, outgoing the addressee's. It defaults to
+        incoming, the inbox a client shows first.
+      operationId: listFriendRequests
+      tags:
+        - Friends
       parameters:
         - in: query
           name: direction
@@ -2908,6 +3244,14 @@ paths:
   /friends/requests/{id}/accept:
     post:
       summary: Accept a pending friend request (only its addressee may accept it)
+      description: >-
+        Only the addressee may accept; for anyone else, the requester
+        included, the request is a 404. Accepting is what creates the
+        friendship -- the accepted request is the friend row, which is why
+        the response is a Friend rather than the request.
+      operationId: acceptFriendRequest
+      tags:
+        - Friends
       parameters:
         - in: path
           name: id
@@ -2937,6 +3281,13 @@ paths:
   /friends/requests/{id}/reject:
     post:
       summary: Reject a pending friend request (only its addressee may reject it)
+      description: >-
+        The addressee's other option, and the counterpart of DELETE
+        /friends/requests/{id}: this is the addressee refusing, that one
+        is the requester withdrawing.
+      operationId: rejectFriendRequest
+      tags:
+        - Friends
       parameters:
         - in: path
           name: id
@@ -2962,6 +3313,14 @@ paths:
   /friends/requests/{id}:
     delete:
       summary: Cancel an outgoing pending friend request (only its original requester may cancel it)
+      description: >-
+        The requester withdrawing their own pending request, as opposed to
+        the addressee refusing it with POST /friends/requests/{id}/reject.
+        Only the original requester may call it; for anyone else the
+        request is a 404.
+      operationId: cancelFriendRequest
+      tags:
+        - Friends
       parameters:
         - in: path
           name: id
@@ -2987,6 +3346,12 @@ paths:
   /friends:
     get:
       summary: List the authenticated user's accepted friendships
+      description: >-
+        Accepted friendships only. Anything still pending is GET
+        /friends/requests, a different shape with a different lifecycle.
+      operationId: listFriends
+      tags:
+        - Friends
       responses:
         '200':
           description: The authenticated user's friends
@@ -2999,6 +3364,12 @@ paths:
   /friends/{userId}:
     delete:
       summary: Remove a friendship (unfriend)
+      description: >-
+        Keyed by the other user's id, not by the friend-request id that
+        created the friendship. A pair who are not friends answers 404.
+      operationId: removeFriend
+      tags:
+        - Friends
       parameters:
         - in: path
           name: userId
@@ -3018,6 +3389,9 @@ paths:
   /admin/users:
     get:
       summary: List users (admin only)
+      operationId: listUsersAsAdmin
+      tags:
+        - Admin
       description: >-
         Requires is_admin = true on the authenticated user (see
         auth.RequireAdmin, ADR-0018) in addition to bearer auth — OpenAPI has
@@ -3055,6 +3429,14 @@ paths:
   /admin/users/{id}:
     get:
       summary: Get a user's admin-facing profile (admin only)
+      description: >-
+        The admin-facing view of an account -- AdminUserDetail, not the
+        User that GET /auth/me returns. A non-admin gets 403, not 404:
+        unlike the ownership checks elsewhere in this API, the admin
+        routes do not hide their own existence.
+      operationId: getUserAsAdmin
+      tags:
+        - Admin
       parameters:
         - in: path
           name: id
@@ -3084,6 +3466,9 @@ paths:
   /admin/users/{id}/status:
     patch:
       summary: Activate or deactivate a user's account (admin only)
+      operationId: setUserActiveStatus
+      tags:
+        - Admin
       description: >-
         A deactivated account keeps every other row (decks, games,
         statistics) intact — it just can't log in or refresh its session
@@ -3129,6 +3514,9 @@ paths:
   /admin/stats/overview:
     get:
       summary: Global app stats overview (admin only)
+      operationId: getAdminStatsOverview
+      tags:
+        - Admin
       description: >-
         Live-computed on every call, no summary table — same choice already
         made for GET /statistics/playgroup/{id}.
@@ -3148,6 +3536,9 @@ paths:
   /admin/stats/activity:
     get:
       summary: Historical daily activity for the admin dashboard's chart (admin only)
+      operationId: getAdminStatsActivity
+      tags:
+        - Admin
       description: >-
         One point per calendar day, most recent day last. Derived from
         games/game_players (no snapshot table) — a day with no games is

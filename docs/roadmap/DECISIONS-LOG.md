@@ -25,6 +25,59 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-07 — `openapi.yaml` annotated: 170 Spectral warnings to zero.**
+Reviewing the `actions/setup-go` bump (PR #112) turned into a look at what the
+Spectral job had been reporting all along. The count was never a set of
+scattered oversights: of 70 operations, *all 70* lacked `operationId` and
+`tags`, 29 lacked `description`, and `info` lacked `contact`. Two fields that
+had never once been used in this project, plus a third used inconsistently.
+
+It also grew with every endpoint, which is what made it worth doing rather
+than tolerating. This project's own records track the drift: "~100 warnings"
+in TASKS.md, then ~116, then 154, and 168 on `main` before this pass. Each new
+endpoint added two or three by copying the pattern of the ones before it.
+
+What was decided:
+
+- **`tags`** — eleven groups mirroring the backend modules (Health, Auth,
+  Users, Playgroups, Decks, Games, Statistics, Moxfield, Tournaments, Friends,
+  Admin), declared at the root with a description each. Without them a
+  renderer drops all 70 operations into one `default` bucket, which is what a
+  3,200-line spec least needs.
+- **`operationId`** — `camelCase` verb+resource (`listPlaygroups`,
+  `importDeckFromMoxfield`). There is no codegen in this repo and both clients
+  are hand-written, so the value is entirely future: these names cost nothing
+  now and are breaking to change once anything generates from them.
+- **`description`** — written only where it adds what the `summary` cannot,
+  which in practice meant the *why* behind a status code: why login answers
+  401 to a Google-created account, why `GET /games/{id}/timeline` is
+  deliberately unpaginated, why the admin routes answer 403 where the rest of
+  the API answers 404 to avoid confirming that an id exists.
+- **`info-contact`** — filled with the repository URL, rather than silencing
+  the rule or putting a personal address in a versioned file.
+
+Applied with a line-oriented script instead of a YAML round-trip: reserializing
+the file would have reflowed every block scalar in it and produced a diff
+nobody could review. One bug worth remembering — `textwrap.wrap` breaks on
+hyphens by default, and inside a folded (`>-`) scalar that newline becomes a
+space, so "Google-created" rendered as "Google- created". Caught by reading the
+generated output, fixed with `break_on_hyphens=False`.
+
+Verified: Spectral reports 0 problems, not merely 0 errors; the spec still
+parses; 70/70 `operationId`s unique; no tag used without being declared and
+none declared without being used.
+
+Zero is also now enforced. `docs-ci.yml`'s Spectral step runs with
+`--fail-severity=warn` instead of the default `error`, so a new operation
+missing `operationId`, `tags` or `description` fails CI rather than quietly
+raising the count — which is exactly how 170 accumulated in the first place.
+Confirmed in both directions before committing: the annotated spec exits 0,
+and a probe endpoint carrying only a `summary` exits 1 with three warnings.
+
+Also corrected in passing: the 2026-08 admin entry below claimed these fields
+were "already present across the rest of the file". They were not; no
+operation had either.
+
 **2026-09-06 — `/health` can now tell one deploy from the next.** The
 Render/Vercel deploy race led the "worth fixing next" list, and could not be
 started: the fix is to make one deploy wait for the other, and `/health`
@@ -622,7 +675,7 @@ only gates login/refresh rather than triggering full session revocation).
 - **Docs**: `docs/database/schema.dbml` (`users.is_admin`/`is_active`),
   `docs/api/openapi.yaml` (`/admin/*` paths + schemas, Spectral lint: 0
   errors, only the same pre-existing warning classes — missing
-  `operationId`/`tags` — already present across the rest of the file),
+  `operationId`/`tags`, which at that point no operation in the file had),
   README.md's ADR index and documentation hub, `ROADMAP.md` (new Stage 10),
   this file, and `TASKS.md` (new Stage 10 section).
 

@@ -60,8 +60,15 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "20"
+      # --fail-severity=warn, not the default `error`. The spec was annotated
+      # to zero warnings on 2026-09-07 (see DECISIONS-LOG.md); before that the
+      # count had grown to 170 precisely because warnings never failed
+      # anything, so each new endpoint copied the pattern of the ones before
+      # it and added two or three more. This is the ratchet that keeps it at
+      # zero: a new operation without `operationId`, `tags` or `description`
+      # now fails CI instead of quietly raising the number.
       - name: Spectral lint
-        run: npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml --ruleset .spectral.yaml
+        run: npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml --ruleset .spectral.yaml --fail-severity=warn
 
   dbml-validate:
     name: Validate DBML (compiles to SQL)
