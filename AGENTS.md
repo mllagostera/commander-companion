@@ -343,7 +343,7 @@ Then the parts a script cannot judge:
 - [ ] Code works, not just compiles (no stub left returning dummy data).
 - [ ] Relevant gate passes locally: `make lint && make test` / `npm run lint && npm run typecheck && npm run build` / `./gradlew lintDebug testDebugUnitTest`.
 - [ ] New user-facing strings added to **all** locales.
-- [ ] Visual change to the web or the Android app → screenshot attached to the PR (see §8).
+- [ ] Visual change to the web or the Android app → screenshot attached to the PR (see §8), unless it is Android and no SDK/emulator is available.
 - [ ] `TASKS.md` updated for what you actually did; `DECISIONS-LOG.md` entry if there's narrative worth keeping.
 - [ ] A non-trivial technical decision recorded as an ADR (copy [`docs/decisions/TEMPLATE.md`](docs/decisions/TEMPLATE.md)).
 
@@ -362,7 +362,12 @@ what stays here is only what needs judgement.
   `ci/dbml-schema-drift-check`, `fix/games-playgroup-n-plus-one`).
 - **Commit subjects: imperative English, no conventional-commit prefix.**
   "Batch the seat lookup in ListGamesForPlaygroup", not "fix(games): ...".
-- Merge into `main` **through a PR** — the repo history is PR merges.
+- Merge into `main` **through a PR** — the repo history is PR merges. GitHub
+  prefills the description from
+  [`.github/pull_request_template.md`](.github/pull_request_template.md): fill
+  it in, delete the sections that don't apply, and don't tick a box you
+  haven't actually checked. It is the short form of §7 — this file stays the
+  authority.
 - **A PR that changes what the web or the Android app looks like must attach an
   image of the change.** A screenshot of the affected screen — before/after when
   the change is a modification rather than something new, a short clip or a GIF
@@ -370,6 +375,14 @@ what stays here is only what needs judgement.
   per screen touched. This covers any change a user could see: layout, styles,
   components, icons, copy in the UI. Nothing can check this for you — a reviewer
   cannot judge a visual change from a diff.
+- **Exception — Android without an SDK.** Capturing an Android screenshot needs
+  the Android SDK plus a device or emulator. If they are not available in the
+  environment where the change was made, skip the image rather than faking or
+  approximating it: say so in one line in the PR description ("no Android
+  SDK/emulator available in this environment, screenshot pending") and describe
+  what changed on screen. The exception is about *capability*, not convenience —
+  with an SDK and an emulator to hand, the screenshot is still required, and the
+  web side has no such excuse.
 - Only commit or push when the user asks for it.
 - **Line endings are decided by `.gitattributes`** (`* text=auto eol=lf`), not by
   each clone's `core.autocrlf`. Generated code comes out of Linux containers as
