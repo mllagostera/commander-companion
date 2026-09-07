@@ -120,7 +120,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Complete `requestBody`/schemas for auth, decks, games, playgroups, statistics, and `POST /auth/google`
 - [x] `/statistics/playgroup/{id}` really implemented (previously hardcoded `501`)
 - [x] Cursor-based pagination on `/games`/`/decks`/`/playgroups` listings (`internal/common/pagination.go`; `/playgroups` added 2026-08-08, opt-in via `cursor`/`limit` so the unpaginated response shape existing clients (Android, web) already parse is unchanged when neither is given — see DECISIONS-LOG.md). `GET /games/{id}/timeline` deliberately left unpaginated: a single game's action count is bounded (unlike account-wide history), and `GameViewModel.replayCommanderDamageUseCase` on Android needs the *complete* timeline to reconstruct commander-damage state — a paginated fetch there risks silent data corruption (an incomplete replay) for a highly speculative benefit, so it wasn't worth the added client complexity.
-- [x] Spec linting with Spectral (`.spectral.yaml`, runs in `docs-ci.yml`) — 0 errors, ~100 pre-existing warnings (missing `operationId`/`tags`/`description`), non-blocking
+- [x] Spec linting with Spectral (`.spectral.yaml`, runs in `docs-ci.yml`) — 0 errors and, since 2026-09-07, 0 warnings: the 170 that had accumulated (no `operationId` and no `tags` on any of the 70 operations, `description` missing on 29, and `info.contact`) were all closed in one pass — see DECISIONS-LOG.md. Warnings now block: the job runs with `--fail-severity=warn`, so an operation added without `operationId`/`tags`/`description` fails CI instead of raising the count again.
 
 ## Stage 4b: Web Client (Nuxt)
 
