@@ -25,6 +25,97 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-09-06 — `/health` can now tell one deploy from the next.** The
+Render/Vercel deploy race led the "worth fixing next" list, and could not be
+started: the fix is to make one deploy wait for the other, and `/health`
+answered `{"status":"ok","db":"ok"}` — byte-for-byte identical before and after
+a deploy, so there was nothing to wait *for*. This session built the missing
+input and deliberately stopped there, at the user's call: the sequencing itself
+stays open on TASKS.md.
+
+`GET /health` now returns `commit` (the full git SHA of the build) and
+`started_at`, on the 503 branch as well as the 200 — which build is live does
+not depend on Postgres being reachable, and a poller waiting on a deploy still
+needs the answer when the database is down.
+
+Three things worth keeping from building it:
+
+- **Where the SHA comes from was the whole design.** Render builds
+  `backend/Dockerfile` with `backend/` as the build context, so the
+  repository's `.git` is one directory up and outside it: the Go toolchain's
+  own `vcs.revision` stamp, which would have been free, is never there in the
+  deployed image. Hence three sources in descending order of authority — the
+  linker (`GIT_COMMIT` build arg), the VCS stamp, then `RENDER_GIT_COMMIT`
+  — and the platform variable last, because it describes the deploy rather
+  than the binary. Verified all four paths against a running binary, not just
+  in tests: ldflags → the SHA; `go build` in the checkout → the same SHA from
+  the VCS stamp; `RENDER_GIT_COMMIT` → its value; junk in that variable →
+  `unknown`.
+- **`/health` had never been in `openapi.yaml`**, despite being a real
+  client-facing endpoint. The route check in `check-architecture.sh` only ever
+  looked at `router.` registrations inside `*/handler.go`, and `/health` is
+  registered with `app.Get` in `common/health.go` — so the contract rule could
+  not see it and never complained. Both were fixed here: the endpoint is in the
+  contract (with a path-level `servers` override, since it lives at the root
+  rather than under `/api/v1`), and the check now sees routes registered on the
+  Fiber app itself.
+- **The value is sanitized before being served** (7–64 lowercase hex, else
+  `unknown`). It can arrive from an environment variable and `/health` is
+  public and unauthenticated, so the body stays bounded instead of echoing
+  whatever was set.
+
+Decided against a `version` field next to `commit`: with no git tags and no
+release process it could only have carried the hand-maintained `0.1` that
+`openapi.yaml` and Fiber's `AppName` already disagree about, and it cannot
+distinguish two deploys — which is the entire job. Full rationale, alternatives
+and known limits in
+[ADR-0020](../decisions/0020-build-provenance-in-health.md).
+
+**The status audit behind the new review date (2026-09-06).** The date was
+bumped, so here is exactly what was checked, item by item, against the code —
+the point of the date is that a future session can trust it, which it cannot if
+the audit is left implicit.
+
+Twenty-four code commits had landed since the 2026-08-17 review, all in Stages
+4, 4b, 9, 10 and Cross-cutting. Every one of them has its `[x]` item already:
+the tracker rebuild from the design handoff, edge-to-edge, the i18n sweep and
+the language selector, the architecture guardrails, the Android domain-layer
+inversion, the friends QR phases, admin dashboard Phase 1 plus its same-day
+activity-chart addendum, `GET /statistics/dashboard` and the dashboard render,
+the tournament delete, the AGP 9 migration, the login splash, the inlined
+global CSS and `<html lang>`. Nothing shipped is missing from the list, and
+nothing on the list turned out to be less done than it claims.
+
+Each open `[ ]` item was re-verified rather than assumed:
+
+- **Google Sign-In / email verification** — still gated:
+  `auth.ErrGoogleAuthNotConfigured` still answers `501`, and
+  `REQUIRE_EMAIL_VERIFICATION` still defaults to `false` in `config.Load`. Both
+  remain external manual steps.
+- **`mapGoogleSignInError`** — the `else -> LoginError.GoogleUnknown` branch is
+  still there in `LoginViewModel`, TODO and all.
+- **The deferred WCAG AAA findings** — `--text-muted`/`--text-dim`/
+  `--accent-link` still carry the same values in `main.css`, and
+  `PlayQuadrant.vue` still paints life totals and commander-damage cells with a
+  hardcoded `#000`. Still a design call, not a technical blocker.
+- **Admin Phase 2+** — no promotion endpoint, no audit-log query, no
+  moderation of games/tournaments/decks anywhere in `internal/admin`.
+- **Dashboard shell-first rendering** — no skeleton component exists in
+  `web/app`; the item is untouched, as recorded.
+- **The two tracker items** — `SeatLayout.kt` and `PlayerConfig.deckImageUrl`
+  are in the tree and CI-green, and both stay `[ ]` for the reason already
+  written on them: no real table has played with either.
+- **`PreGameScreen`** — unchanged, and still without a scope.
+
+One open item could **not** be verified from here and is being reported rather
+than assumed: whether `architecture invariants hold` has been added to the
+required checks on `main`. That lives in GitHub's branch-protection settings,
+not in the repository, and nothing in a checkout can answer it.
+
+Stages 0–3 and 5–8 were not re-audited end to end: no commit has touched them
+since the previous review, so their status carries over unchanged from
+2026-08-17.
+
 **2026-09-06 — Two tracker items scoped, nothing implemented.** The seat of a
 known player should show their commander art, and the turn should pass clockwise
 around the quadrants instead of down the seat list (today it jumps diagonally

@@ -56,8 +56,15 @@ type Config struct {
 	// accounts are created already verified and RegisterUser neither generates the
 	// token nor calls the mailer.
 	RequireEmailVerification bool
-	Auth                     auth.Config
-	Email                    email.Config
+	// GitCommit identifies the source revision this binary was built from, so
+	// GET /health can say which build is answering (see ADR-0020). It is
+	// UnknownCommit when nothing identifies it. Unlike everything else here it
+	// is not operator configuration: it comes from the linker, the binary's VCS
+	// stamp or the platform, and is read here only because that keeps every
+	// environment variable this process reads in one package.
+	GitCommit string
+	Auth      auth.Config
+	Email     email.Config
 }
 
 // Load reads the full configuration from environment variables, with the
@@ -82,6 +89,7 @@ func Load() (Config, error) {
 		CORSAllowedOrigins:       corsOrigins,
 		WebAppURL:                webAppURL(),
 		RequireEmailVerification: boolEnv("REQUIRE_EMAIL_VERIFICATION", false),
+		GitCommit:                gitCommit(),
 		Auth:                     authCfg,
 		Email:                    loadEmailConfig(),
 	}, nil

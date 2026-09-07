@@ -1161,10 +1161,70 @@ components:
           type: integer
           description: Distinct users who played at least one game that day.
 
+    HealthResponse:
+      type: object
+      description: >-
+        Liveness of the process plus which build is answering. `commit` is what
+        makes this endpoint usable to tell a finished deploy from one still in
+        flight: it is the git SHA of the source the running binary was built
+        from, so a poller can wait for a specific commit instead of guessing
+        from timing (see ADR-0020).
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+          description: '`ok` when the process answers and Postgres responds to a ping; `error` otherwise.'
+        db:
+          type: string
+          enum: [ok, unreachable]
+        commit:
+          type: string
+          description: >-
+            Full git SHA of the build, or `unknown` when the binary carries no
+            provenance (a plain `go build` outside a git checkout). Present on
+            both 200 and 503: which build is serving does not depend on the
+            database being reachable.
+        started_at:
+          type: string
+          format: date-time
+          description: >-
+            UTC timestamp of when this process started, RFC 3339. Detects a
+            restart when `commit` is `unknown` or when a redeploy carries no
+            code change.
+
 security:
   - bearerAuth: []
 
 paths:
+  /health:
+    servers:
+      - url: http://localhost:8080
+        description: >-
+          Deliberately not under /api/v1. An external monitor has no JWT and
+          should not compete with the rate limit of the auth endpoints, so the
+          route is registered at the root (internal/common/health.go).
+    get:
+      summary: Liveness probe and build marker
+      description: >-
+        Used by the external uptime monitor and by anything that needs to know
+        which build is live — notably to sequence the Render/Vercel deploys,
+        which today race each other (see ADR-0015 and ADR-0020).
+      security: []
+      responses:
+        '200':
+          description: Process alive and Postgres reachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: >-
+            Process alive but Postgres unreachable. Carries the same build
+            fields as the 200.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
   /auth/register:
     post:
       summary: Register user

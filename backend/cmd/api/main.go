@@ -59,6 +59,10 @@ func main() {
 }
 
 func run() error {
+	// Captured before the migrations below, which can take seconds: /health
+	// reports when the process started, not when it finished booting.
+	startedAt := time.Now().UTC()
+
 	// 1. Load configuration and connect to DB
 	cfg, err := config.Load()
 	if err != nil {
@@ -104,7 +108,10 @@ func run() error {
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 	}))
 
-	common.RegisterHealthRoute(app, db)
+	common.RegisterHealthRoute(app, db, common.BuildInfo{
+		Commit:    cfg.GitCommit,
+		StartedAt: startedAt,
+	})
 	registerModules(app, db, &cfg)
 
 	// 4. Start Server

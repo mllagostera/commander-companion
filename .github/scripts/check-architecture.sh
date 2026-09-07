@@ -169,20 +169,27 @@ fi
 #    edit openapi.yaml first." This is what proves it happened.
 #    /ws/** is a deliberate, recorded exception — see ADR-0005, which explains
 #    why OpenAPI 3.1 doesn't model WebSockets and leaves it as a separate task.
+#
+#    common/health.go is in the list because GET /health is registered on the
+#    Fiber app itself, not on a slice's router: it lives at the root, outside
+#    /api/v1 (see ADR-0020). It used to be invisible to this check, which is
+#    how it stayed out of the contract until the build marker was added to it.
 # ---------------------------------------------------------------------------
 section "Routes match openapi.yaml"
 
 if [ -f docs/api/openapi.yaml ]; then
   : > "$tmp/code_paths"
-  for f in backend/internal/*/handler.go backend/internal/websocket/*.go; do
+  for f in backend/internal/*/handler.go backend/internal/websocket/*.go backend/internal/common/health.go; do
     [ -f "$f" ] || continue
     case "$f" in *_test.go) continue ;; esac
     slice=$(basename "$(dirname "$f")")
     prefix=""
     # main.go mounts admin under protected.Group("/admin", ...).
     [ "$slice" = "admin" ] && prefix="/admin"
-    grep -oE 'router\.(Get|Post|Put|Patch|Delete)\("[^"]*"' "$f" 2>/dev/null \
-      | sed "s|router\.[A-Za-z]*(\"|${prefix}|; s|\"$||" \
+    # `router.` is a slice registering under /api/v1; `app.` is a route on the
+    # Fiber app itself, which is why both receivers are matched.
+    grep -oE '(router|app)\.(Get|Post|Put|Patch|Delete)\("[^"]*"' "$f" 2>/dev/null \
+      | sed "s|^[a-z]*\.[A-Za-z]*(\"|${prefix}|; s|\"$||" \
       >> "$tmp/code_paths"
   done
   # :id -> {id}, drop the WebSocket exception, dedupe.

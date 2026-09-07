@@ -11,7 +11,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - Keep each line short (status + what + a pointer to the file/module). Put narrative, rationale, and verification detail in DECISIONS-LOG.md instead, dated, under the matching stage — don't let it accumulate here again.
 - Update the "Last reviewed" date every time the real state of the code is audited, and add the corresponding entry to DECISIONS-LOG.md.
 
-**Last reviewed:** 2026-08-17 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
+**Last reviewed:** 2026-09-06 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
 
 ---
 
@@ -101,6 +101,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] PostgreSQL pinned to 18 everywhere (`docker-compose.yml`, `backend-ci.yml`)
 - [x] Goose migrations applied automatically on binary startup (`internal/common/migrate.go`, session-level advisory lock for multi-replica safety)
 - [x] Render deployment groundwork documented (`backend/README.md`) — see [ADR-0015](../decisions/0015-deployment-infrastructure.md)
+- [x] **`GET /health` reports which build is answering** (2026-09-06): `commit` (full git SHA, from the linker → the binary's VCS stamp → `RENDER_GIT_COMMIT` → `unknown`) and `started_at`, on both the 200 and the 503 branch — `internal/config/buildinfo.go`, `internal/common/health.go`, `backend/Dockerfile`'s `GIT_COMMIT` build arg. Unblocks sequencing the deploy race below; does not fix it. `/health` also entered `openapi.yaml`, where it had never been. See [ADR-0020](../decisions/0020-build-provenance-in-health.md)
 - [x] **TCP_NODELAY on accepted connections** (`cmd/api/listener.go`, found and fixed 2026-08-05): fasthttp (Fiber's engine) doesn't disable Nagle's algorithm itself, so a keep-alive connection reused across requests stalled ~40ms per request (Nagle plus the peer's delayed ACK) before the server saw a split header/body write. `main.go` now wraps the raw `net.Listener` to set `SetNoDelay(true)` on every accepted `*net.TCPConn`. Confirmed locally: ~45ms → ~5-7ms for a POST with a JSON body over a reused connection.
 
 ## Stage 2: Database
@@ -236,7 +237,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] CI/CD: `backend-ci.yml`, `android-ci.yml`, `web-ci.yml`, `docs-ci.yml` — all four follow the same always-reports-a-check `changes`/`dorny-paths-filter` pattern
 - [x] **Every CI check name in English** (2026-09-02): 8 job/step names were still in Spanish. Renaming them moves the identifiers branch protection matches on, so the 4 required contexts affected were updated in the same pass
 - [x] **i18n checks for web and Android** (2026-09-02): `.github/scripts/check-i18n-{web,android}.mjs`. A missing key fails nothing else — Vue renders the key with a 200, Android falls back to the default locale — which is how #101 shipped. Both verify locale parity and that every key used in the source resolves; Android honours `tools:ignore="MissingTranslation"`. Both mutation-tested. Not in the required-checks list yet
-- [ ] **The two production deploys race each other**: Render and Vercel each deploy off their own GitHub integration on a push to `main`, in parallel and unordered, so the new frontend can serve against the old backend for as long as Render takes to build (see [ADR-0015](../decisions/0015-deployment-infrastructure.md)). Note `/health` returns no version or commit marker, so "wait for the backend" can't be resolved by polling it — the old binary answers it identically
+- [ ] **The two production deploys race each other**: Render and Vercel each deploy off their own GitHub integration on a push to `main`, in parallel and unordered, so the new frontend can serve against the old backend for as long as Render takes to build (see [ADR-0015](../decisions/0015-deployment-infrastructure.md)). **No longer blocked**: since 2026-09-06 `/health` reports the `commit` it was built from, so "wait for the backend" can be resolved by polling it (see [ADR-0020](../decisions/0020-build-provenance-in-health.md)). What is still open is the sequencing itself — who polls, and how Vercel is held back
 - [x] Branch protection on `main` (8 required checks — `web-ci.yml`'s checks aren't in that list yet, see README.md §6 for the `hadolint` name-collision caveat)
 - [x] `golangci-lint` at 0 issues repo-wide (config migrated to v2, pinned to `v2.12.2`)
 - [x] Real wiring of every `service.go` to its sqlc `Queries` — no dummy modules left
@@ -280,9 +281,11 @@ Kotlin, and two of them are what still keeps the app in alpha:
 4. **The Render/Vercel deploy race** (Cross-cutting) — the two production
    deploys run in parallel and unordered on a push to `main`, so the new
    frontend can serve against the old backend. This is the only open item that
-   can produce a broken production, which is why it leads. Note the constraint
-   recorded with it: `/health` exposes no version or commit marker, so "wait for
-   the backend" cannot be solved by polling it as-is.
+   can produce a broken production, which is why it leads. The constraint that
+   used to sit here is gone: since 2026-09-06 `/health` reports the `commit` it
+   was built from ([ADR-0020](../decisions/0020-build-provenance-in-health.md)),
+   so polling it now answers "is the new backend live?". What is left is
+   deciding who polls and how Vercel is held back until it answers.
 5. **The deferred WCAG 2.2 AAA findings** (Stage 4b) — the audit's technical
    fixes all landed; what remains needs a **design decision**, not code: the
    contrast of `--text-dim`/`--accent-link`/`--text-muted`, and the tracker's
