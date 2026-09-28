@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +41,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +51,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.commandercompanion.R
 import com.commandercompanion.presentation.components.GradientButton
+import com.commandercompanion.presentation.components.KeepScreenOn
 import com.commandercompanion.presentation.components.RotateDevicePrompt
 import com.commandercompanion.presentation.components.message
 import com.commandercompanion.presentation.theme.AccentSoft
@@ -100,11 +99,7 @@ fun GameTrackerScreen(
 
     // The phone lies on the table for the whole game: the screen must not time out between taps.
     // Scoped to this screen (not the Activity window) so the rest of the app keeps the system timeout.
-    val view = LocalView.current
-    DisposableEffect(view) {
-        view.keepScreenOn = true
-        onDispose { view.keepScreenOn = false }
-    }
+    KeepScreenOn()
 
     LaunchedEffect(Unit) {
         if (!randomizingStarter) return@LaunchedEffect
