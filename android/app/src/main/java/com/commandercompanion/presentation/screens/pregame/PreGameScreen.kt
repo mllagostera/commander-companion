@@ -39,6 +39,7 @@ import com.commandercompanion.R
 import com.commandercompanion.domain.model.Deck
 import com.commandercompanion.domain.model.PlaygroupMember
 import com.commandercompanion.presentation.components.DeckArtChip
+import com.commandercompanion.presentation.components.KeepScreenOn
 import com.commandercompanion.presentation.components.RotateDevicePrompt
 import com.commandercompanion.presentation.components.SelectableChip
 import com.commandercompanion.presentation.navigation.PlayerConfig
@@ -75,6 +76,8 @@ fun PreGameScreen(
     onContinue: (playersEncoded: String, startingPlayerSeat: Int) -> Unit,
     viewModel: PreGameViewModel = hiltViewModel()
 ) {
+    // Already at the table (starter draw, mulligans): same as the tracker, the screen must not time out.
+    KeepScreenOn()
     val configs = remember { decodePlayerConfigs(playersEncoded) }
     val mulliganListSaver = remember {
         listSaver<SnapshotStateList<Int>, Int>(

@@ -51,6 +51,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.commandercompanion.R
 import com.commandercompanion.presentation.components.GradientButton
+import com.commandercompanion.presentation.components.KeepScreenOn
 import com.commandercompanion.presentation.components.RotateDevicePrompt
 import com.commandercompanion.presentation.components.message
 import com.commandercompanion.presentation.theme.AccentSoft
@@ -95,6 +96,10 @@ fun GameTrackerScreen(
     var randomizingStarter by rememberSaveable { mutableStateOf(state.startingPlayerId != null) }
     var randomHighlightId by rememberSaveable { mutableStateOf<Int?>(null) }
     var showStarterBanner by rememberSaveable { mutableStateOf(false) }
+
+    // The phone lies on the table for the whole game: the screen must not time out between taps.
+    // Scoped to this screen (not the Activity window) so the rest of the app keeps the system timeout.
+    KeepScreenOn()
 
     LaunchedEffect(Unit) {
         if (!randomizingStarter) return@LaunchedEffect
