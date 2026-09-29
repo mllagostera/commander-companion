@@ -37,6 +37,12 @@ device on the same network, or to point at another host:
 
 (or by setting `API_BASE_URL` in `gradle.properties`; see `app/build.gradle.kts`).
 
+The APK that Android CI builds and archives (`app-debug-apk` artifact) is the
+one exception: it takes `API_BASE_URL` from the repository secret of the same
+name (the deployed backend on Render), so it can be installed straight on a
+phone. Local builds are unaffected. Without the secret, CI builds the local
+default and flags it with a warning.
+
 ### Google Sign-In
 
 `GOOGLE_WEB_CLIENT_ID` is currently a placeholder (`app/build.gradle.kts`) —

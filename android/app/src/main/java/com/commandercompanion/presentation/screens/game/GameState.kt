@@ -22,7 +22,12 @@ data class PlayerState(
      * as the seat's border and identity (the commander-damage grids read opponents by colour).
      * Null for guests, for Casual mode and for decks with no art.
      */
-    val deckImageUrl: String? = null
+    val deckImageUrl: String? = null,
+    /**
+     * Time this seat has spent on its own turns, chess-clock style, not counting the turn in
+     * progress (see [GameState.turnClockRunningSince] and [GameViewModel.turnTimeOf]).
+     */
+    val turnTimeMs: Long = 0
 )
 
 /** Alive = positive life, no 21+ damage from a single commander, and fewer than 10 poison counters. */
@@ -65,6 +70,13 @@ data class GameState(
     val startingPlayerId: Int? = null,
     /** Seat whose turn it currently is, so the tracker UI can ring-highlight its quadrant. Mirrors [startingPlayerId] until [nextTurn][GameViewModel.nextTurn] advances it. */
     val currentTurnPlayerId: Int? = startingPlayerId,
+    /** Whether the first turn has started, i.e. [GameViewModel.startTurnClock] has run. */
+    val turnClockStarted: Boolean = false,
+    /**
+     * When the turn owner's clock started running, on [GameViewModel.nowMs]'s monotonic scale; null
+     * while it is stopped -- before the first turn, while the game is paused, once it is over.
+     */
+    val turnClockRunningSince: Long? = null,
     val isFinished: Boolean = false,
     val winnerId: Int? = null,
     val remoteSync: RemoteSyncState = RemoteSyncState(),

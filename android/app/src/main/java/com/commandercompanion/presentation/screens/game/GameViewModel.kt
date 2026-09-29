@@ -35,6 +35,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 private const val HTTP_CONFLICT = 409
+private const val NANOS_PER_MILLI = 1_000_000L
 
 @HiltViewModel
 class GameViewModel @Inject constructor(
@@ -310,6 +311,27 @@ class GameViewModel @Inject constructor(
         checkForGameOver()
     }
 
+    /**
+     * [sourceId] deals [amount] damage to [targetId] -- what the tracker's drag from one seat to
+     * another records. Commander damage also counts towards the 21-point rule against that attacker
+     * (and costs life, see [adjustCommanderDamage]); plain damage only costs life. A seat can't
+     * damage itself, and a non-positive amount is nothing to record.
+     */
+    fun dealDamage(sourceId: Int, targetId: Int, amount: Int, commander: Boolean) {
+        if (amount <= 0 || sourceId == targetId) return
+        if (commander) {
+            adjustCommanderDamage(targetPlayerId = targetId, attackerId = sourceId, amount = amount)
+        } else {
+            adjustLife(playerId = targetId, amount = -amount)
+        }
+    }
+
+    /** [playerId] gains [amount] life -- a drag that starts and ends on the same seat. */
+    fun gainLife(playerId: Int, amount: Int) {
+        if (amount <= 0) return
+        adjustLife(playerId = playerId, amount = amount)
+    }
+
     fun adjustPoison(playerId: Int, amount: Int) {
         if (_state.value.isFinished) return
         _state.value = _state.value.copy(
@@ -346,7 +368,62 @@ class GameViewModel @Inject constructor(
             .firstOrNull { it.isAlive() }
             ?.id
             ?: ring[(currentIndex + 1).mod(ring.size)].id
-        _state.value = _state.value.copy(currentTurn = _state.value.currentTurn + 1, currentTurnPlayerId = nextPlayerId)
+        // The outgoing seat banks its turn; the incoming one's clock starts now (if it was running).
+        val wasRunning = _state.value.turnClockRunningSince != null
+        _state.value = settleTurnClock(_state.value).copy(
+            currentTurn = _state.value.currentTurn + 1,
+            currentTurnPlayerId = nextPlayerId,
+            turnClockRunningSince = if (wasRunning) nowMs() else null
+        )
+    }
+
+    /**
+     * Monotonic milliseconds for the turn clocks. Not wall-clock time, which jumps when the device
+     * syncs its clock; a test swaps it for a fake clock.
+     */
+    internal var nowMs: () -> Long = { System.nanoTime() / NANOS_PER_MILLI }
+
+    /** Starts the first turn's clock, once the starter draw has landed. Later calls are no-ops. */
+    fun startTurnClock() {
+        val current = _state.value
+        if (current.turnClockStarted || current.isFinished) return
+        _state.value = current.copy(turnClockStarted = true, turnClockRunningSince = nowMs())
+    }
+
+    /** Stops the running clock, banking the time so far (the game is paused). */
+    fun pauseTurnClock() {
+        _state.value = settleTurnClock(_state.value)
+    }
+
+    /** Restarts the clock stopped by [pauseTurnClock]; nothing to do before the first turn. */
+    fun resumeTurnClock() {
+        val current = _state.value
+        if (!current.turnClockStarted || current.isFinished || current.turnClockRunningSince != null) return
+        _state.value = current.copy(turnClockRunningSince = nowMs())
+    }
+
+    /** [playerId]'s time on its own turns, including the turn in progress if it is theirs. */
+    fun turnTimeOf(playerId: Int): Long {
+        val current = _state.value
+        val banked = current.players.firstOrNull { it.id == playerId }?.turnTimeMs ?: 0
+        val runningSince = current.turnClockRunningSince
+        return if (runningSince != null && playerId == current.currentTurnPlayerId) {
+            banked + (nowMs() - runningSince).coerceAtLeast(0)
+        } else {
+            banked
+        }
+    }
+
+    /** Adds the running stretch to the turn owner's total and stops the clock. */
+    private fun settleTurnClock(state: GameState): GameState {
+        val runningSince = state.turnClockRunningSince ?: return state
+        val elapsed = (nowMs() - runningSince).coerceAtLeast(0)
+        return state.copy(
+            players = state.players.map { player ->
+                if (player.id == state.currentTurnPlayerId) player.copy(turnTimeMs = player.turnTimeMs + elapsed) else player
+            },
+            turnClockRunningSince = null
+        )
     }
 
     /**
@@ -359,10 +436,15 @@ class GameViewModel @Inject constructor(
     fun resetLives() {
         if (_state.value.isFinished) return
         val previous = _state.value.players
+        // A fresh game starts the clocks from zero too, running again if they were.
+        val wasRunning = _state.value.turnClockRunningSince != null
         _state.value = _state.value.copy(
-            players = previous.map { it.copy(life = STARTING_LIFE, poison = 0, commanderDamage = emptyMap()) },
+            players = previous.map {
+                it.copy(life = STARTING_LIFE, poison = 0, commanderDamage = emptyMap(), turnTimeMs = 0)
+            },
             currentTurn = 1,
-            currentTurnPlayerId = _state.value.startingPlayerId
+            currentTurnPlayerId = _state.value.startingPlayerId,
+            turnClockRunningSince = if (wasRunning) nowMs() else null
         )
         previous.forEach { player ->
             if (player.life != STARTING_LIFE) mirrorLifeChange(player.id, STARTING_LIFE - player.life)
@@ -382,7 +464,7 @@ class GameViewModel @Inject constructor(
         if (_state.value.isFinished) return
         val resolvedWinnerId = resolveGameOutcomeUseCase.resolveWinner(_state.value.players.toOutcomes(), winnerId)
 
-        _state.value = _state.value.copy(isFinished = true, winnerId = resolvedWinnerId)
+        _state.value = settleTurnClock(_state.value).copy(isFinished = true, winnerId = resolvedWinnerId)
         persistGameResult(resolvedWinnerId)
         finishRemoteGame()
     }
@@ -557,7 +639,7 @@ class GameViewModel @Inject constructor(
         if (_state.value.isFinished) return
         socketJob?.cancel()
         val winnerId = _state.value.players.filter { it.isAlive() }.singleOrNull()?.id
-        _state.value = _state.value.copy(isFinished = true, winnerId = winnerId)
+        _state.value = settleTurnClock(_state.value).copy(isFinished = true, winnerId = winnerId)
         persistGameResult(winnerId)
     }
 
