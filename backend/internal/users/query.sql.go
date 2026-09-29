@@ -139,9 +139,12 @@ func (q *Queries) GetEmailVerificationTokenByHash(ctx context.Context, tokenHash
 
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active FROM users
-WHERE email = $1 LIMIT 1
+WHERE lower(email) = lower($1::text) LIMIT 1
 `
 
+// Case-insensitive on both sides: new rows are stored lowercased (see
+// normalizeEmail), but rows written before migration 00019 may not be. Served by
+// the users_email_lower_key index.
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i User

@@ -67,6 +67,15 @@ func newUsersSvcWithMailer(t *testing.T) (users.Service, *pgxpool.Pool, *fakeMai
 // newUsersSvcVerificationOff instantiates the service with requireEmailVerification=false
 // (the production default in alpha phase, see ADR-0012): registration should leave the
 // account already verified and the mailer shouldn't receive any send.
+// newUsersSvcVerificationOffWithPool is newUsersSvcVerificationOff for tests that also need the
+// pool, to read or tamper with rows directly.
+func newUsersSvcVerificationOffWithPool(t *testing.T) (users.Service, *pgxpool.Pool) {
+	t.Helper()
+	pool := testutil.DB(t)
+	testutil.Truncate(t, pool, "users")
+	return users.NewService(pool, newFakeMailer(), testWebAppURL, false), pool
+}
+
 func newUsersSvcVerificationOff(t *testing.T) (users.Service, *fakeMailer) {
 	t.Helper()
 	pool := testutil.DB(t)
@@ -454,6 +463,110 @@ func TestVerifyCredentials_UnknownEmail(t *testing.T) {
 	_, err := svc.VerifyCredentials(context.Background(), "nadie@example.com", testPassword)
 	if !errors.Is(err, users.ErrInvalidCredentials) {
 		t.Fatalf("VerifyCredentials() con email inexistente: error = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+// The incident behind migration 00019: a bare username accepted as the email left the
+// account unable to log in with its real address.
+func TestRegisterUser_RejectsInvalidEmail(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	_, err := svc.RegisterUser(context.Background(), users.RegisterRequest{
+		Username: "vansidgg",
+		Email:    "vansidgg",
+		Password: testPassword,
+	})
+	if !errors.Is(err, users.ErrInvalidEmail) {
+		t.Fatalf("RegisterUser() with a bare username as email: error = %v, want ErrInvalidEmail", err)
+	}
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
+		t.Fatalf("RegisterUser() with a bare username as email: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
+	}
+}
+
+func TestRegisterUser_RejectsShortPassword(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	_, err := svc.RegisterUser(context.Background(), users.RegisterRequest{
+		Username: "short-password",
+		Email:    "short-password@example.com",
+		Password: "1234567",
+	})
+	if !errors.Is(err, users.ErrPasswordTooShort) {
+		t.Fatalf("RegisterUser() with a 7-character password: error = %v, want ErrPasswordTooShort", err)
+	}
+}
+
+// Stored lowercased and trimmed, and the login finds it whatever case the user types.
+func TestRegisterUser_NormalizesEmail(t *testing.T) {
+	svc, _ := newUsersSvcVerificationOff(t)
+
+	created, err := svc.RegisterUser(context.Background(), users.RegisterRequest{
+		Username: "normalized",
+		Email:    "  Normalized.User@Example.COM ",
+		Password: testPassword,
+	})
+	if err != nil {
+		t.Fatalf("RegisterUser() error = %v", err)
+	}
+	if created.Email != "normalized.user@example.com" {
+		t.Fatalf("RegisterUser() email = %q, want %q", created.Email, "normalized.user@example.com")
+	}
+
+	typedVariants := []string{"normalized.user@example.com", "NORMALIZED.USER@EXAMPLE.COM", " normalized.user@example.com"}
+	for _, typed := range typedVariants {
+		got, loginErr := svc.VerifyCredentials(context.Background(), typed, testPassword)
+		if loginErr != nil {
+			t.Fatalf("VerifyCredentials(%q) error = %v, want nil", typed, loginErr)
+		}
+		if got.ID != created.ID {
+			t.Fatalf("VerifyCredentials(%q) id = %q, want %q", typed, got.ID, created.ID)
+		}
+	}
+}
+
+func TestRegisterUser_DuplicateEmailDifferentCase(t *testing.T) {
+	svc, _ := newUsersSvc(t)
+
+	registerUser(t, svc, "case-dup@example.com")
+
+	_, err := svc.RegisterUser(context.Background(), users.RegisterRequest{
+		Username: "case-dup-other",
+		Email:    "Case-Dup@Example.com",
+		Password: testPassword,
+	})
+	if !errors.Is(err, users.ErrUserAlreadyExists) {
+		t.Fatalf("RegisterUser() with the same email in another case: error = %v, want ErrUserAlreadyExists", err)
+	}
+}
+
+// Rows written before migration 00019 may hold a mixed-case email: the login still has to find them.
+func TestVerifyCredentials_LegacyMixedCaseEmail(t *testing.T) {
+	svc, pool := newUsersSvcVerificationOffWithPool(t)
+
+	created := registerUser(t, svc, "legacy@example.com")
+	if _, err := pool.Exec(context.Background(),
+		"UPDATE users SET email = 'Legacy@Example.com' WHERE id = $1", created.ID); err != nil {
+		t.Fatalf("simulating a legacy mixed-case email: %v", err)
+	}
+
+	got, err := svc.VerifyCredentials(context.Background(), "legacy@example.com", testPassword)
+	if err != nil {
+		t.Fatalf("VerifyCredentials() on a legacy mixed-case email: error = %v, want nil", err)
+	}
+	if got.ID != created.ID {
+		t.Fatalf("VerifyCredentials() id = %q, want %q", got.ID, created.ID)
+	}
+}
+
+// The database enforces the same shape as normalizeEmail, as a net under the service.
+func TestUsersEmailFormatConstraint_RejectsMalformedEmail(t *testing.T) {
+	svc, pool := newUsersSvcVerificationOffWithPool(t)
+
+	created := registerUser(t, svc, "constraint@example.com")
+	_, err := pool.Exec(context.Background(), "UPDATE users SET email = 'vansidgg' WHERE id = $1", created.ID)
+	if err == nil {
+		t.Fatal("UPDATE to a malformed email succeeded, want the users_email_format CHECK to reject it")
 	}
 }
 

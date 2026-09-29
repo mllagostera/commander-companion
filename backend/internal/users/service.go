@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -65,6 +66,8 @@ var (
 	ErrInvalidCurrentPassword = common.Unauthorized("current password is incorrect")
 	// ErrPasswordTooShort indicates that the new password doesn't meet the minimum length.
 	ErrPasswordTooShort = common.InvalidInput("password must be at least 8 characters long")
+	// ErrInvalidEmail indicates that the email sent to RegisterUser isn't shaped like an address.
+	ErrInvalidEmail = common.InvalidInput("email is not a valid address")
 	// ErrSearchQueryTooShort indicates that the search query is too short.
 	ErrSearchQueryTooShort = common.InvalidInput("search query must be at least 2 characters long")
 	// ErrUsernameEmpty indicates that an empty/whitespace-only username was sent to UpdateUsername.
@@ -77,9 +80,30 @@ var (
 	ErrAccountDeactivated = common.Forbidden("account has been deactivated")
 )
 
-// minPasswordLength is the minimum length of the new password in ChangePassword, matching the
-// minimum already enforced by the client-side registration form (see web/app/pages/register.vue).
+// minPasswordLength is the minimum password length, enforced by RegisterUser and ChangePassword
+// and mirrored by both clients' registration forms.
 const minPasswordLength = 8
+
+// emailPattern is a minimal shape check (something@something.tld, one @, no whitespace), not
+// RFC 5322. It is the same pattern as the users_email_format CHECK (migration 00019), so an
+// address this accepts is never rejected by the database with a 500.
+var emailPattern = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
+
+// normalizeEmail trims and lowercases an address and rejects anything that isn't shaped like
+// one. Every email written to users goes through it; lookups don't need to, because
+// GetUserByEmail compares lower(email) on both sides.
+func normalizeEmail(raw string) (string, error) {
+	email := strings.ToLower(strings.TrimSpace(raw))
+	if !emailPattern.MatchString(email) {
+		return "", ErrInvalidEmail
+	}
+	return email, nil
+}
+
+// timingEqualizerHash is a bcrypt hash (DefaultCost) of a throwaway value. VerifyCredentials
+// compares against it when the email doesn't exist, so an unknown email costs the same bcrypt
+// round as a wrong password and response time no longer tells which emails are registered.
+const timingEqualizerHash = "$2a$10$ipJSLcjhx3G930ziaBKR8Oj5aeo0MMOJlWwlEWYZwdoyN.V8HZetm"
 
 // Mailer is what users needs to send the account verification email
 // (allows mocking it in tests; see decks.MoxfieldClient for the same pattern).
@@ -146,6 +170,14 @@ func NewService(db *pgxpool.Pool, mailer Mailer, webAppURL string, requireEmailV
 // is active, the account is left unconfirmed and triggers the mail (see sendVerificationEmail);
 // if not, it's left verified upfront and nothing is sent.
 func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserResponse, error) {
+	email, err := normalizeEmail(req.Email)
+	if err != nil {
+		return nil, err
+	}
+	if len(req.Password) < minPasswordLength {
+		return nil, ErrPasswordTooShort
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("hashing password: %w", err)
@@ -153,7 +185,7 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 
 	user, err := s.repo.CreateUser(ctx, CreateUserParams{
 		Username:      req.Username,
-		Email:         req.Email,
+		Email:         email,
 		PasswordHash:  pgtype.Text{String: string(hash), Valid: true},
 		EmailVerified: !s.requireEmailVerification,
 	})
@@ -317,9 +349,10 @@ func (s *service) ChangePassword(ctx context.Context, id, currentPassword, newPa
 
 // VerifyCredentials validates the email/password and returns the user if they're correct.
 func (s *service) VerifyCredentials(ctx context.Context, email, password string) (*UserResponse, error) {
-	user, err := s.repo.GetUserByEmail(ctx, email)
+	user, err := s.repo.GetUserByEmail(ctx, strings.TrimSpace(email))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			_ = bcrypt.CompareHashAndPassword([]byte(timingEqualizerHash), []byte(password))
 			return nil, ErrInvalidCredentials
 		}
 		return nil, fmt.Errorf("looking up user by email: %w", err)
@@ -389,6 +422,9 @@ func (s *service) FindOrCreateGoogleUser(
 func (s *service) createGoogleUser(
 	ctx context.Context, googleID string, googleIDText pgtype.Text, email string,
 ) (*UserResponse, error) {
+	// Google's id_token already guarantees a real address; lowercasing keeps it consistent
+	// with what RegisterUser stores.
+	email = strings.ToLower(strings.TrimSpace(email))
 	base := usernameFromEmail(email)
 
 	for attempt := range maxUsernameAttempts {

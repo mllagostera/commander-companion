@@ -15,8 +15,11 @@ SELECT * FROM users
 WHERE id = $1 LIMIT 1;
 
 -- name: GetUserByEmail :one
+-- Case-insensitive on both sides: new rows are stored lowercased (see
+-- normalizeEmail), but rows written before migration 00019 may not be. Served by
+-- the users_email_lower_key index.
 SELECT * FROM users
-WHERE email = $1 LIMIT 1;
+WHERE lower(email) = lower(sqlc.arg(email)::text) LIMIT 1;
 
 -- name: GetUserByGoogleID :one
 SELECT * FROM users

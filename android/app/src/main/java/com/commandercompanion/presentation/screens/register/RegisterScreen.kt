@@ -54,6 +54,7 @@ import com.commandercompanion.presentation.theme.AppOnBackground
 @Composable
 private fun RegisterError.message(): String = when (this) {
     RegisterError.EmptyFields -> stringResource(R.string.error_register_empty_fields)
+    RegisterError.InvalidEmail -> stringResource(R.string.error_register_invalid_email)
     is RegisterError.PasswordTooShort ->
         stringResource(R.string.error_register_password_too_short, minLength)
     RegisterError.Network -> stringResource(R.string.error_api_network)

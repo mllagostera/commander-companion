@@ -38,6 +38,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Real login/refresh (rotation)/logout/me
 - [x] `auth.RequireAuth` Fiber middleware, applied to all protected routes
 - [x] Symmetric HS256 JWT + `JWT_SECRET`, configurable access/refresh TTLs — see [ADR-0001](../decisions/0001-auth-jwt-refresh-token-strategy.md)
+- [x] **Registration accepted any string as the email** (found 2026-09-29, after an account was stored with a bare username as its email and could not log in with its real address): `RegisterUser` now trims, lowercases and shape-checks the email (`normalizeEmail`, 400 `ErrInvalidEmail`) and enforces the 8-character minimum password it only checked on change; `GetUserByEmail` compares `lower(email)` on both sides; an unknown email at login spends the same bcrypt round as a wrong password (no timing enumeration). Migration `00019_users_email_format.sql`: `users_email_format` CHECK (`NOT VALID` — run `VALIDATE CONSTRAINT` once legacy rows are fixed) + unique index on `lower(email)`. Android's register form rejects a malformed email before sending (`isPlausibleEmail`). Still open: `openapi.yaml` does not yet document the new 400s nor `minLength: 8` on the register password
 
 ### Auth — Google OAuth (Sign-In)
 - [x] ADR: Google as an additional provider, doesn't replace password — [ADR-0002](../decisions/0002-google-sign-in.md)
