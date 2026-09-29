@@ -184,6 +184,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Best-effort mirroring of the local seat against the real backend (`GameRepository.bootstrapRemoteGame`, additive — never blocks the local tracker)
 - [x] Casual/Group mode in `PlayerSetupScreen` with real proxy-join (seats assigned to real playgroup members, `RemoteGameSession.seatPlayerIds`)
 - [x] Second device joins an already-created remote game (`JoinGameScreen`/`JoinGameViewModel`, `JoinedGameTrackerRoute`)
+- [ ] **The CI-built APK talks to the deployed backend** (2026-09-29) — `android-ci.yml` builds the archived `app-debug-apk` with `-PAPI_BASE_URL` taken from the `API_BASE_URL` repository secret (the Render deployment), so it can be installed on a phone as is; local builds keep `gradle.properties`' `10.0.2.2`, and a run without the secret falls back to it with a warning. `WEB_APP_URL` is not set yet, so that APK's friend QR still encodes the emulator's web address. **Still `[ ]`**: not yet installed on a phone and logged into against Render
 - [x] Live reconciliation of other seats' actions over the WebSocket (`ownedSeatIds`, read-only rendering for non-local seats, `game_finished` broadcast handling)
 - [x] Room as an offline-first cache for own decks (`DeckEntity`/`DeckDao`, network-first with cache fallback)
 

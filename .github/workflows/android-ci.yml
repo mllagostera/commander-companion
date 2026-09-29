@@ -90,8 +90,23 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      # The APK archived below is meant to be installed on a real phone, so it talks to the
+      # deployed backend, whose URL comes from the API_BASE_URL repository secret. Local builds
+      # keep android/gradle.properties' 10.0.2.2 (the emulator's alias for the machine running the
+      # backend); lint and tests don't care which. Without the secret -- Dependabot and fork PRs
+      # get no secrets -- the build still runs, on the local default, and says so.
       - name: Build (assembleDebug)
-        run: ./gradlew assembleDebug --stacktrace
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          if [ -z "$API_BASE_URL" ]; then
+            echo "::warning::API_BASE_URL secret not set: this APK points at 10.0.2.2, not the deployed backend"
+            ./gradlew assembleDebug --stacktrace
+          else
+            # Retrofit needs the base URL to end with a slash.
+            case "$API_BASE_URL" in */) ;; *) API_BASE_URL="$API_BASE_URL/" ;; esac
+            ./gradlew assembleDebug --stacktrace -PAPI_BASE_URL="$API_BASE_URL"
+          fi
 
       # Kept out of the report bundle below (which runs with if: always()) on purpose:
       # this one should only run when assembleDebug succeeded, so if-no-files-found:error
