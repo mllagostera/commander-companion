@@ -12,7 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -24,27 +23,33 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -54,6 +59,7 @@ import com.commandercompanion.presentation.components.GradientButton
 import com.commandercompanion.presentation.components.KeepScreenOn
 import com.commandercompanion.presentation.components.RotateDevicePrompt
 import com.commandercompanion.presentation.components.message
+import com.commandercompanion.presentation.theme.AccentGradient
 import com.commandercompanion.presentation.theme.AccentSoft
 import com.commandercompanion.presentation.theme.AppBackgroundDeep
 import com.commandercompanion.presentation.theme.AppFaint
@@ -62,23 +68,20 @@ import com.commandercompanion.presentation.theme.AppOnBackground
 import com.commandercompanion.presentation.theme.AppOutline
 import com.commandercompanion.presentation.theme.StatusDanger
 import com.commandercompanion.presentation.theme.StatusPoison
-import kotlin.math.cos
-import kotlin.math.roundToInt
-import kotlin.math.sin
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 /** How long the starter-draw ring spins across the seats before landing, and how fast each step advances. */
 private const val RANDOMIZE_STEP_DELAY_MS = 130L
 private const val RANDOMIZE_STEPS = 10
 
-/** How long one full lap of the orbiting turn label takes around the pause button. */
-private const val ORBIT_SPIN_DURATION_MS = 9000
-private val ORBIT_RADIUS = 62.dp
-
 /** One pulse of the red rim that flashes over an eliminated seat. */
 private const val ELIMINATION_FLASH_PERIOD_MS = 1600
 
 private val QuadrantShape = RoundedCornerShape(22.dp)
+
+/** The turn owner's pass-turn bar: a full touch target, not a caption. */
+private val PassTurnBarHeight = 48.dp
 
 /** Overlay scrims, taken from the design: expanded panel and starter banner, pause, and summary. */
 private val OverlayScrim = Color(0xD9050308)
@@ -96,13 +99,21 @@ fun GameTrackerScreen(
     var randomizingStarter by rememberSaveable { mutableStateOf(state.startingPlayerId != null) }
     var randomHighlightId by rememberSaveable { mutableStateOf<Int?>(null) }
     var showStarterBanner by rememberSaveable { mutableStateOf(false) }
+    // The seats of a finished damage drag, while its dialog picks the amount.
+    var damageSourceId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var damageTargetId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     // The phone lies on the table for the whole game: the screen must not time out between taps.
     // Scoped to this screen (not the Activity window) so the rest of the app keeps the system timeout.
     KeepScreenOn()
 
     LaunchedEffect(Unit) {
-        if (!randomizingStarter) return@LaunchedEffect
+        // The first turn -- and with it the turn clocks -- starts once the starter draw lands.
+        // Restored after a rotation, the draw is already over and this is a no-op.
+        if (!randomizingStarter) {
+            viewModel.startTurnClock()
+            return@LaunchedEffect
+        }
         // Spins around the table the same way the turn will (see [clockwiseSeats]), so the ring
         // never jumps diagonally across the quadrants while the starter is being drawn.
         val seatIds = clockwiseSeats(state.players).map { it.id }
@@ -114,9 +125,15 @@ fun GameTrackerScreen(
         }
         randomizingStarter = false
         randomHighlightId = null
+        viewModel.startTurnClock()
         showStarterBanner = true
         delay(1800)
         showStarterBanner = false
+    }
+
+    // Pausing the game stops the turn clock; resuming picks it up where it was.
+    LaunchedEffect(paused) {
+        if (paused) viewModel.pauseTurnClock() else viewModel.resumeTurnClock()
     }
 
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -146,11 +163,17 @@ fun GameTrackerScreen(
                     localSeatId = state.localSeatId,
                     expandedPlayerId = expandedPlayerId,
                     onToggleExpand = { id -> expandedPlayerId = if (expandedPlayerId == id) null else id },
-                    onLifeChange = viewModel::adjustLife,
                     onCommanderDamageChange = viewModel::adjustCommanderDamage,
                     onPoisonChange = viewModel::adjustPoison,
                     onPassTurn = { viewModel.nextTurn() },
+                    onDamageDrop = { sourceId, targetId ->
+                        damageSourceId = sourceId
+                        damageTargetId = targetId
+                    },
                     activeTurnPlayerId = state.currentTurnPlayerId,
+                    turnTimeOf = viewModel::turnTimeOf,
+                    clockRunningFor = state.currentTurnPlayerId.takeIf { state.turnClockRunningSince != null },
+                    turnNumber = state.currentTurn,
                     randomizingStarter = randomizingStarter,
                     randomHighlightId = randomHighlightId
                 )
@@ -172,8 +195,6 @@ fun GameTrackerScreen(
                         .padding(top = 4.dp)
                 )
 
-                OrbitingTurnLabel(turn = state.currentTurn, modifier = Modifier.align(Alignment.Center))
-
                 PauseButton(
                     onClick = { paused = !paused },
                     modifier = Modifier.align(Alignment.Center)
@@ -182,6 +203,33 @@ fun GameTrackerScreen(
                 if (showStarterBanner && state.startingPlayerId != null) {
                     val starterName = state.players.firstOrNull { it.id == state.startingPlayerId }?.name
                     StarterBanner(name = starterName ?: "", modifier = Modifier.matchParentSize())
+                }
+
+                val damageSource = state.players.firstOrNull { it.id == damageSourceId }
+                val damageTarget = state.players.firstOrNull { it.id == damageTargetId }
+                if (damageSource != null && damageTarget != null) {
+                    val closeDamage = {
+                        damageSourceId = null
+                        damageTargetId = null
+                    }
+                    // Faces whoever made the drag: the attacker at a shared table, or this
+                    // device's own seat in joined mode (where the drag ends on it).
+                    val actorId = state.localSeatId ?: damageSource.id
+                    DamageDialog(
+                        source = damageSource,
+                        target = damageTarget,
+                        rotated = seatRows(state.players).first.any { it.id == actorId },
+                        onApply = { amount, commander ->
+                            if (damageSource.id == damageTarget.id) {
+                                viewModel.gainLife(damageSource.id, amount)
+                            } else {
+                                viewModel.dealDamage(damageSource.id, damageTarget.id, amount, commander)
+                            }
+                            closeDamage()
+                        },
+                        onDismiss = closeDamage,
+                        modifier = Modifier.matchParentSize()
+                    )
                 }
 
                 if (paused) {
@@ -208,11 +256,14 @@ private fun QuadrantGrid(
     localSeatId: Int?,
     expandedPlayerId: Int?,
     onToggleExpand: (Int) -> Unit,
-    onLifeChange: (playerId: Int, amount: Int) -> Unit,
     onCommanderDamageChange: (targetPlayerId: Int, attackerId: Int, amount: Int) -> Unit,
     onPoisonChange: (playerId: Int, amount: Int) -> Unit,
     onPassTurn: () -> Unit,
+    onDamageDrop: (sourceId: Int, targetId: Int) -> Unit,
     activeTurnPlayerId: Int?,
+    turnTimeOf: (playerId: Int) -> Long,
+    clockRunningFor: Int?,
+    turnNumber: Int,
     randomizingStarter: Boolean,
     randomHighlightId: Int?
 ) {
@@ -225,37 +276,87 @@ private fun QuadrantGrid(
         else -> null
     }
 
-    Column(
-        modifier = modifier.fillMaxSize().padding(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    // Where each seat sits inside the grid, so a drag can tell which seat the finger is over. The
+    // bounds are read from the live coordinates at use time rather than cached, so they are never
+    // stale after a rotation or a resize.
+    val layout = remember { SeatLayoutCoordinates() }
+    var damageDrag by remember { mutableStateOf<DamageDrag?>(null) }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(4.dp)
+            .onGloballyPositioned { layout.grid = it }
+            .damageDragGesture(
+                enabled = !randomizingStarter,
+                players = players,
+                localSeatId = localSeatId,
+                seatAt = layout::seatAt,
+                onDragChange = { damageDrag = it },
+                onDrop = onDamageDrop
+            )
     ) {
-        listOf(topSeats to true, bottomSeats to false).forEach { (seats, rotated) ->
-            Row(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                seats.forEach { player ->
-                    // Null localSeatId = pass-and-play (host mode): every seat on this one device is
-                    // editable, as it's always been. Non-null = joined mode: only the local seat is.
-                    val editable = localSeatId == null || player.id == localSeatId
-                    PlayerQuadrant(
-                        player = player,
-                        table = players,
-                        editable = editable,
-                        expanded = expandedPlayerId == player.id,
-                        onToggleExpand = { onToggleExpand(player.id) },
-                        onLifeChange = { delta -> onLifeChange(player.id, delta) },
-                        onCommanderDamageChange = { attackerId, delta -> onCommanderDamageChange(player.id, attackerId, delta) },
-                        onPoisonChange = { delta -> onPoisonChange(player.id, delta) },
-                        onPassTurn = onPassTurn,
-                        ring = ringFor(player.id),
-                        rotated = rotated,
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                    )
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            listOf(topSeats to true, bottomSeats to false).forEach { (seats, rotated) ->
+                Row(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    seats.forEach { player ->
+                        // Null localSeatId = pass-and-play (host mode): every seat on this one device is
+                        // editable, as it's always been. Non-null = joined mode: only the local seat is.
+                        val editable = localSeatId == null || player.id == localSeatId
+                        PlayerQuadrant(
+                            player = player,
+                            table = players,
+                            editable = editable,
+                            expanded = expandedPlayerId == player.id,
+                            onToggleExpand = { onToggleExpand(player.id) },
+                            onCommanderDamageChange = { attackerId, delta -> onCommanderDamageChange(player.id, attackerId, delta) },
+                            onPoisonChange = { delta -> onPoisonChange(player.id, delta) },
+                            onPassTurn = onPassTurn,
+                            turnTime = { turnTimeOf(player.id) },
+                            clockRunning = clockRunningFor == player.id,
+                            turnNumber = turnNumber,
+                            ring = ringFor(player.id),
+                            rotated = rotated,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .onGloballyPositioned { layout.seats[player.id] = it }
+                        )
+                    }
                 }
             }
         }
+
+        damageDrag?.let { drag ->
+            DamageDragOverlay(drag = drag, seatBounds = layout::boundsOf, modifier = Modifier.matchParentSize())
+        }
     }
+}
+
+/**
+ * The live layout coordinates of the seat grid and of every seat in it. Plain (non-state) fields:
+ * they are only read inside the drag gesture and the overlay's draw pass, never to decide what to
+ * compose.
+ */
+private class SeatLayoutCoordinates {
+    var grid: LayoutCoordinates? = null
+    val seats = mutableMapOf<Int, LayoutCoordinates>()
+
+    /** [seatId]'s bounds in the grid's coordinates, or null if either isn't laid out. */
+    fun boundsOf(seatId: Int): Rect? {
+        val grid = grid?.takeIf { it.isAttached } ?: return null
+        val seat = seats[seatId]?.takeIf { it.isAttached } ?: return null
+        return grid.localBoundingBoxOf(seat)
+    }
+
+    /** The seat under [position], a point in the grid's coordinates. */
+    fun seatAt(position: Offset): Int? = seats.keys.firstOrNull { boundsOf(it)?.contains(position) == true }
 }
 
 /** Which ring, if any, wraps a seat's quadrant this frame — see [QuadrantGrid]'s `ringFor`. */
@@ -271,7 +372,6 @@ private enum class SeatRing { Randomizing, ActiveTurn }
 private data class SeatInk(
     val primary: Color,
     val secondary: Color,
-    val cell: Color,
     val onLightSeat: Boolean
 )
 
@@ -283,7 +383,6 @@ private data class SeatInk(
 private val ArtSeatInk = SeatInk(
     primary = Color.White,
     secondary = Color.White.copy(alpha = 0.72f),
-    cell = Color.White.copy(alpha = 0.22f),
     onLightSeat = false
 )
 
@@ -297,14 +396,12 @@ private fun inkFor(seat: Color): SeatInk = if (seat.luminance() > 0.35f) {
     SeatInk(
         primary = Color.Black.copy(alpha = 0.85f),
         secondary = Color.Black.copy(alpha = 0.6f),
-        cell = Color.Black.copy(alpha = 0.16f),
         onLightSeat = true
     )
 } else {
     SeatInk(
         primary = Color.White,
         secondary = Color.White.copy(alpha = 0.72f),
-        cell = Color.White.copy(alpha = 0.22f),
         onLightSeat = false
     )
 }
@@ -319,10 +416,12 @@ private fun PlayerQuadrant(
     editable: Boolean,
     expanded: Boolean,
     onToggleExpand: () -> Unit,
-    onLifeChange: (Int) -> Unit,
     onCommanderDamageChange: (attackerId: Int, delta: Int) -> Unit,
     onPoisonChange: (Int) -> Unit,
     onPassTurn: () -> Unit,
+    turnTime: () -> Long,
+    clockRunning: Boolean,
+    turnNumber: Int,
     ring: SeatRing?,
     rotated: Boolean,
     modifier: Modifier = Modifier
@@ -341,7 +440,7 @@ private fun PlayerQuadrant(
     val outlineColor = ringColor ?: player.color.takeIf { art != null }
     val outlineWidth = if (ringColor != null) 4.dp else 3.dp
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .then(if (rotated) Modifier.rotate(180f) else Modifier)
             // The active seat's ring glows; the starter-draw one is a plain white outline.
@@ -378,37 +477,38 @@ private fun PlayerQuadrant(
                 )
         )
 
-        // Life is adjusted by tapping either half of the seat — the whole quadrant is the control,
-        // the ± glyphs below are only decoration. Read-only seats (joined mode) get no tap zones.
-        if (editable) {
-            Row(modifier = Modifier.fillMaxSize()) {
-                LifeTapZone(
-                    onClick = { onLifeChange(-1) },
-                    label = stringResource(R.string.tracker_life_decrease),
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-                LifeTapZone(
-                    onClick = { onLifeChange(1) },
-                    label = stringResource(R.string.tracker_life_increase),
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-            }
-            LifeStepGlyph("−", ink, Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
-            LifeStepGlyph("+", ink, Modifier.align(Alignment.CenterEnd).padding(end = 8.dp))
-        }
+        // Every seat reserves the pass-turn bar's height, so its content area -- and the life total
+        // centred in it -- sits at the same place on every seat whoever holds the turn.
+        val contentHeight = maxHeight - PassTurnBarHeight
+        val sizes = seatTextSizesFor(seatWidth = maxWidth, contentHeight = contentHeight)
+        val damageTileSize = damageTileSizeFor(
+            seatWidth = maxWidth,
+            seatHeight = maxHeight,
+            lifeSize = lifeSizeFor(maxWidth, contentHeight),
+            // At least two digits, so the tiles don't grow when a total drops below 10.
+            lifeDigits = player.life.toString().length.coerceAtLeast(2),
+            // Every opponent could have dealt commander damage, plus the poison tile if any.
+            tileCount = table.size - 1 + (if (player.poison > 0) 1 else 0)
+        )
 
-        // Not clickable itself, so taps that miss its buttons fall through to the tap zones above.
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+        // Life changes by dragging from one seat to another (see [damageDragGesture]), not by
+        // tapping the seat. Not clickable itself, so a drag can start anywhere outside its buttons.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(contentHeight)
+                .padding(horizontal = SeatContentPadding, vertical = 10.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier.align(Alignment.TopCenter),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(
                     player.name,
                     color = ink.primary.copy(alpha = 0.9f),
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp,
+                    fontSize = sizes.name,
+                    maxLines = 1,
                     style = LocalTextStyle.current.copy(
                         shadow = SeatTextShadow.takeIf { !ink.onLightSeat }
                     )
@@ -417,45 +517,51 @@ private fun PlayerQuadrant(
                     Text(
                         stringResource(R.string.tracker_mulligans_suffix, player.mulligans),
                         color = ink.secondary,
-                        fontSize = 9.sp
+                        fontSize = sizes.detail
                     )
                 }
+                TurnClock(
+                    read = turnTime,
+                    running = clockRunning,
+                    turnNumber = turnNumber,
+                    fontSize = sizes.detail,
+                    ink = ink
+                )
             }
 
-            Text(
-                player.life.toString(),
-                color = ink.primary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 38.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(min = 56.dp),
-                style = LocalTextStyle.current.copy(
-                    shadow = SeatTextShadow.takeIf { !ink.onLightSeat }
-                )
-            )
-
-            CommanderDamageMiniGrid(
+            CommanderDamageTiles(
                 player = player,
                 table = table,
-                ink = ink,
-                onClick = onToggleExpand
+                tileSize = damageTileSize,
+                onClick = onToggleExpand,
+                modifier = Modifier.align(Alignment.BottomStart)
             )
+        }
 
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .border(1.dp, ink.primary.copy(alpha = 0.35f), CircleShape)
-                    .background(Color.Black.copy(alpha = 0.25f))
-                    .clickable { onPassTurn() }
-                    .padding(horizontal = 14.dp, vertical = 5.dp)
-            ) {
-                Text(
-                    stringResource(R.string.tracker_pass_turn),
-                    color = if (ink.onLightSeat) ink.primary else Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.sp
-                )
-            }
+        // The life total is what the whole table reads, so it owns the true centre of the seat at a
+        // size taken from the seat itself (it is sized off the content area, so it clears the
+        // pass-turn bar). Tapping it opens the correction panel (commander damage and poison) even
+        // before there is any tile to tap.
+        Text(
+            player.life.toString(),
+            color = ink.primary,
+            fontWeight = FontWeight.Bold,
+            fontSize = sizes.life,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggleExpand),
+            style = LocalTextStyle.current.copy(
+                lineHeight = sizes.life,
+                shadow = SeatTextShadow.takeIf { !ink.onLightSeat }
+            )
+        )
+
+        // Only the turn owner gets the bar. Every seat reserves its height in the column above,
+        // so the life total doesn't jump when the turn moves on.
+        if (ring == SeatRing.ActiveTurn) {
+            PassTurnBar(onClick = onPassTurn, modifier = Modifier.align(Alignment.BottomCenter))
         }
 
         if (expanded) {
@@ -476,96 +582,221 @@ private fun PlayerQuadrant(
     }
 }
 
-/** Half of a seat: tapping it steps life, and flashes so the player sees which half registered. */
+/**
+ * The seat's time on its own turns (see [GameViewModel.turnTimeOf]), shown from the start of its
+ * first turn. Only the turn owner's clock ticks, so only that seat re-reads it every second; the
+ * others show their banked total, which changes only when a turn ends. The turn owner's line also
+ * carries the table's [turnNumber] -- it belongs to the whole table, so it sits with whoever is
+ * playing it rather than being repeated on every seat.
+ */
 @Composable
-private fun LifeTapZone(onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val flash by animateFloatAsState(
-        targetValue = if (pressed) 0.16f else 0f,
-        animationSpec = tween(durationMillis = if (pressed) 0 else 260),
-        label = "life-tap-flash"
+private fun TurnClock(read: () -> Long, running: Boolean, turnNumber: Int, fontSize: TextUnit, ink: SeatInk) {
+    val elapsedMs = if (running) {
+        produceState(initialValue = read(), running) {
+            while (true) {
+                value = read()
+                delay(TURN_CLOCK_TICK_MS)
+            }
+        }.value
+    } else {
+        read()
+    }
+    // Before the seat's first turn the line is still laid out, just invisible and silent, so the
+    // life total below doesn't shift when the clock first appears.
+    val visible = running || elapsedMs > 0L
+    val time = formatTurnClock(elapsedMs)
+
+    Text(
+        if (running) "${stringResource(R.string.tracker_turn_label, turnNumber)} · $time" else time,
+        color = if (running) ink.primary else ink.secondary,
+        fontWeight = if (running) FontWeight.Bold else FontWeight.Normal,
+        fontSize = fontSize,
+        style = LocalTextStyle.current.copy(shadow = SeatTextShadow.takeIf { !ink.onLightSeat }),
+        modifier = if (visible) Modifier else Modifier.alpha(0f).clearAndSetSemantics {}
     )
+}
+
+/** Re-reads the running clock more than once a second, so the seconds never visibly skip. */
+private const val TURN_CLOCK_TICK_MS = 250L
+
+/** `m:ss`, or `h:mm:ss` once a seat has spent an hour on its turns. */
+internal fun formatTurnClock(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val hours = totalSeconds / 3600
+    val minutes = totalSeconds / 60 % 60
+    val seconds = totalSeconds % 60
+    // Locale.ROOT: plain ASCII digits whatever the device language.
+    return if (hours > 0) {
+        String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(Locale.ROOT, "%d:%02d", minutes, seconds)
+    }
+}
+
+/**
+ * Full-width bar along the seat's own bottom edge (the top of the screen for a rotated seat). It
+ * wears the accent gradient of the app's primary buttons, matching the active seat's violet ring;
+ * the quadrant's clip rounds its outer corners.
+ */
+@Composable
+private fun PassTurnBar(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClickLabel = label,
-                onClick = onClick
-            )
-            .background(Color.White.copy(alpha = flash))
-    )
+            .fillMaxWidth()
+            .height(PassTurnBarHeight)
+            .background(AccentGradient)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            stringResource(R.string.tracker_pass_turn).uppercase(),
+            color = AppBackgroundDeep,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            letterSpacing = 1.sp
+        )
+    }
 }
 
 /**
- * The oversized ± at each edge of a seat: decoration for the tap zones, not a button. Tinted with
- * the seat's own ink rather than a fixed black, which vanishes over commander art (and was already
- * hard to see on the darkest seat colours).
+ * The commander damage this seat has taken, one tile per opponent who has dealt any: the tile
+ * wears that opponent's commander art (their seat colour when there is none) with the damage on
+ * top, so a glance says whose commander is closing in. Poison gets a tile of its own. The row
+ * always reserves its height, so the life total doesn't move when the first tile appears. Tapping
+ * a tile opens [CommanderDamagePanel] to correct a value.
  */
 @Composable
-private fun LifeStepGlyph(symbol: String, ink: SeatInk, modifier: Modifier = Modifier) {
-    Text(
-        text = symbol,
-        color = ink.primary.copy(alpha = 0.38f),
-        fontWeight = FontWeight.Light,
-        fontSize = 42.sp,
-        modifier = modifier
-    )
-}
-
-/**
- * Always-visible summary of the commander damage this seat has taken, laid out like the table
- * itself (see [seatRows]) so each opponent sits where they are actually sitting. The seat's own
- * cell shows a person mark instead of a number, and poison hangs underneath when there is any.
- * Tapping the block opens [CommanderDamagePanel].
- */
-@Composable
-private fun CommanderDamageMiniGrid(
+private fun CommanderDamageTiles(
     player: PlayerState,
     table: List<PlayerState>,
-    ink: SeatInk,
-    onClick: () -> Unit
+    tileSize: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val (topSeats, bottomSeats) = seatRows(table)
+    val attackers = table.filter { it.id != player.id && (player.commanderDamage[it.id] ?: 0) > 0 }
 
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.Black.copy(alpha = 0.22f))
-            .clickable(onClick = onClick)
-            .padding(5.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+    Row(
+        modifier = modifier.height(tileSize),
+        horizontalArrangement = Arrangement.spacedBy(DamageTileGap)
     ) {
-        MiniDamageRow(seats = topSeats, player = player, ink = ink)
-        MiniDamageRow(seats = bottomSeats, player = player, ink = ink)
+        attackers.forEach { attacker ->
+            val damage = player.commanderDamage.getValue(attacker.id)
+            DamageTile(
+                artUrl = attacker.deckImageUrl,
+                fallbackColor = attacker.color,
+                value = damage,
+                valueColor = if (damage >= COMMANDER_DAMAGE_LETHAL) StatusDanger else Color.White,
+                size = tileSize,
+                onClick = onClick
+            )
+        }
         if (player.poison > 0) {
-            Text("☠ ${player.poison}", color = StatusPoison, fontSize = 9.sp)
+            DamageTile(
+                artUrl = null,
+                fallbackColor = Color(0xFF14331F),
+                value = player.poison,
+                valueColor = StatusPoison,
+                size = tileSize,
+                label = "☠",
+                onClick = onClick
+            )
         }
     }
 }
 
-/** One row of the mini grid: the seat's own cell carries a person mark, the rest their damage. */
+/** Font sizes for one seat, derived from its size rather than fixed -- see [seatTextSizesFor]. */
+private data class SeatTextSizes(val life: TextUnit, val name: TextUnit, val detail: TextUnit)
+
+/**
+ * Sizes a seat's text from the seat itself, so it fills a tablet seat and still fits a phone one:
+ *  - the life total takes 45% of the content height, capped at 30% of the width so a three-digit
+ *    total still fits across;
+ *  - the name and the clock line scale more gently, within readable bounds.
+ * Worked out in dp and converted with [Density.toSp], which divides out the system font scale:
+ * these are proportions of the seat, and a larger font setting would otherwise push the life
+ * total out of it.
+ */
 @Composable
-private fun MiniDamageRow(seats: List<PlayerState>, player: PlayerState, ink: SeatInk) {
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        seats.forEach { seat ->
-            Box(
-                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).background(ink.cell),
-                contentAlignment = Alignment.Center
-            ) {
-                if (seat.id == player.id) {
-                    SelfMark(color = ink.primary.copy(alpha = 0.85f), scale = 0.6f)
-                } else {
-                    Text(
-                        (player.commanderDamage[seat.id] ?: 0).toString(),
-                        color = ink.primary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                }
-            }
+private fun seatTextSizesFor(seatWidth: Dp, contentHeight: Dp): SeatTextSizes {
+    val density = LocalDensity.current
+    val life = lifeSizeFor(seatWidth, contentHeight)
+    val name = (contentHeight * 0.07f).coerceIn(12.dp, 28.dp)
+    val detail = name * 0.8f
+    return with(density) { SeatTextSizes(life = life.toSp(), name = name.toSp(), detail = detail.toSp()) }
+}
+
+/** The life total's font size, in dp -- see [seatTextSizesFor]. */
+private fun lifeSizeFor(seatWidth: Dp, contentHeight: Dp): Dp = minOf(contentHeight * 0.45f, seatWidth * 0.30f)
+
+/** Smallest tile: still a comfortable touch target on a phone held sideways. */
+private val MinDamageTileSize = 44.dp
+private val DamageTileGap = 6.dp
+
+/** Horizontal padding of a seat's content, which the tiles row starts inside of. */
+private val SeatContentPadding = 12.dp
+
+/**
+ * Rough advance of one digit of the (bold) life total, as a share of its font size -- generous,
+ * so the estimate errs towards leaving a gap rather than an overlap.
+ */
+private const val LIFE_DIGIT_WIDTH = 0.62f
+
+/**
+ * Tiles grow with the seat, so they read from across the table on a tablet (12% of the seat's
+ * width, at most 22% of its height), but they must also fit, side by side, in the room left of the
+ * centred life total: with a full table's worth of them ([tileCount]) the row still stops short of
+ * the number. Sized for the most tiles the seat can show rather than the ones showing now, so a new
+ * tile doesn't shrink the others. Never under [MinDamageTileSize].
+ */
+private fun damageTileSizeFor(seatWidth: Dp, seatHeight: Dp, lifeSize: Dp, lifeDigits: Int, tileCount: Int): Dp {
+    val preferred = minOf(seatWidth * 0.12f, seatHeight * 0.22f)
+    val lifeWidth = lifeSize * (LIFE_DIGIT_WIDTH * lifeDigits)
+    val room = (seatWidth - lifeWidth) / 2 - SeatContentPadding - DamageTileGap
+    val count = tileCount.coerceAtLeast(1)
+    val fitting = (room - DamageTileGap * (count - 1)) / count
+    return minOf(preferred, fitting).coerceAtLeast(MinDamageTileSize)
+}
+
+/** One tile of [CommanderDamageTiles]: art (or a flat colour) under a scrim, a big number on top. */
+@Composable
+private fun DamageTile(
+    artUrl: String?,
+    fallbackColor: Color,
+    value: Int,
+    valueColor: Color,
+    size: Dp,
+    onClick: () -> Unit,
+    label: String? = null
+) {
+    val shape = RoundedCornerShape(size * 0.2f)
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(shape)
+            .background(fallbackColor)
+            .border(1.5.dp, Color.Black.copy(alpha = 0.6f), shape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (artUrl != null) {
+            AsyncImage(
+                model = artUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // The number scales with the tile: 22sp on the smallest one.
+            if (label != null) Text(label, color = valueColor, fontSize = (size.value * 0.2f).sp)
+            Text(
+                value.toString(),
+                color = valueColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = (size.value * if (label != null) 0.3f else 0.42f).sp,
+                style = LocalTextStyle.current.copy(shadow = SeatTextShadow)
+            )
         }
     }
 }
@@ -745,38 +976,6 @@ private fun EliminationOverlay(alpha: Float, modifier: Modifier = Modifier) {
                 style = LocalTextStyle.current.copy(
                     shadow = Shadow(color = Color.Black, offset = Offset(1f, 1f), blurRadius = 0f)
                 )
-            )
-        }
-    }
-}
-
-/** Spells "Turno N" as a ring of characters slowly orbiting the pause button. */
-@Composable
-private fun OrbitingTurnLabel(turn: Int, modifier: Modifier = Modifier) {
-    val label = stringResource(R.string.tracker_turn_label, turn)
-    val infiniteTransition = rememberInfiniteTransition(label = "orbit")
-    val spinAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(ORBIT_SPIN_DURATION_MS, easing = LinearEasing)),
-        label = "orbit-angle"
-    )
-    val radiusPx = with(LocalDensity.current) { ORBIT_RADIUS.toPx() }
-    val arc = minOf(160f, label.length * 18f)
-    val start = -arc / 2f
-    val step = if (label.length > 1) arc / (label.length - 1) else 0f
-
-    Box(modifier = modifier.graphicsLayer { rotationZ = spinAngle }) {
-        label.forEachIndexed { i, ch ->
-            val angle = Math.toRadians((start + i * step).toDouble())
-            val x = (radiusPx * sin(angle)).roundToInt()
-            val y = (-radiusPx * cos(angle)).roundToInt()
-            Text(
-                text = ch.toString(),
-                color = Color.White.copy(alpha = 0.9f),
-                fontWeight = FontWeight.Bold,
-                fontSize = 9.sp,
-                modifier = Modifier.offset { IntOffset(x, y) }
             )
         }
     }
