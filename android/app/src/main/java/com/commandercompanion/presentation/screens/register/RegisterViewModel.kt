@@ -16,9 +16,20 @@ import retrofit2.HttpException
 
 private const val MIN_PASSWORD_LENGTH = 8
 
+/**
+ * Minimal address shape (something@something.tld, one `@`, no whitespace) -- the same pattern the
+ * backend's `normalizeEmail` and the `users_email_format` CHECK enforce, so the form never lets
+ * through what the API would reject. A bare username typed into the email field is the case it
+ * exists for: that is how an account once ended up unable to log in.
+ */
+private val EMAIL_SHAPE = Regex("""^[^@\s]+@[^@\s]+\.[^@\s]+$""")
+
+internal fun isPlausibleEmail(email: String): Boolean = EMAIL_SHAPE.matches(email.trim())
+
 /** What went wrong, for the screen to translate — see `LoginError` for the reasoning. */
 sealed interface RegisterError {
     data object EmptyFields : RegisterError
+    data object InvalidEmail : RegisterError
     data class PasswordTooShort(val minLength: Int) : RegisterError
     data object Network : RegisterError
     data object AlreadyExists : RegisterError
@@ -51,6 +62,10 @@ class RegisterViewModel @Inject constructor(
     fun register(username: String, email: String, password: String) {
         if (username.isBlank() || email.isBlank() || password.isBlank()) {
             _uiState.update { it.copy(error = RegisterError.EmptyFields) }
+            return
+        }
+        if (!isPlausibleEmail(email)) {
+            _uiState.update { it.copy(error = RegisterError.InvalidEmail) }
             return
         }
         if (password.length < MIN_PASSWORD_LENGTH) {

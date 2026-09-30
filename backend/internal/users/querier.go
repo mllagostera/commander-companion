@@ -19,6 +19,9 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserWithGoogle(ctx context.Context, arg CreateUserWithGoogleParams) (User, error)
 	GetEmailVerificationTokenByHash(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
+	// Case-insensitive on both sides: new rows are stored lowercased (see
+	// normalizeEmail), but rows written before migration 00019 may not be. Served by
+	// the users_email_lower_key index.
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)

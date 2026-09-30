@@ -236,6 +236,7 @@
 
     <!-- Errors de registre -->
     <string name="error_register_empty_fields">Omple tots els camps</string>
+    <string name="error_register_invalid_email">Introdueix un correu vàlid (per exemple, nom@gmail.com)</string>
     <string name="error_register_password_too_short">La contrasenya ha de tenir com a mínim %1$d caràcters</string>
     <string name="error_register_already_exists">Ja existeix un compte amb aquest correu o nom d\'usuari</string>
     <string name="error_register_invalid_data">Revisa les dades introduïdes</string>

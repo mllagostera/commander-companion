@@ -239,6 +239,7 @@
 
     <!-- Errores de registro -->
     <string name="error_register_empty_fields">Rellena todos los campos</string>
+    <string name="error_register_invalid_email">Introduce un email válido (por ejemplo, nombre@gmail.com)</string>
     <string name="error_register_password_too_short">La contraseña debe tener al menos %1$d caracteres</string>
     <string name="error_register_already_exists">Ya existe una cuenta con ese email o nombre de usuario</string>
     <string name="error_register_invalid_data">Revisa los datos introducidos</string>
