@@ -3,7 +3,7 @@
 **Status:** Accepted and implemented — **inherited decision, context
 reconstructed** (see the method note in ADR-0006; written retroactively
 on 2026-07-27 based on `android/app/build.gradle.kts` and the actual
-structure of `android/app/src/main/java/com/commandercompanion/`).
+structure of `android/app/src/main/java/com/vansid/tapeandocartones/`).
 
 ## Context
 

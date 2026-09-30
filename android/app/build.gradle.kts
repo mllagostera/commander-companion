@@ -12,11 +12,11 @@ plugins {
 }
 
 android {
-    namespace = "com.commandercompanion"
+    namespace = "com.vansid.tapeandocartones"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.commandercompanion"
+        applicationId = "com.vansid.tapeandocartones"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

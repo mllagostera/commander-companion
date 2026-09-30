@@ -5,13 +5,13 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:name=".CommanderCompanionApp"
+        android:name=".TapeandoCartonesApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.CommanderCompanion"
+        android:theme="@style/Theme.TapeandoCartones"
         tools:targetApi="31">
 
         <!-- The language picked in Settings is applied and persisted through this service, and
@@ -54,7 +54,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.CommanderCompanion">
+            android:theme="@style/Theme.TapeandoCartones">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

@@ -131,7 +131,7 @@ never sent someone else's).
 - `backend/internal/game-actions/service.go` (`RecordAction`,
   `resolveActionSubject`)
 - `backend/internal/playgroups/service.go` (shared membership)
-- `android/app/src/main/java/com/commandercompanion/data/repository/GameRepository.kt`
+- `android/app/src/main/java/com/vansid/tapeandocartones/data/repository/GameRepository.kt`
   (design comment about the single-device pass-and-play model)
 - [ADR-0001](0001-auth-jwt-refresh-token-strategy.md) (JWT, basis for
   `common.UserIDKey`)

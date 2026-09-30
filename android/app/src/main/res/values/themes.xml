@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Parent is the *dark* AppCompat theme. Dark because CommanderCompanionTheme forces the
+    <!-- Parent is the *dark* AppCompat theme. Dark because TapeandoCartonesTheme forces the
          dark color scheme unconditionally, and with a Light parent the window background flashed
          white between the activity opening and Compose drawing its first frame. AppCompat rather
          than the framework's android:Theme.Material because MainActivity is an AppCompatActivity
@@ -12,7 +12,7 @@
          them, and those attributes are ignored outright from targetSdk 35 on. Only
          windowBackground remains, for the pre-first-frame window; it must track AppBackground
          in Color.kt. -->
-    <style name="Theme.CommanderCompanion" parent="Theme.AppCompat.NoActionBar">
+    <style name="Theme.TapeandoCartones" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 </resources>

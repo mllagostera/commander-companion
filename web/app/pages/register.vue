@@ -99,7 +99,7 @@ async function handleSubmit() {
       <template v-else>
         <span class="flex flex-col items-center gap-3.5">
           <AppLogo size="lg" />
-          <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Commander Companion</span>
+          <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">TapeandoCartones</span>
           <span class="text-[13px]" style="color: var(--text-muted);">{{ $t('register.tagline') }}</span>
         </span>
 

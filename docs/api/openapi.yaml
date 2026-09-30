@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
-  title: Commander Companion API
+  title: TapeandoCartones API
   version: 0.1.0
-  description: API for the Commander Companion application.
+  description: API for the TapeandoCartones application.
   contact:
-    name: Commander Companion
+    name: TapeandoCartones
     url: https://github.com/mllagostera/commander-companion
 servers:
   - url: http://localhost:8080/api/v1

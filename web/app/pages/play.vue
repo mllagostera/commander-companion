@@ -110,7 +110,7 @@ onUnmounted(() => {
       <div class="relative z-[1] flex min-h-screen flex-col items-center justify-center gap-6 p-6">
         <NuxtLink to="/" class="flex items-center gap-2.5">
           <AppLogo />
-          <span class="cc-gradient-text text-[15px] font-semibold tracking-wide">Commander Companion</span>
+          <span class="cc-gradient-text text-[15px] font-semibold tracking-wide">TapeandoCartones</span>
         </NuxtLink>
 
         <section class="flex w-full max-w-md flex-col gap-6 rounded-[var(--radius-xl)] border p-[26px]" style="background: var(--card-bg-strong); border-color: var(--card-border);">

@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Commander Companion"
+rootProject.name = "TapeandoCartones"
 include(":app")

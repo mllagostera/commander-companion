@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Común / compartido entre pantallas -->
+    <!-- Common / shared across screens -->
     <string name="common_email_label">Email</string>
     <string name="common_password_label">Password</string>
     <string name="common_divider_or">or</string>
@@ -35,7 +35,7 @@
     <string name="dashboard_settings">Settings</string>
     <string name="dashboard_logout">Log out</string>
 
-    <!-- Historial -->
+    <!-- History -->
     <string name="history_title">Game history</string>
     <string name="history_empty">No games recorded yet</string>
     <string name="history_status_finished">Finished</string>
@@ -45,7 +45,7 @@
     <string name="history_player_life">%1$s: %2$d</string>
     <string name="history_player_life_with_mulligans">%1$s: %2$d (%3$dm)</string>
 
-    <!-- Setup de jugadores -->
+    <!-- Player setup -->
     <string name="setup_title">New game</string>
     <string name="setup_mode_casual">Casual</string>
     <string name="setup_mode_group">Group</string>
@@ -76,13 +76,13 @@
     <string name="join_game_selected">Selected</string>
     <string name="join_game_join_button">JOIN</string>
 
-    <!-- Pre-partida: sorteo y mulligans -->
+    <!-- Pre-game: draw and mulligans -->
     <string name="pregame_rotate_prompt">Rotate your device\nto pick seats</string>
     <string name="pregame_seat_label">Seat %1$d</string>
     <string name="pregame_mulligans">Mulligans</string>
     <string name="pregame_begin">START</string>
 
-    <!-- Tracker de partida -->
+    <!-- Game tracker -->
     <string name="tracker_rotate_prompt">Rotate your device\nto start the game</string>
     <string name="tracker_pass_turn">Pass turn</string>
     <string name="tracker_turn_label">Turn %1$d</string>
@@ -117,7 +117,7 @@
     <string name="undo_notice_pass_turn">Undone: the turn goes back to %1$s</string>
     <string name="undo_notice_finish">Undone: the game goes on</string>
 
-    <!-- Resumen de partida -->
+    <!-- Game summary -->
     <string name="summary_subtitle">Game statistics · Turn %1$d</string>
     <string name="summary_winner_banner">🏆 %1$s wins</string>
     <string name="summary_back_home">Back to home</string>
@@ -136,7 +136,7 @@
     <string name="summary_status_eliminated">Eliminated</string>
     <string name="summary_status_in_play">In play</string>
 
-    <!-- Ajustes de cuenta -->
+    <!-- Account settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_profile_heading">Profile</string>
     <string name="settings_moxfield_heading">Moxfield</string>
@@ -233,7 +233,7 @@
     <string name="error_friends_user_not_found">That user no longer exists</string>
     <string name="error_friends_already_related">You are already friends, or a request is already pending</string>
     <string name="error_friends_request_gone">That request is no longer available</string>
-    <string name="error_friends_invalid_code">That code isn\'t a Commander Companion profile</string>
+    <string name="error_friends_invalid_code">That code isn\'t a TapeandoCartones profile</string>
     <string name="error_friends_unknown">Something went wrong</string>
 
     <!-- BCP-47 tag of the resource bundle Android actually resolved. It is the only reliable

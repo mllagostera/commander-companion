@@ -72,7 +72,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
       >
         <NuxtLink to="/" class="flex items-center gap-2.5">
           <AppLogo />
-          <span class="cc-gradient-text text-[15px] font-semibold tracking-wide">Commander Companion</span>
+          <span class="cc-gradient-text text-[15px] font-semibold tracking-wide">TapeandoCartones</span>
         </NuxtLink>
 
         <nav class="hidden gap-5 text-sm sm:flex">

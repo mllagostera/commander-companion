@@ -3,7 +3,7 @@
 Text/ASCII wireframes of the six real screens of the Android client, plus
 the component hierarchy and the interactive elements of each. Based on the
 actual Compose code of each screen (`android/app/src/main/java/com/
-commandercompanion/presentation/screens/`), not on an aspirational design —
+vansid/tapeandocartones/presentation/screens/`), not on an aspirational design —
 if something isn't in the code, it doesn't appear here.
 
 There are no visual mockups (exact colors, typography, spacing in dp beyond

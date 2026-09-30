@@ -79,7 +79,7 @@ The first three are the same ones run by `.github/workflows/android-ci.yml`.
 ## Structure
 
 ```
-android/app/src/main/java/com/commandercompanion/
+android/app/src/main/java/com/vansid/tapeandocartones/
 ├── data/
 │   ├── remote/
 │   │   ├── api/          # CommanderApi.kt (decks/games/game-actions/statistics), AuthApi.kt

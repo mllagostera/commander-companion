@@ -750,7 +750,7 @@
   },
   "landing": {
     "meta": {
-      "title": "Commander Companion · Life tracker and stats for Commander",
+      "title": "TapeandoCartones · Life tracker and stats for Commander",
       "description": "Track life and commander damage at the table, import your decks from Moxfield and see who really wins in your playgroup. Free app for Magic: The Gathering Commander."
     },
     "nav": {
@@ -761,10 +761,10 @@
       "eyebrow": "For Magic: The Gathering · Commander",
       "titleStart": "Every Commander game,",
       "titleHighlight": "tracked and remembered.",
-      "subtitle": "Commander Companion keeps life totals at the table, imports your decks from Moxfield and turns every game into statistics: which deck wins, against whom, and in which group.",
+      "subtitle": "TapeandoCartones keeps life totals at the table, imports your decks from Moxfield and turns every game into statistics: which deck wins, against whom, and in which group.",
       "primaryCta": "Create a free account",
       "secondaryCta": "I already have an account",
-      "screenshotAlt": "Commander Companion dashboard: best deck, win rate, current streak and recent games"
+      "screenshotAlt": "TapeandoCartones dashboard: best deck, win rate, current streak and recent games"
     },
     "pillars": {
       "heading": "What the app is built around",

@@ -83,7 +83,7 @@ const showcase = computed(() => [
       >
         <NuxtLink to="/" class="flex items-center gap-2.5">
           <AppLogo />
-          <span class="cc-gradient-text hidden text-[15px] font-semibold tracking-wide sm:inline">Commander Companion</span>
+          <span class="cc-gradient-text hidden text-[15px] font-semibold tracking-wide sm:inline">TapeandoCartones</span>
         </NuxtLink>
 
         <div class="ml-auto flex items-center gap-1" role="group" :aria-label="$t('nav.language')">
@@ -279,7 +279,7 @@ const showcase = computed(() => [
     </main>
 
     <footer class="relative z-[1] mx-auto flex max-w-[1080px] flex-col items-center justify-between gap-2 border-t px-4 py-8 text-xs sm:flex-row sm:px-6" style="border-color: var(--card-border); color: var(--text-dim);">
-      <span>© {{ new Date().getFullYear() }} Commander Companion</span>
+      <span>© {{ new Date().getFullYear() }} TapeandoCartones</span>
       <span>{{ $t('landing.footer.disclaimer') }}</span>
     </footer>
   </div>

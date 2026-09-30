@@ -105,7 +105,7 @@ func run() error {
 	// 2. Initialize Fiber
 	app := fiber.New(fiber.Config{
 		ErrorHandler: common.ErrorHandler,
-		AppName:      "Commander Companion API v0.1",
+		AppName:      "TapeandoCartones API v0.1",
 	})
 
 	// Middlewares
