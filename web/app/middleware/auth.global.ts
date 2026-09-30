@@ -1,22 +1,29 @@
-const PUBLIC_ROUTES = ['/login', '/register', '/verify-email']
+/** Only for visitors without a session: a logged-in user is sent to `/`. */
+const GUEST_ONLY_ROUTES = ['/login', '/register', '/verify-email']
 
 /**
- * Gating de rutas. Se apoya en la cookie marcador `cc_session` (no httpOnly,
- * sin valor sensible) para poder decidir igual en SSR que en el cliente sin
- * pegarle a la API.
+ * Reachable with or without a session. `/` renders the landing page for
+ * anonymous visitors and the dashboard otherwise (see pages/index.vue).
+ */
+const PUBLIC_ROUTES = ['/', ...GUEST_ONLY_ROUTES]
+
+/**
+ * Route gating. Relies on the `cc_session` marker cookie (not httpOnly, no
+ * sensitive value) so it can decide the same way in SSR and on the client
+ * without hitting the API.
  */
 export default defineNuxtRouteMiddleware((to) => {
   const { isAuthenticated } = useAuth()
-  const isPublic = PUBLIC_ROUTES.includes(to.path)
 
-  if (!isAuthenticated.value && !isPublic) {
-    // El destino viaja a /login para volver después. Sin esto, abrir un enlace
-    // profundo sin sesión (el QR de perfil escaneado desde el navegador, ver
-    // pages/friends/add/[id].vue) te deja en el dashboard tras iniciar sesión,
-    // con el enlace ya consumido y sin forma de recuperarlo.
+  if (!isAuthenticated.value && !PUBLIC_ROUTES.includes(to.path)) {
+    // The destination travels to /login so the user comes back to it after.
+    // Without this, opening a deep link with no session (the profile QR
+    // scanned from the browser, see pages/friends/add/[id].vue) lands you on
+    // the dashboard after logging in, with the link already consumed and no
+    // way to get it back.
     return navigateTo({ path: '/login', query: { redirect: to.fullPath } })
   }
-  if (isAuthenticated.value && isPublic) {
+  if (isAuthenticated.value && GUEST_ONLY_ROUTES.includes(to.path)) {
     return navigateTo('/')
   }
 })

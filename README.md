@@ -44,7 +44,7 @@ commander-companion/
 │   ├── server/           # Nitro layer (BFF): the only place that touches session cookies
 │   │   └── api/          # auth/{register,login,google,logout,session}, backend/[...path] (authenticated proxy)
 │   └── app/              # Nuxt 4 srcDir
-│       ├── pages/        # login, register, index (dashboard), decks (import Moxfield), statistics
+│       ├── pages/        # login, register, index (landing page without a session, dashboard with one), decks (import Moxfield), statistics
 │       ├── composables/  # useAuth, useDecks, useStatistics, useApi, useGoogleIdentity
 │       └── middleware/   # auth.global.ts (route guard)
 ├── docs/                 # see section 8 for the full index, document by document
