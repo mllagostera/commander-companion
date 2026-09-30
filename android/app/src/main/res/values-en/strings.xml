@@ -236,6 +236,7 @@
 
     <!-- Registration errors -->
     <string name="error_register_empty_fields">Fill in every field</string>
+    <string name="error_register_invalid_email">Enter a valid email (for example, name@gmail.com)</string>
     <string name="error_register_password_too_short">The password must be at least %1$d characters</string>
     <string name="error_register_already_exists">An account with that email or username already exists</string>
     <string name="error_register_invalid_data">Check the details you entered</string>
