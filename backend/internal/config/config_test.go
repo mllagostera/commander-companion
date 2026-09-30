@@ -80,3 +80,69 @@ func TestLoad_Production_WithBothSet_Succeeds(t *testing.T) {
 		t.Fatalf("CORSAllowedOrigins = %q, want the explicitly configured origin", cfg.CORSAllowedOrigins)
 	}
 }
+
+func TestLoad_SentryDSN_ReadFromEnvironment(t *testing.T) {
+	clearProductionSecrets(t)
+	const dsn = "https://public@o0.ingest.sentry.io/0"
+	t.Setenv("SENTRY_DSN", dsn)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if cfg.SentryDSN != dsn {
+		t.Fatalf("SentryDSN = %q, want %q", cfg.SentryDSN, dsn)
+	}
+}
+
+func TestLoad_SentryDSN_EmptyByDefault(t *testing.T) {
+	clearProductionSecrets(t)
+	t.Setenv("SENTRY_DSN", "")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if cfg.SentryDSN != "" {
+		t.Fatalf("SentryDSN = %q, want empty (Sentry disabled)", cfg.SentryDSN)
+	}
+}
+
+func TestLoad_SentryTracesSampleRate_DefaultsToZero(t *testing.T) {
+	clearProductionSecrets(t)
+	t.Setenv("SENTRY_TRACES_SAMPLE_RATE", "")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if cfg.SentryTracesSampleRate != 0 {
+		t.Fatalf("SentryTracesSampleRate = %v, want 0", cfg.SentryTracesSampleRate)
+	}
+}
+
+func TestLoad_SentryTracesSampleRate_ReadFromEnvironment(t *testing.T) {
+	clearProductionSecrets(t)
+	t.Setenv("SENTRY_TRACES_SAMPLE_RATE", "0.25")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if cfg.SentryTracesSampleRate != 0.25 {
+		t.Fatalf("SentryTracesSampleRate = %v, want 0.25", cfg.SentryTracesSampleRate)
+	}
+}
+
+func TestLoad_SentryTracesSampleRate_InvalidValues_ReturnError(t *testing.T) {
+	for _, raw := range []string{"abc", "-0.1", "1.5"} {
+		t.Run(raw, func(t *testing.T) {
+			clearProductionSecrets(t)
+			t.Setenv("SENTRY_TRACES_SAMPLE_RATE", raw)
+
+			if _, err := config.Load(); err == nil {
+				t.Fatalf("Load() error = nil, want an error for SENTRY_TRACES_SAMPLE_RATE=%q", raw)
+			}
+		})
+	}
+}

@@ -122,6 +122,18 @@ func MapError(err error) error {
 	return err
 }
 
+// IsUnexpected reports whether err is one ErrorHandler turns into an opaque
+// 500: neither a DomainError nor a *fiber.Error. These are the bugs and broken
+// dependencies worth reporting to Sentry, as opposed to the 4xx/503 a client
+// can cause on its own.
+func IsUnexpected(err error) bool {
+	if err == nil {
+		return false
+	}
+	var fiberErr *fiber.Error
+	return !errors.As(MapError(err), &fiberErr)
+}
+
 // ErrorResponse represents the standard error structure.
 type ErrorResponse struct {
 	Code    int    `json:"code"`

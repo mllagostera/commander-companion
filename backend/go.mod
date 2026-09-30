@@ -5,6 +5,8 @@ go 1.26.0
 require (
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/fasthttp/websocket v1.5.12
+	github.com/getsentry/sentry-go v0.49.0
+	github.com/getsentry/sentry-go/fiber v0.49.0
 	github.com/gofiber/fiber/v2 v2.52.15
 	github.com/gofiber/websocket/v2 v2.2.1
 	github.com/golang-jwt/jwt/v5 v5.3.1

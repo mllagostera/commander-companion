@@ -23,6 +23,9 @@ var (
 	// ErrCORSOriginsRequiredInProduction is returned by Load when APP_ENV=production and
 	// CORS_ALLOWED_ORIGINS isn't set: refuses to start wide open to any origin.
 	ErrCORSOriginsRequiredInProduction = errors.New("CORS_ALLOWED_ORIGINS must be set explicitly when APP_ENV=production")
+	// ErrSampleRateOutOfRange is returned by Load when SENTRY_TRACES_SAMPLE_RATE
+	// isn't a fraction between 0 and 1.
+	ErrSampleRateOutOfRange = errors.New("sample rate out of range")
 )
 
 const (
@@ -63,8 +66,18 @@ type Config struct {
 	// stamp or the platform, and is read here only because that keeps every
 	// environment variable this process reads in one package.
 	GitCommit string
-	Auth      auth.Config
-	Email     email.Config
+	// SentryDSN is the Sentry project DSN errors and panics are reported to.
+	// Empty (the default) disables Sentry entirely: local development and CI
+	// don't need a Sentry project to run.
+	SentryDSN string
+	// SentryTracesSampleRate is the fraction (0..1) of requests recorded as
+	// Sentry performance traces. 0 (the default) records none, but errors are
+	// still linked to the web client's trace: the trace ID arrives in the
+	// sentry-trace/baggage headers either way. A request that already carries a
+	// sampling decision from the web client follows that decision instead.
+	SentryTracesSampleRate float64
+	Auth                   auth.Config
+	Email                  email.Config
 }
 
 // Load reads the full configuration from environment variables, with the
@@ -82,6 +95,11 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	tracesSampleRate, err := parseSampleRateEnv("SENTRY_TRACES_SAMPLE_RATE")
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		AppEnv:                   env,
 		DBURL:                    dbURL(),
@@ -90,6 +108,8 @@ func Load() (Config, error) {
 		WebAppURL:                webAppURL(),
 		RequireEmailVerification: boolEnv("REQUIRE_EMAIL_VERIFICATION", false),
 		GitCommit:                gitCommit(),
+		SentryDSN:                os.Getenv("SENTRY_DSN"),
+		SentryTracesSampleRate:   tracesSampleRate,
 		Auth:                     authCfg,
 		Email:                    loadEmailConfig(),
 	}, nil
@@ -195,6 +215,25 @@ func boolEnv(name string, fallback bool) bool {
 		return fallback
 	}
 	return v
+}
+
+// parseSampleRateEnv reads a sampling fraction between 0 and 1, defaulting to
+// 0. Unlike boolEnv, an unparsable or out-of-range value fails startup: a typo
+// here would otherwise silently turn tracing off (or on at full volume).
+func parseSampleRateEnv(name string) (float64, error) {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return 0, nil
+	}
+
+	rate, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parsing %s: %w", name, err)
+	}
+	if rate < 0 || rate > 1 {
+		return 0, fmt.Errorf("%s must be between 0 and 1, got %v: %w", name, rate, ErrSampleRateOutOfRange)
+	}
+	return rate, nil
 }
 
 func parseDurationEnv(name string, fallback time.Duration) (time.Duration, error) {
