@@ -1,6 +1,6 @@
-Project CommanderCompanion {
+Project TapeandoCartones {
   database_type: 'PostgreSQL'
-  Note: 'Database schema for Commander Companion'
+  Note: 'Database schema for TapeandoCartones'
 }
 
 Table users {

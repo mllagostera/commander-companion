@@ -750,7 +750,7 @@
   },
   "landing": {
     "meta": {
-      "title": "Commander Companion · Contador de vidas y estadísticas para Commander",
+      "title": "TapeandoCartones · Contador de vidas y estadísticas para Commander",
       "description": "Lleva las vidas y el daño de comandante en la mesa, importa tus decks desde Moxfield y descubre quién gana de verdad en tu grupo. App gratuita para Magic: The Gathering Commander."
     },
     "nav": {
@@ -761,10 +761,10 @@
       "eyebrow": "Para Magic: The Gathering · Commander",
       "titleStart": "Cada partida de Commander,",
       "titleHighlight": "registrada y recordada.",
-      "subtitle": "Commander Companion lleva las vidas en la mesa, importa tus decks desde Moxfield y convierte cada partida en estadísticas: qué deck gana, contra quién y en qué grupo.",
+      "subtitle": "TapeandoCartones lleva las vidas en la mesa, importa tus decks desde Moxfield y convierte cada partida en estadísticas: qué deck gana, contra quién y en qué grupo.",
       "primaryCta": "Crear cuenta gratis",
       "secondaryCta": "Ya tengo cuenta",
-      "screenshotAlt": "Panel de Commander Companion: mejor deck, porcentaje de victorias, racha actual y últimas partidas"
+      "screenshotAlt": "Panel de TapeandoCartones: mejor deck, porcentaje de victorias, racha actual y últimas partidas"
     },
     "pillars": {
       "heading": "En qué se basa la app",

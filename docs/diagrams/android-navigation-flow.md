@@ -1,6 +1,6 @@
 # Diagram: Android navigation flow
 
-Source of truth: `android/app/src/main/java/com/commandercompanion/
+Source of truth: `android/app/src/main/java/com/vansid/tapeandocartones/
 presentation/navigation/AppNavigation.kt` (the real `NavHost` graph) and
 `Routes.kt` (definition of each route and its arguments, with
 `kotlinx.serialization` via `toRoute`). Type-safe navigation is stable as of

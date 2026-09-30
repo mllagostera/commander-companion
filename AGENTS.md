@@ -300,7 +300,7 @@ belongs rather than next to a similar-looking one.
 | Guardrail | Where | Owns | Runs in |
 |---|---|---|---|
 | `depguard` | [`backend/.golangci.yml`](backend/.golangci.yml) | a handler must not import a database driver | `golangci-lint` (required check) |
-| Konsist | [`android/app/src/test/.../architecture/ArchitectureTest.kt`](android/app/src/test/java/com/commandercompanion/architecture/ArchitectureTest.kt) | Android layering, the enumerated auth exception, two ratchets on known debt | `testDebugUnitTest` (required check) |
+| Konsist | [`android/app/src/test/.../architecture/ArchitectureTest.kt`](android/app/src/test/java/com/vansid/tapeandocartones/architecture/ArchitectureTest.kt) | Android layering, the enumerated auth exception, two ratchets on known debt | `testDebugUnitTest` (required check) |
 | `eslint-plugin-boundaries` + `no-restricted-imports` | [`web/eslint.config.mjs`](web/eslint.config.mjs) | `app/` ↔ `server/` in both directions | `npm run lint` |
 | `check-architecture.sh` | [`.github/scripts/check-architecture.sh`](.github/scripts/check-architecture.sh) | everything that is **not** an import | `architecture-ci.yml`, `pre-push` |
 

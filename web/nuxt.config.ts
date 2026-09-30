@@ -47,7 +47,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: 'Commander Companion',
+      title: 'TapeandoCartones',
     },
   },
   i18n: {

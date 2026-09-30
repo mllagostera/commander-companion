@@ -34,7 +34,7 @@ onMounted(async () => {
     <div class="relative z-[1] flex min-h-screen flex-col items-center justify-center gap-8 p-6">
       <span class="flex flex-col items-center gap-3.5">
         <AppLogo size="lg" />
-        <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">Commander Companion</span>
+        <span class="cc-gradient-text text-[22px] font-semibold tracking-wide">TapeandoCartones</span>
       </span>
 
       <div

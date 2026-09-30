@@ -192,8 +192,8 @@ browser  →  /api/backend/<path>  →  Nitro  →  Go API
 ## 4. Android (`android/`)
 
 ```
-android/app/src/main/java/com/commandercompanion/
-├── CommanderCompanionApp.kt   # @HiltAndroidApp
+android/app/src/main/java/com/vansid/tapeandocartones/
+├── TapeandoCartonesApp.kt   # @HiltAndroidApp
 ├── MainActivity.kt
 ├── core/
 │   ├── di/                    # Hilt modules: App, Database, Network, Repository
@@ -382,7 +382,7 @@ in the tool that can express it natively, and no rule is checked twice:
 |---|---|---|
 | Backend | `depguard` in [`backend/.golangci.yml`](../../backend/.golangci.yml) | a `handler.go` must not import a database driver |
 | Backend | [`check-architecture.sh`](../../.github/scripts/check-architecture.sh) | no slice touches another slice's `Queries`; SQL only in `query.sql`; handlers map their errors |
-| Android | [Konsist tests](../../android/app/src/test/java/com/commandercompanion/architecture/ArchitectureTest.kt) | `domain` free of the framework and of the UI; `data` free of the UI; only the three enumerated auth screens touch Retrofit; every ViewModel is `@HiltViewModel` |
+| Android | [Konsist tests](../../android/app/src/test/java/com/vansid/tapeandocartones/architecture/ArchitectureTest.kt) | `domain` free of the framework and of the UI; `data` free of the UI; only the three enumerated auth screens touch Retrofit; every ViewModel is `@HiltViewModel` |
 | Web | [`web/eslint.config.mjs`](../../web/eslint.config.mjs) | `app/` and `server/` never import each other; `shared/` stays a leaf |
 | Web | [`check-architecture.sh`](../../.github/scripts/check-architecture.sh) | `app/` never reaches the Go API by URL |
 | Contract | [`check-architecture.sh`](../../.github/scripts/check-architecture.sh) | every route in `openapi.yaml`, and no path in it that no handler serves |
