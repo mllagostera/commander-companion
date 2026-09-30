@@ -24,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,7 @@ import com.commandercompanion.presentation.components.GlassCard
 import com.commandercompanion.presentation.components.SectionEyebrow
 import com.commandercompanion.presentation.components.SelectableChip
 import com.commandercompanion.presentation.components.StatusPill
+import com.commandercompanion.presentation.screens.game.formatTurnClock
 import com.commandercompanion.presentation.theme.AppFaint
 import com.commandercompanion.presentation.theme.AppMuted
 import com.commandercompanion.presentation.theme.AppOnBackground
@@ -79,11 +81,21 @@ fun StatisticsScreen(
                     verticalArrangement = Arrangement.Center
                 ) { CircularProgressIndicator() }
 
-                state.loadError -> Text(
-                    stringResource(R.string.statistics_load_error),
-                    color = StatusDanger,
-                    fontSize = 13.sp
-                )
+                state.loadError -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        stringResource(R.string.statistics_load_error),
+                        color = StatusDanger,
+                        fontSize = 13.sp
+                    )
+                    SelectableChip(
+                        label = stringResource(R.string.statistics_retry),
+                        selected = false,
+                        onClick = {
+                            viewModel.load()
+                            finishedGamesViewModel.load()
+                        }
+                    )
+                }
 
                 else -> Column(
                     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
@@ -141,6 +153,22 @@ private fun GlobalStatsSection(stats: UserStats) {
             StatTile(stringResource(R.string.statistics_commander_damage), stats.totalCommanderDamageDealt.toString(), Modifier.weight(1f))
             StatTile(stringResource(R.string.statistics_eliminations), stats.totalEliminations.toString(), Modifier.weight(1f))
         }
+        Spacer(modifier = Modifier.height(10.dp))
+        // Before any timed turn there's no record to show: a dash reads better than "0:00".
+        val noTurns = "–"
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile(
+                stringResource(R.string.statistics_longest_turn),
+                if (stats.timedTurns > 0) formatTurnClock(stats.longestTurnMs) else noTurns,
+                Modifier.weight(1f)
+            )
+            StatTile(
+                stringResource(R.string.statistics_average_turn),
+                if (stats.timedTurns > 0) formatTurnClock(stats.averageTurnMs) else noTurns,
+                Modifier.weight(1f)
+            )
+            StatTile(stringResource(R.string.statistics_timed_turns), stats.timedTurns.toString(), Modifier.weight(1f))
+        }
     }
 }
 
@@ -161,7 +189,7 @@ private fun HeadToHeadSection(mostPlayed: OpponentStats?, archenemy: OpponentSta
                 HeadToHeadCard(
                     label = stringResource(R.string.statistics_most_played_opponent_label),
                     username = it.username,
-                    detail = stringResource(R.string.statistics_opponent_games_together, it.gamesTogether),
+                    detail = pluralStringResource(R.plurals.statistics_opponent_games_together, it.gamesTogether, it.gamesTogether),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -169,7 +197,11 @@ private fun HeadToHeadSection(mostPlayed: OpponentStats?, archenemy: OpponentSta
                 HeadToHeadCard(
                     label = stringResource(R.string.statistics_archenemy_label),
                     username = it.username,
-                    detail = stringResource(R.string.statistics_archenemy_summary, it.timesEliminatedByOpponent),
+                    detail = pluralStringResource(
+                        R.plurals.statistics_archenemy_summary,
+                        it.timesEliminatedByOpponent,
+                        it.timesEliminatedByOpponent
+                    ),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -209,7 +241,7 @@ private fun MostPlayedGroupSection(group: PlaygroupGameCount?) {
             ) {
                 Text(group.playgroupName, color = AppOnBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 Text(
-                    stringResource(R.string.statistics_group_games_played, group.gamesPlayed),
+                    pluralStringResource(R.plurals.statistics_group_games_played, group.gamesPlayed, group.gamesPlayed),
                     color = AppFaint,
                     fontSize = 12.sp
                 )
@@ -271,7 +303,8 @@ private fun DeckStatsCard(entry: DeckWithStats) {
                     Text(entry.deck.commander, color = AppFaint, fontSize = 12.sp)
                 }
 
-                val stats = entry.stats
+                // The backend answers zeros, not "no data", for a deck that never finished a game.
+                val stats = entry.stats?.takeIf { it.gamesPlayed > 0 }
                 if (stats == null) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(stringResource(R.string.statistics_no_deck_stats), color = AppMuted, fontSize = 12.sp)
@@ -338,6 +371,14 @@ private fun FinishedGameCard(game: FinishedGame) {
                 )
                 Text(formatGameDate(game.finishedAt), color = AppFaint, fontSize = 11.sp)
             }
+            game.longestTurn?.let { turn ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    stringResource(R.string.statistics_game_longest_turn, turn.username, formatTurnClock(turn.durationMs)),
+                    color = AppMuted,
+                    fontSize = 11.sp
+                )
+            }
             Spacer(modifier = Modifier.height(10.dp))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 game.players.forEach { player -> FinishedGamePlayerRow(player) }
@@ -358,6 +399,13 @@ private fun FinishedGamePlayerRow(player: FinishedGamePlayer) {
             Column {
                 Text(player.username, color = AppOnBackground, fontSize = 13.sp)
                 Text(player.deckName, color = AppFaint, fontSize = 11.sp)
+                player.averageTurnMs?.let { average ->
+                    Text(
+                        stringResource(R.string.statistics_player_average_turn, formatTurnClock(average)),
+                        color = AppFaint,
+                        fontSize = 10.sp
+                    )
+                }
             }
         }
         StatusPill(

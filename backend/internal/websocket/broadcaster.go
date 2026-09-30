@@ -26,6 +26,17 @@ func (h *Hub) BroadcastAction(gameID string, action *gameactions.GameActionRespo
 	h.Broadcast(gameID, msg)
 }
 
+// BroadcastActionUndone implements gameactions.Broadcaster: same as BroadcastAction, for
+// an action that was just undone.
+func (h *Hub) BroadcastActionUndone(gameID string, action *gameactions.GameActionResponse) {
+	msg, err := encodeEnvelope(EventActionUndone, gameID, action.ActorID, action)
+	if err != nil {
+		log.Printf("websocket: encoding action_undone envelope for game %s: %v", gameID, err)
+		return
+	}
+	h.Broadcast(gameID, msg)
+}
+
 // BroadcastGameFinished implements games.Broadcaster: notifies the whole room that the
 // game ended and closes its connections (see ADR-0005: there can no longer be
 // game_actions for a finished game, so there's no point keeping the socket open).

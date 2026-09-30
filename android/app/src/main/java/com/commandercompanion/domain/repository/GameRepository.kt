@@ -94,4 +94,38 @@ interface GameRepository {
 
     /** Mirrors a poison counter change of [playerId] on the backend (no `target_id`). */
     suspend fun recordPoisonChange(session: RemoteGameSession, playerId: String, amount: Int): Result<GameAction>
+
+    /**
+     * Mirrors plain (non-commander) damage from [attackerPlayerId] against [defenderPlayerId].
+     * Unlike a `LifeChange` on the defender, this is what the backend's statistics attribute to
+     * the attacker as damage dealt. [amount] must be positive.
+     */
+    suspend fun recordCombatDamage(
+        session: RemoteGameSession,
+        attackerPlayerId: String,
+        defenderPlayerId: String,
+        amount: Int
+    ): Result<GameAction>
+
+    /** Records that [playerId]'s turn started -- the backend counts these as the game's turns. */
+    suspend fun recordTurnStart(session: RemoteGameSession, playerId: String): Result<GameAction>
+
+    /**
+     * Reverts [actionIds] (most recent first) on the backend -- the undo of actions this device
+     * recorded. All or nothing: the backend applies them in a single transaction.
+     */
+    suspend fun undoActions(session: RemoteGameSession, actionIds: List<String>): Result<List<GameAction>>
+
+    /**
+     * Records the end of [playerId]'s turn and how long it lasted ([durationMs], pauses excluded) --
+     * what the backend's longest/average turn statistics are built from.
+     */
+    suspend fun recordTurnEnd(session: RemoteGameSession, playerId: String, durationMs: Long): Result<GameAction>
+
+    /** Records that [actorPlayerId] eliminated [targetPlayerId] -- credited as an elimination in the statistics. */
+    suspend fun recordElimination(
+        session: RemoteGameSession,
+        actorPlayerId: String,
+        targetPlayerId: String
+    ): Result<GameAction>
 }

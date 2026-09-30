@@ -46,6 +46,10 @@ data class NewGameAction(
     val payload: JsonObject? = null
 )
 
+/** Body of `POST /games/{id}/actions/undo`: the actions to revert, most recent first. */
+@Serializable
+data class UndoActionsRequest(@SerialName("action_ids") val actionIds: List<String>)
+
 @Serializable
 data class GameAction(
     val id: String,
@@ -59,6 +63,9 @@ data class GameAction(
 
 /** Standard payload for numeric actions: `{ "amount": <int> }`. */
 fun amountPayload(amount: Int): JsonObject = buildJsonObject { put("amount", amount) }
+
+/** `TurnEnd` payload: how long the turn that just ended lasted, pauses excluded. */
+fun turnDurationPayload(durationMs: Long): JsonObject = buildJsonObject { put("duration_ms", durationMs) }
 
 /** Reads `payload.amount` from a timeline action; null if it doesn't apply to that `action_type`. */
 val GameAction.amount: Int?

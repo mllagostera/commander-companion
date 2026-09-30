@@ -22,6 +22,12 @@ sealed class GameSocketEvent {
     data class ActionReceived(val action: GameAction) : GameSocketEvent()
 
     /**
+     * A `game_actions` action was undone (`POST /games/{id}/actions/undo`): its effects must be
+     * reverted, the same way [ActionReceived] applied them.
+     */
+    data class ActionUndone(val action: GameAction) : GameSocketEvent()
+
+    /**
      * The game ended. Carries no state of its own — the server closes the room right after
      * broadcasting this, and the client is expected to reconcile via REST
      * (`GET /games/{id}`, the `/statistics` endpoints) rather than trust this channel for the

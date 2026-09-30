@@ -66,6 +66,9 @@ var (
 	// quantity of damage (CombatDamage/CommanderDamage): zero or negative
 	// doesn't mean "no damage", it would silently heal or no-op the target.
 	ErrAmountMustBePositive = common.InvalidInput("payload.amount must be a positive number")
+	// ErrTurnDurationInvalid indicates that a TurnEnd's payload.duration_ms isn't a
+	// whole number of milliseconds within [0, maxTurnDurationMs].
+	ErrTurnDurationInvalid = common.InvalidInput("payload.duration_ms must be a whole number of milliseconds between 0 and 86400000")
 	// ErrGameNotActive indicates that actions can only be recorded in an active game.
 	ErrGameNotActive = common.Conflict("game is not active")
 	// ErrCommanderDamageTargetRequired indicates that CommanderDamage needs a
@@ -85,6 +88,9 @@ var (
 // ADR-0005 (docs/decisions/0005-websocket-protocol.md).
 type Broadcaster interface {
 	BroadcastAction(gameID string, action *GameActionResponse)
+	// BroadcastActionUndone relays that an action was undone, so the other devices at
+	// the table revert its effects too. Same best-effort contract as BroadcastAction.
+	BroadcastActionUndone(gameID string, action *GameActionResponse)
 }
 
 // Service defines the business logic of the game-actions module.
@@ -96,6 +102,9 @@ type Service interface {
 	// GetTimeline returns the action history of a game, if callerUserID holds
 	// a seat in it.
 	GetTimeline(ctx context.Context, gameID, callerUserID string) ([]GameActionResponse, error)
+	// UndoActions reverts actions of an active game (see undo.go). Same authorization as
+	// RecordAction, applied to each action's actor.
+	UndoActions(ctx context.Context, gameID, callerUserID string, req UndoActionsRequest) ([]GameActionResponse, error)
 }
 
 type service struct {
@@ -294,6 +303,9 @@ func (s *service) applyAction(
 	case actionTurnStart:
 		return s.setCurrentTurn(ctx, q, gid, actorID)
 	case actionTurnEnd:
+		if err := validateTurnDuration(payload); err != nil {
+			return err
+		}
 		return s.clearCurrentTurn(ctx, q, gid)
 	default:
 		return ErrInvalidActionType
@@ -493,6 +505,28 @@ func payloadPositiveAmount(payload map[string]interface{}) (int32, error) {
 	return amount, nil
 }
 
+// maxTurnDurationMs bounds a TurnEnd's payload.duration_ms at one day: no real
+// turn gets near it, and like maxAmountMagnitude it keeps a garbage value from
+// skewing the turn-time statistics built on top of it.
+const maxTurnDurationMs = 24 * 60 * 60 * 1000
+
+// validateTurnDuration checks a TurnEnd's optional payload.duration_ms -- how long
+// the turn that just ended lasted, pauses excluded, as measured by the client's
+// turn clock. It stays optional so a TurnEnd without it (older clients) is still
+// accepted; that turn just doesn't count towards the turn-time statistics.
+func validateTurnDuration(payload map[string]interface{}) error {
+	raw, ok := payload["duration_ms"]
+	if !ok {
+		return nil
+	}
+	duration, ok := raw.(float64)
+	if !ok || math.IsNaN(duration) || math.Trunc(duration) != duration ||
+		duration < 0 || duration > maxTurnDurationMs {
+		return ErrTurnDurationInvalid
+	}
+	return nil
+}
+
 func toGameActionResponse(action *GameAction) *GameActionResponse {
 	res := &GameActionResponse{
 		ID:         action.ID.String(),
@@ -504,6 +538,10 @@ func toGameActionResponse(action *GameAction) *GameActionResponse {
 	if action.TargetID.Valid {
 		tid := action.TargetID.String()
 		res.TargetID = &tid
+	}
+	if action.UndoneAt.Valid {
+		undoneAt := action.UndoneAt.Time.Format(time.RFC3339)
+		res.UndoneAt = &undoneAt
 	}
 	if len(action.Payload) > 0 {
 		var payload map[string]interface{}

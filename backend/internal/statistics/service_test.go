@@ -33,8 +33,9 @@ func (noopMoxfieldClient) GetDeck(_ context.Context, _ string) (*moxfield.Deck, 
 // just need the dependency to be present to be able to construct the services.
 type noopBroadcaster struct{}
 
-func (noopBroadcaster) BroadcastGameFinished(_ string)                              {}
-func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionResponse) {}
+func (noopBroadcaster) BroadcastGameFinished(_ string)                                    {}
+func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionResponse)       {}
+func (noopBroadcaster) BroadcastActionUndone(_ string, _ *gameactions.GameActionResponse) {}
 
 func truncateStatsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
@@ -636,5 +637,115 @@ func assertPlaygroupMemberStats(t *testing.T, members []statistics.PlaygroupMemb
 		if m.GamesPlayed != 1 || m.GamesWon != wantWon {
 			t.Fatalf("unexpected member %+v (want games_played=1 games_won=%d)", m, wantWon)
 		}
+	}
+}
+
+func mustRecordTimedTurn(t *testing.T, svc gameactions.Service, gameID, callerID, actorID string, durationMs int64) {
+	t.Helper()
+	for _, req := range []gameactions.CreateActionRequest{
+		{ActorID: actorID, ActionType: "TurnStart"},
+		{ActorID: actorID, ActionType: "TurnEnd", Payload: map[string]interface{}{"duration_ms": float64(durationMs)}},
+	} {
+		if _, err := svc.RecordAction(context.Background(), gameID, callerID, req); err != nil {
+			t.Fatalf("RecordAction(%s) error = %v", req.ActionType, err)
+		}
+	}
+}
+
+func TestTurnTimes_UserStatsAndFinishedGame(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+
+	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
+	mustRecordTimedTurn(t, g.actions, g.gameID, g.user1.ID, g.player1ID, 30_000)
+	mustRecordTimedTurn(t, g.actions, g.gameID, g.user2.ID, g.player2ID, 60_000)
+	mustRecordTimedTurn(t, g.actions, g.gameID, g.user1.ID, g.player1ID, 100_000)
+	// A TurnEnd without a duration (older clients) doesn't count towards the averages.
+	if _, err := g.actions.RecordAction(context.Background(), g.gameID, g.user2.ID, gameactions.CreateActionRequest{
+		ActorID: g.player2ID, ActionType: "TurnEnd",
+	}); err != nil {
+		t.Fatalf("RecordAction(TurnEnd without duration) error = %v", err)
+	}
+	mustRecordElimination(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
+
+	stats := mustGetUserStats(t, g.stats, g.user1.ID)
+	if stats.TimedTurns != 2 || stats.LongestTurnMs != 100_000 || stats.AverageTurnMs != 65_000 {
+		t.Fatalf("GetUserStats() turn times = %d/%d/%d, want timed=2 longest=100000 average=65000",
+			stats.TimedTurns, stats.LongestTurnMs, stats.AverageTurnMs)
+	}
+
+	page, err := g.stats.ListFinishedGames(context.Background(), common.PageRequest{Limit: 10}, g.user1.ID)
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("ListFinishedGames() = %+v, %v, want 1 item", page, err)
+	}
+	item := page.Items[0]
+	if item.LongestTurn == nil || item.LongestTurn.DurationMs != 100_000 || item.LongestTurn.Username != g.user1.Username {
+		t.Fatalf("ListFinishedGames()[0].LongestTurn = %+v, want 100000 by %s", item.LongestTurn, g.user1.Username)
+	}
+	for _, p := range item.Players {
+		wantAverage := int64(60_000)
+		if p.UserID == g.user1.ID {
+			wantAverage = 65_000 // (30000 + 100000) / 2
+		}
+		if p.AverageTurnMs == nil || *p.AverageTurnMs != wantAverage {
+			t.Fatalf("player %s AverageTurnMs = %v, want %d", p.Username, p.AverageTurnMs, wantAverage)
+		}
+	}
+}
+
+func TestTurnTimes_NoTimedTurns_AreZeroAndOmitted(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+
+	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
+	mustRecordElimination(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
+
+	stats := mustGetUserStats(t, g.stats, g.user1.ID)
+	if stats.TimedTurns != 0 || stats.LongestTurnMs != 0 || stats.AverageTurnMs != 0 {
+		t.Fatalf("GetUserStats() turn times = %+v, want zeros", stats)
+	}
+	page, err := g.stats.ListFinishedGames(context.Background(), common.PageRequest{Limit: 10}, g.user1.ID)
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("ListFinishedGames() = %+v, %v, want 1 item", page, err)
+	}
+	if page.Items[0].LongestTurn != nil || page.Items[0].Players[0].AverageTurnMs != nil {
+		t.Fatalf("ListFinishedGames()[0] = %+v, want no turn times", page.Items[0])
+	}
+}
+
+func TestUndoneActions_DoNotCountTowardsStatistics(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateStatsTables(t, pool)
+
+	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
+	ctx := context.Background()
+	// A mistaken hit, undone, then the real game: player 1 eliminates player 2.
+	mistake, err := g.actions.RecordAction(ctx, g.gameID, g.user2.ID, gameactions.CreateActionRequest{
+		ActorID: g.player2ID, TargetID: g.player1ID, ActionType: "CombatDamage",
+		Payload: map[string]interface{}{"amount": float64(30)},
+	})
+	if err != nil {
+		t.Fatalf("RecordAction(CombatDamage) error = %v", err)
+	}
+	if _, err := g.actions.UndoActions(ctx, g.gameID, g.user2.ID, gameactions.UndoActionsRequest{
+		ActionIDs: []string{mistake.ID},
+	}); err != nil {
+		t.Fatalf("UndoActions() error = %v", err)
+	}
+	mustRecordCombatDamage(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
+	mustRecordElimination(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
+	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
+
+	if stats := mustGetUserStats(t, g.stats, g.user2.ID); stats.TotalDamageDealt != 0 {
+		t.Fatalf("user 2 TotalDamageDealt = %d, want 0 (their only hit was undone)", stats.TotalDamageDealt)
+	}
+	page, err := g.stats.ListFinishedGames(ctx, common.PageRequest{Limit: 10}, g.user1.ID)
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("ListFinishedGames() = %+v, %v, want 1 item", page, err)
+	}
+	if hit := page.Items[0].BiggestHit; hit == nil || hit.Username != g.user1.Username {
+		t.Fatalf("BiggestHit = %+v, want user 1's hit (user 2's bigger one was undone)", hit)
 	}
 }

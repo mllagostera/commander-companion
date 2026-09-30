@@ -1,6 +1,7 @@
 package com.commandercompanion.presentation.screens.game
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -13,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +48,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -151,7 +155,14 @@ fun GameTrackerScreen(
                 modifier = Modifier.safeDrawingPadding()
             )
             state.isFinished -> Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
-                GameSummary(state = state, onBack = onFinish)
+                GameSummary(
+                    state = state,
+                    onBack = {
+                        viewModel.confirmFinish()
+                        onFinish()
+                    },
+                    onUndo = viewModel::undo.takeIf { state.canUndo }
+                )
             }
             state.players.isEmpty() -> Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
                 LoadingTable(remoteSync = state.remoteSync, onBack = onFinish)
@@ -163,7 +174,15 @@ fun GameTrackerScreen(
                     localSeatId = state.localSeatId,
                     expandedPlayerId = expandedPlayerId,
                     onToggleExpand = { id -> expandedPlayerId = if (expandedPlayerId == id) null else id },
-                    onCommanderDamageChange = viewModel::adjustCommanderDamage,
+                    // "-" undoes that commander's latest hit: commander damage is never negative
+                    // on the backend, so taking it back is an undo, not a negative hit.
+                    onCommanderDamageChange = { targetId, attackerId, delta ->
+                        if (delta > 0) {
+                            viewModel.adjustCommanderDamage(targetId, attackerId, delta)
+                        } else {
+                            viewModel.undoCommanderDamage(targetId, attackerId)
+                        }
+                    },
                     onPoisonChange = viewModel::adjustPoison,
                     onPassTurn = { viewModel.nextTurn() },
                     onDamageDrop = { sourceId, targetId ->
@@ -198,6 +217,21 @@ fun GameTrackerScreen(
                 PauseButton(
                     onClick = { paused = !paused },
                     modifier = Modifier.align(Alignment.Center)
+                )
+
+                if (state.canUndo && !paused) {
+                    UndoButton(
+                        onClick = viewModel::undo,
+                        modifier = Modifier.align(Alignment.Center).offset(x = 72.dp)
+                    )
+                }
+
+                UndoNoticeBanner(
+                    notice = state.lastUndone,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                        .padding(top = 36.dp)
                 )
 
                 if (showStarterBanner && state.startingPlayerId != null) {
@@ -513,13 +547,7 @@ private fun PlayerQuadrant(
                         shadow = SeatTextShadow.takeIf { !ink.onLightSeat }
                     )
                 )
-                if (player.mulligans > 0) {
-                    Text(
-                        stringResource(R.string.tracker_mulligans_suffix, player.mulligans),
-                        color = ink.secondary,
-                        fontSize = sizes.detail
-                    )
-                }
+                // Mulligans aren't shown here: they only matter for the game's end summary.
                 TurnClock(
                     read = turnTime,
                     running = clockRunning,
@@ -1000,6 +1028,66 @@ private fun PauseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun UndoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val label = stringResource(R.string.tracker_undo)
+    Box(
+        modifier = modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(AppBackgroundDeep.copy(alpha = 0.85f))
+            .border(1.dp, AccentSoft.copy(alpha = 0.4f), CircleShape)
+            .clickable(onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center
+    ) {
+        Text("↶", color = AccentSoft, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+    }
+}
+
+/** How long the "undone: ..." notice stays up after each undo. */
+private const val UNDO_NOTICE_MS = 2500L
+
+/** Briefly says what the last undo reverted, so a tap on the wrong button doesn't go unnoticed. */
+@Composable
+private fun UndoNoticeBanner(notice: UndoNotice?, modifier: Modifier = Modifier) {
+    var visible by remember { mutableStateOf<UndoNotice?>(null) }
+    LaunchedEffect(notice) {
+        if (notice == null) return@LaunchedEffect
+        visible = notice
+        delay(UNDO_NOTICE_MS)
+        visible = null
+    }
+    val shown = visible ?: return
+    Text(
+        text = undoNoticeText(shown.label),
+        color = AppOnBackground,
+        fontSize = 12.sp,
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppBackgroundDeep.copy(alpha = 0.92f))
+            .border(1.dp, AccentSoft.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    )
+}
+
+@Composable
+private fun undoNoticeText(label: UndoLabel): String = when (label) {
+    is UndoLabel.Damage -> if (label.commander) {
+        stringResource(R.string.undo_notice_commander_damage, label.amount, label.sourceName, label.targetName)
+    } else {
+        stringResource(R.string.undo_notice_damage, label.amount, label.sourceName, label.targetName)
+    }
+    is UndoLabel.LifeChange -> if (label.amount >= 0) {
+        stringResource(R.string.undo_notice_life_gain, label.name, label.amount)
+    } else {
+        stringResource(R.string.undo_notice_life_loss, label.name, -label.amount)
+    }
+    is UndoLabel.Poison -> stringResource(R.string.undo_notice_poison, label.name)
+    is UndoLabel.PassTurn -> stringResource(R.string.undo_notice_pass_turn, label.name)
+    UndoLabel.FinishGame -> stringResource(R.string.undo_notice_finish)
+}
+
+@Composable
 private fun StarterBanner(name: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier.background(OverlayScrim), contentAlignment = Alignment.Center) {
         Text(
@@ -1068,10 +1156,13 @@ private fun PauseOverlay(
     }
 }
 
-private val SummaryColumnWeights = listOf(1.3f, 0.7f, 0.9f, 0.9f, 0.7f, 0.8f, 0.9f)
+private val SummaryColumnWeights = listOf(1.3f, 0.6f, 0.7f, 0.7f, 0.7f, 0.6f, 0.9f, 0.8f, 0.9f)
 
 @Composable
-private fun GameSummary(state: GameState, onBack: () -> Unit) {
+private fun GameSummary(state: GameState, onBack: () -> Unit, onUndo: (() -> Unit)?) {
+    // Leaving the summary is what makes the finish final (see GameViewModel.confirmFinish): the
+    // system back gesture has to go through the same door as the button.
+    BackHandler(onBack = onBack)
     val winner = state.players.firstOrNull { it.id == state.winnerId }
     val summaryColumnLabels = listOf(
         stringResource(R.string.summary_column_player),
@@ -1080,8 +1171,12 @@ private fun GameSummary(state: GameState, onBack: () -> Unit) {
         stringResource(R.string.summary_column_taken),
         stringResource(R.string.summary_column_poison),
         stringResource(R.string.summary_column_mulligans),
+        stringResource(R.string.summary_column_longest_turn),
+        stringResource(R.string.summary_column_average_turn),
         stringResource(R.string.summary_column_status)
     )
+    // Who had the game's single longest turn -- null until some turn has finished.
+    val longestTurnPlayer = state.players.filter { it.turnsTaken > 0 }.maxByOrNull { it.longestTurnMs }
     Column(
         modifier = Modifier.fillMaxSize().background(SummaryScrim).padding(horizontal = 26.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -1111,6 +1206,19 @@ private fun GameSummary(state: GameState, onBack: () -> Unit) {
             Spacer(Modifier.height(14.dp))
         }
 
+        if (longestTurnPlayer != null) {
+            Text(
+                stringResource(
+                    R.string.summary_longest_turn_banner,
+                    longestTurnPlayer.name,
+                    formatTurnClock(longestTurnPlayer.longestTurnMs)
+                ),
+                color = AppMuted,
+                fontSize = 11.sp
+            )
+            Spacer(Modifier.height(10.dp))
+        }
+
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1121,14 +1229,24 @@ private fun GameSummary(state: GameState, onBack: () -> Unit) {
                 }
             }
             state.players.forEach { player ->
-                val dealt = state.players.sumOf { it.commanderDamage[player.id] ?: 0 }
-                val taken = player.commanderDamage.values.maxOrNull() ?: 0
                 val isWinner = winner?.id == player.id
-                SummaryRow(player = player, dealt = dealt, taken = taken, isWinner = isWinner)
+                SummaryRow(player = player, dealt = player.damageDealt, taken = player.damageTaken, isWinner = isWinner)
             }
         }
 
         Spacer(Modifier.height(12.dp))
+        if (onUndo != null) {
+            // Until the player leaves this screen, the game isn't over for real: a mistaken last
+            // hit (or a mistaken "finish game") can still be taken back.
+            Text(
+                stringResource(R.string.summary_undo),
+                color = AccentSoft,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onUndo).padding(8.dp)
+            )
+            Spacer(Modifier.height(4.dp))
+        }
         GradientButton(text = stringResource(R.string.summary_back_home), onClick = onBack)
     }
 }
@@ -1160,7 +1278,21 @@ private fun SummaryRow(player: PlayerState, dealt: Int, taken: Int, isWinner: Bo
         Text(taken.toString(), color = AppMuted, fontSize = 11.sp, modifier = Modifier.weight(SummaryColumnWeights[3]))
         Text(player.poison.toString(), color = AppMuted, fontSize = 11.sp, modifier = Modifier.weight(SummaryColumnWeights[4]))
         Text(player.mulligans.toString(), color = AppMuted, fontSize = 11.sp, modifier = Modifier.weight(SummaryColumnWeights[5]))
-        Text(statusLabel, color = AccentSoft, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, modifier = Modifier.weight(SummaryColumnWeights[6]))
+        // A seat that never finished a turn has no turn times to show.
+        val noTurns = "–"
+        Text(
+            if (player.turnsTaken > 0) formatTurnClock(player.longestTurnMs) else noTurns,
+            color = AppMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.weight(SummaryColumnWeights[6])
+        )
+        Text(
+            if (player.turnsTaken > 0) formatTurnClock(player.averageTurnMs()) else noTurns,
+            color = AppMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.weight(SummaryColumnWeights[7])
+        )
+        Text(statusLabel, color = AccentSoft, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, modifier = Modifier.weight(SummaryColumnWeights[8]))
     }
 }
 

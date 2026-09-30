@@ -19,7 +19,11 @@ data class UserStats(
     @SerialName("games_won") val gamesWon: Int = 0,
     @SerialName("total_damage_dealt") val totalDamageDealt: Int = 0,
     @SerialName("total_commander_damage_dealt") val totalCommanderDamageDealt: Int = 0,
-    @SerialName("total_eliminations") val totalEliminations: Int = 0
+    @SerialName("total_eliminations") val totalEliminations: Int = 0,
+    /** Turns with a recorded duration; [longestTurnMs]/[averageTurnMs] are 0 while this is 0. */
+    @SerialName("timed_turns") val timedTurns: Int = 0,
+    @SerialName("longest_turn_ms") val longestTurnMs: Long = 0,
+    @SerialName("average_turn_ms") val averageTurnMs: Long = 0
 )
 
 @Serializable
@@ -71,7 +75,15 @@ data class FinishedGame(
     @SerialName("playgroup_name") val playgroupName: String? = null,
     @SerialName("started_at") val startedAt: String? = null,
     @SerialName("finished_at") val finishedAt: String? = null,
-    val players: List<FinishedGamePlayer> = emptyList()
+    val players: List<FinishedGamePlayer> = emptyList(),
+    /** The game's single longest timed turn; null when no turn of it was timed. */
+    @SerialName("longest_turn") val longestTurn: LongestTurn? = null
+)
+
+@Serializable
+data class LongestTurn(
+    @SerialName("duration_ms") val durationMs: Long,
+    val username: String
 )
 
 /** One seat within a [FinishedGame], already enriched with username/deck (no client-side lookup needed). */
@@ -83,7 +95,10 @@ data class FinishedGamePlayer(
     @SerialName("deck_name") val deckName: String,
     @SerialName("deck_commander") val deckCommander: String,
     @SerialName("deck_image_url") val deckImageUrl: String? = null,
-    val won: Boolean = false
+    val won: Boolean = false,
+    /** This seat's own turn times in the game; both null when none of its turns was timed. */
+    @SerialName("longest_turn_ms") val longestTurnMs: Long? = null,
+    @SerialName("average_turn_ms") val averageTurnMs: Long? = null
 )
 
 /** A deck alongside its stats — null [stats] means it hasn't finished a game yet, not an error. */

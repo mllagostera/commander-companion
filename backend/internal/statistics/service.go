@@ -103,13 +103,30 @@ func (s *service) GetUserStats(ctx context.Context, userID string) (*UserStatsRe
 	}
 
 	stats, err := s.repo.GetUserStatistics(ctx, uid)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return &UserStatsResponse{UserID: userID}, nil
-		}
+	res := &UserStatsResponse{UserID: userID}
+	switch {
+	case err == nil:
+		res = toUserStatsResponse(&stats)
+	case !errors.Is(err, pgx.ErrNoRows):
 		return nil, fmt.Errorf("looking up user statistics: %w", err)
 	}
-	return toUserStatsResponse(&stats), nil
+	if err := s.applyUserTurnTimes(ctx, uid, res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// applyUserTurnTimes fills in the turn-time fields of res, which aren't part of
+// the precalculated summary (see GetUserTurnTimeStats).
+func (s *service) applyUserTurnTimes(ctx context.Context, uid pgtype.UUID, res *UserStatsResponse) error {
+	turns, err := s.repo.GetUserTurnTimeStats(ctx, uid)
+	if err != nil {
+		return fmt.Errorf("looking up user turn times: %w", err)
+	}
+	res.TimedTurns = turns.TimedTurns
+	res.LongestTurnMs = turns.LongestTurnMs
+	res.AverageTurnMs = turns.AverageTurnMs
+	return nil
 }
 
 // GetDeckStats returns a deck's statistics, if it belongs to the given user.
@@ -352,12 +369,23 @@ func (s *service) enrichFinishedGames(
 		summaryByGame[summaryRows[i].GameID] = summaryRows[i]
 	}
 
+	turnRows, err := s.repo.ListTurnTimeStatsForGames(ctx, gameIDs)
+	if err != nil {
+		return nil, fmt.Errorf("listing turn times for finished games: %w", err)
+	}
+	turnsByGame := make(map[pgtype.UUID][]ListTurnTimeStatsForGamesRow, len(games))
+	for i := range turnRows {
+		gid := turnRows[i].GameID
+		turnsByGame[gid] = append(turnsByGame[gid], turnRows[i])
+	}
+
 	for i := range games {
 		gid := games[i].ID
 		res := toFinishedGameResponse(&games[i], playersByGame[gid])
 		if summary, ok := summaryByGame[gid]; ok {
 			applyActionSummary(res, &summary)
 		}
+		applyTurnTimes(res, turnsByGame[gid])
 		items = append(items, *res)
 	}
 	return items, nil
@@ -372,6 +400,26 @@ func applyActionSummary(res *FinishedGameResponse, summary *ListGameActionSummar
 		res.BiggestHit = &BiggestHitResponse{
 			Amount:   summary.BiggestHitAmount.Int32,
 			Username: summary.BiggestHitUsername.String,
+		}
+	}
+}
+
+// applyTurnTimes fills in each seat's longest/average turn and the game's single
+// longest turn from its ListTurnTimeStatsForGames rows (one per seat with a timed
+// turn). Seats are matched by user: a user holds at most one seat per game.
+func applyTurnTimes(res *FinishedGameResponse, turns []ListTurnTimeStatsForGamesRow) {
+	for i := range turns {
+		t := &turns[i]
+		for j := range res.Players {
+			if res.Players[j].UserID != t.UserID.String() {
+				continue
+			}
+			longest, average := t.LongestTurnMs, t.AverageTurnMs
+			res.Players[j].LongestTurnMs = &longest
+			res.Players[j].AverageTurnMs = &average
+		}
+		if res.LongestTurn == nil || t.LongestTurnMs > res.LongestTurn.DurationMs {
+			res.LongestTurn = &LongestTurnResponse{DurationMs: t.LongestTurnMs, Username: t.Username}
 		}
 	}
 }

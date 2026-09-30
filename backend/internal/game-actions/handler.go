@@ -19,6 +19,7 @@ func NewHandler(svc Service) *Handler {
 // RegisterRoutes registers all the endpoints of the game-actions module.
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/games/:id/actions", h.CreateAction)
+	router.Post("/games/:id/actions/undo", h.UndoActions)
 	router.Get("/games/:id/timeline", h.GetTimeline)
 }
 
@@ -35,6 +36,21 @@ func (h *Handler) CreateAction(c *fiber.Ctx) error {
 		return common.MapError(err)
 	}
 	return c.Status(fiber.StatusCreated).JSON(res)
+}
+
+// UndoActions reverts actions of a game (see Service.UndoActions).
+func (h *Handler) UndoActions(c *fiber.Ctx) error {
+	var req UndoActionsRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.UndoActions(c.Context(), c.Params("id"), userID, req)
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
 }
 
 // GetTimeline returns the action history of a game.

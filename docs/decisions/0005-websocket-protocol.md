@@ -73,8 +73,8 @@ Every message the server sends over the socket uses the same JSON envelope:
 }
 ```
 
-- `type`: one of `connected`, `game_action`, `game_finished`, `error` (see
-  below).
+- `type`: one of `connected`, `game_action`, `action_undone`,
+  `game_finished`, `error` (see below).
 - `game_id`: always present, redundant with the room the connection is
   subscribed to (simplifies the client: it doesn't need to remember which
   game each socket belongs to if it can already read it from the message).
@@ -100,6 +100,12 @@ By type:
   `action_type`, `payload`, `created_at`). The envelope's `actor_id` is
   the same as `payload.actor_id`, duplicated at the envelope level so the
   client can filter/route without deserializing the full payload.
+- **`action_undone`** (added with undo, migration
+  `00020_game_actions_undo.sql`): `payload` is the `GameActionResponse` of
+  an action that `POST /games/:id/actions/undo` just reverted, with
+  `undone_at` set. Clients revert its effects the same way they applied
+  them on `game_action`; like there, a device ignores the ones for seats it
+  controls itself, whose undo it already applied locally.
 - **`game_finished`**: empty `payload`. It's a notice, not a snapshot — the
   client must request the real final state via REST (`GET /games/:id`,
   `/statistics/*` endpoints) if it needs it, instead of the server
@@ -187,7 +193,8 @@ it's issued.
 - **Authenticate**: see section 3. Success → `connected` + subscribed.
   Failure → `error` + `1008` close.
 - **While the game lasts (`active`)**: every `game_action` successfully
-  recorded by `POST /games/:id/actions` is broadcast to the room.
+  recorded by `POST /games/:id/actions` is broadcast to the room, and so is
+  every `action_undone` from `POST /games/:id/actions/undo`.
   Best-effort: if a connection has its outgoing buffer full (slow or stuck
   client), that particular message is dropped *only for that connection*
   — it never blocks the HTTP request that originated the action nor

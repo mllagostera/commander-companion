@@ -25,8 +25,9 @@ import (
 // just need the dependency to be present to be able to build the services.
 type noopBroadcaster struct{}
 
-func (noopBroadcaster) BroadcastGameFinished(_ string)                              {}
-func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionResponse) {}
+func (noopBroadcaster) BroadcastGameFinished(_ string)                                    {}
+func (noopBroadcaster) BroadcastAction(_ string, _ *gameactions.GameActionResponse)       {}
+func (noopBroadcaster) BroadcastActionUndone(_ string, _ *gameactions.GameActionResponse) {}
 
 // newGamesSvc creates a games.Service with the real statistics recalculator and
 // playgroup membership checker (over the same pool), so FinishGame
@@ -897,5 +898,37 @@ func TestGetTimeline_UnknownGame_ReturnsNotFound(t *testing.T) {
 	_, err := actionsSvc.GetTimeline(context.Background(), "00000000-0000-0000-0000-000000000000", "irrelevant")
 	if !errors.Is(err, gameactions.ErrGameNotFound) {
 		t.Fatalf("GetTimeline() en partida inexistente: error = %v, want ErrGameNotFound", err)
+	}
+}
+
+func TestRecordAction_TurnEnd_AcceptsAValidDuration(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	g := setupActiveGame(t, pool)
+
+	res := mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
+		ActorID:    g.player1ID,
+		ActionType: actionTypeTurnEnd,
+		Payload:    map[string]interface{}{"duration_ms": float64(95_000)},
+	})
+	if duration, _ := res.Payload["duration_ms"].(float64); duration != 95_000 {
+		t.Fatalf("RecordAction(TurnEnd).Payload = %+v, want duration_ms=95000", res.Payload)
+	}
+}
+
+func TestRecordAction_TurnEnd_InvalidDuration_ReturnsBadRequest(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGameActionsTables(t, pool)
+	g := setupActiveGame(t, pool)
+
+	for _, duration := range []interface{}{float64(-1), 1.5, "90s", float64(24*60*60*1000 + 1)} {
+		_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
+			ActorID:    g.player1ID,
+			ActionType: actionTypeTurnEnd,
+			Payload:    map[string]interface{}{"duration_ms": duration},
+		})
+		if !errors.Is(err, gameactions.ErrTurnDurationInvalid) {
+			t.Fatalf("RecordAction(TurnEnd, duration_ms=%v) error = %v, want ErrTurnDurationInvalid", duration, err)
+		}
 	}
 }

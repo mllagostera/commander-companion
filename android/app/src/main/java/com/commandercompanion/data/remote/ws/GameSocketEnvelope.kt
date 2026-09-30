@@ -11,6 +11,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 private const val EVENT_CONNECTED = "connected"
 private const val EVENT_GAME_ACTION = "game_action"
 private const val EVENT_GAME_FINISHED = "game_finished"
+private const val EVENT_ACTION_UNDONE = "action_undone"
 
 /** The auth handshake message every client must send as the first frame (see ADR-0005). */
 @Serializable
@@ -19,7 +20,8 @@ internal data class AuthSocketMessage(val type: String = "auth", val token: Stri
 /**
  * Mirrors the backend's `Envelope` (`internal/websocket/envelope.go`): the common shape of every
  * message the server sends. `payload` is left as a raw [JsonElement] because its schema depends
- * on `type` (empty for `connected`/`game_finished`, a `GameActionResponse` for `game_action`, an
+ * on `type` (empty for `connected`/`game_finished`, a `GameActionResponse` for `game_action` and
+ * `action_undone`, an
  * `{"message": "..."}` for `error`, which only ever appears during the auth handshake).
  */
 @Serializable
@@ -45,6 +47,9 @@ internal fun parseEnvelope(json: Json, text: String): GameSocketEvent? {
         EVENT_GAME_ACTION -> envelope.payload
             ?.let { payload -> runCatching { json.decodeFromJsonElement<GameAction>(payload) }.getOrNull() }
             ?.let { GameSocketEvent.ActionReceived(it) }
+        EVENT_ACTION_UNDONE -> envelope.payload
+            ?.let { payload -> runCatching { json.decodeFromJsonElement<GameAction>(payload) }.getOrNull() }
+            ?.let { GameSocketEvent.ActionUndone(it) }
         else -> null
     }
 }

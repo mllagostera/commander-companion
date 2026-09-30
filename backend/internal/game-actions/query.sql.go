@@ -71,10 +71,29 @@ func (q *Queries) AdjustGamePlayerPoison(ctx context.Context, arg AdjustGamePlay
 	return i, err
 }
 
+const countActiveEliminationsOf = `-- name: CountActiveEliminationsOf :one
+SELECT COUNT(*)::int FROM game_actions
+WHERE game_id = $1 AND target_id = $2 AND action_type = 'Elimination' AND undone_at IS NULL
+`
+
+type CountActiveEliminationsOfParams struct {
+	GameID   pgtype.UUID `json:"game_id"`
+	TargetID pgtype.UUID `json:"target_id"`
+}
+
+// Explicit Elimination actions still in force against a player: undoing a hit
+// only brings its target back if nothing else still eliminates them.
+func (q *Queries) CountActiveEliminationsOf(ctx context.Context, arg CountActiveEliminationsOfParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countActiveEliminationsOf, arg.GameID, arg.TargetID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createGameAction = `-- name: CreateGameAction :one
 INSERT INTO game_actions (game_id, actor_id, target_id, action_type, payload)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, game_id, actor_id, target_id, action_type, payload, created_at
+RETURNING id, game_id, actor_id, target_id, action_type, payload, created_at, undone_at
 `
 
 type CreateGameActionParams struct {
@@ -102,6 +121,7 @@ func (q *Queries) CreateGameAction(ctx context.Context, arg CreateGameActionPara
 		&i.ActionType,
 		&i.Payload,
 		&i.CreatedAt,
+		&i.UndoneAt,
 	)
 	return i, err
 }
@@ -121,6 +141,32 @@ func (q *Queries) GetGame(ctx context.Context, id pgtype.UUID) (Game, error) {
 		&i.FinishedAt,
 		&i.CreatedAt,
 		&i.CurrentTurnPlayerID,
+	)
+	return i, err
+}
+
+const getGameActionForUpdate = `-- name: GetGameActionForUpdate :one
+SELECT id, game_id, actor_id, target_id, action_type, payload, created_at, undone_at FROM game_actions WHERE id = $1 AND game_id = $2 FOR UPDATE
+`
+
+type GetGameActionForUpdateParams struct {
+	ID     pgtype.UUID `json:"id"`
+	GameID pgtype.UUID `json:"game_id"`
+}
+
+// Locks the row so two concurrent undos of the same action can't both revert it.
+func (q *Queries) GetGameActionForUpdate(ctx context.Context, arg GetGameActionForUpdateParams) (GameAction, error) {
+	row := q.db.QueryRow(ctx, getGameActionForUpdate, arg.ID, arg.GameID)
+	var i GameAction
+	err := row.Scan(
+		&i.ID,
+		&i.GameID,
+		&i.ActorID,
+		&i.TargetID,
+		&i.ActionType,
+		&i.Payload,
+		&i.CreatedAt,
+		&i.UndoneAt,
 	)
 	return i, err
 }
@@ -174,10 +220,70 @@ func (q *Queries) GetGamePlayerByGameAndUser(ctx context.Context, arg GetGamePla
 	return i, err
 }
 
-const listGameActions = `-- name: ListGameActions :many
-SELECT id, game_id, actor_id, target_id, action_type, payload, created_at FROM game_actions WHERE game_id = $1 ORDER BY created_at ASC
+const getLatestTurnAction = `-- name: GetLatestTurnAction :one
+SELECT id, game_id, actor_id, target_id, action_type, payload, created_at, undone_at FROM game_actions
+WHERE game_id = $1 AND action_type IN ('TurnStart', 'TurnEnd') AND undone_at IS NULL
+ORDER BY created_at DESC
+LIMIT 1
 `
 
+// The most recent TurnStart/TurnEnd still in force, to work out whose turn it is
+// after undoing one of them (TurnStart: the actor's; TurnEnd: nobody's).
+func (q *Queries) GetLatestTurnAction(ctx context.Context, gameID pgtype.UUID) (GameAction, error) {
+	row := q.db.QueryRow(ctx, getLatestTurnAction, gameID)
+	var i GameAction
+	err := row.Scan(
+		&i.ID,
+		&i.GameID,
+		&i.ActorID,
+		&i.TargetID,
+		&i.ActionType,
+		&i.Payload,
+		&i.CreatedAt,
+		&i.UndoneAt,
+	)
+	return i, err
+}
+
+const listCommanderDamageAgainst = `-- name: ListCommanderDamageAgainst :many
+SELECT game_id, attacker_id, defender_id, amount FROM commander_damage WHERE game_id = $1 AND defender_id = $2
+`
+
+type ListCommanderDamageAgainstParams struct {
+	GameID     pgtype.UUID `json:"game_id"`
+	DefenderID pgtype.UUID `json:"defender_id"`
+}
+
+func (q *Queries) ListCommanderDamageAgainst(ctx context.Context, arg ListCommanderDamageAgainstParams) ([]CommanderDamage, error) {
+	rows, err := q.db.Query(ctx, listCommanderDamageAgainst, arg.GameID, arg.DefenderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CommanderDamage
+	for rows.Next() {
+		var i CommanderDamage
+		if err := rows.Scan(
+			&i.GameID,
+			&i.AttackerID,
+			&i.DefenderID,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGameActions = `-- name: ListGameActions :many
+SELECT id, game_id, actor_id, target_id, action_type, payload, created_at, undone_at FROM game_actions WHERE game_id = $1 AND undone_at IS NULL ORDER BY created_at ASC
+`
+
+// The timeline: undone actions are left out, as if they had never happened.
 func (q *Queries) ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error) {
 	rows, err := q.db.Query(ctx, listGameActions, gameID)
 	if err != nil {
@@ -195,6 +301,7 @@ func (q *Queries) ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]Ga
 			&i.ActionType,
 			&i.Payload,
 			&i.CreatedAt,
+			&i.UndoneAt,
 		); err != nil {
 			return nil, err
 		}
@@ -204,6 +311,26 @@ func (q *Queries) ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]Ga
 		return nil, err
 	}
 	return items, nil
+}
+
+const markGameActionUndone = `-- name: MarkGameActionUndone :one
+UPDATE game_actions SET undone_at = now() WHERE id = $1 RETURNING id, game_id, actor_id, target_id, action_type, payload, created_at, undone_at
+`
+
+func (q *Queries) MarkGameActionUndone(ctx context.Context, id pgtype.UUID) (GameAction, error) {
+	row := q.db.QueryRow(ctx, markGameActionUndone, id)
+	var i GameAction
+	err := row.Scan(
+		&i.ID,
+		&i.GameID,
+		&i.ActorID,
+		&i.TargetID,
+		&i.ActionType,
+		&i.Payload,
+		&i.CreatedAt,
+		&i.UndoneAt,
+	)
+	return i, err
 }
 
 const setCurrentTurnPlayer = `-- name: SetCurrentTurnPlayer :one
@@ -218,8 +345,8 @@ type SetCurrentTurnPlayerParams struct {
 	ID                  pgtype.UUID `json:"id"`
 }
 
-// current_turn_player_id nullable: TurnStart lo fija al actor, TurnEnd lo limpia
-// (pasando NULL). Ver internal/game-actions/service.go.
+// current_turn_player_id is nullable: TurnStart sets it to the actor, TurnEnd clears
+// it (passing NULL). See internal/game-actions/service.go.
 func (q *Queries) SetCurrentTurnPlayer(ctx context.Context, arg SetCurrentTurnPlayerParams) (Game, error) {
 	row := q.db.QueryRow(ctx, setCurrentTurnPlayer, arg.CurrentTurnPlayerID, arg.ID)
 	var i Game
@@ -263,6 +390,27 @@ func (q *Queries) SetGamePlayerEliminated(ctx context.Context, arg SetGamePlayer
 		&i.AddedBy,
 	)
 	return i, err
+}
+
+const subtractCommanderDamage = `-- name: SubtractCommanderDamage :exec
+UPDATE commander_damage
+SET amount = GREATEST(amount - $1::int, 0)
+WHERE attacker_id = $2 AND defender_id = $3
+`
+
+type SubtractCommanderDamageParams struct {
+	Amount     int32       `json:"amount"`
+	AttackerID pgtype.UUID `json:"attacker_id"`
+	DefenderID pgtype.UUID `json:"defender_id"`
+}
+
+// Undo of a CommanderDamage action. A plain UPDATE rather than UpsertCommanderDamage
+// with a negative delta: the INSERT half of the upsert would trip
+// commander_damage_amount_chk (amount >= 0) before ON CONFLICT is even considered.
+// The row always exists here (the action being undone created or grew it).
+func (q *Queries) SubtractCommanderDamage(ctx context.Context, arg SubtractCommanderDamageParams) error {
+	_, err := q.db.Exec(ctx, subtractCommanderDamage, arg.Amount, arg.AttackerID, arg.DefenderID)
+	return err
 }
 
 const upsertCommanderDamage = `-- name: UpsertCommanderDamage :one

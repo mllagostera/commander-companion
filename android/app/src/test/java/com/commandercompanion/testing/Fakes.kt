@@ -25,6 +25,7 @@ import com.commandercompanion.domain.model.Friend
 import com.commandercompanion.domain.model.FriendRequestResult
 import com.commandercompanion.domain.model.Game
 import com.commandercompanion.domain.model.GameAction
+import com.commandercompanion.domain.model.UndoActionsRequest
 import com.commandercompanion.domain.model.GamePlayer
 import com.commandercompanion.domain.model.GameSocketEvent
 import com.commandercompanion.domain.model.GameStatus
@@ -207,6 +208,9 @@ class FakeCommanderApi : CommanderApi {
     /** All the actions received by `POST /games/{id}/actions`, in order. */
     val recordedActions = mutableListOf<Pair<String, NewGameAction>>()
 
+    /** Every `action_ids` list received by `POST /games/{id}/actions/undo`, in order. */
+    val undoneActionIds = mutableListOf<List<String>>()
+
     /** Names of the endpoints invoked, in order — to assert the bootstrap sequence. */
     val calls = mutableListOf<String>()
 
@@ -221,9 +225,11 @@ class FakeCommanderApi : CommanderApi {
     }
     var onStartGame: suspend (String) -> Game = { id -> gameDto(id, GameStatus.ACTIVE) }
     var onFinishGame: suspend (String) -> Game = { id -> gameDto(id, GameStatus.FINISHED) }
+    // Each recorded action gets its own id ("action-1", "action-2", ...), so undo can name them.
     var onRecordAction: suspend (String, NewGameAction) -> GameAction = { id, request ->
-        gameActionDto(id, request)
+        gameActionDto(id, request).copy(id = "action-${recordedActions.size}")
     }
+    var onUndoActions: suspend (String, UndoActionsRequest) -> List<GameAction> = { _, _ -> emptyList() }
     var onGetGame: suspend (String) -> Game = { id -> gameDto(id) }
     var onGetTimeline: suspend (String) -> List<GameAction> = { emptyList() }
     var onListPlaygroups: suspend () -> List<Playgroup> = { emptyList() }
@@ -319,6 +325,12 @@ class FakeCommanderApi : CommanderApi {
         calls += "recordAction"
         recordedActions += gameId to request
         return onRecordAction(gameId, request)
+    }
+
+    override suspend fun undoActions(gameId: String, request: UndoActionsRequest): List<GameAction> {
+        calls += "undoActions"
+        undoneActionIds += request.actionIds
+        return onUndoActions(gameId, request)
     }
 
     override suspend fun getTimeline(gameId: String): List<GameAction> {

@@ -77,13 +77,14 @@ type Game struct {
 }
 
 type GameAction struct {
-	ID         pgtype.UUID      `json:"id"`
-	GameID     pgtype.UUID      `json:"game_id"`
-	ActorID    pgtype.UUID      `json:"actor_id"`
-	TargetID   pgtype.UUID      `json:"target_id"`
-	ActionType string           `json:"action_type"`
-	Payload    []byte           `json:"payload"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
+	ID         pgtype.UUID        `json:"id"`
+	GameID     pgtype.UUID        `json:"game_id"`
+	ActorID    pgtype.UUID        `json:"actor_id"`
+	TargetID   pgtype.UUID        `json:"target_id"`
+	ActionType string             `json:"action_type"`
+	Payload    []byte             `json:"payload"`
+	CreatedAt  pgtype.Timestamp   `json:"created_at"`
+	UndoneAt   pgtype.Timestamptz `json:"undone_at"`
 }
 
 type GamePlayer struct {

@@ -30,6 +30,12 @@ type Querier interface {
 	GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 	GetDeckStatistics(ctx context.Context, deckID pgtype.UUID) (DeckStatisticsSummary, error)
 	GetUserStatistics(ctx context.Context, userID pgtype.UUID) (UserStatisticsSummary, error)
+	// A user's turn-time record across their finished games: how many turns were timed,
+	// the longest one and the average, all in milliseconds. Read from the TurnEnd actions
+	// that carry payload.duration_ms (measured by the client's turn clock, pauses
+	// excluded); a TurnEnd without it -- sent by older clients -- simply doesn't count.
+	// Computed live, like ListOpponentStats: there's no summary column for it.
+	GetUserTurnTimeStats(ctx context.Context, userID pgtype.UUID) (GetUserTurnTimeStatsRow, error)
 	// The decks the dashboard's "your decks" strip shows: most played first, capped
 	// at the handful that fit. Same decks LEFT JOIN summary shape as
 	// ListDeckStatisticsForUser (a deck never played has no summary row), but
@@ -63,6 +69,7 @@ type Querier interface {
 	// re-deriving them from the full action log. Left-joined from game_ids (not game_actions)
 	// so a game with no actions logged still gets a row (zero turns, no biggest hit).
 	ListGameActionSummaryForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListGameActionSummaryForGamesRow, error)
+	// Undone actions don't count towards any statistic.
 	ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error)
 	ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error)
 	// Head-to-head aggregation across every finished game the user has played:
@@ -84,6 +91,10 @@ type Querier interface {
 	// as ListDeckStatisticsForUser above).
 	ListPlaygroupGameCountsForUser(ctx context.Context, userID pgtype.UUID) ([]ListPlaygroupGameCountsForUserRow, error)
 	ListPlaygroupMemberGameStats(ctx context.Context, playgroupID pgtype.UUID) ([]ListPlaygroupMemberGameStatsRow, error)
+	// Per seat of each game in game_ids: how many of its turns were timed, the longest
+	// and the average (ms), from the same TurnEnd payload.duration_ms as
+	// GetUserTurnTimeStats. A seat with no timed turn has no row.
+	ListTurnTimeStatsForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListTurnTimeStatsForGamesRow, error)
 	UpsertDeckStatistics(ctx context.Context, arg UpsertDeckStatisticsParams) error
 	UpsertUserStatistics(ctx context.Context, arg UpsertUserStatisticsParams) error
 }

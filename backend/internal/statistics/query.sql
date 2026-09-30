@@ -29,7 +29,8 @@ SELECT * FROM decks WHERE id = $1 LIMIT 1;
 SELECT * FROM game_players WHERE game_id = $1;
 
 -- name: ListGameActionsForGame :many
-SELECT * FROM game_actions WHERE game_id = $1 ORDER BY created_at ASC;
+-- Undone actions don't count towards any statistic.
+SELECT * FROM game_actions WHERE game_id = $1 AND undone_at IS NULL ORDER BY created_at ASC;
 
 -- name: UpsertUserStatistics :exec
 INSERT INTO user_statistics_summary (
@@ -102,9 +103,11 @@ JOIN users u ON u.id = other.user_id
 LEFT JOIN game_actions you_eliminated
   ON you_eliminated.game_id = me.game_id AND you_eliminated.action_type = 'Elimination'
   AND you_eliminated.actor_id = me.id AND you_eliminated.target_id = other.id
+  AND you_eliminated.undone_at IS NULL
 LEFT JOIN game_actions they_eliminated
   ON they_eliminated.game_id = me.game_id AND they_eliminated.action_type = 'Elimination'
   AND they_eliminated.actor_id = other.id AND they_eliminated.target_id = me.id
+  AND they_eliminated.undone_at IS NULL
 WHERE me.user_id = $1
 GROUP BY other.user_id, u.username;
 
@@ -161,7 +164,7 @@ LIMIT sqlc.arg('page_limit');
 WITH turns AS (
   SELECT game_id, COUNT(*)::int AS turn_count
   FROM game_actions
-  WHERE game_id = ANY(sqlc.arg('game_ids')::uuid[]) AND action_type = 'TurnStart'
+  WHERE game_id = ANY(sqlc.arg('game_ids')::uuid[]) AND action_type = 'TurnStart' AND undone_at IS NULL
   GROUP BY game_id
 ),
 hits AS (
@@ -172,6 +175,7 @@ hits AS (
   FROM game_actions
   WHERE game_id = ANY(sqlc.arg('game_ids')::uuid[])
     AND action_type IN ('CombatDamage', 'CommanderDamage')
+    AND undone_at IS NULL
   ORDER BY game_id, (payload->>'amount')::int DESC
 )
 SELECT
@@ -313,3 +317,41 @@ LEFT JOIN (
   WHERE alive_count = 1
 ) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
 WHERE gp.game_id = ANY(sqlc.arg('game_ids')::uuid[]);
+
+-- name: GetUserTurnTimeStats :one
+-- A user's turn-time record across their finished games: how many turns were timed,
+-- the longest one and the average, all in milliseconds. Read from the TurnEnd actions
+-- that carry payload.duration_ms (measured by the client's turn clock, pauses
+-- excluded); a TurnEnd without it -- sent by older clients -- simply doesn't count.
+-- Computed live, like ListOpponentStats: there's no summary column for it.
+SELECT
+  COUNT(*)::int AS timed_turns,
+  COALESCE(MAX((ga.payload->>'duration_ms')::bigint), 0)::bigint AS longest_turn_ms,
+  COALESCE(ROUND(AVG((ga.payload->>'duration_ms')::bigint)), 0)::bigint AS average_turn_ms
+FROM game_actions ga
+JOIN game_players gp ON gp.id = ga.actor_id
+JOIN games g ON g.id = ga.game_id AND g.status = 'finished'
+WHERE gp.user_id = $1
+  AND ga.action_type = 'TurnEnd'
+  AND ga.undone_at IS NULL
+  AND ga.payload->>'duration_ms' IS NOT NULL;
+
+-- name: ListTurnTimeStatsForGames :many
+-- Per seat of each game in game_ids: how many of its turns were timed, the longest
+-- and the average (ms), from the same TurnEnd payload.duration_ms as
+-- GetUserTurnTimeStats. A seat with no timed turn has no row.
+SELECT
+  ga.game_id,
+  gp.user_id,
+  u.username,
+  COUNT(*)::int AS timed_turns,
+  MAX((ga.payload->>'duration_ms')::bigint)::bigint AS longest_turn_ms,
+  ROUND(AVG((ga.payload->>'duration_ms')::bigint))::bigint AS average_turn_ms
+FROM game_actions ga
+JOIN game_players gp ON gp.id = ga.actor_id
+JOIN users u ON u.id = gp.user_id
+WHERE ga.game_id = ANY(sqlc.arg('game_ids')::uuid[])
+  AND ga.action_type = 'TurnEnd'
+  AND ga.undone_at IS NULL
+  AND ga.payload->>'duration_ms' IS NOT NULL
+GROUP BY ga.game_id, gp.user_id, u.username;

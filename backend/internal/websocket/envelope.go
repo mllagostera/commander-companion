@@ -14,6 +14,10 @@ const (
 	// EventGameAction rebroadcasts a game_actions action that was just recorded
 	// (payload = GameActionResponse, with no exception for action_type).
 	EventGameAction = "game_action"
+	// EventActionUndone relays that a game_actions action was undone (payload =
+	// GameActionResponse of the undone action, with undone_at set): clients revert its
+	// effects the same way they applied them on game_action.
+	EventActionUndone = "action_undone"
 	// EventGameFinished notifies that the game has ended; it carries no state, it's a
 	// heads-up for the client to reconcile via REST (see ADR-0005, "REST remains the
 	// source of truth").

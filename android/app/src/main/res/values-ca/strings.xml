@@ -84,7 +84,6 @@
 
     <!-- Tracker de partida -->
     <string name="tracker_rotate_prompt">Gira el teu dispositiu\nper començar la partida</string>
-    <string name="tracker_mulligans_suffix">%1$d mulligan(s)</string>
     <string name="tracker_pass_turn">Passa el torn</string>
     <string name="tracker_turn_label">Torn %1$d</string>
     <string name="tracker_dead">MORT</string>
@@ -109,17 +108,29 @@
     <string name="tracker_connecting_to_server">Creant la partida al servidor…</string>
     <string name="tracker_loading_joined_game">Carregant la taula…</string>
     <string name="tracker_back_to_dashboard">Tornar a l\'inici</string>
+    <string name="tracker_undo">Desfés</string>
+    <string name="undo_notice_damage">Desfet: %1$d de dany de %2$s a %3$s</string>
+    <string name="undo_notice_commander_damage">Desfet: %1$d de dany de comandant de %2$s a %3$s</string>
+    <string name="undo_notice_life_gain">Desfet: %1$s guanya %2$d de vida</string>
+    <string name="undo_notice_life_loss">Desfet: %1$s perd %2$d de vida</string>
+    <string name="undo_notice_poison">Desfet: verí de %1$s</string>
+    <string name="undo_notice_pass_turn">Desfet: el torn torna a %1$s</string>
+    <string name="undo_notice_finish">Desfet: la partida continua</string>
 
     <!-- Resumen de partida -->
     <string name="summary_subtitle">Estadístiques de la partida · Torn %1$d</string>
     <string name="summary_winner_banner">🏆 Guanya %1$s</string>
     <string name="summary_back_home">Torna a l\'inici</string>
+    <string name="summary_undo">↶ Desfés</string>
     <string name="summary_column_player">Jugador</string>
     <string name="summary_column_life">Vida</string>
     <string name="summary_column_dealt">Fet</string>
     <string name="summary_column_taken">Rebut</string>
     <string name="summary_column_poison">Verí</string>
     <string name="summary_column_mulligans">Mull.</string>
+    <string name="summary_column_longest_turn">Torn màx.</string>
+    <string name="summary_column_average_turn">Mitjana</string>
+    <string name="summary_longest_turn_banner">⏱ Torn més llarg: %1$s (%2$s)</string>
     <string name="summary_column_status">Estat</string>
     <string name="summary_status_winner">Guanyador</string>
     <string name="summary_status_eliminated">Eliminat</string>
@@ -146,6 +157,7 @@
     <!-- Estadístiques -->
     <string name="statistics_title">Estadístiques</string>
     <string name="statistics_load_error">No s\'han pogut carregar les estadístiques</string>
+    <string name="statistics_retry">Torna-ho a provar</string>
     <string name="statistics_global_heading">Resum general</string>
     <string name="statistics_games">Partides</string>
     <string name="statistics_wins">Victòries</string>
@@ -166,16 +178,30 @@
     <string name="statistics_most_played_opponent_label">Contra qui més jugues</string>
     <string name="statistics_archenemy_label">Arxienemic</string>
     <string name="statistics_no_head_to_head">Encara no has jugat cap partida amb altres usuaris.</string>
-    <string name="statistics_opponent_games_together">%1$d partides juntes</string>
-    <string name="statistics_archenemy_summary">T\'ha eliminat %1$d vegades</string>
+    <plurals name="statistics_opponent_games_together">
+        <item quantity="one">%1$d partida junts</item>
+        <item quantity="other">%1$d partides juntes</item>
+    </plurals>
+    <plurals name="statistics_archenemy_summary">
+        <item quantity="one">T\'ha eliminat %1$d vegada</item>
+        <item quantity="other">T\'ha eliminat %1$d vegades</item>
+    </plurals>
     <string name="statistics_most_played_group_label">Grup en el qual més jugues</string>
     <string name="statistics_no_group_data">Encara no has jugat cap partida en un grup.</string>
-    <string name="statistics_group_games_played">%1$d partides</string>
+    <plurals name="statistics_group_games_played">
+        <item quantity="one">%1$d partida</item>
+        <item quantity="other">%1$d partides</item>
+    </plurals>
     <string name="statistics_no_finished_games">Encara no has acabat cap partida.</string>
     <string name="statistics_load_more">Carrega\'n més</string>
     <string name="statistics_game_result_won">Ha guanyat</string>
     <string name="statistics_game_result_lost">Ha perdut</string>
     <string name="statistics_game_no_playgroup">Partida sense grup</string>
+    <string name="statistics_longest_turn">Torn més llarg</string>
+    <string name="statistics_average_turn">Mitjana per torn</string>
+    <string name="statistics_timed_turns">Torns cronometrats</string>
+    <string name="statistics_game_longest_turn">Torn més llarg: %1$s · %2$s</string>
+    <string name="statistics_player_average_turn">Mitjana per torn %1$s</string>
 
     <string name="settings_qr_heading">El teu codi de perfil</string>
     <string name="settings_qr_body">Ensenya\'l a una altra persona perquè t\'afegeixi com a amic escanejant-lo.</string>
