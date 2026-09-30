@@ -22,6 +22,22 @@ const MOXFIELD_ASSETS_ORIGIN = 'https://assets.moxfield.net'
  */
 const SCRYFALL_IMAGES_ORIGIN = 'https://cards.scryfall.io'
 
+/**
+ * Origin the browser Sentry SDK sends events to: the DSN's own host (e.g.
+ * https://o123.ingest.de.sentry.io). connect-src needs it or the CSP would
+ * silently drop every client-side event. Undefined when Sentry is disabled
+ * (empty DSN) or the DSN doesn't parse, so nothing is added to the policy.
+ */
+export function sentryIngestOrigin(dsn: string): string | undefined {
+  if (!dsn) return undefined
+  try {
+    return new URL(dsn).origin
+  }
+  catch {
+    return undefined
+  }
+}
+
 export function shouldApplyStrictHeaders(): boolean {
   return !import.meta.dev
 }
@@ -50,7 +66,7 @@ export function inlineScriptHashes(html: string): string[] {
   return [...hashes]
 }
 
-export function buildCsp(scriptHashes: string[], isHttps: boolean): string {
+export function buildCsp(scriptHashes: string[], isHttps: boolean, sentryOrigin?: string): string {
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
     'base-uri': ["'self'"],
@@ -66,7 +82,7 @@ export function buildCsp(scriptHashes: string[], isHttps: boolean): string {
     'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': ["'self'", 'data:', MOXFIELD_ASSETS_ORIGIN, SCRYFALL_IMAGES_ORIGIN],
     'font-src': ["'self'", 'data:'],
-    'connect-src': ["'self'", GOOGLE_IDENTITY_ORIGIN],
+    'connect-src': ["'self'", GOOGLE_IDENTITY_ORIGIN, ...(sentryOrigin ? [sentryOrigin] : [])],
     'frame-src': [GOOGLE_IDENTITY_ORIGIN],
   }
 
@@ -88,7 +104,11 @@ export function applySecurityHeaders(event: H3Event, body: string) {
   setResponseHeader(event, 'X-Content-Type-Options', 'nosniff')
   setResponseHeader(event, 'X-Frame-Options', 'DENY')
   setResponseHeader(event, 'Referrer-Policy', 'strict-origin-when-cross-origin')
-  setResponseHeader(event, 'Content-Security-Policy', buildCsp(inlineScriptHashes(body), isHttps))
+  setResponseHeader(event, 'Content-Security-Policy', buildCsp(
+    inlineScriptHashes(body),
+    isHttps,
+    sentryIngestOrigin(useRuntimeConfig(event).public.sentryDsn),
+  ))
 
   // HSTS only makes sense (and is only honored by browsers) over an actual
   // HTTPS connection — same check the CSP's upgrade-insecure-requests above

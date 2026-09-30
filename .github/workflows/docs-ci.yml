@@ -120,9 +120,9 @@ jobs:
       # Same pin as backend-ci.yml's own "Install goose" step, deliberately:
       # two jobs applying the same migrations with different goose releases is
       # a difference waiting to be debugged. See that file for why the pin is
-      # v3.27.0 rather than a newer one.
+      # v3.28.0 rather than @latest.
       - name: Install goose
-        run: go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.28.0
 
       - name: Compare schema.dbml against the migrations
         run: bash .github/scripts/check-dbml-matches-migrations.sh

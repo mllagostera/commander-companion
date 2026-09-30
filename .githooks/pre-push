@@ -104,7 +104,7 @@ fail=0
 
 if [ "$backend_changed" = 1 ] && [ -d "$workdir/src/backend" ]; then
   echo "== backend: gofmt / go vet =="
-  docker run --rm -v "$workdir/src/backend:/app" -w /app golang:1.25 \
+  docker run --rm -v "$workdir/src/backend:/app" -w /app golang:1.26 \
     sh -c 'out=$(gofmt -l .); if [ -n "$out" ]; then echo "$out"; exit 1; fi; go vet ./...' \
     || { echo "pre-push: gofmt/go vet failed"; fail=1; }
 

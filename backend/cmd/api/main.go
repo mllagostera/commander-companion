@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
@@ -69,6 +70,14 @@ func run() error {
 		return err
 	}
 
+	sentryEnabled, err := initSentry(&cfg)
+	if err != nil {
+		return err
+	}
+	if sentryEnabled {
+		defer sentry.Flush(sentryFlushTimeout)
+	}
+
 	// Migrations before opening the app's pool (see common.RunMigrations):
 	// brings the schema up to date in any environment, including those that
 	// don't offer a separate "release/pre-deploy command" hook.
@@ -102,6 +111,9 @@ func run() error {
 	// Middlewares
 	app.Use(logger.New())
 	app.Use(recover.New())
+	if sentryEnabled {
+		useSentry(app)
+	}
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.CORSAllowedOrigins,
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",

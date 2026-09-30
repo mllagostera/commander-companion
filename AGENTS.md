@@ -34,7 +34,7 @@ other**, only the REST contract.
 
 | Area | Stack | Purpose |
 |---|---|---|
-| `backend/` | Go 1.25, Fiber, PostgreSQL, sqlc, goose | Owns auth, decks, games, statistics |
+| `backend/` | Go 1.26, Fiber, PostgreSQL, sqlc, goose | Owns auth, decks, games, statistics |
 | `android/` | Kotlin 2.4, Compose, Hilt, Room, Retrofit | At-the-table life tracking — **any action in under 2 seconds** |
 | `web/` | Nuxt 4 SSR + Nitro BFF + Tailwind | Desktop work: Moxfield imports, statistics, admin |
 | `docs/` | Markdown, DBML, OpenAPI, Mermaid | The sources of truth (§4) |
