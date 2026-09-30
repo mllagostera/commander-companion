@@ -16,6 +16,7 @@ import com.commandercompanion.domain.model.Friend
 import com.commandercompanion.domain.model.FriendRequestResult
 import com.commandercompanion.domain.model.Game
 import com.commandercompanion.domain.model.GameAction
+import com.commandercompanion.domain.model.UndoActionsRequest
 import com.commandercompanion.domain.model.GamePlayer
 import com.commandercompanion.domain.model.IncomingFriendRequest
 import com.commandercompanion.domain.model.NewGameAction
@@ -127,6 +128,16 @@ interface CommanderApi {
         @Path("id") gameId: String,
         @Body request: NewGameAction
     ): GameAction
+
+    /**
+     * Reverts actions of an `active` game (409 otherwise), most recent first; the backend reverts
+     * their effects and stops counting them anywhere. 403 if one isn't this user's to undo.
+     */
+    @POST("api/v1/games/{id}/actions/undo")
+    suspend fun undoActions(
+        @Path("id") gameId: String,
+        @Body request: UndoActionsRequest
+    ): List<GameAction>
 
     @GET("api/v1/games/{id}/timeline")
     suspend fun getTimeline(@Path("id") gameId: String): List<GameAction>

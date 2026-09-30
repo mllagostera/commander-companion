@@ -37,6 +37,45 @@ import kotlinx.coroutines.sync.withLock
 private const val HTTP_CONFLICT = 409
 private const val NANOS_PER_MILLI = 1_000_000L
 
+/** Mirrors the backend's cap on one `POST /games/{id}/actions/undo` (game-actions' maxUndoBatch). */
+private const val MAX_UNDO_BATCH = 1000
+
+/**
+ * One local effect of a player action, kept so [GameViewModel.undo] can apply its inverse. Inverses
+ * rather than snapshots of the whole table: in joined mode other devices' updates keep arriving in
+ * between, and restoring a snapshot would wipe them out.
+ */
+private sealed interface UndoEffect {
+    data class Life(val seatId: Int, val amount: Int) : UndoEffect
+    data class Poison(val seatId: Int, val amount: Int) : UndoEffect
+    data class Commander(val targetId: Int, val attackerId: Int, val amount: Int) : UndoEffect
+    data class DamageTotals(val sourceId: Int?, val targetId: Int, val amount: Int) : UndoEffect
+
+    /** [fromId] passed the turn to [toId]; [closedTurnMs] is the turn it closed (null before the first turn). */
+    data class TurnPassed(val fromId: Int?, val toId: Int, val closedTurnMs: Long?, val fromLongestBefore: Long) : UndoEffect
+
+    /** The game ended, closing [turnOwnerId]'s turn of [closedTurnMs] (see [GameViewModel.confirmFinish]). */
+    data class Finished(
+        val turnOwnerId: Int?,
+        val closedTurnMs: Long?,
+        val longestBefore: Long,
+        val clockWasRunning: Boolean
+    ) : UndoEffect
+}
+
+/**
+ * One thing the player did on the tracker: its local effects, in order, and the ids of the backend
+ * actions it produced -- filled in as each one is recorded, which always happens before an undo of
+ * the step reaches the backend, because both go through the same FIFO queue (see remoteMutex).
+ */
+private class UndoStep(val label: UndoLabel) {
+    val effects = mutableListOf<UndoEffect>()
+    val remoteActionIds = mutableListOf<String>()
+}
+
+/** The last turn of a finished game, whose TurnEnd waits for [GameViewModel.confirmFinish]. */
+private data class PendingFinish(val lastTurnPlayerId: Int?, val lastTurnMs: Long?)
+
 @HiltViewModel
 class GameViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -99,6 +138,20 @@ class GameViewModel @Inject constructor(
 
     /** Collects [GameRepository.observeGameEvents] while the remote game is [RemoteSyncStatus.Synced]. */
     private var socketJob: Job? = null
+
+    /** Undoable steps, oldest first (see [UndoStep]). */
+    private val undoSteps = ArrayDeque<UndoStep>()
+
+    /** The step being recorded while a player action runs (see [recordStep]); null otherwise. */
+    private var openStep: UndoStep? = null
+
+    /** Every backend action this device recorded and hasn't undone yet -- what [resetLives] reverts. */
+    private val liveRemoteActionIds = LinkedHashSet<String>()
+
+    /** The game-ending turn, held back from the backend until [confirmFinish] (see [finishLocally]). */
+    private var pendingFinish: PendingFinish? = null
+
+    private var undoNoticeSeq = 0L
 
     private val _state = mutableStateOf(
         if (joinedMode) {
@@ -276,23 +329,66 @@ class GameViewModel @Inject constructor(
         return replayCommanderDamageUseCase(actions, seatByPlayerId)
     }
 
-    fun adjustLife(playerId: Int, amount: Int) {
+    fun adjustLife(playerId: Int, amount: Int) = recordStep(UndoLabel.LifeChange(nameOf(playerId), amount)) {
+        changeLife(playerId, amount, damageSourceId = null)
+    }
+
+    /**
+     * Applies a life change to [playerId]. When it's damage dealt by [damageSourceId], the summary
+     * totals are updated in the SAME state write, so a lethal hit is already counted by the time
+     * [checkForGameOver] flips the game to finished.
+     */
+    private fun changeLife(playerId: Int, amount: Int, damageSourceId: Int?) {
         if (_state.value.isFinished) return
-        _state.value = _state.value.copy(
-            players = _state.value.players.map { player ->
-                if (player.id == playerId) {
-                    player.copy(life = player.life + amount)
-                } else {
-                    player
-                }
+        val wasEliminated = isSeatEliminated(playerId)
+        val players = _state.value.players.map { player ->
+            if (player.id == playerId) {
+                player.copy(life = player.life + amount)
+            } else {
+                player
             }
+        }
+        _state.value = _state.value.copy(
+            players = if (damageSourceId != null) players.withDamageTotals(damageSourceId, playerId, -amount) else players
         )
-        mirrorLifeChange(playerId, amount)
+        addUndoEffect(UndoEffect.Life(playerId, amount))
+        if (damageSourceId != null) addUndoEffect(UndoEffect.DamageTotals(damageSourceId, playerId, -amount))
+        if (damageSourceId != null) {
+            mirrorCombatDamage(attackerId = damageSourceId, targetPlayerId = playerId, amount = -amount)
+            mirrorEliminationIfLethal(sourceId = damageSourceId, targetId = playerId, wasEliminated = wasEliminated)
+        } else {
+            mirrorLifeChange(playerId, amount)
+        }
         checkForGameOver()
     }
 
+    private fun isSeatEliminated(seatId: Int): Boolean =
+        _state.value.players.firstOrNull { it.id == seatId }?.isEliminated() ?: false
+
+    /**
+     * Adds [amount] damage from [sourceId] (null when unknown, e.g. a remote life change) to
+     * [targetId] into both seats' summary totals. A negative [amount] is a correction.
+     */
+    private fun List<PlayerState>.withDamageTotals(sourceId: Int?, targetId: Int, amount: Int): List<PlayerState> =
+        map { player ->
+            when (player.id) {
+                targetId -> player.copy(damageTaken = (player.damageTaken + amount).coerceAtLeast(0))
+                sourceId -> player.copy(damageDealt = (player.damageDealt + amount).coerceAtLeast(0))
+                else -> player
+            }
+        }
+
+    /** The commander grid's "+": [attackerId]'s commander deals [amount] to [targetPlayerId]. */
     fun adjustCommanderDamage(targetPlayerId: Int, attackerId: Int, amount: Int) {
+        if (amount <= 0 || targetPlayerId == attackerId) return
+        recordStep(UndoLabel.Damage(nameOf(attackerId), nameOf(targetPlayerId), amount, commander = true)) {
+            applyCommanderDamage(targetPlayerId, attackerId, amount)
+        }
+    }
+
+    private fun applyCommanderDamage(targetPlayerId: Int, attackerId: Int, amount: Int) {
         if (_state.value.isFinished) return
+        val wasEliminated = isSeatEliminated(targetPlayerId)
         _state.value = _state.value.copy(
             players = _state.value.players.map { player ->
                 if (player.id == targetPlayerId) {
@@ -305,9 +401,12 @@ class GameViewModel @Inject constructor(
                 } else {
                     player
                 }
-            }
+            }.withDamageTotals(sourceId = attackerId, targetId = targetPlayerId, amount = amount)
         )
+        addUndoEffect(UndoEffect.Commander(targetPlayerId, attackerId, amount))
+        addUndoEffect(UndoEffect.DamageTotals(attackerId, targetPlayerId, amount))
         mirrorCommanderDamage(attackerId, targetPlayerId, amount)
+        mirrorEliminationIfLethal(sourceId = attackerId, targetId = targetPlayerId, wasEliminated = wasEliminated)
         checkForGameOver()
     }
 
@@ -319,10 +418,12 @@ class GameViewModel @Inject constructor(
      */
     fun dealDamage(sourceId: Int, targetId: Int, amount: Int, commander: Boolean) {
         if (amount <= 0 || sourceId == targetId) return
-        if (commander) {
-            adjustCommanderDamage(targetPlayerId = targetId, attackerId = sourceId, amount = amount)
-        } else {
-            adjustLife(playerId = targetId, amount = -amount)
+        recordStep(UndoLabel.Damage(nameOf(sourceId), nameOf(targetId), amount, commander)) {
+            if (commander) {
+                applyCommanderDamage(targetPlayerId = targetId, attackerId = sourceId, amount = amount)
+            } else {
+                changeLife(playerId = targetId, amount = -amount, damageSourceId = sourceId)
+            }
         }
     }
 
@@ -332,18 +433,19 @@ class GameViewModel @Inject constructor(
         adjustLife(playerId = playerId, amount = amount)
     }
 
-    fun adjustPoison(playerId: Int, amount: Int) {
-        if (_state.value.isFinished) return
+    fun adjustPoison(playerId: Int, amount: Int) = recordStep(UndoLabel.Poison(nameOf(playerId), amount)) {
+        if (_state.value.isFinished) return@recordStep
+        val before = _state.value.players.firstOrNull { it.id == playerId }?.poison ?: return@recordStep
+        // Counters never go below 0: a "-" at 0 changes nothing, so there's nothing to record or undo.
+        val delta = (before + amount).coerceAtLeast(0) - before
+        if (delta == 0) return@recordStep
         _state.value = _state.value.copy(
             players = _state.value.players.map { player ->
-                if (player.id == playerId) {
-                    player.copy(poison = (player.poison + amount).coerceAtLeast(0))
-                } else {
-                    player
-                }
+                if (player.id == playerId) player.copy(poison = player.poison + delta) else player
             }
         )
-        mirrorPoisonChange(playerId, amount)
+        addUndoEffect(UndoEffect.Poison(playerId, delta))
+        mirrorPoisonChange(playerId, delta)
         checkForGameOver()
     }
 
@@ -353,7 +455,11 @@ class GameViewModel @Inject constructor(
      * seats the list order jumps from the top-right quadrant to the bottom-left one, which is not
      * where the turn goes at a real table.
      */
-    fun nextTurn() {
+    fun nextTurn() = recordStep(UndoLabel.PassTurn(_state.value.currentTurnPlayerId?.let(::nameOf).orEmpty())) {
+        passTurn()
+    }
+
+    private fun passTurn() {
         if (_state.value.isFinished) return
         val ring = clockwiseSeats(_state.value.players)
         if (ring.isEmpty()) return
@@ -370,11 +476,17 @@ class GameViewModel @Inject constructor(
             ?: ring[(currentIndex + 1).mod(ring.size)].id
         // The outgoing seat banks its turn; the incoming one's clock starts now (if it was running).
         val wasRunning = _state.value.turnClockRunningSince != null
-        _state.value = settleTurnClock(_state.value).copy(
+        val outgoingPlayerId = _state.value.currentTurnPlayerId
+        val longestBefore = _state.value.players.firstOrNull { it.id == outgoingPlayerId }?.longestTurnMs ?: 0
+        val (closed, turnDurationMs) = closeTurn(settleTurnClock(_state.value))
+        _state.value = closed.copy(
             currentTurn = _state.value.currentTurn + 1,
             currentTurnPlayerId = nextPlayerId,
             turnClockRunningSince = if (wasRunning) nowMs() else null
         )
+        addUndoEffect(UndoEffect.TurnPassed(outgoingPlayerId, nextPlayerId, turnDurationMs, longestBefore))
+        if (outgoingPlayerId != null && turnDurationMs != null) mirrorTurnEnd(outgoingPlayerId, turnDurationMs)
+        mirrorTurnStart(nextPlayerId)
     }
 
     /**
@@ -388,6 +500,7 @@ class GameViewModel @Inject constructor(
         val current = _state.value
         if (current.turnClockStarted || current.isFinished) return
         _state.value = current.copy(turnClockStarted = true, turnClockRunningSince = nowMs())
+        current.currentTurnPlayerId?.let { mirrorTurnStart(it) }
     }
 
     /** Stops the running clock, banking the time so far (the game is paused). */
@@ -414,7 +527,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    /** Adds the running stretch to the turn owner's total and stops the clock. */
+    /** Adds the running stretch to the turn owner's total (and to the turn in progress) and stops the clock. */
     private fun settleTurnClock(state: GameState): GameState {
         val runningSince = state.turnClockRunningSince ?: return state
         val elapsed = (nowMs() - runningSince).coerceAtLeast(0)
@@ -422,16 +535,38 @@ class GameViewModel @Inject constructor(
             players = state.players.map { player ->
                 if (player.id == state.currentTurnPlayerId) player.copy(turnTimeMs = player.turnTimeMs + elapsed) else player
             },
-            turnClockRunningSince = null
+            turnClockRunningSince = null,
+            currentTurnMs = state.currentTurnMs + elapsed
         )
     }
 
     /**
+     * Ends the turn in progress of an already-settled [state] (see [settleTurnClock]): counts it for
+     * its owner and keeps it if it's their longest. Returns the turn's length too, or null when no
+     * turn was running yet (before the first turn's clock started) -- there's nothing to count then.
+     */
+    private fun closeTurn(state: GameState): Pair<GameState, Long?> {
+        val ownerId = state.currentTurnPlayerId
+        if (!state.turnClockStarted || ownerId == null) return state to null
+        val duration = state.currentTurnMs
+        val closed = state.copy(
+            players = state.players.map { player ->
+                if (player.id == ownerId) {
+                    player.copy(turnsTaken = player.turnsTaken + 1, longestTurnMs = maxOf(player.longestTurnMs, duration))
+                } else {
+                    player
+                }
+            },
+            currentTurnMs = 0
+        )
+        return closed to duration
+    }
+
+    /**
      * Resets life/poison/commander damage for every current seat without ending the game — same
-     * seats and turn order, fresh counters. Mirrors each seat's delta the same way an individual
-     * edit would (see [mirrorLifeChange]/[mirrorPoisonChange]/[mirrorCommanderDamage]), so a
-     * remotely-observed game stays consistent; seats with no real `GamePlayer` just no-op there,
-     * same as any other local-only edit.
+     * seats and turn order, fresh counters. On the backend it undoes every action this device
+     * recorded (commander damage can't be taken back any other way: it's never negative), so the
+     * restarted game starts from a clean log, and the first turn starts again. Not undoable itself.
      */
     fun resetLives() {
         if (_state.value.isFinished) return
@@ -440,32 +575,80 @@ class GameViewModel @Inject constructor(
         val wasRunning = _state.value.turnClockRunningSince != null
         _state.value = _state.value.copy(
             players = previous.map {
-                it.copy(life = STARTING_LIFE, poison = 0, commanderDamage = emptyMap(), turnTimeMs = 0)
+                it.copy(
+                    life = STARTING_LIFE,
+                    poison = 0,
+                    commanderDamage = emptyMap(),
+                    damageDealt = 0,
+                    damageTaken = 0,
+                    turnTimeMs = 0,
+                    turnsTaken = 0,
+                    longestTurnMs = 0
+                )
             },
             currentTurn = 1,
             currentTurnPlayerId = _state.value.startingPlayerId,
-            turnClockRunningSince = if (wasRunning) nowMs() else null
+            turnClockRunningSince = if (wasRunning) nowMs() else null,
+            currentTurnMs = 0
         )
-        previous.forEach { player ->
-            if (player.life != STARTING_LIFE) mirrorLifeChange(player.id, STARTING_LIFE - player.life)
-            if (player.poison != 0) mirrorPoisonChange(player.id, -player.poison)
-            player.commanderDamage.forEach { (attackerId, amount) ->
-                if (amount != 0) mirrorCommanderDamage(attackerId, player.id, -amount)
+        undoSteps.clear()
+        publishUndoState()
+        launchRemote {
+            val session = activeSession() ?: return@launchRemote
+            // Read here, not when resetLives ran: actions still queued ahead of this one add theirs.
+            val ids = liveRemoteActionIds.toList().asReversed()
+            for (chunk in ids.chunked(MAX_UNDO_BATCH)) {
+                gameRepository.undoActions(session, chunk)
+                    .onSuccess { liveRemoteActionIds.removeAll(chunk.toSet()) }
+                    .onFailure { error -> reportRemoteFailure(error) }
             }
         }
+        _state.value.currentTurnPlayerId?.takeIf { _state.value.turnClockStarted }?.let { mirrorTurnStart(it) }
     }
 
     private fun checkForGameOver() {
         val winnerId = resolveGameOutcomeUseCase.automaticWinner(_state.value.players.toOutcomes()) ?: return
-        finishGame(winnerId = winnerId)
+        finishLocally(winnerId = winnerId)
     }
 
-    fun finishGame(winnerId: Int? = null) {
+    /** "Finish game" from the pause menu. */
+    fun finishGame(winnerId: Int? = null) = recordStep(UndoLabel.FinishGame) { finishLocally(winnerId) }
+
+    /**
+     * Ends the game on this device only: the summary shows, but the result isn't saved and the
+     * backend isn't told until [confirmFinish] -- so a mistaken lethal hit (or a mistaken "finish")
+     * can still be undone from the summary. The finish belongs to the step that caused it, and
+     * undoing that step reopens the game (see [UndoEffect.Finished]).
+     */
+    private fun finishLocally(winnerId: Int?) {
         if (_state.value.isFinished) return
         val resolvedWinnerId = resolveGameOutcomeUseCase.resolveWinner(_state.value.players.toOutcomes(), winnerId)
 
-        _state.value = settleTurnClock(_state.value).copy(isFinished = true, winnerId = resolvedWinnerId)
-        persistGameResult(resolvedWinnerId)
+        // The turn the game ended on counts as a finished turn too.
+        val wasRunning = _state.value.turnClockRunningSince != null
+        val lastTurnPlayerId = _state.value.currentTurnPlayerId
+        val longestBefore = _state.value.players.firstOrNull { it.id == lastTurnPlayerId }?.longestTurnMs ?: 0
+        val (closed, lastTurnMs) = closeTurn(settleTurnClock(_state.value))
+        _state.value = closed.copy(isFinished = true, winnerId = resolvedWinnerId)
+        addUndoEffect(UndoEffect.Finished(lastTurnPlayerId, lastTurnMs, longestBefore, wasRunning))
+        pendingFinish = PendingFinish(lastTurnPlayerId, lastTurnMs)
+    }
+
+    /**
+     * Makes the finish shown on the summary final: saves the result and finishes the remote game
+     * (which recalculates the statistics). From here on nothing can be undone. The last turn's
+     * TurnEnd is queued before the remote `finish`, which would reject any later action with 409.
+     * A no-op when there's no finish pending (already confirmed, or finished by another device).
+     */
+    fun confirmFinish() {
+        val pending = pendingFinish ?: return
+        pendingFinish = null
+        undoSteps.clear()
+        publishUndoState()
+        if (pending.lastTurnPlayerId != null && pending.lastTurnMs != null) {
+            mirrorTurnEnd(pending.lastTurnPlayerId, pending.lastTurnMs)
+        }
+        persistGameResult(_state.value.winnerId)
         finishRemoteGame()
     }
 
@@ -494,35 +677,120 @@ class GameViewModel @Inject constructor(
      * bootstrap is still in flight, the action waits for it to finish instead of being dropped.
      */
     private fun mirrorLifeChange(playerId: Int, amount: Int) {
+        val step = openStep
         launchRemote {
             val session = activeSession() ?: return@launchRemote
             val remotePlayerId = session.seatPlayerIds[playerId - 1] ?: return@launchRemote
             gameRepository.recordLifeChange(session, remotePlayerId, amount)
+                .track(step)
                 .onFailure { error -> reportRemoteFailure(error) }
         }
     }
 
     /**
-     * Mirrors commander damage from [attackerId] against [targetPlayerId]; no-op if EITHER of
-     * the two seats has no real `GamePlayer` (attributing damage to someone else's `GamePlayer`,
-     * or sending it without a real actor, would corrupt another user's statistics).
+     * Mirrors commander damage from [attackerId] against [targetPlayerId]; no-op if the defender has
+     * no real `GamePlayer`, and only a life change when the attacker isn't this device's to act for
+     * (attributing damage to someone else's `GamePlayer` would corrupt another user's statistics).
      */
     private fun mirrorCommanderDamage(attackerId: Int, targetPlayerId: Int, amount: Int) {
+        val step = openStep
         launchRemote {
             val session = activeSession() ?: return@launchRemote
-            val attackerPlayerId = session.seatPlayerIds[attackerId - 1] ?: return@launchRemote
             val defenderPlayerId = session.seatPlayerIds[targetPlayerId - 1] ?: return@launchRemote
-            gameRepository.recordCommanderDamage(session, attackerPlayerId, defenderPlayerId, amount)
+            // Joined mode: another device's commander can't be this device's actor. The defender's
+            // life is kept in sync with a LifeChange, though the 21-point count stays local.
+            val attackerPlayerId = ownedRemotePlayerId(session, attackerId)
+            val result = if (attackerPlayerId != null) {
+                gameRepository.recordCommanderDamage(session, attackerPlayerId, defenderPlayerId, amount)
+            } else {
+                gameRepository.recordLifeChange(session, defenderPlayerId, -amount)
+            }
+            result.track(step)
                 .onFailure { error -> reportRemoteFailure(error) }
         }
     }
 
     /** Mirrors a poison counter change of [playerId]; no-op if it has no real `GamePlayer`. */
     private fun mirrorPoisonChange(playerId: Int, amount: Int) {
+        val step = openStep
         launchRemote {
             val session = activeSession() ?: return@launchRemote
             val remotePlayerId = session.seatPlayerIds[playerId - 1] ?: return@launchRemote
             gameRepository.recordPoisonChange(session, remotePlayerId, amount)
+                .track(step)
+                .onFailure { error -> reportRemoteFailure(error) }
+        }
+    }
+
+    /**
+     * The `GamePlayer` of [seatId] if THIS device may act on its behalf -- the backend only accepts
+     * an action whose actor is the caller's own (or proxy-joined) seat. In joined mode the session
+     * knows every seat, but only [ownedSeatIds] may be an actor.
+     */
+    private fun ownedRemotePlayerId(session: RemoteGameSession, seatId: Int): String? =
+        session.seatPlayerIds[seatId - 1]?.takeIf { seatId in ownedSeatIds }
+
+    /**
+     * Mirrors plain damage from [attackerId] to [targetPlayerId] as `CombatDamage`, which the
+     * backend credits to the attacker as damage dealt. When the attacker can't be the actor (a guest
+     * seat, or another device's seat in joined mode) it falls back to a `LifeChange` on the target,
+     * so the target's life still stays in sync even though nobody gets credit for the damage.
+     */
+    private fun mirrorCombatDamage(attackerId: Int, targetPlayerId: Int, amount: Int) {
+        val step = openStep
+        launchRemote {
+            val session = activeSession() ?: return@launchRemote
+            val defenderPlayerId = session.seatPlayerIds[targetPlayerId - 1] ?: return@launchRemote
+            val attackerPlayerId = ownedRemotePlayerId(session, attackerId)
+            val result = if (attackerPlayerId != null) {
+                gameRepository.recordCombatDamage(session, attackerPlayerId, defenderPlayerId, amount)
+            } else {
+                gameRepository.recordLifeChange(session, defenderPlayerId, -amount)
+            }
+            result.track(step)
+                .onFailure { error -> reportRemoteFailure(error) }
+        }
+    }
+
+    /**
+     * Credits [sourceId] with eliminating [targetId] on the backend when the damage just applied
+     * took [targetId] out. The backend eliminates the player on its own when life hits 0, but that
+     * auto-elimination has no actor, so without this explicit `Elimination` nobody gets the kill.
+     * Queued before [finishRemoteGame]'s `finish`, which would reject any later action with 409.
+     */
+    private fun mirrorEliminationIfLethal(sourceId: Int, targetId: Int, wasEliminated: Boolean) {
+        if (wasEliminated || !isSeatEliminated(targetId)) return
+        val step = openStep
+        launchRemote {
+            val session = activeSession() ?: return@launchRemote
+            val actorPlayerId = ownedRemotePlayerId(session, sourceId) ?: return@launchRemote
+            val targetRemotePlayerId = session.seatPlayerIds[targetId - 1] ?: return@launchRemote
+            gameRepository.recordElimination(session, actorPlayerId, targetRemotePlayerId)
+                .track(step)
+                .onFailure { error -> reportRemoteFailure(error) }
+        }
+    }
+
+    /** Records the end of [playerId]'s turn and its length, for the backend's turn-time statistics. */
+    private fun mirrorTurnEnd(playerId: Int, durationMs: Long) {
+        val step = openStep
+        launchRemote {
+            val session = activeSession() ?: return@launchRemote
+            val remotePlayerId = ownedRemotePlayerId(session, playerId) ?: return@launchRemote
+            gameRepository.recordTurnEnd(session, remotePlayerId, durationMs)
+                .track(step)
+                .onFailure { error -> reportRemoteFailure(error) }
+        }
+    }
+
+    /** Records the start of [playerId]'s turn, which is what the backend counts as the game's turns. */
+    private fun mirrorTurnStart(playerId: Int) {
+        val step = openStep
+        launchRemote {
+            val session = activeSession() ?: return@launchRemote
+            val remotePlayerId = ownedRemotePlayerId(session, playerId) ?: return@launchRemote
+            gameRepository.recordTurnStart(session, remotePlayerId)
+                .track(step)
                 .onFailure { error -> reportRemoteFailure(error) }
         }
     }
@@ -568,6 +836,7 @@ class GameViewModel @Inject constructor(
     private fun handleSocketEvent(event: GameSocketEvent) {
         when (event) {
             is GameSocketEvent.ActionReceived -> applyRemoteAction(event.action)
+            is GameSocketEvent.ActionUndone -> applyRemoteUndo(event.action)
             GameSocketEvent.GameFinished -> applyRemoteGameFinished()
             GameSocketEvent.Connected, is GameSocketEvent.Disconnected -> Unit
         }
@@ -595,6 +864,13 @@ class GameViewModel @Inject constructor(
                     applyCommanderDamageDelta(targetSeatId = targetSeatId, attackerSeatId = actorSeatId, amount = amount)
                 }
             }
+            GameActionType.COMBAT_DAMAGE -> {
+                val targetSeatId = action.targetId?.let { seatIdForPlayer(session, it) }
+                val amount = action.amount
+                if (targetSeatId != null && amount != null) {
+                    applyCombatDamageDelta(targetSeatId = targetSeatId, attackerSeatId = actorSeatId, amount = amount)
+                }
+            }
             else -> Unit
         }
     }
@@ -602,11 +878,13 @@ class GameViewModel @Inject constructor(
     private fun seatIdForPlayer(session: RemoteGameSession, remotePlayerId: String): Int? =
         session.seatPlayerIds.entries.firstOrNull { it.value == remotePlayerId }?.key?.plus(1)
 
+    /** A remote `LifeChange` carries no source, so a loss only counts towards [PlayerState.damageTaken]. */
     private fun applyLifeDelta(seatId: Int, amount: Int) {
+        val players = _state.value.players.map { player ->
+            if (player.id == seatId) player.copy(life = player.life + amount) else player
+        }
         _state.value = _state.value.copy(
-            players = _state.value.players.map { player ->
-                if (player.id == seatId) player.copy(life = player.life + amount) else player
-            }
+            players = if (amount < 0) players.withDamageTotals(sourceId = null, targetId = seatId, amount = -amount) else players
         )
     }
 
@@ -615,6 +893,14 @@ class GameViewModel @Inject constructor(
             players = _state.value.players.map { player ->
                 if (player.id == seatId) player.copy(poison = (player.poison + amount).coerceAtLeast(0)) else player
             }
+        )
+    }
+
+    private fun applyCombatDamageDelta(targetSeatId: Int, attackerSeatId: Int, amount: Int) {
+        _state.value = _state.value.copy(
+            players = _state.value.players.map { player ->
+                if (player.id == targetSeatId) player.copy(life = player.life - amount) else player
+            }.withDamageTotals(sourceId = attackerSeatId, targetId = targetSeatId, amount = amount)
         )
     }
 
@@ -630,7 +916,7 @@ class GameViewModel @Inject constructor(
                 } else {
                     player
                 }
-            }
+            }.withDamageTotals(sourceId = attackerSeatId, targetId = targetSeatId, amount = amount)
         )
     }
 
@@ -639,8 +925,196 @@ class GameViewModel @Inject constructor(
         if (_state.value.isFinished) return
         socketJob?.cancel()
         val winnerId = _state.value.players.filter { it.isAlive() }.singleOrNull()?.id
-        _state.value = settleTurnClock(_state.value).copy(isFinished = true, winnerId = winnerId)
+        // Already finished remotely: the last turn is only counted locally, there's no TurnEnd to
+        // send, and nothing can be undone any more.
+        _state.value = closeTurn(settleTurnClock(_state.value)).first.copy(isFinished = true, winnerId = winnerId)
+        undoSteps.clear()
+        pendingFinish = null
+        publishUndoState()
         persistGameResult(winnerId)
+    }
+
+    // ------------------------------------------------------------------ undo
+
+    /**
+     * Runs a player action as one undoable step: every effect it causes -- including a lethal hit's
+     * elimination and the end of the game -- is recorded against [label] and undone together.
+     * Reentrant: an action that runs inside another (the finish a lethal hit triggers) joins the
+     * outer step. A step that ended up changing nothing isn't kept.
+     */
+    private inline fun recordStep(label: UndoLabel, action: () -> Unit) {
+        if (openStep != null) {
+            action()
+            return
+        }
+        val step = UndoStep(label)
+        openStep = step
+        try {
+            action()
+        } finally {
+            openStep = null
+        }
+        if (step.effects.isNotEmpty()) {
+            undoSteps.addLast(step)
+            publishUndoState()
+        }
+    }
+
+    private fun addUndoEffect(effect: UndoEffect) {
+        openStep?.effects?.add(effect)
+    }
+
+    /** Remembers a recorded backend action, for undo ([step]) and for [resetLives]. */
+    private fun Result<GameAction>.track(step: UndoStep?): Result<GameAction> = onSuccess { action ->
+        liveRemoteActionIds += action.id
+        step?.remoteActionIds?.add(action.id)
+    }
+
+    private fun publishUndoState() {
+        _state.value = _state.value.copy(canUndo = undoSteps.isNotEmpty())
+    }
+
+    private fun nameOf(seatId: Int): String = _state.value.players.firstOrNull { it.id == seatId }?.name.orEmpty()
+
+    /**
+     * Undoes the most recent step this device recorded -- on the summary too, where the step that
+     * ended the game reopens it. Only this device's own steps: in joined mode, the other seats undo
+     * theirs, and the change reaches this device through [applyRemoteUndo].
+     */
+    fun undo() {
+        val step = undoSteps.removeLastOrNull() ?: return
+        revertStep(step)
+    }
+
+    /**
+     * The commander grid's "-": undoes the latest step in which [attackerId]'s commander hit
+     * [targetPlayerId], even if something else happened after it (its effects are independent of
+     * later ones). Commander damage is never negative on the backend, so this is how it goes down.
+     */
+    fun undoCommanderDamage(targetPlayerId: Int, attackerId: Int) {
+        if (_state.value.isFinished) return
+        val step = undoSteps.lastOrNull { candidate ->
+            candidate.effects.none { it is UndoEffect.TurnPassed || it is UndoEffect.Finished } &&
+                candidate.effects.any { it is UndoEffect.Commander && it.targetId == targetPlayerId && it.attackerId == attackerId }
+        } ?: return
+        undoSteps.remove(step)
+        revertStep(step)
+    }
+
+    private fun revertStep(step: UndoStep) {
+        var state = _state.value
+        for (effect in step.effects.asReversed()) state = revertEffect(state, effect)
+        undoNoticeSeq += 1
+        _state.value = state.copy(canUndo = undoSteps.isNotEmpty(), lastUndone = UndoNotice(undoNoticeSeq, step.label))
+        if (step.effects.any { it is UndoEffect.Finished }) pendingFinish = null
+
+        launchRemote {
+            // Read here, not when undo ran: the step's own actions were queued ahead of this block.
+            val ids = step.remoteActionIds.asReversed().toList()
+            if (ids.isEmpty()) return@launchRemote
+            val session = activeSession() ?: return@launchRemote
+            gameRepository.undoActions(session, ids)
+                .onSuccess { liveRemoteActionIds.removeAll(ids.toSet()) }
+                .onFailure { error -> reportRemoteFailure(error) }
+        }
+    }
+
+    private fun revertEffect(state: GameState, effect: UndoEffect): GameState = when (effect) {
+        is UndoEffect.Life -> state.mapPlayer(effect.seatId) { it.copy(life = it.life - effect.amount) }
+        is UndoEffect.Poison -> state.mapPlayer(effect.seatId) { it.copy(poison = (it.poison - effect.amount).coerceAtLeast(0)) }
+        is UndoEffect.Commander -> state.mapPlayer(effect.targetId) { player ->
+            val current = player.commanderDamage[effect.attackerId] ?: 0
+            player.copy(
+                life = player.life + effect.amount,
+                commanderDamage = player.commanderDamage + (effect.attackerId to (current - effect.amount).coerceAtLeast(0))
+            )
+        }
+        is UndoEffect.DamageTotals ->
+            state.copy(players = state.players.withDamageTotals(effect.sourceId, effect.targetId, -effect.amount))
+        is UndoEffect.TurnPassed -> revertTurnPass(state, effect)
+        is UndoEffect.Finished -> revertFinish(state, effect)
+    }
+
+    private inline fun GameState.mapPlayer(seatId: Int, transform: (PlayerState) -> PlayerState): GameState =
+        copy(players = players.map { if (it.id == seatId) transform(it) else it })
+
+    /**
+     * Hands the turn back to whoever passed it. The time the next seat has run on its turn since
+     * then goes back to the one who passed, whose closed turn reopens with it (it never ended).
+     */
+    private fun revertTurnPass(state: GameState, effect: UndoEffect.TurnPassed): GameState {
+        val wasRunning = state.turnClockRunningSince != null
+        val settled = settleTurnClock(state)
+        val sinceThePass = settled.currentTurnMs
+        val players = settled.players.map { player ->
+            var p = player
+            if (p.id == effect.toId) p = p.copy(turnTimeMs = p.turnTimeMs - sinceThePass)
+            if (p.id == effect.fromId) {
+                p = p.copy(turnTimeMs = p.turnTimeMs + sinceThePass)
+                if (effect.closedTurnMs != null) {
+                    p = p.copy(turnsTaken = p.turnsTaken - 1, longestTurnMs = effect.fromLongestBefore)
+                }
+            }
+            p
+        }
+        return settled.copy(
+            players = players,
+            currentTurn = settled.currentTurn - 1,
+            currentTurnPlayerId = effect.fromId,
+            currentTurnMs = (effect.closedTurnMs ?: 0) + sinceThePass,
+            turnClockRunningSince = if (wasRunning) nowMs() else null
+        )
+    }
+
+    /** Reopens a game finished locally: its last turn goes on, and its clock runs again if it was. */
+    private fun revertFinish(state: GameState, effect: UndoEffect.Finished): GameState {
+        val reopened = if (effect.closedTurnMs != null && effect.turnOwnerId != null) {
+            state.mapPlayer(effect.turnOwnerId) {
+                it.copy(turnsTaken = it.turnsTaken - 1, longestTurnMs = effect.longestBefore)
+            }
+        } else {
+            state
+        }
+        return reopened.copy(
+            isFinished = false,
+            winnerId = null,
+            currentTurnMs = effect.closedTurnMs ?: reopened.currentTurnMs,
+            turnClockRunningSince = if (effect.clockWasRunning) nowMs() else null
+        )
+    }
+
+    /**
+     * Reverts an `action_undone` broadcast for a seat this device does NOT own -- the counterpart of
+     * [applyRemoteAction]. This device's own undos were already reverted locally by [undo].
+     */
+    private fun applyRemoteUndo(action: GameAction) {
+        val session = remoteSession ?: return
+        val actorSeatId = seatIdForPlayer(session, action.actorId) ?: return
+        if (actorSeatId in ownedSeatIds) return
+        val amount = action.amount ?: return
+        val targetSeatId = action.targetId?.let { seatIdForPlayer(session, it) }
+
+        _state.value = when (action.actionType) {
+            GameActionType.LIFE_CHANGE -> _state.value.mapPlayer(actorSeatId) { it.copy(life = it.life - amount) }
+                .let { reverted ->
+                    // A remote loss counted as damage taken (see applyLifeDelta); its undo takes it back.
+                    if (amount < 0) reverted.copy(players = reverted.players.withDamageTotals(null, actorSeatId, amount)) else reverted
+                }
+            GameActionType.POISON_COUNTER -> revertEffect(_state.value, UndoEffect.Poison(actorSeatId, amount))
+            GameActionType.COMBAT_DAMAGE -> targetSeatId?.let { target ->
+                revertEffect(
+                    revertEffect(_state.value, UndoEffect.DamageTotals(actorSeatId, target, amount)),
+                    UndoEffect.Life(target, -amount)
+                )
+            } ?: return
+            GameActionType.COMMANDER_DAMAGE -> targetSeatId?.let { target ->
+                revertEffect(
+                    revertEffect(_state.value, UndoEffect.DamageTotals(actorSeatId, target, amount)),
+                    UndoEffect.Commander(target, actorSeatId, amount)
+                )
+            } ?: return
+            else -> return
+        }
     }
 
     private fun activeSession(): RemoteGameSession? = remoteSession?.takeIf { it.isActive }

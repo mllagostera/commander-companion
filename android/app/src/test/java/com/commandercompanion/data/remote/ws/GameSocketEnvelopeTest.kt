@@ -58,6 +58,36 @@ class GameSocketEnvelopeTest {
     }
 
     @Test
+    fun `action_undone carries the undone action in the payload`() {
+        val text = """
+            {
+              "type": "action_undone",
+              "game_id": "game-1",
+              "actor_id": "gp-1",
+              "payload": {
+                "id": "action-7",
+                "game_id": "game-1",
+                "actor_id": "gp-1",
+                "target_id": "gp-2",
+                "action_type": "CombatDamage",
+                "payload": {"amount": 5},
+                "created_at": "2026-07-27T10:00:00Z",
+                "undone_at": "2026-07-27T10:00:09Z"
+              },
+              "timestamp": "2026-07-27T10:00:09Z"
+            }
+        """.trimIndent()
+
+        val event = parseEnvelope(json, text)
+
+        assertTrue(event is GameSocketEvent.ActionUndone)
+        val action = (event as GameSocketEvent.ActionUndone).action
+        assertEquals("action-7", action.id)
+        assertEquals("gp-2", action.targetId)
+        assertEquals(5, action.amount)
+    }
+
+    @Test
     fun `error no se traduce a ningun evento (el servidor ya cierra el socket)`() {
         val event = parseEnvelope(
             json,

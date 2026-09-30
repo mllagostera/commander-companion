@@ -8,6 +8,12 @@ type UserStatsResponse struct {
 	TotalDamageDealt     int32  `json:"total_damage_dealt"`
 	TotalCommanderDamage int32  `json:"total_commander_damage_dealt"`
 	TotalEliminations    int32  `json:"total_eliminations"`
+	// TimedTurns is how many of the user's turns in finished games carried a
+	// duration (TurnEnd payload.duration_ms); LongestTurnMs/AverageTurnMs are
+	// computed over those turns only, and are 0 while TimedTurns is 0.
+	TimedTurns    int32 `json:"timed_turns"`
+	LongestTurnMs int64 `json:"longest_turn_ms"`
+	AverageTurnMs int64 `json:"average_turn_ms"`
 }
 
 // DeckStatsResponse is the DTO for a deck's statistics.
@@ -69,6 +75,15 @@ type FinishedGameResponse struct {
 	// BiggestHit is the single largest CombatDamage/CommanderDamage hit dealt in the
 	// game, if any were recorded.
 	BiggestHit *BiggestHitResponse `json:"biggest_hit,omitempty"`
+	// LongestTurn is the single longest timed turn of the game, if any turn was
+	// timed (see UserStatsResponse.TimedTurns).
+	LongestTurn *LongestTurnResponse `json:"longest_turn,omitempty"`
+}
+
+// LongestTurnResponse is the single longest timed turn within a FinishedGameResponse.
+type LongestTurnResponse struct {
+	DurationMs int64  `json:"duration_ms"`
+	Username   string `json:"username"`
 }
 
 // BiggestHitResponse is the single largest hit dealt within a FinishedGameResponse.
@@ -86,6 +101,10 @@ type FinishedGamePlayerResponse struct {
 	DeckCommander string  `json:"deck_commander"`
 	DeckImageURL  *string `json:"deck_image_url,omitempty"`
 	Won           bool    `json:"won"`
+	// LongestTurnMs/AverageTurnMs are this seat's own timed turns in the game;
+	// both are omitted when none of its turns was timed.
+	LongestTurnMs *int64 `json:"longest_turn_ms,omitempty"`
+	AverageTurnMs *int64 `json:"average_turn_ms,omitempty"`
 }
 
 // DashboardResponse is everything the web dashboard renders, in one payload.

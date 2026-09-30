@@ -84,7 +84,6 @@
 
     <!-- Tracker de partida -->
     <string name="tracker_rotate_prompt">Rotate your device\nto start the game</string>
-    <string name="tracker_mulligans_suffix">%1$d mulligan(s)</string>
     <string name="tracker_pass_turn">Pass turn</string>
     <string name="tracker_turn_label">Turn %1$d</string>
     <string name="tracker_dead">DEAD</string>
@@ -109,17 +108,29 @@
     <string name="tracker_connecting_to_server">Creating the game on the server…</string>
     <string name="tracker_loading_joined_game">Loading the table…</string>
     <string name="tracker_back_to_dashboard">Back home</string>
+    <string name="tracker_undo">Undo</string>
+    <string name="undo_notice_damage">Undone: %1$d damage from %2$s to %3$s</string>
+    <string name="undo_notice_commander_damage">Undone: %1$d commander damage from %2$s to %3$s</string>
+    <string name="undo_notice_life_gain">Undone: %1$s gains %2$d life</string>
+    <string name="undo_notice_life_loss">Undone: %1$s loses %2$d life</string>
+    <string name="undo_notice_poison">Undone: poison on %1$s</string>
+    <string name="undo_notice_pass_turn">Undone: the turn goes back to %1$s</string>
+    <string name="undo_notice_finish">Undone: the game goes on</string>
 
     <!-- Resumen de partida -->
     <string name="summary_subtitle">Game statistics · Turn %1$d</string>
     <string name="summary_winner_banner">🏆 %1$s wins</string>
     <string name="summary_back_home">Back to home</string>
+    <string name="summary_undo">↶ Undo</string>
     <string name="summary_column_player">Player</string>
     <string name="summary_column_life">Life</string>
     <string name="summary_column_dealt">Dealt</string>
     <string name="summary_column_taken">Taken</string>
     <string name="summary_column_poison">Poison</string>
     <string name="summary_column_mulligans">Mull.</string>
+    <string name="summary_column_longest_turn">Longest</string>
+    <string name="summary_column_average_turn">Avg.</string>
+    <string name="summary_longest_turn_banner">⏱ Longest turn: %1$s (%2$s)</string>
     <string name="summary_column_status">Status</string>
     <string name="summary_status_winner">Winner</string>
     <string name="summary_status_eliminated">Eliminated</string>
@@ -146,6 +157,7 @@
     <!-- Statistics -->
     <string name="statistics_title">Statistics</string>
     <string name="statistics_load_error">Couldn\'t load your statistics</string>
+    <string name="statistics_retry">Retry</string>
     <string name="statistics_global_heading">Overview</string>
     <string name="statistics_games">Games</string>
     <string name="statistics_wins">Wins</string>
@@ -166,16 +178,30 @@
     <string name="statistics_most_played_opponent_label">Who you play the most</string>
     <string name="statistics_archenemy_label">Archenemy</string>
     <string name="statistics_no_head_to_head">You haven\'t played with other users yet.</string>
-    <string name="statistics_opponent_games_together">%1$d games together</string>
-    <string name="statistics_archenemy_summary">Eliminated you %1$d times</string>
+    <plurals name="statistics_opponent_games_together">
+        <item quantity="one">%1$d game together</item>
+        <item quantity="other">%1$d games together</item>
+    </plurals>
+    <plurals name="statistics_archenemy_summary">
+        <item quantity="one">Eliminated you %1$d time</item>
+        <item quantity="other">Eliminated you %1$d times</item>
+    </plurals>
     <string name="statistics_most_played_group_label">Group you play the most in</string>
     <string name="statistics_no_group_data">You haven\'t played a game in a group yet.</string>
-    <string name="statistics_group_games_played">%1$d games</string>
+    <plurals name="statistics_group_games_played">
+        <item quantity="one">%1$d game</item>
+        <item quantity="other">%1$d games</item>
+    </plurals>
     <string name="statistics_no_finished_games">You haven\'t finished a game yet.</string>
     <string name="statistics_load_more">Load more</string>
     <string name="statistics_game_result_won">Won</string>
     <string name="statistics_game_result_lost">Lost</string>
     <string name="statistics_game_no_playgroup">Game without a group</string>
+    <string name="statistics_longest_turn">Longest turn</string>
+    <string name="statistics_average_turn">Average turn</string>
+    <string name="statistics_timed_turns">Timed turns</string>
+    <string name="statistics_game_longest_turn">Longest turn: %1$s · %2$s</string>
+    <string name="statistics_player_average_turn">Average turn %1$s</string>
 
     <string name="settings_qr_heading">Your profile code</string>
     <string name="settings_qr_body">Show it to someone so they can add you as a friend by scanning it.</string>

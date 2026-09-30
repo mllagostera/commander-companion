@@ -13,15 +13,31 @@ import (
 type Querier interface {
 	AdjustGamePlayerLife(ctx context.Context, arg AdjustGamePlayerLifeParams) (GamePlayer, error)
 	AdjustGamePlayerPoison(ctx context.Context, arg AdjustGamePlayerPoisonParams) (GamePlayer, error)
+	// Explicit Elimination actions still in force against a player: undoing a hit
+	// only brings its target back if nothing else still eliminates them.
+	CountActiveEliminationsOf(ctx context.Context, arg CountActiveEliminationsOfParams) (int32, error)
 	CreateGameAction(ctx context.Context, arg CreateGameActionParams) (GameAction, error)
 	GetGame(ctx context.Context, id pgtype.UUID) (Game, error)
+	// Locks the row so two concurrent undos of the same action can't both revert it.
+	GetGameActionForUpdate(ctx context.Context, arg GetGameActionForUpdateParams) (GameAction, error)
 	GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer, error)
 	GetGamePlayerByGameAndUser(ctx context.Context, arg GetGamePlayerByGameAndUserParams) (GamePlayer, error)
+	// The most recent TurnStart/TurnEnd still in force, to work out whose turn it is
+	// after undoing one of them (TurnStart: the actor's; TurnEnd: nobody's).
+	GetLatestTurnAction(ctx context.Context, gameID pgtype.UUID) (GameAction, error)
+	ListCommanderDamageAgainst(ctx context.Context, arg ListCommanderDamageAgainstParams) ([]CommanderDamage, error)
+	// The timeline: undone actions are left out, as if they had never happened.
 	ListGameActions(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error)
-	// current_turn_player_id nullable: TurnStart lo fija al actor, TurnEnd lo limpia
-	// (pasando NULL). Ver internal/game-actions/service.go.
+	MarkGameActionUndone(ctx context.Context, id pgtype.UUID) (GameAction, error)
+	// current_turn_player_id is nullable: TurnStart sets it to the actor, TurnEnd clears
+	// it (passing NULL). See internal/game-actions/service.go.
 	SetCurrentTurnPlayer(ctx context.Context, arg SetCurrentTurnPlayerParams) (Game, error)
 	SetGamePlayerEliminated(ctx context.Context, arg SetGamePlayerEliminatedParams) (GamePlayer, error)
+	// Undo of a CommanderDamage action. A plain UPDATE rather than UpsertCommanderDamage
+	// with a negative delta: the INSERT half of the upsert would trip
+	// commander_damage_amount_chk (amount >= 0) before ON CONFLICT is even considered.
+	// The row always exists here (the action being undone created or grew it).
+	SubtractCommanderDamage(ctx context.Context, arg SubtractCommanderDamageParams) error
 	UpsertCommanderDamage(ctx context.Context, arg UpsertCommanderDamageParams) (CommanderDamage, error)
 }
 

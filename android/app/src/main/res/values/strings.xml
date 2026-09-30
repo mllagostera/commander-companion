@@ -87,7 +87,6 @@
 
     <!-- Tracker de partida -->
     <string name="tracker_rotate_prompt">Gira tu dispositivo\npara empezar la partida</string>
-    <string name="tracker_mulligans_suffix">%1$d mulligan(s)</string>
     <string name="tracker_pass_turn">Pasar turno</string>
     <string name="tracker_turn_label">Turno %1$d</string>
     <string name="tracker_dead">MUERTO</string>
@@ -112,17 +111,29 @@
     <string name="tracker_connecting_to_server">Creando la partida en el servidor…</string>
     <string name="tracker_loading_joined_game">Cargando la mesa…</string>
     <string name="tracker_back_to_dashboard">Volver al inicio</string>
+    <string name="tracker_undo">Deshacer</string>
+    <string name="undo_notice_damage">Deshecho: %1$d de daño de %2$s a %3$s</string>
+    <string name="undo_notice_commander_damage">Deshecho: %1$d de daño de comandante de %2$s a %3$s</string>
+    <string name="undo_notice_life_gain">Deshecho: %1$s gana %2$d de vida</string>
+    <string name="undo_notice_life_loss">Deshecho: %1$s pierde %2$d de vida</string>
+    <string name="undo_notice_poison">Deshecho: veneno de %1$s</string>
+    <string name="undo_notice_pass_turn">Deshecho: el turno vuelve a %1$s</string>
+    <string name="undo_notice_finish">Deshecho: la partida sigue</string>
 
     <!-- Resumen de partida -->
     <string name="summary_subtitle">Estadísticas de la partida · Turno %1$d</string>
     <string name="summary_winner_banner">🏆 Gana %1$s</string>
     <string name="summary_back_home">Volver al inicio</string>
+    <string name="summary_undo">↶ Deshacer</string>
     <string name="summary_column_player">Jugador</string>
     <string name="summary_column_life">Vida</string>
     <string name="summary_column_dealt">Hecho</string>
     <string name="summary_column_taken">Recib.</string>
     <string name="summary_column_poison">Veneno</string>
     <string name="summary_column_mulligans">Mull.</string>
+    <string name="summary_column_longest_turn">Turno máx.</string>
+    <string name="summary_column_average_turn">Media</string>
+    <string name="summary_longest_turn_banner">⏱ Turno más largo: %1$s (%2$s)</string>
     <string name="summary_column_status">Estado</string>
     <string name="summary_status_winner">Ganador</string>
     <string name="summary_status_eliminated">Eliminado</string>
@@ -149,6 +160,7 @@
     <!-- Estadísticas -->
     <string name="statistics_title">Estadísticas</string>
     <string name="statistics_load_error">No se pudieron cargar las estadísticas</string>
+    <string name="statistics_retry">Reintentar</string>
     <string name="statistics_global_heading">Resumen general</string>
     <string name="statistics_games">Partidas</string>
     <string name="statistics_wins">Victorias</string>
@@ -169,16 +181,30 @@
     <string name="statistics_most_played_opponent_label">Contra quién más juegas</string>
     <string name="statistics_archenemy_label">Archienemigo</string>
     <string name="statistics_no_head_to_head">Todavía no has jugado ninguna partida con otros usuarios.</string>
-    <string name="statistics_opponent_games_together">%1$d partidas juntos</string>
-    <string name="statistics_archenemy_summary">Te ha eliminado %1$d veces</string>
+    <plurals name="statistics_opponent_games_together">
+        <item quantity="one">%1$d partida juntos</item>
+        <item quantity="other">%1$d partidas juntos</item>
+    </plurals>
+    <plurals name="statistics_archenemy_summary">
+        <item quantity="one">Te ha eliminado %1$d vez</item>
+        <item quantity="other">Te ha eliminado %1$d veces</item>
+    </plurals>
     <string name="statistics_most_played_group_label">Grupo en el que más juegas</string>
     <string name="statistics_no_group_data">Todavía no has jugado ninguna partida en un grupo.</string>
-    <string name="statistics_group_games_played">%1$d partidas</string>
+    <plurals name="statistics_group_games_played">
+        <item quantity="one">%1$d partida</item>
+        <item quantity="other">%1$d partidas</item>
+    </plurals>
     <string name="statistics_no_finished_games">Todavía no has terminado ninguna partida.</string>
     <string name="statistics_load_more">Cargar más</string>
     <string name="statistics_game_result_won">Ganó</string>
     <string name="statistics_game_result_lost">Perdió</string>
     <string name="statistics_game_no_playgroup">Partida sin grupo</string>
+    <string name="statistics_longest_turn">Turno más largo</string>
+    <string name="statistics_average_turn">Media por turno</string>
+    <string name="statistics_timed_turns">Turnos cronometrados</string>
+    <string name="statistics_game_longest_turn">Turno más largo: %1$s · %2$s</string>
+    <string name="statistics_player_average_turn">Media por turno %1$s</string>
 
     <string name="settings_qr_heading">Tu código de perfil</string>
     <string name="settings_qr_body">Enséñaselo a otra persona para que te añada como amigo escaneándolo.</string>

@@ -125,6 +125,7 @@ Table game_actions {
   action_type varchar [not null, note: 'E.g.: LifeChange, CombatDamage, CommanderDamage, PoisonCounter, TurnStart, TurnEnd, Elimination']
   payload jsonb [note: 'E.g. for CommanderDamage: {"amount": 7, "commander_deck_id": "uuid"}']
   created_at timestamp [default: `now()`]
+  undone_at timestamptz [note: 'Set when the action was undone (POST /games/{id}/actions/undo, migration 00020_game_actions_undo.sql). Undone rows stay for the audit trail; timeline and statistics read only the rows where it is NULL']
 
   indexes {
     game_id [note: 'Hot path for reading the timeline of a game (migration 00003_indices.sql)']

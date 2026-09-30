@@ -58,13 +58,17 @@ func (s *service) GetDashboard(ctx context.Context, userID string) (*DashboardRe
 // finished a game as zeros rather than an error -- same rule as GetUserStats.
 func (s *service) dashboardUserStats(ctx context.Context, userID string, uid pgtype.UUID) (UserStatsResponse, error) {
 	stats, err := s.repo.GetUserStatistics(ctx, uid)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return UserStatsResponse{UserID: userID}, nil
-		}
+	res := &UserStatsResponse{UserID: userID}
+	switch {
+	case err == nil:
+		res = toUserStatsResponse(&stats)
+	case !errors.Is(err, pgx.ErrNoRows):
 		return UserStatsResponse{}, fmt.Errorf("looking up user statistics: %w", err)
 	}
-	return *toUserStatsResponse(&stats), nil
+	if err := s.applyUserTurnTimes(ctx, uid, res); err != nil {
+		return UserStatsResponse{}, err
+	}
+	return *res, nil
 }
 
 // dashboardTotals counts the full collections, which the header line reports

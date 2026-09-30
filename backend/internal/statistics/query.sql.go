@@ -194,6 +194,38 @@ func (q *Queries) GetUserStatistics(ctx context.Context, userID pgtype.UUID) (Us
 	return i, err
 }
 
+const getUserTurnTimeStats = `-- name: GetUserTurnTimeStats :one
+SELECT
+  COUNT(*)::int AS timed_turns,
+  COALESCE(MAX((ga.payload->>'duration_ms')::bigint), 0)::bigint AS longest_turn_ms,
+  COALESCE(ROUND(AVG((ga.payload->>'duration_ms')::bigint)), 0)::bigint AS average_turn_ms
+FROM game_actions ga
+JOIN game_players gp ON gp.id = ga.actor_id
+JOIN games g ON g.id = ga.game_id AND g.status = 'finished'
+WHERE gp.user_id = $1
+  AND ga.action_type = 'TurnEnd'
+  AND ga.undone_at IS NULL
+  AND ga.payload->>'duration_ms' IS NOT NULL
+`
+
+type GetUserTurnTimeStatsRow struct {
+	TimedTurns    int32 `json:"timed_turns"`
+	LongestTurnMs int64 `json:"longest_turn_ms"`
+	AverageTurnMs int64 `json:"average_turn_ms"`
+}
+
+// A user's turn-time record across their finished games: how many turns were timed,
+// the longest one and the average, all in milliseconds. Read from the TurnEnd actions
+// that carry payload.duration_ms (measured by the client's turn clock, pauses
+// excluded); a TurnEnd without it -- sent by older clients -- simply doesn't count.
+// Computed live, like ListOpponentStats: there's no summary column for it.
+func (q *Queries) GetUserTurnTimeStats(ctx context.Context, userID pgtype.UUID) (GetUserTurnTimeStatsRow, error) {
+	row := q.db.QueryRow(ctx, getUserTurnTimeStats, userID)
+	var i GetUserTurnTimeStatsRow
+	err := row.Scan(&i.TimedTurns, &i.LongestTurnMs, &i.AverageTurnMs)
+	return i, err
+}
+
 const listDashboardDecksForUser = `-- name: ListDashboardDecksForUser :many
 SELECT
   d.id AS deck_id,
@@ -473,7 +505,7 @@ const listGameActionSummaryForGames = `-- name: ListGameActionSummaryForGames :m
 WITH turns AS (
   SELECT game_id, COUNT(*)::int AS turn_count
   FROM game_actions
-  WHERE game_id = ANY($1::uuid[]) AND action_type = 'TurnStart'
+  WHERE game_id = ANY($1::uuid[]) AND action_type = 'TurnStart' AND undone_at IS NULL
   GROUP BY game_id
 ),
 hits AS (
@@ -484,6 +516,7 @@ hits AS (
   FROM game_actions
   WHERE game_id = ANY($1::uuid[])
     AND action_type IN ('CombatDamage', 'CommanderDamage')
+    AND undone_at IS NULL
   ORDER BY game_id, (payload->>'amount')::int DESC
 )
 SELECT
@@ -537,9 +570,10 @@ func (q *Queries) ListGameActionSummaryForGames(ctx context.Context, gameIds []p
 }
 
 const listGameActionsForGame = `-- name: ListGameActionsForGame :many
-SELECT id, game_id, actor_id, target_id, action_type, payload, created_at FROM game_actions WHERE game_id = $1 ORDER BY created_at ASC
+SELECT id, game_id, actor_id, target_id, action_type, payload, created_at, undone_at FROM game_actions WHERE game_id = $1 AND undone_at IS NULL ORDER BY created_at ASC
 `
 
+// Undone actions don't count towards any statistic.
 func (q *Queries) ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID) ([]GameAction, error) {
 	rows, err := q.db.Query(ctx, listGameActionsForGame, gameID)
 	if err != nil {
@@ -557,6 +591,7 @@ func (q *Queries) ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID
 			&i.ActionType,
 			&i.Payload,
 			&i.CreatedAt,
+			&i.UndoneAt,
 		); err != nil {
 			return nil, err
 		}
@@ -617,9 +652,11 @@ JOIN users u ON u.id = other.user_id
 LEFT JOIN game_actions you_eliminated
   ON you_eliminated.game_id = me.game_id AND you_eliminated.action_type = 'Elimination'
   AND you_eliminated.actor_id = me.id AND you_eliminated.target_id = other.id
+  AND you_eliminated.undone_at IS NULL
 LEFT JOIN game_actions they_eliminated
   ON they_eliminated.game_id = me.game_id AND they_eliminated.action_type = 'Elimination'
   AND they_eliminated.actor_id = other.id AND they_eliminated.target_id = me.id
+  AND they_eliminated.undone_at IS NULL
 WHERE me.user_id = $1
 GROUP BY other.user_id, u.username
 `
@@ -815,6 +852,63 @@ func (q *Queries) ListPlaygroupMemberGameStats(ctx context.Context, playgroupID 
 	for rows.Next() {
 		var i ListPlaygroupMemberGameStatsRow
 		if err := rows.Scan(&i.UserID, &i.GamesPlayed, &i.GamesWon); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTurnTimeStatsForGames = `-- name: ListTurnTimeStatsForGames :many
+SELECT
+  ga.game_id,
+  gp.user_id,
+  u.username,
+  COUNT(*)::int AS timed_turns,
+  MAX((ga.payload->>'duration_ms')::bigint)::bigint AS longest_turn_ms,
+  ROUND(AVG((ga.payload->>'duration_ms')::bigint))::bigint AS average_turn_ms
+FROM game_actions ga
+JOIN game_players gp ON gp.id = ga.actor_id
+JOIN users u ON u.id = gp.user_id
+WHERE ga.game_id = ANY($1::uuid[])
+  AND ga.action_type = 'TurnEnd'
+  AND ga.undone_at IS NULL
+  AND ga.payload->>'duration_ms' IS NOT NULL
+GROUP BY ga.game_id, gp.user_id, u.username
+`
+
+type ListTurnTimeStatsForGamesRow struct {
+	GameID        pgtype.UUID `json:"game_id"`
+	UserID        pgtype.UUID `json:"user_id"`
+	Username      string      `json:"username"`
+	TimedTurns    int32       `json:"timed_turns"`
+	LongestTurnMs int64       `json:"longest_turn_ms"`
+	AverageTurnMs int64       `json:"average_turn_ms"`
+}
+
+// Per seat of each game in game_ids: how many of its turns were timed, the longest
+// and the average (ms), from the same TurnEnd payload.duration_ms as
+// GetUserTurnTimeStats. A seat with no timed turn has no row.
+func (q *Queries) ListTurnTimeStatsForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListTurnTimeStatsForGamesRow, error) {
+	rows, err := q.db.Query(ctx, listTurnTimeStatsForGames, gameIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTurnTimeStatsForGamesRow
+	for rows.Next() {
+		var i ListTurnTimeStatsForGamesRow
+		if err := rows.Scan(
+			&i.GameID,
+			&i.UserID,
+			&i.Username,
+			&i.TimedTurns,
+			&i.LongestTurnMs,
+			&i.AverageTurnMs,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

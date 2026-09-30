@@ -23,7 +23,9 @@ import com.commandercompanion.domain.model.PlayedGame
 import com.commandercompanion.domain.model.PlayedSeat
 import com.commandercompanion.domain.model.RemoteGameSession
 import com.commandercompanion.domain.model.SeatAssignment
+import com.commandercompanion.domain.model.UndoActionsRequest
 import com.commandercompanion.domain.model.amountPayload
+import com.commandercompanion.domain.model.turnDurationPayload
 import com.commandercompanion.domain.repository.GameRepository
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -220,6 +222,52 @@ class GameRepositoryImpl @Inject constructor(
                 actorId = playerId,
                 actionType = GameActionType.POISON_COUNTER,
                 payload = amountPayload(amount)
+            )
+        )
+
+    override suspend fun recordCombatDamage(
+        session: RemoteGameSession, attackerPlayerId: String, defenderPlayerId: String, amount: Int
+    ): Result<GameAction> =
+        recordAction(
+            gameId = session.gameId,
+            request = NewGameAction(
+                actorId = attackerPlayerId,
+                targetId = defenderPlayerId,
+                actionType = GameActionType.COMBAT_DAMAGE,
+                payload = amountPayload(amount)
+            )
+        )
+
+    override suspend fun recordTurnStart(session: RemoteGameSession, playerId: String): Result<GameAction> =
+        recordAction(
+            gameId = session.gameId,
+            request = NewGameAction(actorId = playerId, actionType = GameActionType.TURN_START)
+        )
+
+    override suspend fun undoActions(session: RemoteGameSession, actionIds: List<String>): Result<List<GameAction>> =
+        apiCall { api.undoActions(session.gameId, UndoActionsRequest(actionIds)) }
+
+    override suspend fun recordTurnEnd(
+        session: RemoteGameSession, playerId: String, durationMs: Long
+    ): Result<GameAction> =
+        recordAction(
+            gameId = session.gameId,
+            request = NewGameAction(
+                actorId = playerId,
+                actionType = GameActionType.TURN_END,
+                payload = turnDurationPayload(durationMs)
+            )
+        )
+
+    override suspend fun recordElimination(
+        session: RemoteGameSession, actorPlayerId: String, targetPlayerId: String
+    ): Result<GameAction> =
+        recordAction(
+            gameId = session.gameId,
+            request = NewGameAction(
+                actorId = actorPlayerId,
+                targetId = targetPlayerId,
+                actionType = GameActionType.ELIMINATION
             )
         )
 

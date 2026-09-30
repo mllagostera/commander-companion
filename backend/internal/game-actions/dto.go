@@ -17,4 +17,12 @@ type GameActionResponse struct {
 	ActionType string                 `json:"action_type"`
 	Payload    map[string]interface{} `json:"payload,omitempty"`
 	CreatedAt  string                 `json:"created_at"`
+	// UndoneAt is only set on the actions an undo request returns (the timeline leaves
+	// undone actions out altogether).
+	UndoneAt *string `json:"undone_at,omitempty"`
+}
+
+// UndoActionsRequest lists the actions to undo, most recent first.
+type UndoActionsRequest struct {
+	ActionIDs []string `json:"action_ids"`
 }

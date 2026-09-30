@@ -428,6 +428,13 @@ components:
         created_at:
           type: string
           format: date-time
+        undone_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Only present on the actions POST /games/{id}/actions/undo returns;
+            the timeline leaves undone actions out altogether.
     Playgroup:
       type: object
       properties:
@@ -505,6 +512,21 @@ components:
           type: integer
         total_eliminations:
           type: integer
+        timed_turns:
+          type: integer
+          description: >-
+            How many of the user's turns in finished games have a recorded
+            duration (TurnEnd with payload.duration_ms). longest_turn_ms and
+            average_turn_ms are computed over those turns only, and are 0
+            while this is 0.
+        longest_turn_ms:
+          type: integer
+          format: int64
+          description: The user's single longest timed turn, in milliseconds.
+        average_turn_ms:
+          type: integer
+          format: int64
+          description: The average length of the user's timed turns, in milliseconds.
     DeckStatsResponse:
       type: object
       properties:
@@ -605,6 +627,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FinishedGamePlayerResponse'
+        longest_turn:
+          type: object
+          nullable: true
+          description: >-
+            The game's single longest timed turn and who played it. Omitted
+            when none of the game's turns has a recorded duration.
+          required: [duration_ms, username]
+          properties:
+            duration_ms:
+              type: integer
+              format: int64
+            username:
+              type: string
     FinishedGamePlayerResponse:
       type: object
       properties:
@@ -625,6 +660,16 @@ components:
           nullable: true
         won:
           type: boolean
+        longest_turn_ms:
+          type: integer
+          format: int64
+          nullable: true
+          description: This seat's longest timed turn in the game (ms); omitted if none of its turns was timed.
+        average_turn_ms:
+          type: integer
+          format: int64
+          nullable: true
+          description: The average of this seat's timed turns in the game (ms); omitted if none was timed.
     DashboardResponse:
       type: object
       description: >-
@@ -2362,13 +2407,18 @@ paths:
                     it must additionally be strictly positive (it's a
                     quantity of damage, not a signed delta) — LifeChange and
                     PoisonCounter accept negative values (a signed delta,
-                    e.g. to correct a misclick).
+                    e.g. to correct a misclick). For TurnEnd, optionally
+                    { "duration_ms": <integer> }: how long the turn lasted,
+                    pauses excluded, between 0 and 86,400,000; it feeds the
+                    longest/average turn statistics, and a TurnEnd without it
+                    just doesn't count towards them.
       responses:
         '400':
           description: >-
             Invalid action_type; missing, non-numeric, non-integer, or
-            out-of-range payload.amount; or payload.amount isn't positive for
-            CombatDamage/CommanderDamage
+            out-of-range payload.amount; payload.amount isn't positive for
+            CombatDamage/CommanderDamage; or a TurnEnd payload.duration_ms that
+            isn't a whole number between 0 and 86,400,000
           content:
             application/json:
               schema:
@@ -2399,11 +2449,85 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GameAction'
+  /games/{id}/actions/undo:
+    post:
+      summary: Undo actions
+      description: >-
+        Reverts actions of an active game, in the order given (clients send
+        the most recent first), all or nothing in a single transaction. Each
+        action's effects are reverted (life, poison, commander damage);
+        afterwards every affected player is re-evaluated for elimination, and
+        whose turn it is is recomputed if a TurnStart/TurnEnd was undone.
+        Undone actions stay in the log with undone_at set, but the timeline,
+        the statistics and the head-to-head records stop counting them.
+        Each undone action is relayed to the game's room as an
+        `action_undone` WebSocket event (see ADR-0005). The caller must be
+        allowed to act for each action's actor, same as when recording it
+        (ADR-0013).
+      operationId: undoGameActions
+      tags:
+        - Games
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action_ids]
+              properties:
+                action_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 1000
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: The undone actions, with undone_at set
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GameAction'
+        '400':
+          description: action_ids empty, longer than 1000, or with an invalid UUID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The caller can't act for one of the actions' actor (see ADR-0013)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Unknown game, or an action that isn't part of it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The game isn't active, or an action was already undone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /games/{id}/timeline:
     get:
       summary: Get full action history
       description: >-
-        Returns the complete action list, deliberately unpaginated: a
+        Returns the action list without the undone actions (see
+        POST /games/{id}/actions/undo), deliberately unpaginated: a
         single game's action count is bounded, and Android replays the
         whole timeline to reconstruct commander-damage state, which a
         partial fetch would silently corrupt.
