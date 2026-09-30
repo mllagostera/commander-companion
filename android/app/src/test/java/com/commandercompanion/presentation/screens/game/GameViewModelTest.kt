@@ -321,6 +321,137 @@ class GameViewModelTest {
         }
 
     @Test
+    fun `dealDamage without commander only costs the target life`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.dealDamage(sourceId = 2, targetId = 1, amount = 5, commander = false)
+        advanceUntilIdle()
+
+        val target = vm.state.value.players.first { it.id == 1 }
+        assertEquals(STARTING_LIFE - 5, target.life)
+        assertTrue(target.commanderDamage.isEmpty())
+        assertEquals(STARTING_LIFE, vm.state.value.players.first { it.id == 2 }.life)
+    }
+
+    @Test
+    fun `dealDamage as commander damage costs life and is recorded against the source`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            vm.dealDamage(sourceId = 2, targetId = 1, amount = 6, commander = true)
+            advanceUntilIdle()
+
+            val target = vm.state.value.players.first { it.id == 1 }
+            assertEquals(STARTING_LIFE - 6, target.life)
+            assertEquals(mapOf(2 to 6), target.commanderDamage)
+        }
+
+    @Test
+    fun `dealDamage ignores a seat damaging itself and non-positive amounts`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        val before = vm.state.value.players
+
+        vm.dealDamage(sourceId = 1, targetId = 1, amount = 5, commander = true)
+        vm.dealDamage(sourceId = 2, targetId = 1, amount = 0, commander = false)
+        vm.dealDamage(sourceId = 2, targetId = 1, amount = -3, commander = false)
+        advanceUntilIdle()
+
+        assertEquals(before, vm.state.value.players)
+    }
+
+    @Test
+    fun `gainLife adds life to that seat only and ignores non-positive amounts`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.gainLife(playerId = 1, amount = 3)
+        vm.gainLife(playerId = 1, amount = 0)
+        vm.gainLife(playerId = 1, amount = -2)
+        advanceUntilIdle()
+
+        assertEquals(STARTING_LIFE + 3, vm.state.value.players.first { it.id == 1 }.life)
+        assertEquals(STARTING_LIFE, vm.state.value.players.first { it.id == 2 }.life)
+    }
+
+    @Test
+    fun `the turn clock only counts each seat's own turns`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        var now = 1_000L
+        vm.nowMs = { now }
+
+        // Nothing runs until the first turn starts.
+        now += 5_000
+        assertEquals(0L, vm.turnTimeOf(1))
+
+        vm.startTurnClock()
+        val first = vm.state.value.currentTurnPlayerId!!
+        val second = if (first == 1) 2 else 1
+        now += 30_000
+        assertEquals(30_000L, vm.turnTimeOf(first))
+        assertEquals(0L, vm.turnTimeOf(second))
+
+        vm.nextTurn()
+        now += 12_000
+        assertEquals(30_000L, vm.turnTimeOf(first))
+        assertEquals(12_000L, vm.turnTimeOf(second))
+
+        vm.nextTurn()
+        now += 4_000
+        assertEquals(34_000L, vm.turnTimeOf(first))
+        assertEquals(12_000L, vm.turnTimeOf(second))
+    }
+
+    @Test
+    fun `turn clock reads as minutes and seconds, adding hours past the hour`() {
+        assertEquals("0:00", formatTurnClock(0))
+        assertEquals("0:59", formatTurnClock(59_999))
+        assertEquals("12:05", formatTurnClock(725_000))
+        assertEquals("1:00:07", formatTurnClock(3_607_000))
+    }
+
+    @Test
+    fun `a paused game stops the turn clock`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        var now = 0L
+        vm.nowMs = { now }
+        vm.startTurnClock()
+        val first = vm.state.value.currentTurnPlayerId!!
+
+        now += 10_000
+        vm.pauseTurnClock()
+        now += 60_000
+        assertEquals(10_000L, vm.turnTimeOf(first))
+
+        vm.resumeTurnClock()
+        now += 5_000
+        assertEquals(15_000L, vm.turnTimeOf(first))
+    }
+
+    @Test
+    fun `resetting lives also resets the turn clocks`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        var now = 0L
+        vm.nowMs = { now }
+        vm.startTurnClock()
+        now += 20_000
+        vm.nextTurn()
+        now += 20_000
+
+        vm.resetLives()
+
+        assertEquals(0L, vm.turnTimeOf(1))
+        assertEquals(0L, vm.turnTimeOf(2))
+        now += 3_000
+        assertEquals(3_000L, vm.turnTimeOf(vm.state.value.currentTurnPlayerId!!))
+    }
+
+    @Test
     fun `20 commander damage doesn't eliminate yet`() = runTest(dispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
