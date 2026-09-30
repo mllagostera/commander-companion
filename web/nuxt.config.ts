@@ -2,7 +2,16 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-07-27',
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n', '@sentry/nuxt/module'],
+  sentry: {
+    // Source maps are only uploaded when the build has a Sentry auth token
+    // (SENTRY_AUTH_TOKEN, plus SENTRY_ORG/SENTRY_PROJECT, read by the plugin
+    // from the environment). Without one — local builds, CI, forks — the build
+    // stays exactly as it was: no upload attempt and no hidden source maps.
+    sourcemaps: {
+      disable: !process.env.SENTRY_AUTH_TOKEN,
+    },
+  },
   css: ['~/assets/css/main.css'],
   features: {
     // Inlines the CSS into the SSR HTML instead of linking `/_nuxt/entry.*.css`.
@@ -55,6 +64,19 @@ export default defineNuxtConfig({
       // Google Cloud Console Web Client ID, same value as GOOGLE_CLIENT_ID
       // in the backend. Empty = Google button disabled.
       googleClientId: process.env.NUXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+      // Sentry project DSN for this web client (a different project from the
+      // backend's SENTRY_DSN). Empty = Sentry disabled, on both the browser
+      // (sentry.client.config.ts) and Nitro (sentry.server.config.ts) side.
+      // It's public on purpose: a DSN only allows sending events, and the
+      // browser SDK needs it anyway.
+      sentryDsn: process.env.NUXT_PUBLIC_SENTRY_DSN || '',
+      // Fraction (0..1) of page loads/navigations recorded as Sentry
+      // performance traces. The decision is made here, at the start of the
+      // trace, and travels in the sentry-trace header to Nitro and on to the Go
+      // backend, which follow it — so a sampled trace shows browser, Nitro and
+      // backend spans together. 0 (default) records none; errors in all three
+      // are still linked by trace ID either way.
+      sentryTracesSampleRate: Number(process.env.NUXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE) || 0,
     },
   },
 })
