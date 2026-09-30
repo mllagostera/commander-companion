@@ -102,8 +102,8 @@
     },
     "winLoss": {
       "heading": "Victorias / derrotas",
-      "won": "{count} ganadas",
-      "lost": "{count} perdidas"
+      "won": "{count} ganada | {count} ganadas",
+      "lost": "{count} perdida | {count} perdidas"
     },
     "performance": {
       "totals": "{games} partidas · {decks} decks · {groups} grupos"
@@ -116,8 +116,8 @@
     },
     "streak": {
       "heading": "Racha actual",
-      "wins": "{count} victorias seguidas",
-      "losses": "{count} derrotas seguidas",
+      "wins": "{count} victoria seguida | {count} victorias seguidas",
+      "losses": "{count} derrota seguida | {count} derrotas seguidas",
       "empty": "Sin partidas finalizadas todavía."
     },
     "groups": {
@@ -746,6 +746,90 @@
       "forbidden": "No tenés acceso de administrador.",
       "userNotFound": "Este usuario ya no existe.",
       "generic": "Algo salió mal. Intentá de nuevo."
+    }
+  },
+  "landing": {
+    "meta": {
+      "title": "Commander Companion · Contador de vidas y estadísticas para Commander",
+      "description": "Lleva las vidas y el daño de comandante en la mesa, importa tus decks desde Moxfield y descubre quién gana de verdad en tu grupo. App gratuita para Magic: The Gathering Commander."
+    },
+    "nav": {
+      "login": "Iniciar sesión",
+      "register": "Registrarse"
+    },
+    "hero": {
+      "eyebrow": "Para Magic: The Gathering · Commander",
+      "titleStart": "Cada partida de Commander,",
+      "titleHighlight": "registrada y recordada.",
+      "subtitle": "Commander Companion lleva las vidas en la mesa, importa tus decks desde Moxfield y convierte cada partida en estadísticas: qué deck gana, contra quién y en qué grupo.",
+      "primaryCta": "Crear cuenta gratis",
+      "secondaryCta": "Ya tengo cuenta",
+      "screenshotAlt": "Panel de Commander Companion: mejor deck, porcentaje de victorias, racha actual y últimas partidas"
+    },
+    "pillars": {
+      "heading": "En qué se basa la app",
+      "speed": {
+        "title": "Menos de 2 segundos",
+        "body": "Cualquier acción durante la partida es uno o dos toques. La app no molesta y la mesa sigue jugando."
+      },
+      "simplicity": {
+        "title": "Nada de más",
+        "body": "Sin menús infinitos: vidas, daño de comandante, veneno y turnos, justo donde los necesitas."
+      },
+      "data": {
+        "title": "Datos reales",
+        "body": "Cada partida terminada alimenta tus estadísticas. Sin hojas de cálculo, sin libretas y sin discutir quién ganó la semana pasada."
+      }
+    },
+    "features": {
+      "heading": "Todo lo que necesita tu mesa de Commander",
+      "subheading": "Juega con el móvil y revisa en el ordenador. Tus partidas, decks y grupos siempre sincronizados.",
+      "tracker": {
+        "title": "Contador de vidas",
+        "body": "Hasta cuatro jugadores en una pantalla, con daño de comandante, contadores de veneno y paso de turno. Pensado para dejarlo en el centro de la mesa."
+      },
+      "decks": {
+        "title": "Importación desde Moxfield",
+        "body": "Pega el enlace de Moxfield y tu deck queda dentro, con comandante e ilustración. Actualízalos todos con un clic cuando cambies una lista."
+      },
+      "statistics": {
+        "title": "Estadísticas",
+        "body": "Porcentaje de victorias por deck, rachas, el cara a cara contra cada amigo y el grupo en el que más juegas."
+      },
+      "playgroups": {
+        "title": "Grupos de juego",
+        "body": "Crea tu mesa habitual, añade a sus miembros y sigue el ranking del grupo y todo su historial de partidas."
+      },
+      "tournaments": {
+        "title": "Torneos",
+        "body": "Organiza torneos de formato suizo con mesas de tres o cuatro: la app genera las mesas, registra los resultados y actualiza la clasificación en cada ronda."
+      },
+      "friends": {
+        "title": "Amigos",
+        "body": "Añade a gente escaneando el QR de su perfil y jugad entre vosotros con las estadísticas enlazadas."
+      }
+    },
+    "showcase": {
+      "tracker": {
+        "eyebrow": "En la mesa",
+        "title": "Hecho para el centro de la mesa",
+        "body": "Cada jugador tiene su esquina de la pantalla, girada hacia él. Toca para cambiar la vida, abre el panel de daño de comandante y veneno, y pasa el turno sin buscar botones.",
+        "alt": "Contador de vidas para cuatro jugadores con el panel de daño de comandante y veneno abierto"
+      },
+      "tournaments": {
+        "eyebrow": "Después de la partida",
+        "title": "De una partida casual a un torneo completo",
+        "body": "Agrupa a tus jugadores habituales, monta un torneo suizo la noche de juego y deja que la app se ocupe de las mesas, los puntos y la clasificación.",
+        "alt": "Ronda de un torneo con el reparto de mesas y la clasificación"
+      }
+    },
+    "cta": {
+      "title": "Tu próxima partida empieza aquí",
+      "body": "Crea tu cuenta, importa un deck y registra tu primera partida en menos de un minuto.",
+      "button": "Empieza gratis"
+    },
+    "footer": {
+      "disclaimer": "Sin afiliación ni respaldo de Wizards of the Coast. Magic: The Gathering es una marca registrada de Wizards of the Coast LLC."
     }
   }
 }

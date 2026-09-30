@@ -102,8 +102,8 @@
     },
     "winLoss": {
       "heading": "Victòries / derrotes",
-      "won": "{count} guanyades",
-      "lost": "{count} perdudes"
+      "won": "{count} guanyada | {count} guanyades",
+      "lost": "{count} perduda | {count} perdudes"
     },
     "performance": {
       "totals": "{games} partides · {decks} decks · {groups} grups"
@@ -116,8 +116,8 @@
     },
     "streak": {
       "heading": "Ratxa actual",
-      "wins": "{count} victòries seguides",
-      "losses": "{count} derrotes seguides",
+      "wins": "{count} victòria seguida | {count} victòries seguides",
+      "losses": "{count} derrota seguida | {count} derrotes seguides",
       "empty": "Encara no hi ha partides finalitzades."
     },
     "groups": {
@@ -746,6 +746,90 @@
       "forbidden": "No tens accés d'administrador.",
       "userNotFound": "Aquest usuari ja no existeix.",
       "generic": "Alguna cosa ha fallat. Torna-ho a provar."
+    }
+  },
+  "landing": {
+    "meta": {
+      "title": "Commander Companion · Comptador de vides i estadístiques per a Commander",
+      "description": "Porta les vides i el dany de comandant a la taula, importa els teus decks des de Moxfield i descobreix qui guanya de debò al teu grup. App gratuïta per a Magic: The Gathering Commander."
+    },
+    "nav": {
+      "login": "Inicia sessió",
+      "register": "Registra't"
+    },
+    "hero": {
+      "eyebrow": "Per a Magic: The Gathering · Commander",
+      "titleStart": "Cada partida de Commander,",
+      "titleHighlight": "registrada i recordada.",
+      "subtitle": "Commander Companion porta les vides a la taula, importa els teus decks des de Moxfield i converteix cada partida en estadístiques: quin deck guanya, contra qui i en quin grup.",
+      "primaryCta": "Crea un compte gratis",
+      "secondaryCta": "Ja tinc compte",
+      "screenshotAlt": "Tauler de Commander Companion: millor deck, percentatge de victòries, ratxa actual i últimes partides"
+    },
+    "pillars": {
+      "heading": "En què es basa l'app",
+      "speed": {
+        "title": "Menys de 2 segons",
+        "body": "Qualsevol acció durant la partida és un o dos tocs. L'app no molesta i la taula continua jugant."
+      },
+      "simplicity": {
+        "title": "Res de més",
+        "body": "Sense menús infinits: vides, dany de comandant, verí i torns, just on els necessites."
+      },
+      "data": {
+        "title": "Dades reals",
+        "body": "Cada partida acabada alimenta les teves estadístiques. Sense fulls de càlcul, sense llibretes i sense discutir qui va guanyar la setmana passada."
+      }
+    },
+    "features": {
+      "heading": "Tot el que necessita la teva taula de Commander",
+      "subheading": "Juga amb el mòbil i revisa a l'ordinador. Les teves partides, decks i grups sempre sincronitzats.",
+      "tracker": {
+        "title": "Comptador de vides",
+        "body": "Fins a quatre jugadors en una pantalla, amb dany de comandant, comptadors de verí i pas de torn. Pensat per deixar-lo al centre de la taula."
+      },
+      "decks": {
+        "title": "Importació des de Moxfield",
+        "body": "Enganxa l'enllaç de Moxfield i el teu deck ja hi és, amb comandant i il·lustració. Actualitza'ls tots amb un clic quan canviïs una llista."
+      },
+      "statistics": {
+        "title": "Estadístiques",
+        "body": "Percentatge de victòries per deck, ratxes, el cara a cara contra cada amic i el grup on més jugues."
+      },
+      "playgroups": {
+        "title": "Grups de joc",
+        "body": "Crea la teva taula habitual, afegeix-ne els membres i segueix el rànquing del grup i tot el seu historial de partides."
+      },
+      "tournaments": {
+        "title": "Tornejos",
+        "body": "Organitza tornejos de format suís amb taules de tres o quatre: l'app genera les taules, registra els resultats i actualitza la classificació a cada ronda."
+      },
+      "friends": {
+        "title": "Amics",
+        "body": "Afegeix gent escanejant el QR del seu perfil i jugueu entre vosaltres amb les estadístiques enllaçades."
+      }
+    },
+    "showcase": {
+      "tracker": {
+        "eyebrow": "A la taula",
+        "title": "Fet per al centre de la taula",
+        "body": "Cada jugador té el seu racó de la pantalla, girat cap a ell. Toca per canviar la vida, obre el panell de dany de comandant i verí, i passa el torn sense buscar botons.",
+        "alt": "Comptador de vides per a quatre jugadors amb el panell de dany de comandant i verí obert"
+      },
+      "tournaments": {
+        "eyebrow": "Després de la partida",
+        "title": "D'una partida casual a un torneig complet",
+        "body": "Agrupa els teus jugadors habituals, munta un torneig suís la nit de joc i deixa que l'app s'ocupi de les taules, els punts i la classificació.",
+        "alt": "Ronda d'un torneig amb el repartiment de taules i la classificació"
+      }
+    },
+    "cta": {
+      "title": "La teva propera partida comença aquí",
+      "body": "Crea el teu compte, importa un deck i registra la teva primera partida en menys d'un minut.",
+      "button": "Comença gratis"
+    },
+    "footer": {
+      "disclaimer": "Sense afiliació ni aval de Wizards of the Coast. Magic: The Gathering és una marca registrada de Wizards of the Coast LLC."
     }
   }
 }

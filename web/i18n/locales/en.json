@@ -102,8 +102,8 @@
     },
     "winLoss": {
       "heading": "Wins / losses",
-      "won": "{count} won",
-      "lost": "{count} lost"
+      "won": "{count} won | {count} won",
+      "lost": "{count} lost | {count} lost"
     },
     "performance": {
       "totals": "{games} games · {decks} decks · {groups} groups"
@@ -116,8 +116,8 @@
     },
     "streak": {
       "heading": "Current streak",
-      "wins": "{count} wins in a row",
-      "losses": "{count} losses in a row",
+      "wins": "{count} win in a row | {count} wins in a row",
+      "losses": "{count} loss in a row | {count} losses in a row",
       "empty": "No finished games yet."
     },
     "groups": {
@@ -746,6 +746,90 @@
       "forbidden": "You don't have admin access.",
       "userNotFound": "This user no longer exists.",
       "generic": "Something went wrong. Try again."
+    }
+  },
+  "landing": {
+    "meta": {
+      "title": "Commander Companion · Life tracker and stats for Commander",
+      "description": "Track life and commander damage at the table, import your decks from Moxfield and see who really wins in your playgroup. Free app for Magic: The Gathering Commander."
+    },
+    "nav": {
+      "login": "Log in",
+      "register": "Sign up"
+    },
+    "hero": {
+      "eyebrow": "For Magic: The Gathering · Commander",
+      "titleStart": "Every Commander game,",
+      "titleHighlight": "tracked and remembered.",
+      "subtitle": "Commander Companion keeps life totals at the table, imports your decks from Moxfield and turns every game into statistics: which deck wins, against whom, and in which group.",
+      "primaryCta": "Create a free account",
+      "secondaryCta": "I already have an account",
+      "screenshotAlt": "Commander Companion dashboard: best deck, win rate, current streak and recent games"
+    },
+    "pillars": {
+      "heading": "What the app is built around",
+      "speed": {
+        "title": "Under 2 seconds",
+        "body": "Any action during a game takes a tap or two. The app stays out of the way so the table can keep playing."
+      },
+      "simplicity": {
+        "title": "Nothing extra",
+        "body": "No endless menus: life, commander damage, poison and turns, exactly where you need them."
+      },
+      "data": {
+        "title": "Real data",
+        "body": "Every finished game feeds your stats. No spreadsheets, no notebooks, no arguing over who won last week."
+      }
+    },
+    "features": {
+      "heading": "Everything your Commander table needs",
+      "subheading": "Play on your phone, review on your computer. Your games, decks and groups stay in sync.",
+      "tracker": {
+        "title": "Life tracker",
+        "body": "Up to four players on one screen, with commander damage, poison counters and turn passing. Designed to sit in the middle of the table."
+      },
+      "decks": {
+        "title": "Moxfield import",
+        "body": "Paste a Moxfield link and your deck is in, commander and art included. Refresh them all with one click when you change a list."
+      },
+      "statistics": {
+        "title": "Statistics",
+        "body": "Win rate per deck, winning streaks, head-to-head record against each friend and the group you play in most."
+      },
+      "playgroups": {
+        "title": "Playgroups",
+        "body": "Create your usual table, add its members and follow the group ranking and full game history."
+      },
+      "tournaments": {
+        "title": "Tournaments",
+        "body": "Organize Swiss-style events with pods of three or four: tables generated for you, results recorded and standings updated each round."
+      },
+      "friends": {
+        "title": "Friends",
+        "body": "Add people by scanning the QR on their profile and play against each other with your stats linked."
+      }
+    },
+    "showcase": {
+      "tracker": {
+        "eyebrow": "At the table",
+        "title": "Built for the middle of the table",
+        "body": "Each player gets their own corner of the screen, rotated to face them. Tap to change life, open the overlay for commander damage and poison, and pass the turn without looking for buttons.",
+        "alt": "Four-player life tracker with the commander damage and poison panel open"
+      },
+      "tournaments": {
+        "eyebrow": "After the game",
+        "title": "From a casual game to a full tournament",
+        "body": "Group your regular players, run a Swiss tournament on game night and let the app handle tables, points and standings.",
+        "alt": "Tournament round with the table assignments and the standings"
+      }
+    },
+    "cta": {
+      "title": "Your next game starts here",
+      "body": "Create your account, import a deck and track your first game in under a minute.",
+      "button": "Get started for free"
+    },
+    "footer": {
+      "disclaimer": "Not affiliated with or endorsed by Wizards of the Coast. Magic: The Gathering is a trademark of Wizards of the Coast LLC."
     }
   }
 }
