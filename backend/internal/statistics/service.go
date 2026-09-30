@@ -369,14 +369,9 @@ func (s *service) enrichFinishedGames(
 		summaryByGame[summaryRows[i].GameID] = summaryRows[i]
 	}
 
-	turnRows, err := s.repo.ListTurnTimeStatsForGames(ctx, gameIDs)
+	turnsByGame, err := s.turnTimesByGame(ctx, gameIDs)
 	if err != nil {
-		return nil, fmt.Errorf("listing turn times for finished games: %w", err)
-	}
-	turnsByGame := make(map[pgtype.UUID][]ListTurnTimeStatsForGamesRow, len(games))
-	for i := range turnRows {
-		gid := turnRows[i].GameID
-		turnsByGame[gid] = append(turnsByGame[gid], turnRows[i])
+		return nil, err
 	}
 
 	for i := range games {
@@ -402,6 +397,21 @@ func applyActionSummary(res *FinishedGameResponse, summary *ListGameActionSummar
 			Username: summary.BiggestHitUsername.String,
 		}
 	}
+}
+
+// turnTimesByGame batches ListTurnTimeStatsForGames for a page of games, grouped by game.
+func (s *service) turnTimesByGame(
+	ctx context.Context, gameIDs []pgtype.UUID,
+) (map[pgtype.UUID][]ListTurnTimeStatsForGamesRow, error) {
+	rows, err := s.repo.ListTurnTimeStatsForGames(ctx, gameIDs)
+	if err != nil {
+		return nil, fmt.Errorf("listing turn times for finished games: %w", err)
+	}
+	byGame := make(map[pgtype.UUID][]ListTurnTimeStatsForGamesRow, len(gameIDs))
+	for i := range rows {
+		byGame[rows[i].GameID] = append(byGame[rows[i].GameID], rows[i])
+	}
+	return byGame, nil
 }
 
 // applyTurnTimes fills in each seat's longest/average turn and the game's single

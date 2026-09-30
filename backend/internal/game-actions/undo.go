@@ -58,29 +58,15 @@ func (s *service) UndoActions(
 	}
 
 	undone := make([]GameAction, 0, len(req.ActionIDs))
-	touched := make(map[pgtype.UUID]struct{})
-	turnTouched := false
 	for _, rawID := range req.ActionIDs {
 		action, err := s.undoOne(ctx, q, gid, callerUserID, rawID)
 		if err != nil {
 			return nil, err
 		}
 		undone = append(undone, *action)
-		touched[actionSubject(action)] = struct{}{}
-		if action.ActionType == actionTurnStart || action.ActionType == actionTurnEnd {
-			turnTouched = true
-		}
 	}
-
-	for playerID := range touched {
-		if err := s.reevaluateElimination(ctx, q, gid, playerID); err != nil {
-			return nil, err
-		}
-	}
-	if turnTouched {
-		if err := s.restoreCurrentTurn(ctx, q, gid); err != nil {
-			return nil, err
-		}
+	if err := s.settleAfterUndo(ctx, q, gid, undone); err != nil {
+		return nil, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -94,6 +80,28 @@ func (s *service) UndoActions(
 		res = append(res, *r)
 	}
 	return res, nil
+}
+
+// settleAfterUndo re-evaluates elimination for every player an undone action affected,
+// and whose turn it is if a turn action was among them.
+func (s *service) settleAfterUndo(ctx context.Context, q *Queries, gid pgtype.UUID, undone []GameAction) error {
+	touched := make(map[pgtype.UUID]struct{})
+	turnTouched := false
+	for i := range undone {
+		touched[actionSubject(&undone[i])] = struct{}{}
+		if undone[i].ActionType == actionTurnStart || undone[i].ActionType == actionTurnEnd {
+			turnTouched = true
+		}
+	}
+	for playerID := range touched {
+		if err := s.reevaluateElimination(ctx, q, gid, playerID); err != nil {
+			return err
+		}
+	}
+	if turnTouched {
+		return s.restoreCurrentTurn(ctx, q, gid)
+	}
+	return nil
 }
 
 // undoOne locks, authorizes, reverts and marks a single action.
@@ -119,12 +127,11 @@ func (s *service) undoOne(
 	if err != nil {
 		return nil, err
 	}
-	if err := authorizeActor(actor, callerUserID); err != nil {
-		return nil, err
+	if authErr := authorizeActor(actor, callerUserID); authErr != nil {
+		return nil, authErr
 	}
-
-	if err := s.revertAction(ctx, q, &action); err != nil {
-		return nil, err
+	if revertErr := s.revertAction(ctx, q, &action); revertErr != nil {
+		return nil, revertErr
 	}
 	marked, err := q.MarkGameActionUndone(ctx, aid)
 	if err != nil {
@@ -147,17 +154,10 @@ func actionSubject(action *GameAction) pgtype.UUID {
 // reevaluateElimination and restoreCurrentTurn). Life is adjusted without the automatic
 // elimination adjustLife applies, since elimination is re-evaluated as a whole at the end.
 func (s *service) revertAction(ctx context.Context, q *Queries, action *GameAction) error {
-	switch action.ActionType {
-	case actionLifeChange, actionCombatDamage, actionCommanderDamage, actionPoisonCounter:
-	default:
+	if !carriesAmount(action.ActionType) {
 		return nil
 	}
-
-	var payload map[string]interface{}
-	if err := json.Unmarshal(action.Payload, &payload); err != nil {
-		return fmt.Errorf("decoding payload of action %s: %w", action.ID.String(), err)
-	}
-	amount, err := payloadAmount(payload)
+	amount, err := storedAmount(action)
 	if err != nil {
 		return err
 	}
@@ -185,6 +185,25 @@ func (s *service) revertAction(ctx context.Context, q *Queries, action *GameActi
 	}
 }
 
+// carriesAmount says whether an action type has a payload.amount effect to revert.
+func carriesAmount(actionType string) bool {
+	switch actionType {
+	case actionLifeChange, actionCombatDamage, actionCommanderDamage, actionPoisonCounter:
+		return true
+	default:
+		return false
+	}
+}
+
+// storedAmount reads payload.amount back from a recorded action.
+func storedAmount(action *GameAction) (int32, error) {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(action.Payload, &payload); err != nil {
+		return 0, fmt.Errorf("decoding payload of action %s: %w", action.ID.String(), err)
+	}
+	return payloadAmount(payload)
+}
+
 func (s *service) adjustLifeOnly(ctx context.Context, q *Queries, playerID pgtype.UUID, delta int32) error {
 	if _, err := q.AdjustGamePlayerLife(ctx, AdjustGamePlayerLifeParams{ID: playerID, Delta: delta}); err != nil {
 		return fmt.Errorf("reverting life total: %w", err)
@@ -202,25 +221,10 @@ func (s *service) reevaluateElimination(ctx context.Context, q *Queries, gid, pl
 	}
 	eliminated := player.LifeTotal.Int32 <= eliminationLifeTotal ||
 		player.PoisonCounters.Int32 >= eliminationPoisonCounters
-
 	if !eliminated {
-		damage, err := q.ListCommanderDamageAgainst(ctx, ListCommanderDamageAgainstParams{GameID: gid, DefenderID: playerID})
-		if err != nil {
-			return fmt.Errorf("listing commander damage: %w", err)
+		if eliminated, err = s.eliminatedByOthers(ctx, q, gid, playerID); err != nil {
+			return err
 		}
-		for _, d := range damage {
-			if d.Amount >= eliminationCommanderDamage {
-				eliminated = true
-				break
-			}
-		}
-	}
-	if !eliminated {
-		count, err := q.CountActiveEliminationsOf(ctx, CountActiveEliminationsOfParams{GameID: gid, TargetID: playerID})
-		if err != nil {
-			return fmt.Errorf("counting eliminations: %w", err)
-		}
-		eliminated = count > 0
 	}
 
 	if eliminated == player.IsEliminated.Bool {
@@ -233,6 +237,25 @@ func (s *service) reevaluateElimination(ctx context.Context, q *Queries, gid, pl
 		return fmt.Errorf("updating elimination: %w", err)
 	}
 	return nil
+}
+
+// eliminatedByOthers covers the elimination causes that aren't the player's own counters:
+// 21+ commander damage from a single attacker, or an explicit Elimination still in force.
+func (s *service) eliminatedByOthers(ctx context.Context, q *Queries, gid, playerID pgtype.UUID) (bool, error) {
+	damage, err := q.ListCommanderDamageAgainst(ctx, ListCommanderDamageAgainstParams{GameID: gid, DefenderID: playerID})
+	if err != nil {
+		return false, fmt.Errorf("listing commander damage: %w", err)
+	}
+	for _, d := range damage {
+		if d.Amount >= eliminationCommanderDamage {
+			return true, nil
+		}
+	}
+	count, err := q.CountActiveEliminationsOf(ctx, CountActiveEliminationsOfParams{GameID: gid, TargetID: playerID})
+	if err != nil {
+		return false, fmt.Errorf("counting eliminations: %w", err)
+	}
+	return count > 0, nil
 }
 
 // restoreCurrentTurn recomputes whose turn it is from the turn actions still in force:

@@ -10,16 +10,21 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/testutil"
 )
 
-func mustUndo(t *testing.T, g activeGame, callerID string, actionIDs ...string) []gameactions.GameActionResponse {
+func undo(g *activeGame, callerID string, actionIDs ...string) ([]gameactions.GameActionResponse, error) {
+	req := gameactions.UndoActionsRequest{ActionIDs: actionIDs}
+	return g.actions.UndoActions(context.Background(), g.gameID, callerID, req)
+}
+
+func mustUndo(t *testing.T, g *activeGame, callerID string, actionIDs ...string) []gameactions.GameActionResponse {
 	t.Helper()
-	res, err := g.actions.UndoActions(context.Background(), g.gameID, callerID, gameactions.UndoActionsRequest{ActionIDs: actionIDs})
+	res, err := undo(g, callerID, actionIDs...)
 	if err != nil {
 		t.Fatalf("UndoActions(%v) error = %v, want nil", actionIDs, err)
 	}
 	return res
 }
 
-func mustGetGame(t *testing.T, g activeGame) *games.GameResponse {
+func mustGetGame(t *testing.T, g *activeGame) *games.GameResponse {
 	t.Helper()
 	game, err := g.games.GetGame(context.Background(), g.gameID, g.user1ID)
 	if err != nil {
@@ -39,18 +44,19 @@ func TestUndoActions_LethalHitAndElimination_BringsThePlayerBack(t *testing.T) {
 	elimination := mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
 		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypeElimination,
 	})
-	if !playerByID(t, mustGetGame(t, g).Players, g.player2ID).IsEliminated {
+	if !playerByID(t, mustGetGame(t, &g).Players, g.player2ID).IsEliminated {
 		t.Fatalf("precondition: the lethal hit should eliminate player 2")
 	}
 
-	undone := mustUndo(t, g, g.user1ID, elimination.ID, hit.ID)
+	undone := mustUndo(t, &g, g.user1ID, elimination.ID, hit.ID)
 
 	if len(undone) != 2 || undone[0].UndoneAt == nil || undone[1].UndoneAt == nil {
 		t.Fatalf("UndoActions() = %+v, want both actions returned with undone_at", undone)
 	}
-	target := playerByID(t, mustGetGame(t, g).Players, g.player2ID)
+	target := playerByID(t, mustGetGame(t, &g).Players, g.player2ID)
 	if target.LifeTotal != defaultLifeTotalForTest || target.IsEliminated {
-		t.Fatalf("after undo: life=%d eliminated=%v, want %d and false", target.LifeTotal, target.IsEliminated, defaultLifeTotalForTest)
+		t.Fatalf("after undo: life=%d eliminated=%v, want %d and false",
+			target.LifeTotal, target.IsEliminated, defaultLifeTotalForTest)
 	}
 	timeline, err := g.actions.GetTimeline(context.Background(), g.gameID, g.user1ID)
 	if err != nil || len(timeline) != 0 {
@@ -72,14 +78,14 @@ func TestUndoActions_RevertsLifePoisonAndCommanderDamage(t *testing.T) {
 	commander := mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
 		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(21),
 	})
-	if !playerByID(t, mustGetGame(t, g).Players, g.player2ID).IsEliminated {
+	if !playerByID(t, mustGetGame(t, &g).Players, g.player2ID).IsEliminated {
 		t.Fatalf("precondition: 21 commander damage should eliminate player 2")
 	}
 
-	mustUndo(t, g, g.user1ID, commander.ID)
-	mustUndo(t, g, g.user2ID, poison.ID, life.ID)
+	mustUndo(t, &g, g.user1ID, commander.ID)
+	mustUndo(t, &g, g.user2ID, poison.ID, life.ID)
 
-	target := playerByID(t, mustGetGame(t, g).Players, g.player2ID)
+	target := playerByID(t, mustGetGame(t, &g).Players, g.player2ID)
 	if target.LifeTotal != defaultLifeTotalForTest || target.PoisonCounters != 0 || target.IsEliminated {
 		t.Fatalf("after undo: %+v, want life=%d poison=0 not eliminated", target, defaultLifeTotalForTest)
 	}
@@ -87,7 +93,7 @@ func TestUndoActions_RevertsLifePoisonAndCommanderDamage(t *testing.T) {
 	mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
 		ActorID: g.player1ID, TargetID: g.player2ID, ActionType: actionTypeCommanderDamage, Payload: amountPayload(20),
 	})
-	if playerByID(t, mustGetGame(t, g).Players, g.player2ID).IsEliminated {
+	if playerByID(t, mustGetGame(t, &g).Players, g.player2ID).IsEliminated {
 		t.Fatalf("20 commander damage after undoing 21 should not eliminate")
 	}
 }
@@ -101,16 +107,17 @@ func TestUndoActions_PassTurn_GivesTheTurnBack(t *testing.T) {
 		ActorID: g.player1ID, ActionType: actionTypeTurnStart,
 	})
 	end := mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
-		ActorID: g.player1ID, ActionType: actionTypeTurnEnd, Payload: map[string]interface{}{"duration_ms": float64(1000)},
+		ActorID: g.player1ID, ActionType: actionTypeTurnEnd,
+		Payload: map[string]interface{}{payloadDurationKey: float64(1000)},
 	})
 	start := mustRecordAction(t, g.actions, g.gameID, g.user2ID, gameactions.CreateActionRequest{
 		ActorID: g.player2ID, ActionType: actionTypeTurnStart,
 	})
 
-	mustUndo(t, g, g.user2ID, start.ID)
-	mustUndo(t, g, g.user1ID, end.ID)
+	mustUndo(t, &g, g.user2ID, start.ID)
+	mustUndo(t, &g, g.user1ID, end.ID)
 
-	game := mustGetGame(t, g)
+	game := mustGetGame(t, &g)
 	if game.CurrentTurnPlayerID == nil || *game.CurrentTurnPlayerID != g.player1ID {
 		t.Fatalf("CurrentTurnPlayerID = %v, want %s back", game.CurrentTurnPlayerID, g.player1ID)
 	}
@@ -133,19 +140,19 @@ func TestUndoActions_Errors(t *testing.T) {
 	}{
 		{"no ids", g.user1ID, nil, gameactions.ErrUndoActionIDsRequired},
 		{"malformed id", g.user1ID, []string{"nope"}, gameactions.ErrInvalidActionID},
-		{"unknown id", g.user1ID, []string{"00000000-0000-0000-0000-000000000000"}, gameactions.ErrActionNotFound},
+		{"unknown id", g.user1ID, []string{unknownUUID}, gameactions.ErrActionNotFound},
 		// Only who could record the action (its actor's owner) may undo it -- not its target.
 		{"not the actor's owner", g.user2ID, []string{hit.ID}, gameactions.ErrNotAuthorizedForActor},
 	}
 	for _, tc := range cases {
-		_, err := g.actions.UndoActions(context.Background(), g.gameID, tc.caller, gameactions.UndoActionsRequest{ActionIDs: tc.ids})
+		_, err := undo(&g, tc.caller, tc.ids...)
 		if !errors.Is(err, tc.wantErr) {
 			t.Fatalf("%s: UndoActions() error = %v, want %v", tc.name, err, tc.wantErr)
 		}
 	}
 
-	mustUndo(t, g, g.user1ID, hit.ID)
-	_, err := g.actions.UndoActions(context.Background(), g.gameID, g.user1ID, gameactions.UndoActionsRequest{ActionIDs: []string{hit.ID}})
+	mustUndo(t, &g, g.user1ID, hit.ID)
+	_, err := undo(&g, g.user1ID, hit.ID)
 	if !errors.Is(err, gameactions.ErrActionAlreadyUndone) {
 		t.Fatalf("undoing twice: error = %v, want ErrActionAlreadyUndone", err)
 	}
@@ -163,7 +170,7 @@ func TestUndoActions_FinishedGame_IsRejected(t *testing.T) {
 		t.Fatalf("FinishGame() error = %v", err)
 	}
 
-	_, err := g.actions.UndoActions(context.Background(), g.gameID, g.user1ID, gameactions.UndoActionsRequest{ActionIDs: []string{hit.ID}})
+	_, err := undo(&g, g.user1ID, hit.ID)
 	if !errors.Is(err, gameactions.ErrGameNotActive) {
 		t.Fatalf("UndoActions() on a finished game: error = %v, want ErrGameNotActive", err)
 	}

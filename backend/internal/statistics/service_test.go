@@ -679,17 +679,21 @@ func TestTurnTimes_UserStatsAndFinishedGame(t *testing.T) {
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("ListFinishedGames() = %+v, %v, want 1 item", page, err)
 	}
-	item := page.Items[0]
-	if item.LongestTurn == nil || item.LongestTurn.DurationMs != 100_000 || item.LongestTurn.Username != g.user1.Username {
-		t.Fatalf("ListFinishedGames()[0].LongestTurn = %+v, want 100000 by %s", item.LongestTurn, g.user1.Username)
+	// (30000 + 100000) / 2 for user 1; user 2's untimed TurnEnd doesn't count.
+	assertFinishedGameTurnTimes(t, &page.Items[0], g.user1, map[string]int64{g.user1.ID: 65_000, g.user2.ID: 60_000})
+}
+
+func assertFinishedGameTurnTimes(
+	t *testing.T, item *statistics.FinishedGameResponse, longestBy *users.UserResponse, wantAverage map[string]int64,
+) {
+	t.Helper()
+	longest := item.LongestTurn
+	if longest == nil || longest.DurationMs != 100_000 || longest.Username != longestBy.Username {
+		t.Fatalf("LongestTurn = %+v, want 100000 by %s", item.LongestTurn, longestBy.Username)
 	}
 	for _, p := range item.Players {
-		wantAverage := int64(60_000)
-		if p.UserID == g.user1.ID {
-			wantAverage = 65_000 // (30000 + 100000) / 2
-		}
-		if p.AverageTurnMs == nil || *p.AverageTurnMs != wantAverage {
-			t.Fatalf("player %s AverageTurnMs = %v, want %d", p.Username, p.AverageTurnMs, wantAverage)
+		if p.AverageTurnMs == nil || *p.AverageTurnMs != wantAverage[p.UserID] {
+			t.Fatalf("player %s AverageTurnMs = %v, want %d", p.Username, p.AverageTurnMs, wantAverage[p.UserID])
 		}
 	}
 }
@@ -729,7 +733,7 @@ func TestUndoneActions_DoNotCountTowardsStatistics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecordAction(CombatDamage) error = %v", err)
 	}
-	if _, err := g.actions.UndoActions(ctx, g.gameID, g.user2.ID, gameactions.UndoActionsRequest{
+	if _, err = g.actions.UndoActions(ctx, g.gameID, g.user2.ID, gameactions.UndoActionsRequest{
 		ActionIDs: []string{mistake.ID},
 	}); err != nil {
 		t.Fatalf("UndoActions() error = %v", err)

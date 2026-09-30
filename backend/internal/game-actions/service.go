@@ -68,7 +68,9 @@ var (
 	ErrAmountMustBePositive = common.InvalidInput("payload.amount must be a positive number")
 	// ErrTurnDurationInvalid indicates that a TurnEnd's payload.duration_ms isn't a
 	// whole number of milliseconds within [0, maxTurnDurationMs].
-	ErrTurnDurationInvalid = common.InvalidInput("payload.duration_ms must be a whole number of milliseconds between 0 and 86400000")
+	ErrTurnDurationInvalid = common.InvalidInput(
+		"payload.duration_ms must be a whole number of milliseconds between 0 and 86400000",
+	)
 	// ErrGameNotActive indicates that actions can only be recorded in an active game.
 	ErrGameNotActive = common.Conflict("game is not active")
 	// ErrCommanderDamageTargetRequired indicates that CommanderDamage needs a
@@ -303,10 +305,7 @@ func (s *service) applyAction(
 	case actionTurnStart:
 		return s.setCurrentTurn(ctx, q, gid, actorID)
 	case actionTurnEnd:
-		if err := validateTurnDuration(payload); err != nil {
-			return err
-		}
-		return s.clearCurrentTurn(ctx, q, gid)
+		return s.endTurn(ctx, q, gid, payload)
 	default:
 		return ErrInvalidActionType
 	}
@@ -422,6 +421,15 @@ func (s *service) setCurrentTurn(ctx context.Context, q *Queries, gid, playerID 
 		return fmt.Errorf("setting current turn player: %w", err)
 	}
 	return nil
+}
+
+// endTurn validates a TurnEnd's optional duration (see validateTurnDuration) and
+// clears whose turn it is.
+func (s *service) endTurn(ctx context.Context, q *Queries, gid pgtype.UUID, payload map[string]interface{}) error {
+	if err := validateTurnDuration(payload); err != nil {
+		return err
+	}
+	return s.clearCurrentTurn(ctx, q, gid)
 }
 
 // clearCurrentTurn clears whose turn it is (TurnEnd); the next TurnStart

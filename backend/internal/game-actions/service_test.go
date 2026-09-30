@@ -54,7 +54,11 @@ const (
 	actionTypeTurnEnd         = "TurnEnd"
 	actionTypeElimination     = "Elimination"
 
-	payloadAmountKey = "amount"
+	payloadAmountKey   = "amount"
+	payloadDurationKey = "duration_ms"
+
+	// unknownUUID is a well-formed id that matches no row.
+	unknownUUID = "00000000-0000-0000-0000-000000000000"
 
 	testPassword = "test-password-123"
 
@@ -782,10 +786,10 @@ func TestRecordAction_UnknownGame_ReturnsNotFound(t *testing.T) {
 
 	actionsSvc := newActionsSvc(pool)
 	req := gameactions.CreateActionRequest{
-		ActorID:    "00000000-0000-0000-0000-000000000000",
+		ActorID:    unknownUUID,
 		ActionType: actionTypeTurnStart,
 	}
-	_, err := actionsSvc.RecordAction(context.Background(), "00000000-0000-0000-0000-000000000000", "irrelevant", req)
+	_, err := actionsSvc.RecordAction(context.Background(), unknownUUID, "irrelevant", req)
 	if !errors.Is(err, gameactions.ErrGameNotFound) {
 		t.Fatalf("RecordAction() en partida inexistente: error = %v, want ErrGameNotFound", err)
 	}
@@ -797,7 +801,7 @@ func TestRecordAction_ActorNotInGame_ReturnsNotFound(t *testing.T) {
 	g := setupActiveGame(t, pool)
 
 	_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
-		ActorID:    "00000000-0000-0000-0000-000000000000",
+		ActorID:    unknownUUID,
 		ActionType: actionTypeTurnStart,
 	})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
@@ -895,7 +899,7 @@ func TestGetTimeline_UnknownGame_ReturnsNotFound(t *testing.T) {
 	truncateGameActionsTables(t, pool)
 
 	actionsSvc := newActionsSvc(pool)
-	_, err := actionsSvc.GetTimeline(context.Background(), "00000000-0000-0000-0000-000000000000", "irrelevant")
+	_, err := actionsSvc.GetTimeline(context.Background(), unknownUUID, "irrelevant")
 	if !errors.Is(err, gameactions.ErrGameNotFound) {
 		t.Fatalf("GetTimeline() en partida inexistente: error = %v, want ErrGameNotFound", err)
 	}
@@ -909,9 +913,9 @@ func TestRecordAction_TurnEnd_AcceptsAValidDuration(t *testing.T) {
 	res := mustRecordAction(t, g.actions, g.gameID, g.user1ID, gameactions.CreateActionRequest{
 		ActorID:    g.player1ID,
 		ActionType: actionTypeTurnEnd,
-		Payload:    map[string]interface{}{"duration_ms": float64(95_000)},
+		Payload:    map[string]interface{}{payloadDurationKey: float64(95_000)},
 	})
-	if duration, _ := res.Payload["duration_ms"].(float64); duration != 95_000 {
+	if duration, _ := res.Payload[payloadDurationKey].(float64); duration != 95_000 {
 		t.Fatalf("RecordAction(TurnEnd).Payload = %+v, want duration_ms=95000", res.Payload)
 	}
 }
@@ -925,7 +929,7 @@ func TestRecordAction_TurnEnd_InvalidDuration_ReturnsBadRequest(t *testing.T) {
 		_, err := g.actions.RecordAction(context.Background(), g.gameID, g.user1ID, gameactions.CreateActionRequest{
 			ActorID:    g.player1ID,
 			ActionType: actionTypeTurnEnd,
-			Payload:    map[string]interface{}{"duration_ms": duration},
+			Payload:    map[string]interface{}{payloadDurationKey: duration},
 		})
 		if !errors.Is(err, gameactions.ErrTurnDurationInvalid) {
 			t.Fatalf("RecordAction(TurnEnd, duration_ms=%v) error = %v, want ErrTurnDurationInvalid", duration, err)
