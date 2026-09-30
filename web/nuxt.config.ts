@@ -1,15 +1,31 @@
+// Source maps are only uploaded when the build has a Sentry auth token
+// (SENTRY_AUTH_TOKEN, plus SENTRY_ORG/SENTRY_PROJECT, read by the plugin from
+// the environment). Without one — local builds, CI, forks — the build stays
+// exactly as it was: no upload attempt and no client source maps.
+const uploadSourceMaps = Boolean(process.env.SENTRY_AUTH_TOKEN)
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-07-27',
   devtools: { enabled: true },
   modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n', '@sentry/nuxt/module'],
+  // Nuxt only emits server source maps by default, and @sentry/nuxt treats
+  // that default `client: false` as a deliberate opt-out, so the browser
+  // bundles would reach Sentry minified. 'hidden' writes the .map files
+  // without the sourceMappingURL comment, so browsers never ask for them.
+  sourcemap: {
+    client: uploadSourceMaps ? 'hidden' : false,
+  },
   sentry: {
-    // Source maps are only uploaded when the build has a Sentry auth token
-    // (SENTRY_AUTH_TOKEN, plus SENTRY_ORG/SENTRY_PROJECT, read by the plugin
-    // from the environment). Without one — local builds, CI, forks — the build
-    // stays exactly as it was: no upload attempt and no hidden source maps.
     sourcemaps: {
-      disable: !process.env.SENTRY_AUTH_TOKEN,
+      disable: !uploadSourceMaps,
+      // The client maps must not be served publicly, so they're deleted from
+      // the build output once uploaded. Setting sourcemap.client ourselves
+      // turns off @sentry/nuxt's automatic deletion, and its fallback glob
+      // only covers `public/` (the Node preset), not Vercel's `static/`.
+      // Server maps stay: they live in the function bundle, not in a public
+      // directory, and Nuxt already generated them before this change.
+      filesToDeleteAfterUpload: ['.*/**/public/**/*.map', '.*/**/static/**/*.map'],
     },
   },
   css: ['~/assets/css/main.css'],
