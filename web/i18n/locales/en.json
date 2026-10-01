@@ -853,5 +853,16 @@
     "footer": {
       "disclaimer": "Not affiliated with or endorsed by Wizards of the Coast. Magic: The Gathering is a trademark of Wizards of the Coast LLC."
     }
+  },
+  "errorPage": {
+    "notFound": {
+      "title": "Page not found",
+      "body": "This page doesn't exist or has moved."
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "body": "An unexpected error occurred. Please try again in a moment."
+    },
+    "goHome": "Back to home"
   }
 }
