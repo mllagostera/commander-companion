@@ -59,7 +59,7 @@ class RegisterViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(RegisterUiState())
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
 
-    fun register(username: String, email: String, password: String) {
+    fun register(username: String, email: String, password: String, locale: String) {
         if (username.isBlank() || email.isBlank() || password.isBlank()) {
             _uiState.update { it.copy(error = RegisterError.EmptyFields) }
             return
@@ -75,7 +75,7 @@ class RegisterViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                authApi.register(RegisterRequest(username.trim(), email.trim(), password))
+                authApi.register(RegisterRequest(username.trim(), email.trim(), password, locale))
                 _uiState.update { it.copy(isLoading = false, registeredEmail = email.trim()) }
             } catch (e: HttpException) {
                 _uiState.update { it.copy(isLoading = false, error = mapRegisterError(e)) }

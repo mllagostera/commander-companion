@@ -19,7 +19,16 @@ data class LoginRequest(
 data class RegisterRequest(
     val username: String,
     val email: String,
-    val password: String
+    val password: String,
+    /** UI language ("es", "en", "ca"); picks the language of the verification email. */
+    val locale: String
+)
+
+@Serializable
+data class ResendVerificationRequest(
+    val email: String,
+    /** UI language ("es", "en", "ca"); picks the language of the verification email. */
+    val locale: String
 )
 
 @Serializable

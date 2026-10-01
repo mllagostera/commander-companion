@@ -26,6 +26,11 @@ interface SessionResponse {
  * to know whether there's a session without hitting the API — it's used by the
  * route middleware, which runs in both SSR and the client.
  */
+/** The active UI locale ("es", "en", "ca"), read before any await so the Nuxt context is still there. */
+function currentLocale(): string {
+  return useNuxtApp().$i18n.locale.value
+}
+
 export function useAuth() {
   const user = useState<AuthUser | null>('auth-user', () => null)
   const sessionMarker = useCookie<string | null>('cc_session', {
@@ -69,12 +74,13 @@ export function useAuth() {
   /**
    * Registers the account. Doesn't leave a session started: until the email is verified,
    * `login()` responds 403 (see server/api/auth/login.post.ts), so the registration
-   * screen shows a "check your email" instead of navigating to the dashboard.
+   * screen shows a "check your email" instead of navigating to the dashboard. The active
+   * locale goes along so the verification email is sent in the user's language.
    */
   async function register(username: string, email: string, password: string) {
     await nitroFetch('/api/auth/register', {
       method: 'POST',
-      body: { username, email, password },
+      body: { username, email, password, locale: currentLocale() },
     })
   }
 
@@ -100,7 +106,7 @@ export function useAuth() {
   async function resendVerification(email: string) {
     await nitroFetch('/api/auth/resend-verification', {
       method: 'POST',
-      body: { email },
+      body: { email, locale: currentLocale() },
     })
   }
 

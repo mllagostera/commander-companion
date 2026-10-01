@@ -78,6 +78,13 @@ Resend dashboard, not in the backend: `internal/email` just calls
 `POST https://api.resend.com/emails` with `template: { id, variables }`
 (`USERNAME`, `VERIFY_URL`), without a single line of HTML/text in Go.
 
+There's one Template per supported locale (`es`, `en`, `ca`), aliased
+`<RESEND_VERIFY_EMAIL_TEMPLATE_ID>-<locale>` (e.g. `account-confirmation-ca`).
+The clients send their UI language as `locale` in `/auth/register` and
+`/auth/resend-verification`; the backend normalizes it (`email.NormalizeLocale`)
+and falls back to `es`. The locale isn't stored on the user: only the email
+uses it, and a resend carries the client's current language anyway.
+
 **Caveat, verified against an open Resend issue**
 ([resend/react-email#3247](https://github.com/resend/react-email/issues/3247),
 unfixed as of this decision): sending a template via the REST API where a
@@ -133,8 +140,10 @@ a Resend account to develop locally.
 
 ## References
 
-- Reference source for the Resend Template (pasted as-is into the dashboard,
-  Templates → Create template → From code): `0012-verify-email-template.html`
+- Reference source for the Resend Templates, one per locale (uploaded via the
+  Templates API, or pasted into the dashboard → Create template → From code):
+  `0012-verify-email-template.es.html`, `0012-verify-email-template.en.html`,
+  `0012-verify-email-template.ca.html`
 - Implementation: `backend/internal/email/resend.go`,
   `backend/internal/users/service.go` (`RegisterUser`, `VerifyEmail`,
   `ResendVerification`)

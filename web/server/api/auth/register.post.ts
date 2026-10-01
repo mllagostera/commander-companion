@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
     username?: string
     email?: string
     password?: string
+    locale?: string
   }>(event)
 
   if (!body?.username || !body?.email || !body?.password) {
@@ -35,6 +36,7 @@ export default defineEventHandler(async (event) => {
         username: body.username,
         email: body.email,
         password: body.password,
+        locale: body.locale,
       },
     })
   } catch (err) {

@@ -76,6 +76,9 @@ fun RegisterScreen(
     val uiState by registerViewModel.uiState.collectAsState()
     val googleUiState by googleViewModel.uiState.collectAsState()
     val context = LocalContext.current
+    // The language the strings are actually shown in (see app_locale_tag), so the
+    // verification email matches it.
+    val uiLanguage = stringResource(R.string.app_locale_tag)
 
     LaunchedEffect(googleUiState.loginSucceeded) {
         if (googleUiState.loginSucceeded) onLoginSuccess()
@@ -157,7 +160,7 @@ fun RegisterScreen(
                         Spacer(modifier = Modifier.height(14.dp))
                         GradientButton(
                             text = stringResource(R.string.register_submit),
-                            onClick = { registerViewModel.register(username, email, password) },
+                            onClick = { registerViewModel.register(username, email, password, uiLanguage) },
                             enabled = !isBusy
                         ) {
                             if (uiState.isLoading) {

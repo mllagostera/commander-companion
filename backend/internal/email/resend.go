@@ -1,11 +1,11 @@
 // Package email sends the transactional account verification mail via Resend.
 //
-// The content (subject, copy, layout) lives in a Template in the Resend dashboard, not
-// here: this package only references the template by ID and passes it the variables
-// (USERNAME, VERIFY_URL). The verification link is rendered in the template as
-// plain text (not as a button/href) because Resend's REST API breaks URLs that
-// go inside an href attribute when they come from a template variable (see the
-// open issue at https://github.com/resend/react-email/issues/3247).
+// The content (subject, copy, layout) lives in Resend Templates, not here: there's one
+// Template per supported locale (see NormalizeLocale), and this package only references
+// it by alias and passes it the variables (USERNAME, VERIFY_URL). The verification link
+// is rendered in the template as plain text (not as a button/href) because Resend's REST
+// API breaks URLs that go inside an href attribute when they come from a template
+// variable (see the open issue at https://github.com/resend/react-email/issues/3247).
 package email
 
 import (
@@ -17,6 +17,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -24,21 +25,41 @@ const resendEmailsURL = "https://api.resend.com/emails"
 
 const httpTimeout = 10 * time.Second
 
+// DefaultLocale is the locale used when the client doesn't send one or sends one there's
+// no Template for. It matches the web client's defaultLocale (web/nuxt.config.ts).
+const DefaultLocale = "es"
+
+// NormalizeLocale maps whatever the client sent ("ca", "en-US", "es_ES", "") to one of
+// the locales with a verification Template in Resend — the same ones the web and Android
+// clients ship — falling back to DefaultLocale.
+func NormalizeLocale(locale string) string {
+	lang, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(locale)), "-")
+	lang, _, _ = strings.Cut(lang, "_")
+	switch lang {
+	case "es", "en", "ca":
+		return lang
+	default:
+		return DefaultLocale
+	}
+}
+
 // ErrResendRequestFailed indicates that Resend responded with an error status when sending
 // the mail (invalid API key, unpublished template, etc.).
 var ErrResendRequestFailed = errors.New("resend request failed")
 
 // Config groups the configuration parameters for sending transactional mail.
 type Config struct {
-	APIKey                string
-	FromAddress           string
+	APIKey      string
+	FromAddress string
+	// VerifyEmailTemplateID is the base alias of the verification Templates: the one
+	// actually sent is "<VerifyEmailTemplateID>-<locale>" (e.g. account-confirmation-ca).
 	VerifyEmailTemplateID string
 }
 
 // Sender is what the rest of the backend needs to send the account verification
-// mail.
+// mail. locale is the client's language as sent (see NormalizeLocale).
 type Sender interface {
-	SendVerificationEmail(ctx context.Context, to, username, verifyURL string) error
+	SendVerificationEmail(ctx context.Context, to, username, verifyURL, locale string) error
 }
 
 // NewResendClient builds the mail-sending client. If cfg.APIKey is empty
@@ -61,8 +82,8 @@ type consoleClient struct{}
 
 // SendVerificationEmail logs the verification link instead of sending it (see
 // NewResendClient).
-func (c *consoleClient) SendVerificationEmail(_ context.Context, to, username, verifyURL string) error {
-	log.Printf("[email consola] verificación para %s (%s): %s", username, to, verifyURL)
+func (c *consoleClient) SendVerificationEmail(_ context.Context, to, username, verifyURL, locale string) error {
+	log.Printf("[email console] verification for %s (%s, %s): %s", username, to, NormalizeLocale(locale), verifyURL)
 	return nil
 }
 
@@ -84,14 +105,14 @@ type resendSendRequest struct {
 	Template resendTemplate `json:"template"`
 }
 
-// SendVerificationEmail sends the mail via the configured Resend Template (see
+// SendVerificationEmail sends the mail via the Resend Template for the locale (see
 // Config.VerifyEmailTemplateID).
-func (c *resendClient) SendVerificationEmail(ctx context.Context, to, username, verifyURL string) error {
+func (c *resendClient) SendVerificationEmail(ctx context.Context, to, username, verifyURL, locale string) error {
 	payload, err := json.Marshal(resendSendRequest{
 		From: c.from,
 		To:   []string{to},
 		Template: resendTemplate{
-			ID: c.verifyEmailTemplateID,
+			ID: c.verifyEmailTemplateID + "-" + NormalizeLocale(locale),
 			Variables: map[string]string{
 				"USERNAME":   username,
 				"VERIFY_URL": verifyURL,

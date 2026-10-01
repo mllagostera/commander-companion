@@ -25,6 +25,35 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-01 — Verification email per locale, and resend from Android.**
+Checking the Resend connection found `EMAIL_FROM` set to a `@gmail.com` address,
+which Resend rejects (403, unverified domain); the sender is now
+`no-reply@tapeandocartones.es`, on a domain verified in Resend. The single Spanish
+template became one published Template per locale (`account-confirmation-es`, `-en`,
+`-ca`), created through the Templates API with a temporary full-access key; their
+HTML is versioned as `docs/decisions/0012-verify-email-template.{es,en,ca}.html`.
+
+What was decided:
+
+- **`RESEND_VERIFY_EMAIL_TEMPLATE_ID` is now a base alias** and the backend appends
+  `-<locale>`. Its value (`account-confirmation`) didn't change, so no deployed env
+  var had to move.
+- **The locale travels with the request, it isn't stored.** Only the email uses it,
+  and a resend carries the client's current language anyway, so a `users.locale`
+  column would be a migration for nothing. Missing or unsupported → `es`.
+- **Android reads the language from `app_locale_tag`**, not the device locale: with
+  the device in an unsupported language the app shows Spanish, and that's what the
+  email should match.
+- **Android tells "unconfirmed email" from "deactivated account" by the error
+  message.** Both are 403 at login; the backend checks the email first. Matching on
+  the message is a coupling, kept small in `passwordLoginError` and covered by
+  `PasswordLoginErrorTest`.
+
+Verified: backend `go test ./...` against Postgres and golangci-lint; real sends of
+all three templates through the Resend API (HTTP 200); web eslint + typecheck;
+Android `lintDebug testDebugUnitTest`. Not yet exercised on a device or with
+`REQUIRE_EMAIL_VERIFICATION=true` in production.
+
 **2026-09-07 — `openapi.yaml` annotated: 170 Spectral warnings to zero.**
 Reviewing the `actions/setup-go` bump (PR #112) turned into a look at what the
 Spectral job had been reporting all along. The count was never a set of
