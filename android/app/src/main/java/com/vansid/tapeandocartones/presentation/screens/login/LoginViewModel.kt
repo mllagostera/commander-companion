@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.vansid.tapeandocartones.data.remote.api.AuthApi
 import com.vansid.tapeandocartones.data.remote.dto.GoogleLoginRequest
 import com.vansid.tapeandocartones.data.remote.dto.LoginRequest
+import com.vansid.tapeandocartones.data.remote.dto.ResendVerificationRequest
 import com.vansid.tapeandocartones.data.session.GoogleAuthClient
 import com.vansid.tapeandocartones.data.session.GoogleSignInCancelledException
 import com.vansid.tapeandocartones.data.session.NoGoogleAccountException
@@ -30,6 +31,9 @@ sealed interface LoginError {
     data object EmptyFields : LoginError
     data object Network : LoginError
     data object BadCredentials : LoginError
+    data object EmailNotConfirmed : LoginError
+    data object AccountDeactivated : LoginError
+    data object ResendFailed : LoginError
     data class Unknown(val code: Int) : LoginError
     data object GoogleRejected : LoginError
     data object GoogleNotConfigured : LoginError
@@ -41,8 +45,28 @@ sealed interface LoginError {
 data class LoginUiState(
     val isLoading: Boolean = false,
     val error: LoginError? = null,
-    val loginSucceeded: Boolean = false
+    val loginSucceeded: Boolean = false,
+    /** The last password login hit an unconfirmed email: the screen offers a resend. */
+    val needsVerification: Boolean = false,
+    val isResending: Boolean = false,
+    /** A resend was accepted; replaces the resend link with a "check your inbox". */
+    val resendSent: Boolean = false
 )
+
+/**
+ * Maps a failed `POST /auth/login` to a [LoginError]. Both an unconfirmed email and a
+ * deactivated account come back as 403 — the backend checks the email first — so the
+ * error message is what tells them apart (see `users.ErrAccountDeactivated`).
+ */
+internal fun passwordLoginError(code: Int, errorBody: String?): LoginError = when (code) {
+    401 -> LoginError.BadCredentials
+    403 -> if (errorBody?.contains("deactivated") == true) {
+        LoginError.AccountDeactivated
+    } else {
+        LoginError.EmailNotConfirmed
+    }
+    else -> LoginError.Unknown(code)
+}
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
@@ -60,15 +84,46 @@ class LoginViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update {
+                it.copy(isLoading = true, error = null, needsVerification = false, resendSent = false)
+            }
             try {
                 val response = authApi.login(LoginRequest(email.trim(), password))
                 sessionManager.saveSession(response)
                 _uiState.update { it.copy(isLoading = false, loginSucceeded = true) }
             } catch (e: HttpException) {
-                _uiState.update { it.copy(isLoading = false, error = mapPasswordError(e)) }
+                val error = passwordLoginError(e.code(), e.response()?.errorBody()?.string())
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error,
+                        needsVerification = error == LoginError.EmailNotConfirmed
+                    )
+                }
             } catch (e: IOException) {
                 _uiState.update { it.copy(isLoading = false, error = LoginError.Network) }
+            }
+        }
+    }
+
+    /**
+     * Asks for a new verification link for [email], in the app's [locale]. Same contract as
+     * the web client's login page: offered only after a login hit an unconfirmed email.
+     */
+    fun resendVerification(email: String, locale: String) {
+        if (email.isBlank()) {
+            _uiState.update { it.copy(error = LoginError.EmptyFields) }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isResending = true, error = null) }
+            try {
+                authApi.resendVerification(ResendVerificationRequest(email.trim(), locale))
+                _uiState.update { it.copy(isResending = false, resendSent = true) }
+            } catch (e: HttpException) {
+                _uiState.update { it.copy(isResending = false, error = LoginError.ResendFailed) }
+            } catch (e: IOException) {
+                _uiState.update { it.copy(isResending = false, error = LoginError.Network) }
             }
         }
     }
@@ -76,7 +131,7 @@ class LoginViewModel @Inject constructor(
     /** [context] must be an Activity context: Credential Manager needs to be able to show UI. */
     fun loginWithGoogle(context: Context) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(isLoading = true, error = null, needsVerification = false) }
             googleAuthClient.getIdToken(context).fold(
                 onSuccess = { idToken -> exchangeGoogleIdToken(idToken) },
                 onFailure = { throwable ->
@@ -102,11 +157,6 @@ class LoginViewModel @Inject constructor(
 
     fun errorShown() {
         _uiState.update { it.copy(error = null) }
-    }
-
-    private fun mapPasswordError(e: HttpException): LoginError = when (e.code()) {
-        401 -> LoginError.BadCredentials
-        else -> LoginError.Unknown(e.code())
     }
 
     private fun mapGoogleBackendError(e: HttpException): LoginError = when (e.code()) {

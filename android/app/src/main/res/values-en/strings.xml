@@ -14,6 +14,9 @@
     <string name="login_submit">Log in</string>
     <string name="login_no_account">Don\'t have an account? </string>
     <string name="login_register_link">Sign up</string>
+    <string name="login_verification_resend">Resend verification email</string>
+    <string name="login_verification_resending">Resending…</string>
+    <string name="login_verification_check_inbox">Done, check your inbox.</string>
 
     <!-- Register -->
     <string name="register_title">Create account</string>
@@ -253,6 +256,9 @@
     <!-- Login errors -->
     <string name="error_login_empty_fields">Fill in your email and password</string>
     <string name="error_login_bad_credentials">Wrong email or password</string>
+    <string name="error_login_email_not_confirmed">You haven\'t confirmed your email yet. Check your inbox.</string>
+    <string name="error_login_account_deactivated">This account has been deactivated</string>
+    <string name="error_login_resend_failed">Couldn\'t resend the verification email</string>
     <string name="error_login_unknown">Couldn\'t log in (error %1$d)</string>
     <string name="error_login_google_rejected">Google rejected the account (email not verified, or invalid token)</string>
     <string name="error_login_google_not_configured">Google sign-in isn\'t configured on the server yet</string>

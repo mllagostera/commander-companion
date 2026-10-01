@@ -14,6 +14,9 @@
     <string name="login_submit">Inicia sessió</string>
     <string name="login_no_account">No tens compte? </string>
     <string name="login_register_link">Registra\'t</string>
+    <string name="login_verification_resend">Reenvia el correu de verificació</string>
+    <string name="login_verification_resending">Reenviant…</string>
+    <string name="login_verification_check_inbox">Fet, revisa la teva safata d\'entrada.</string>
 
     <!-- Register -->
     <string name="register_title">Crea el compte</string>
@@ -253,6 +256,9 @@
     <!-- Login errors -->
     <string name="error_login_empty_fields">Omple el correu i la contrasenya</string>
     <string name="error_login_bad_credentials">Correu o contrasenya incorrectes</string>
+    <string name="error_login_email_not_confirmed">Encara no has confirmat el teu correu. Revisa la teva safata d\'entrada.</string>
+    <string name="error_login_account_deactivated">Aquest compte s\'ha desactivat</string>
+    <string name="error_login_resend_failed">No s\'ha pogut reenviar el correu de verificació</string>
     <string name="error_login_unknown">No s\'ha pogut iniciar la sessió (error %1$d)</string>
     <string name="error_login_google_rejected">Google ha rebutjat el compte (correu no verificat o testimoni no vàlid)</string>
     <string name="error_login_google_not_configured">L\'inici de sessió amb Google encara no està configurat al servidor</string>

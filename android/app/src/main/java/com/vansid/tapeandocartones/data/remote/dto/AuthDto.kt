@@ -25,6 +25,13 @@ data class RegisterRequest(
 )
 
 @Serializable
+data class ResendVerificationRequest(
+    val email: String,
+    /** UI language ("es", "en", "ca"); picks the language of the verification email. */
+    val locale: String
+)
+
+@Serializable
 data class GoogleLoginRequest(
     @SerialName("id_token") val idToken: String
 )

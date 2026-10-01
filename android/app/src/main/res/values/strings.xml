@@ -17,6 +17,9 @@
     <string name="login_submit">Iniciar sesión</string>
     <string name="login_no_account">¿No tienes cuenta? </string>
     <string name="login_register_link">Regístrate</string>
+    <string name="login_verification_resend">Reenviar email de verificación</string>
+    <string name="login_verification_resending">Reenviando…</string>
+    <string name="login_verification_check_inbox">Listo, revisa tu bandeja de entrada.</string>
 
     <!-- Register -->
     <string name="register_title">Crear cuenta</string>
@@ -256,6 +259,9 @@
     <!-- Login errors -->
     <string name="error_login_empty_fields">Rellena el email y la contraseña</string>
     <string name="error_login_bad_credentials">Email o contraseña incorrectos</string>
+    <string name="error_login_email_not_confirmed">Todavía no has confirmado tu email. Revisa tu bandeja de entrada.</string>
+    <string name="error_login_account_deactivated">Esta cuenta ha sido desactivada</string>
+    <string name="error_login_resend_failed">No se pudo reenviar el email de verificación</string>
     <string name="error_login_unknown">No se pudo iniciar sesión (error %1$d)</string>
     <string name="error_login_google_rejected">Google rechazó la cuenta (email no verificado o token no válido)</string>
     <string name="error_login_google_not_configured">El inicio de sesión con Google todavía no está configurado en el servidor</string>

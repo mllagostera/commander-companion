@@ -52,6 +52,9 @@ internal fun LoginError.message(): String = when (this) {
     LoginError.EmptyFields -> stringResource(R.string.error_login_empty_fields)
     LoginError.Network -> stringResource(R.string.error_api_network)
     LoginError.BadCredentials -> stringResource(R.string.error_login_bad_credentials)
+    LoginError.EmailNotConfirmed -> stringResource(R.string.error_login_email_not_confirmed)
+    LoginError.AccountDeactivated -> stringResource(R.string.error_login_account_deactivated)
+    LoginError.ResendFailed -> stringResource(R.string.error_login_resend_failed)
     is LoginError.Unknown -> stringResource(R.string.error_login_unknown, code)
     LoginError.GoogleRejected -> stringResource(R.string.error_login_google_rejected)
     LoginError.GoogleNotConfigured -> stringResource(R.string.error_login_google_not_configured)
@@ -70,6 +73,9 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    // The language the strings are actually shown in (see app_locale_tag), so a resent
+    // verification email matches it.
+    val uiLanguage = stringResource(R.string.app_locale_tag)
 
     LaunchedEffect(uiState.loginSucceeded) {
         if (uiState.loginSucceeded) onLoginSuccess()
@@ -124,6 +130,34 @@ fun LoginScreen(
                             color = MaterialTheme.colorScheme.error,
                             fontSize = 12.sp
                         )
+                    }
+
+                    if (uiState.needsVerification) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (uiState.resendSent) {
+                            Text(
+                                text = stringResource(R.string.login_verification_check_inbox),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        } else {
+                            val canResend = !uiState.isResending && !uiState.isLoading
+                            Text(
+                                text = stringResource(
+                                    if (uiState.isResending) {
+                                        R.string.login_verification_resending
+                                    } else {
+                                        R.string.login_verification_resend
+                                    }
+                                ),
+                                color = if (canResend) AccentSoft else AppFaint,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable(enabled = canResend) {
+                                    viewModel.resendVerification(email, uiLanguage)
+                                }
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
