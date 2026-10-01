@@ -38,6 +38,47 @@ useSeoMeta({
   twitterImageAlt: () => t('landing.meta.imageAlt'),
 })
 
+// Structured data (schema.org JSON-LD) so search engines read the page as a
+// free web app rather than inferring it from the copy. Google only shows a
+// rich result for SoftwareApplication with ratings, which there are none of
+// yet; the rest still feeds the knowledge panel and sitelinks. No CSP change
+// needed: security-headers.ts hashes every inline <script> in the response.
+const structuredData = computed(() => JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${siteUrl}/#organization`,
+      'name': 'TapeandoCartones',
+      'url': `${siteUrl}/`,
+      'logo': `${siteUrl}/icon-512.png`,
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      'name': 'TapeandoCartones',
+      'url': `${siteUrl}/`,
+      'inLanguage': ['es', 'en', 'ca'],
+      'publisher': { '@id': `${siteUrl}/#organization` },
+    },
+    {
+      '@type': 'WebApplication',
+      'name': 'TapeandoCartones',
+      'url': `${siteUrl}/`,
+      'description': t('landing.meta.description'),
+      'image': ogImage,
+      'applicationCategory': 'GameApplication',
+      'operatingSystem': 'Web, Android',
+      'inLanguage': ['es', 'en', 'ca'],
+      'offers': { '@type': 'Offer', 'price': '0', 'priceCurrency': 'EUR' },
+      'publisher': { '@id': `${siteUrl}/#organization` },
+    },
+  ],
+}))
+useHead({
+  script: [{ type: 'application/ld+json', innerHTML: structuredData }],
+})
+
 /*
  * 24x24 stroke icons, drawn inline so the page needs no icon dependency. Each
  * entry is a list of SVG path `d` values.

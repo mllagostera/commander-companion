@@ -179,7 +179,7 @@ section "Routes match openapi.yaml"
 
 if [ -f docs/api/openapi.yaml ]; then
   : > "$tmp/code_paths"
-  for f in backend/internal/*/handler.go backend/internal/websocket/*.go backend/internal/common/health.go; do
+  for f in backend/internal/*/handler.go backend/internal/websocket/*.go backend/internal/common/health.go backend/internal/common/robots.go; do
     [ -f "$f" ] || continue
     case "$f" in *_test.go) continue ;; esac
     slice=$(basename "$(dirname "$f")")

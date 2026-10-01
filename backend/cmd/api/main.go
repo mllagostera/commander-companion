@@ -119,11 +119,14 @@ func run() error {
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 	}))
+	// The API host is public (api.<domain>), so keep it out of search indexes.
+	app.Use(common.NoIndex)
 
 	common.RegisterHealthRoute(app, db, common.BuildInfo{
 		Commit:    cfg.GitCommit,
 		StartedAt: startedAt,
 	})
+	common.RegisterRobotsRoute(app)
 	registerModules(app, db, &cfg)
 
 	// 4. Start Server
