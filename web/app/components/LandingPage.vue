@@ -14,23 +14,27 @@ const availableLocales = computed(() => locales.value as { code: string, name?: 
 
 // og:image must be absolute: link-preview crawlers (WhatsApp, Discord, X...)
 // don't resolve relative URLs. The image is public/og-image.png, 1200x630,
-// the size every major platform crops to without losing anything.
+// the size every major platform crops to without losing anything. Bump `v`
+// whenever the image changes: platforms cache previews by image URL.
+// Two descriptions on purpose: Google shows ~155 characters of `description`,
+// while link previews (WhatsApp, X, LinkedIn) cut around 125.
 const siteUrl = useSiteUrl()
+const ogImage = `${siteUrl}/og-image.png?v=2`
 useSeoMeta({
   title: () => t('landing.meta.title'),
   description: () => t('landing.meta.description'),
   ogTitle: () => t('landing.meta.title'),
-  ogDescription: () => t('landing.meta.description'),
+  ogDescription: () => t('landing.meta.socialDescription'),
   ogType: 'website',
   ogLocale: () => (localeProperties.value.language ?? 'es-ES').replace('-', '_'),
-  ogImage: `${siteUrl}/og-image.png`,
+  ogImage,
   ogImageWidth: 1200,
   ogImageHeight: 630,
   ogImageType: 'image/png',
   ogImageAlt: () => t('landing.meta.imageAlt'),
   twitterTitle: () => t('landing.meta.title'),
-  twitterDescription: () => t('landing.meta.description'),
-  twitterImage: `${siteUrl}/og-image.png`,
+  twitterDescription: () => t('landing.meta.socialDescription'),
+  twitterImage: ogImage,
   twitterImageAlt: () => t('landing.meta.imageAlt'),
 })
 
