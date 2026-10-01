@@ -13,7 +13,7 @@ export function useSettings() {
 
   function requireUserId(): string {
     const id = user.value?.id
-    if (!id) throw new Error(useI18n().t('errors.auth.noActiveSession'))
+    if (!id) throw new Error(useNuxtApp().$i18n.t('errors.auth.noActiveSession'))
     return id
   }
 
@@ -84,7 +84,7 @@ export function useSettings() {
  * for "no commander".
  */
 export function changePasswordError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.changePassword.tooShort')
@@ -99,12 +99,12 @@ export function changePasswordError(err: unknown): string {
 
 /** Translates PATCH /users/{id} errors when updating moxfield_username. */
 export function updateMoxfieldUsernameError(err: unknown): string {
-  return apiErrorMessage(err, useI18n().t('errors.updateMoxfieldUsername.generic'))
+  return apiErrorMessage(err, useNuxtApp().$i18n.t('errors.updateMoxfieldUsername.generic'))
 }
 
 /** Translates PATCH /users/{id} errors when updating the login username. */
 export function updateUsernameError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   if (apiErrorStatus(err) === 409) return t('errors.updateUsername.taken')
   return apiErrorMessage(err, t('errors.updateUsername.generic'))
 }
@@ -117,7 +117,7 @@ export function updateUsernameError(err: unknown): string {
  * see importJob.error_message in settings.vue).
  */
 export function startMoxfieldImportError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.startMoxfieldImport.needUsername')

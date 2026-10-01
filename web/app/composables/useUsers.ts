@@ -17,7 +17,7 @@ export function useUsers() {
 
 /** Ver ErrSearchQueryTooShort (400) en internal/users/service.go. */
 export function searchUsersError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.users.tooShort')

@@ -80,7 +80,7 @@ export function useDecks() {
  * 400 a client that fills both can realistically hit.
  */
 export function createDeckError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   if (apiErrorStatus(err) === 400) return t('errors.createDeck.missingFields')
   return apiErrorMessage(err, t('errors.createDeck.generic'))
 }
@@ -92,7 +92,7 @@ export function createDeckError(err: unknown): string {
  * if the user already imported this same Moxfield deck.
  */
 export function moxfieldImportError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.moxfieldImport.notFound')
@@ -111,7 +111,7 @@ export function moxfieldImportError(err: unknown): string {
 
 /** Translates POST /decks/resync-all errors. */
 export function resyncAllDecksError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.resyncAllDecks.noneEligible')

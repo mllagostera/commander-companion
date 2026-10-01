@@ -21,7 +21,7 @@ onMounted(async () => {
     status.value = 'success'
   } catch (err) {
     status.value = 'error'
-    errorMessage.value = apiErrorMessage(err, t('verifyEmail.verifyFailed'))
+    errorMessage.value = verifyEmailError(err)
   }
 })
 </script>
