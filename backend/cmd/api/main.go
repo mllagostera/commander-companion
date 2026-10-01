@@ -27,6 +27,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/games"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
 	"github.com/usuario/commander-companion-backend/internal/moxfieldimport"
+	"github.com/usuario/commander-companion-backend/internal/notify"
 	"github.com/usuario/commander-companion-backend/internal/playgroups"
 	"github.com/usuario/commander-companion-backend/internal/statistics"
 	"github.com/usuario/commander-companion-backend/internal/sync"
@@ -213,7 +214,12 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	// emailClient sends the account verification email. Without RESEND_API_KEY
 	// (dev without a Resend account) it logs the link to the console instead of sending it (see internal/email).
 	emailClient := email.NewResendClient(cfg.Email)
-	usersService := users.NewService(db.Pool, emailClient, cfg.WebAppURL, cfg.RequireEmailVerification)
+	// signupNotifier posts a Slack message for every new account. Without
+	// SLACK_SIGNUP_WEBHOOK_URL it does nothing (see internal/notify).
+	signupNotifier := notify.NewSlackNotifier(cfg.SlackSignupWebhookURL)
+	usersService := users.NewService(
+		db.Pool, emailClient, signupNotifier, cfg.WebAppURL, cfg.RequireEmailVerification,
+	)
 	usersHandler := users.NewHandler(usersService)
 	usersHandler.RegisterRoutes(api, authRateLimit) // POST /auth/register, verify-email, resend-verification
 

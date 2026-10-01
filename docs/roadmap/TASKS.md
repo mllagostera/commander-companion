@@ -57,6 +57,8 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `POST /auth/verify-email`, `POST /auth/resend-verification` (never reveals whether the email exists/is verified)
 - [x] Linking a Google account marks `email_verified = true`
 - [x] `internal/email`: Resend client + console mailer fallback when `RESEND_API_KEY` is empty
+- [x] `internal/notify`: Slack message on every new signup (email/password and Google), fire-and-forget, off unless `SLACK_SIGNUP_WEBHOOK_URL` is set
+- [ ] Set `SLACK_SIGNUP_WEBHOOK_URL` on Render
 - [x] Web: `register.vue`/`login.vue`/`verify-email.vue` flow
 - [x] `REQUIRE_EMAIL_VERIFICATION` flag (default `false`, current alpha phase — accounts created already verified)
 - [x] Verification email in the user's language: one Resend Template per locale (`account-confirmation-{es,en,ca}`), clients send `locale` on register/resend (`email.NormalizeLocale`, falls back to `es`) — see [DECISIONS-LOG.md](DECISIONS-LOG.md) 2026-10-01

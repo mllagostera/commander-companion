@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
+	"github.com/usuario/commander-companion-backend/internal/notify"
 )
 
 const (
@@ -111,6 +112,12 @@ type Mailer interface {
 	SendVerificationEmail(ctx context.Context, to, username, verifyURL, locale string) error
 }
 
+// SignupNotifier announces each new account (see internal/notify); in the alpha phase
+// it's how we find out someone signed up without having to look at the database.
+type SignupNotifier interface {
+	NotifySignup(username, method string)
+}
+
 // Service is the interface for user logic.
 type Service interface {
 	RegisterUser(ctx context.Context, req RegisterRequest) (*UserResponse, error)
@@ -148,6 +155,7 @@ type Service interface {
 type service struct {
 	repo                     *Queries
 	mailer                   Mailer
+	notifier                 SignupNotifier
 	webAppURL                string
 	requireEmailVerification bool
 }
@@ -156,11 +164,15 @@ type service struct {
 // signup via email/password requires confirming the email before being able to log in
 // (see ADR-0012); when false (alpha phase) new accounts are left verified upfront and
 // RegisterUser neither generates the token nor sends mail — there's no point spending
-// that send if nobody's going to require the click.
-func NewService(db *pgxpool.Pool, mailer Mailer, webAppURL string, requireEmailVerification bool) Service {
+// that send if nobody's going to require the click. notifier is told about every new
+// account, whichever way it signed up.
+func NewService(
+	db *pgxpool.Pool, mailer Mailer, notifier SignupNotifier, webAppURL string, requireEmailVerification bool,
+) Service {
 	return &service{
 		repo:                     New(db),
 		mailer:                   mailer,
+		notifier:                 notifier,
 		webAppURL:                webAppURL,
 		requireEmailVerification: requireEmailVerification,
 	}
@@ -194,6 +206,8 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 		// TODO: inspect pgErr.ConstraintName to return a more precise message.
 		return nil, ErrUserAlreadyExists
 	}
+
+	s.notifier.NotifySignup(user.Username, notify.SignupMethodPassword)
 
 	if !s.requireEmailVerification {
 		return toUserResponse(&user), nil
@@ -439,6 +453,7 @@ func (s *service) createGoogleUser(
 			GoogleID: googleIDText,
 		})
 		if err == nil {
+			s.notifier.NotifySignup(created.Username, notify.SignupMethodGoogle)
 			return toUserResponse(&created), nil
 		}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/usuario/commander-companion-backend/internal/common"
+	"github.com/usuario/commander-companion-backend/internal/notify"
 	"github.com/usuario/commander-companion-backend/internal/testutil"
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
@@ -57,13 +58,22 @@ func (m *fakeMailer) tokenFor(t *testing.T, email string) string {
 	return token
 }
 
+// fakeNotifier records every signup it's told about, as "username (method)".
+type fakeNotifier struct {
+	signups []string
+}
+
+func (n *fakeNotifier) NotifySignup(username, method string) {
+	n.signups = append(n.signups, username+" ("+method+")")
+}
+
 func newUsersSvcWithMailer(t *testing.T) (users.Service, *pgxpool.Pool, *fakeMailer) {
 	t.Helper()
 	pool := testutil.DB(t)
 	// "users" drags along decks, refresh_tokens, email_verification_tokens, and others via CASCADE.
 	testutil.Truncate(t, pool, "users")
 	mailer := newFakeMailer()
-	return users.NewService(pool, mailer, testWebAppURL, true), pool, mailer
+	return users.NewService(pool, mailer, &fakeNotifier{}, testWebAppURL, true), pool, mailer
 }
 
 // newUsersSvcVerificationOff instantiates the service with requireEmailVerification=false
@@ -75,7 +85,7 @@ func newUsersSvcVerificationOffWithPool(t *testing.T) (users.Service, *pgxpool.P
 	t.Helper()
 	pool := testutil.DB(t)
 	testutil.Truncate(t, pool, "users")
-	return users.NewService(pool, newFakeMailer(), testWebAppURL, false), pool
+	return users.NewService(pool, newFakeMailer(), &fakeNotifier{}, testWebAppURL, false), pool
 }
 
 func newUsersSvcVerificationOff(t *testing.T) (users.Service, *fakeMailer) {
@@ -83,7 +93,7 @@ func newUsersSvcVerificationOff(t *testing.T) (users.Service, *fakeMailer) {
 	pool := testutil.DB(t)
 	testutil.Truncate(t, pool, "users")
 	mailer := newFakeMailer()
-	return users.NewService(pool, mailer, testWebAppURL, false), mailer
+	return users.NewService(pool, mailer, &fakeNotifier{}, testWebAppURL, false), mailer
 }
 
 func registerUser(t *testing.T, svc users.Service, email string) *users.UserResponse {
@@ -1088,5 +1098,34 @@ func TestSearchUsers_ResultsAreCapped(t *testing.T) {
 	}
 	if len(results) != 10 {
 		t.Fatalf("SearchUsers() con 12 matches = %d resultados, want 10 (limit)", len(results))
+	}
+}
+
+// Every new account is announced once, whichever way it signs up; logging back in
+// with Google or linking Google to an existing account is not a new signup.
+func TestSignupNotifications(t *testing.T) {
+	pool := testutil.DB(t)
+	testutil.Truncate(t, pool, "users")
+	notifier := &fakeNotifier{}
+	svc := users.NewService(pool, newFakeMailer(), notifier, testWebAppURL, false)
+	ctx := context.Background()
+
+	registerUser(t, svc, "password@example.com")
+	if _, err := svc.FindOrCreateGoogleUser(ctx, "google-sub-n1", "google@example.com", true); err != nil {
+		t.Fatalf("FindOrCreateGoogleUser() new account: error = %v", err)
+	}
+	if _, err := svc.FindOrCreateGoogleUser(ctx, "google-sub-n1", "google@example.com", true); err != nil {
+		t.Fatalf("FindOrCreateGoogleUser() repeat login: error = %v", err)
+	}
+	if _, err := svc.FindOrCreateGoogleUser(ctx, "google-sub-n2", "password@example.com", true); err != nil {
+		t.Fatalf("FindOrCreateGoogleUser() linking: error = %v", err)
+	}
+
+	want := []string{
+		"user-password@example.com (" + notify.SignupMethodPassword + ")",
+		"google (" + notify.SignupMethodGoogle + ")",
+	}
+	if fmt.Sprint(notifier.signups) != fmt.Sprint(want) {
+		t.Fatalf("signups = %q, want %q", notifier.signups, want)
 	}
 }

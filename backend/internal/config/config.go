@@ -76,8 +76,11 @@ type Config struct {
 	// sentry-trace/baggage headers either way. A request that already carries a
 	// sampling decision from the web client follows that decision instead.
 	SentryTracesSampleRate float64
-	Auth                   auth.Config
-	Email                  email.Config
+	// SlackSignupWebhookURL is the Slack incoming webhook that gets a message for
+	// every new account. Empty (the default) disables those notifications.
+	SlackSignupWebhookURL string
+	Auth                  auth.Config
+	Email                 email.Config
 }
 
 // Load reads the full configuration from environment variables, with the
@@ -110,6 +113,7 @@ func Load() (Config, error) {
 		GitCommit:                gitCommit(),
 		SentryDSN:                os.Getenv("SENTRY_DSN"),
 		SentryTracesSampleRate:   tracesSampleRate,
+		SlackSignupWebhookURL:    os.Getenv("SLACK_SIGNUP_WEBHOOK_URL"),
 		Auth:                     authCfg,
 		Email:                    loadEmailConfig(),
 	}, nil

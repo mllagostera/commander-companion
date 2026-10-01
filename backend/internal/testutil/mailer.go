@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/usuario/commander-companion-backend/internal/notify"
 	"github.com/usuario/commander-companion-backend/internal/users"
 )
 
@@ -30,7 +31,7 @@ func (noopMailer) SendVerificationEmail(context.Context, string, string, string,
 // leaves the account unconfirmed and VerifyUserEmail, below, remains necessary and
 // meaningful for the tests that need to log in).
 func NewUsersService(pool *pgxpool.Pool) users.Service {
-	return users.NewService(pool, noopMailer{}, testWebAppURL, true)
+	return users.NewService(pool, noopMailer{}, notify.NewSlackNotifier(""), testWebAppURL, true)
 }
 
 // VerifyUserEmail marks a user as having a confirmed email without going through the
