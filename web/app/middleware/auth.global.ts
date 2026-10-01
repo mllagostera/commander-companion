@@ -13,6 +13,11 @@ const PUBLIC_ROUTES = ['/', ...GUEST_ONLY_ROUTES]
  * without hitting the API.
  */
 export default defineNuxtRouteMiddleware((to) => {
+  // Unknown URLs fall through to Nuxt's 404 (app/error.vue) instead of being
+  // treated as private pages: bouncing them to /login answered every broken
+  // link with a 302, which search engines read as a soft 404.
+  if (to.matched.length === 0) return
+
   const { isAuthenticated } = useAuth()
 
   if (!isAuthenticated.value && !PUBLIC_ROUTES.includes(to.path)) {

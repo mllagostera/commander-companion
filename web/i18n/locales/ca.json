@@ -853,5 +853,16 @@
     "footer": {
       "disclaimer": "Sense afiliació ni aval de Wizards of the Coast. Magic: The Gathering és una marca registrada de Wizards of the Coast LLC."
     }
+  },
+  "errorPage": {
+    "notFound": {
+      "title": "Pàgina no trobada",
+      "body": "Aquesta pàgina no existeix o s'ha mogut."
+    },
+    "generic": {
+      "title": "Alguna cosa ha anat malament",
+      "body": "S'ha produït un error inesperat. Torna-ho a provar d'aquí a un moment."
+    },
+    "goHome": "Torna a l'inici"
   }
 }

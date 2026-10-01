@@ -1335,6 +1335,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /robots.txt:
+    servers:
+      - url: http://localhost:8080
+        description: >-
+          Registered at the root, like /health, because that is where crawlers
+          look for it (internal/common/robots.go).
+    get:
+      summary: Keep crawlers off the API host
+      operationId: getRobotsTxt
+      tags:
+        - Health
+      description: >-
+        Disallows every path for every crawler: nothing on the API host
+        belongs in a search index. Every API response also carries
+        `X-Robots-Tag: noindex, nofollow`, for URLs that get indexed through
+        external links without being crawled.
+      security: []
+      responses:
+        '200':
+          description: The robots.txt body
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "User-agent: *
+Disallow: /
+"
   /auth/register:
     post:
       summary: Register user
