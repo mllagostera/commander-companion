@@ -770,8 +770,9 @@
   },
   "landing": {
     "meta": {
-      "title": "TapeandoCartones · Comptador de vides i estadístiques per a Commander",
-      "description": "Porta les vides i el dany de comandant a la taula, importa els teus decks des de Moxfield i descobreix qui guanya de debò al teu grup. App gratuïta per a Magic: The Gathering Commander.",
+      "title": "TapeandoCartones · Vides i estadístiques de Commander",
+      "description": "Comptador de vides i dany de comandant, importa els teus decks des de Moxfield i descobreix qui guanya de debò al teu grup. Gratis per a Magic Commander.",
+      "socialDescription": "Vides, dany de comandant, decks de Moxfield i qui guanya de debò al teu grup. App gratuïta per a Magic Commander.",
       "imageAlt": "Logo de TapeandoCartones al costat del tauler de l'app amb el millor deck, el percentatge de victòries i les últimes partides"
     },
     "nav": {
