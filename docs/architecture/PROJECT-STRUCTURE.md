@@ -51,6 +51,7 @@ backend/
 │   ├── config/          # env loading and validation (config.Load)
 │   ├── email/           # Resend client (logs the link to console without an API key)
 │   ├── moxfield/        # external Moxfield HTTP client (+ retry)
+│   ├── notify/          # Slack webhook: a message per new signup (no-op without a URL)
 │   ├── websocket/       # hub, clients, broadcaster, envelope — live game sync
 │   ├── sync/            # sync service (no queries of its own)
 │   └── testutil/        # test helpers: throwaway DB, fake mailer
