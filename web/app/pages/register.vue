@@ -4,6 +4,13 @@ definePageMeta({ layout: false })
 const { register, checkUsernameAvailable } = useAuth()
 const { t } = useI18n()
 
+useSeoMeta({
+  title: () => t('register.meta.title'),
+  description: () => t('register.meta.description'),
+  ogTitle: () => t('register.meta.title'),
+  ogDescription: () => t('register.meta.description'),
+})
+
 const username = ref('')
 const email = ref('')
 const password = ref('')

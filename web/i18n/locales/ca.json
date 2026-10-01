@@ -53,6 +53,10 @@
       "accountDeactivated": "Aquest compte s'ha desactivat.",
       "googleRejected": "Google ha rebutjat el compte (correu no verificat o token no vàlid).",
       "googleNotConfigured": "L'inici de sessió amb Google encara no està configurat al servidor."
+    },
+    "meta": {
+      "title": "Inicia sessió · TapeandoCartones",
+      "description": "Entra a TapeandoCartones per portar les vides de les teves partides de Commander, els teus decks i les estadístiques del teu grup."
     }
   },
   "register": {
@@ -84,6 +88,10 @@
       "registerFailed": "No s'ha pogut crear el compte.",
       "invalidData": "Revisa les dades: el correu ha de ser vàlid i la contrasenya ha de tenir almenys 8 caràcters.",
       "alreadyExists": "Ja existeix un compte amb aquest nom d'usuari o correu."
+    },
+    "meta": {
+      "title": "Crea un compte · TapeandoCartones",
+      "description": "Crea el teu compte gratuït a TapeandoCartones: comptador de vides, importació de decks des de Moxfield i estadístiques per a Commander."
     }
   },
   "verifyEmail": {
@@ -763,7 +771,8 @@
   "landing": {
     "meta": {
       "title": "TapeandoCartones · Comptador de vides i estadístiques per a Commander",
-      "description": "Porta les vides i el dany de comandant a la taula, importa els teus decks des de Moxfield i descobreix qui guanya de debò al teu grup. App gratuïta per a Magic: The Gathering Commander."
+      "description": "Porta les vides i el dany de comandant a la taula, importa els teus decks des de Moxfield i descobreix qui guanya de debò al teu grup. App gratuïta per a Magic: The Gathering Commander.",
+      "imageAlt": "Logo de TapeandoCartones al costat del tauler de l'app amb el millor deck, el percentatge de victòries i les últimes partides"
     },
     "nav": {
       "login": "Inicia sessió",

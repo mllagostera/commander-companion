@@ -48,6 +48,14 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'TapeandoCartones',
+      meta: [
+        // Matches the darkest stop of the default (dark) theme's background.
+        { name: 'theme-color', content: '#0a0714' },
+      ],
+      link: [
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        { rel: 'manifest', href: '/site.webmanifest' },
+      ],
     },
   },
   i18n: {
@@ -93,6 +101,12 @@ export default defineNuxtConfig({
       // backend spans together. 0 (default) records none; errors in all three
       // are still linked by trace ID either way.
       sentryTracesSampleRate: Number(process.env.NUXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE) || 0,
+      // Public origin of the site (e.g. https://example.com, no trailing
+      // slash), used to build the absolute URLs that SEO needs: canonical,
+      // og:url, og:image and the sitemap. Empty = each response uses its own
+      // request origin, which is right locally but makes Vercel preview
+      // deployments declare themselves canonical — set it in production.
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || '',
     },
   },
 })

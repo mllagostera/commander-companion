@@ -53,6 +53,10 @@
       "accountDeactivated": "Esta cuenta ha sido desactivada.",
       "googleRejected": "Google rechazó la cuenta (email no verificado o token no válido).",
       "googleNotConfigured": "El inicio de sesión con Google todavía no está configurado en el servidor."
+    },
+    "meta": {
+      "title": "Iniciar sesión · TapeandoCartones",
+      "description": "Entra en TapeandoCartones para llevar las vidas de tus partidas de Commander, tus decks y las estadísticas de tu grupo."
     }
   },
   "register": {
@@ -84,6 +88,10 @@
       "registerFailed": "No se pudo crear la cuenta.",
       "invalidData": "Revisa los datos: el email tiene que ser válido y la contraseña tener al menos 8 caracteres.",
       "alreadyExists": "Ya existe una cuenta con ese nombre de usuario o email."
+    },
+    "meta": {
+      "title": "Crear cuenta · TapeandoCartones",
+      "description": "Crea tu cuenta gratuita en TapeandoCartones: contador de vidas, importación de decks desde Moxfield y estadísticas para Commander."
     }
   },
   "verifyEmail": {
@@ -763,7 +771,8 @@
   "landing": {
     "meta": {
       "title": "TapeandoCartones · Contador de vidas y estadísticas para Commander",
-      "description": "Lleva las vidas y el daño de comandante en la mesa, importa tus decks desde Moxfield y descubre quién gana de verdad en tu grupo. App gratuita para Magic: The Gathering Commander."
+      "description": "Lleva las vidas y el daño de comandante en la mesa, importa tus decks desde Moxfield y descubre quién gana de verdad en tu grupo. App gratuita para Magic: The Gathering Commander.",
+      "imageAlt": "Logo de TapeandoCartones junto al panel de la app con el mejor deck, el porcentaje de victorias y las últimas partidas"
     },
     "nav": {
       "login": "Iniciar sesión",
