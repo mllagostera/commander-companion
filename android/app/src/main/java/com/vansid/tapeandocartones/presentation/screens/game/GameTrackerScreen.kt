@@ -1300,13 +1300,14 @@ private fun SummaryRow(player: PlayerState, dealt: Int, taken: Int, isWinner: Bo
  * Informational banner for the backend sync status.
  *
  * Deliberately non-blocking: the game plays the same locally either way, so it's only shown
- * when there's something to report (not on [RemoteSyncStatus.Synced], the silent case).
+ * when there's something to report (not on [RemoteSyncStatus.Synced] or [RemoteSyncStatus.Casual],
+ * the silent cases).
  */
 @Composable
 private fun RemoteSyncBanner(remoteSync: RemoteSyncState, modifier: Modifier = Modifier) {
     val label = when (remoteSync.status) {
         RemoteSyncStatus.Connecting -> stringResource(R.string.tracker_connecting_to_server)
-        RemoteSyncStatus.Synced -> null
+        RemoteSyncStatus.Synced, RemoteSyncStatus.Casual -> null
         RemoteSyncStatus.Disabled -> stringResource(R.string.tracker_sync_local_only)
         RemoteSyncStatus.WaitingForPlayers -> stringResource(R.string.tracker_sync_waiting_players)
         RemoteSyncStatus.Failed ->

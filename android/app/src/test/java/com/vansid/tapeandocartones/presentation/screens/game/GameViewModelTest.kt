@@ -72,7 +72,8 @@ class GameViewModelTest {
     /** By default, Ana (seat 1) is assigned to a real user; Beto (seat 2) is a guest. */
     private fun viewModel(
         ana: PlayerConfig = PlayerConfig(name = "Ana", colorKey = "blue", assignedUserId = "user-1", deckId = "deck-1"),
-        beto: PlayerConfig = PlayerConfig(name = "Beto", colorKey = "red")
+        beto: PlayerConfig = PlayerConfig(name = "Beto", colorKey = "red"),
+        playgroupId: String? = null
     ): GameViewModel {
         val players = encodePlayerConfigs(listOf(ana, beto))
         val repository = GameRepositoryImpl(api, dao, socket)
@@ -81,7 +82,8 @@ class GameViewModelTest {
                 mapOf(
                     "gameId" to "game-local",
                     "playersEncoded" to players,
-                    "startingPlayerSeat" to 0
+                    "startingPlayerSeat" to 0,
+                    "playgroupId" to playgroupId
                 )
             ),
             gameRepository = repository,
@@ -164,11 +166,30 @@ class GameViewModelTest {
     }
 
     @Test
+    fun `una partida casual queda en Casual sin avisos ni llamadas al backend`() =
+        runTest(dispatcher) {
+            var createCalls = 0
+            api.onCreateGame = { createCalls++; gameDto("game-1", GameStatus.PENDING) }
+
+            val vm = viewModel(
+                ana = PlayerConfig(name = "Ana", colorKey = "blue"),
+                beto = PlayerConfig(name = "Beto", colorKey = "red")
+            )
+            // Already settled inside init, before any coroutine runs: no "Connecting" flash.
+            assertEquals(RemoteSyncStatus.Casual, vm.state.value.remoteSync.status)
+            advanceUntilIdle()
+
+            assertEquals(RemoteSyncStatus.Casual, vm.state.value.remoteSync.status)
+            assertEquals(0, createCalls)
+        }
+
+    @Test
     fun `sin nadie asignado la sincronizacion queda deshabilitada`() =
         runTest(dispatcher) {
             val vm = viewModel(
                 ana = PlayerConfig(name = "Ana", colorKey = "blue"),
-                beto = PlayerConfig(name = "Beto", colorKey = "red")
+                beto = PlayerConfig(name = "Beto", colorKey = "red"),
+                playgroupId = "pg-1"
             )
             advanceUntilIdle()
 
