@@ -108,7 +108,7 @@ const timingEqualizerHash = "$2a$10$ipJSLcjhx3G930ziaBKR8Oj5aeo0MMOJlWwlEWYZwdoy
 // Mailer is what users needs to send the account verification email
 // (allows mocking it in tests; see decks.MoxfieldClient for the same pattern).
 type Mailer interface {
-	SendVerificationEmail(ctx context.Context, to, username, verifyURL string) error
+	SendVerificationEmail(ctx context.Context, to, username, verifyURL, locale string) error
 }
 
 // Service is the interface for user logic.
@@ -128,8 +128,8 @@ type Service interface {
 	// ResendVerification sends a new verification email if applicable. It never
 	// reveals whether the email exists, is already verified, or is a Google account:
 	// it always "succeeds" from the caller's perspective (same anti-enumeration
-	// criteria as VerifyCredentials).
-	ResendVerification(ctx context.Context, email string) error
+	// criteria as VerifyCredentials). locale picks the language of the email.
+	ResendVerification(ctx context.Context, email, locale string) error
 	// SearchUsers searches by username (contains, case-insensitive) or email (exact, see
 	// query.sql for why it's not partial). Excludes the requesterID itself and never
 	// exposes the email in the result (see UserSearchResult).
@@ -201,16 +201,16 @@ func (s *service) RegisterUser(ctx context.Context, req RegisterRequest) (*UserR
 
 	// The account is already created: a mail that fails to send doesn't revert the
 	// registration, the user can request a resend from /login.
-	if err := s.sendVerificationEmail(ctx, &user); err != nil {
-		log.Printf("no se pudo mandar el mail de verificación a %s: %v", user.Email, err)
+	if err := s.sendVerificationEmail(ctx, &user, req.Locale); err != nil {
+		log.Printf("could not send the verification email to %s: %v", user.Email, err)
 	}
 
 	return toUserResponse(&user), nil
 }
 
 // sendVerificationEmail generates a new verification token, persists it hashed, and
-// triggers the mail with the link built over webAppURL.
-func (s *service) sendVerificationEmail(ctx context.Context, user *User) error {
+// triggers the mail, in the given locale, with the link built over webAppURL.
+func (s *service) sendVerificationEmail(ctx context.Context, user *User, locale string) error {
 	plain, err := common.NewOpaqueToken(emailVerificationTokenBytes)
 	if err != nil {
 		return err
@@ -225,7 +225,7 @@ func (s *service) sendVerificationEmail(ctx context.Context, user *User) error {
 	}
 
 	verifyURL := s.webAppURL + "/verify-email?token=" + plain
-	if err := s.mailer.SendVerificationEmail(ctx, user.Email, user.Username, verifyURL); err != nil {
+	if err := s.mailer.SendVerificationEmail(ctx, user.Email, user.Username, verifyURL, locale); err != nil {
 		return fmt.Errorf("sending verification email: %w", err)
 	}
 	return nil
@@ -489,7 +489,7 @@ func (s *service) VerifyEmail(ctx context.Context, token string) error {
 // anything to the caller (always "success"): if the email doesn't exist, is already
 // verified, or is an account without a password (Google-only, never logs in by
 // password and therefore never gets blocked by this), it does nothing.
-func (s *service) ResendVerification(ctx context.Context, email string) error {
+func (s *service) ResendVerification(ctx context.Context, email, locale string) error {
 	user, err := s.repo.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -502,8 +502,8 @@ func (s *service) ResendVerification(ctx context.Context, email string) error {
 		return nil
 	}
 
-	if err := s.sendVerificationEmail(ctx, &user); err != nil {
-		log.Printf("no se pudo reenviar el mail de verificación a %s: %v", user.Email, err)
+	if err := s.sendVerificationEmail(ctx, &user, locale); err != nil {
+		log.Printf("could not resend the verification email to %s: %v", user.Email, err)
 	}
 	return nil
 }

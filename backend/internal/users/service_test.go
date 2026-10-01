@@ -26,18 +26,20 @@ func newUsersSvc(t *testing.T) (users.Service, *pgxpool.Pool) {
 	return svc, pool
 }
 
-// fakeMailer records the last verification link sent to each email, so
+// fakeMailer records the last verification link (and its locale) sent to each email, so
 // VerifyEmail/ResendVerification can be exercised without depending on real Resend.
 type fakeMailer struct {
 	verifyURLByEmail map[string]string
+	localeByEmail    map[string]string
 }
 
 func newFakeMailer() *fakeMailer {
-	return &fakeMailer{verifyURLByEmail: make(map[string]string)}
+	return &fakeMailer{verifyURLByEmail: make(map[string]string), localeByEmail: make(map[string]string)}
 }
 
-func (m *fakeMailer) SendVerificationEmail(_ context.Context, to, _, verifyURL string) error {
+func (m *fakeMailer) SendVerificationEmail(_ context.Context, to, _, verifyURL, locale string) error {
 	m.verifyURLByEmail[to] = verifyURL
+	m.localeByEmail[to] = locale
 	return nil
 }
 
@@ -390,7 +392,7 @@ func TestVerifyEmail_TokenAlreadyUsed(t *testing.T) {
 func TestResendVerification_UnknownEmail_DoesNotError(t *testing.T) {
 	svc, _ := newUsersSvc(t)
 
-	if err := svc.ResendVerification(context.Background(), "nadie@example.com"); err != nil {
+	if err := svc.ResendVerification(context.Background(), "nadie@example.com", ""); err != nil {
 		t.Fatalf("ResendVerification() con email inexistente: error = %v, want nil", err)
 	}
 }
@@ -401,7 +403,7 @@ func TestResendVerification_SendsNewToken(t *testing.T) {
 	registerUser(t, svc, "resend@example.com")
 	firstToken := mailer.tokenFor(t, "resend@example.com")
 
-	if err := svc.ResendVerification(context.Background(), "resend@example.com"); err != nil {
+	if err := svc.ResendVerification(context.Background(), "resend@example.com", ""); err != nil {
 		t.Fatalf("ResendVerification() error = %v, want nil", err)
 	}
 	secondToken := mailer.tokenFor(t, "resend@example.com")
@@ -411,6 +413,31 @@ func TestResendVerification_SendsNewToken(t *testing.T) {
 	}
 	if err := svc.VerifyEmail(context.Background(), secondToken); err != nil {
 		t.Fatalf("VerifyEmail() con el token reenviado: error = %v, want nil", err)
+	}
+}
+
+// The client's locale reaches the mailer both on registration and on a resend, so the
+// email goes out in the language the user was using.
+func TestVerificationEmail_PassesLocaleToMailer(t *testing.T) {
+	svc, _, mailer := newUsersSvcWithMailer(t)
+
+	if _, err := svc.RegisterUser(context.Background(), users.RegisterRequest{
+		Username: "user-locale",
+		Email:    "locale@example.com",
+		Password: testPassword,
+		Locale:   "ca",
+	}); err != nil {
+		t.Fatalf("RegisterUser() error = %v", err)
+	}
+	if got := mailer.localeByEmail["locale@example.com"]; got != "ca" {
+		t.Fatalf("locale on register = %q, want %q", got, "ca")
+	}
+
+	if err := svc.ResendVerification(context.Background(), "locale@example.com", "en"); err != nil {
+		t.Fatalf("ResendVerification() error = %v", err)
+	}
+	if got := mailer.localeByEmail["locale@example.com"]; got != "en" {
+		t.Fatalf("locale on resend = %q, want %q", got, "en")
 	}
 }
 
@@ -425,7 +452,7 @@ func TestResendVerification_AlreadyVerified_NoOp(t *testing.T) {
 		t.Fatalf("VerifyEmail() error = %v, want nil", err)
 	}
 
-	if err := svc.ResendVerification(context.Background(), "already-verified@example.com"); err != nil {
+	if err := svc.ResendVerification(context.Background(), "already-verified@example.com", ""); err != nil {
 		t.Fatalf("ResendVerification() con email ya verificado: error = %v, want nil", err)
 	}
 }

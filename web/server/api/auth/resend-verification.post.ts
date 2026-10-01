@@ -5,7 +5,7 @@
  * responds success in every case.
  */
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ email?: string }>(event)
+  const body = await readBody<{ email?: string; locale?: string }>(event)
 
   if (!body?.email) {
     const message = 'Falta el email.'
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     await $fetch('/auth/resend-verification', {
       baseURL: backendBase(event),
       method: 'POST',
-      body: { email: body.email },
+      body: { email: body.email, locale: body.locale },
     })
   } catch (err) {
     throw toBackendError(err)

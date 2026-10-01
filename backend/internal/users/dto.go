@@ -7,6 +7,9 @@ type RegisterRequest struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	// Locale is the client's language ("es", "en", "ca"); it only picks the language of
+	// the verification email (see email.NormalizeLocale). Optional: defaults to Spanish.
+	Locale string `json:"locale,omitempty"`
 }
 
 // UpdateProfileRequest is the payload for updating one's own profile: account username
@@ -33,6 +36,8 @@ type VerifyEmailRequest struct {
 // ResendVerificationRequest is the payload of POST /auth/resend-verification.
 type ResendVerificationRequest struct {
 	Email string `json:"email"`
+	// Locale picks the language of the email, same as RegisterRequest.Locale.
+	Locale string `json:"locale,omitempty"`
 }
 
 // UserResponse is the DTO sent to the client, without sensitive data (like the password hash).

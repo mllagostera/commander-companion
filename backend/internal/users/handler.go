@@ -113,7 +113,7 @@ func (h *Handler) ResendVerification(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "email is required")
 	}
 
-	if err := h.svc.ResendVerification(c.Context(), req.Email); err != nil {
+	if err := h.svc.ResendVerification(c.Context(), req.Email, req.Locale); err != nil {
 		return common.MapError(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

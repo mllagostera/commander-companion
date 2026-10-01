@@ -20,7 +20,7 @@ const testWebAppURL = "http://localhost:3000"
 type noopMailer struct{}
 
 // SendVerificationEmail does nothing (see noopMailer).
-func (noopMailer) SendVerificationEmail(context.Context, string, string, string) error {
+func (noopMailer) SendVerificationEmail(context.Context, string, string, string, string) error {
 	return nil
 }
 

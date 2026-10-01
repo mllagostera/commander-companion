@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +77,9 @@ fun RegisterScreen(
     val uiState by registerViewModel.uiState.collectAsState()
     val googleUiState by googleViewModel.uiState.collectAsState()
     val context = LocalContext.current
+    // The language the strings are being shown in (per-app locale from Settings, or the
+    // device's), so the verification email matches it.
+    val uiLanguage = LocalConfiguration.current.locales[0].language
 
     LaunchedEffect(googleUiState.loginSucceeded) {
         if (googleUiState.loginSucceeded) onLoginSuccess()
@@ -157,7 +161,7 @@ fun RegisterScreen(
                         Spacer(modifier = Modifier.height(14.dp))
                         GradientButton(
                             text = stringResource(R.string.register_submit),
-                            onClick = { registerViewModel.register(username, email, password) },
+                            onClick = { registerViewModel.register(username, email, password, uiLanguage) },
                             enabled = !isBusy
                         ) {
                             if (uiState.isLoading) {
