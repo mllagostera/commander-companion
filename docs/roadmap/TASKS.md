@@ -59,7 +59,10 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `internal/email`: Resend client + console mailer fallback when `RESEND_API_KEY` is empty
 - [x] Web: `register.vue`/`login.vue`/`verify-email.vue` flow
 - [x] `REQUIRE_EMAIL_VERIFICATION` flag (default `false`, current alpha phase — accounts created already verified)
-- [ ] **Exit alpha: turn on `REQUIRE_EMAIL_VERIFICATION=true`** — needs a verified domain on Resend (SPF/DKIM/DMARC) and a real dashboard Template first; external manual step
+- [x] Verification email in the user's language: one Resend Template per locale (`account-confirmation-{es,en,ca}`), clients send `locale` on register/resend (`email.NormalizeLocale`, falls back to `es`) — see [DECISIONS-LOG.md](DECISIONS-LOG.md) 2026-10-01
+- [x] Android: resend the verification email from the login screen after a 403 for an unconfirmed email (`LoginViewModel.resendVerification`)
+- [x] Resend domain `tapeandocartones.es` verified, sender `no-reply@tapeandocartones.es`, templates published (2026-10-01)
+- [ ] **Exit alpha: turn on `REQUIRE_EMAIL_VERIFICATION=true`** on Render — domain and templates are ready; flip the flag once the per-locale templates are deployed
 
 ### Games / game-actions — game engine
 - [x] `games` wired to real `Queries`: create/get/list/join/leave/start/finish
