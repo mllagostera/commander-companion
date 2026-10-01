@@ -8,16 +8,30 @@
  * sample users, decks, games and a tournament. Re-capture them when the
  * screens they show change noticeably.
  */
-const { t, locale, locales, setLocale } = useI18n()
+const { t, locale, locales, setLocale, localeProperties } = useI18n()
 
 const availableLocales = computed(() => locales.value as { code: string, name?: string }[])
 
+// og:image must be absolute: link-preview crawlers (WhatsApp, Discord, X...)
+// don't resolve relative URLs. The image is public/og-image.png, 1200x630,
+// the size every major platform crops to without losing anything.
+const siteUrl = useSiteUrl()
 useSeoMeta({
   title: () => t('landing.meta.title'),
   description: () => t('landing.meta.description'),
   ogTitle: () => t('landing.meta.title'),
   ogDescription: () => t('landing.meta.description'),
   ogType: 'website',
+  ogLocale: () => (localeProperties.value.language ?? 'es-ES').replace('-', '_'),
+  ogImage: `${siteUrl}/og-image.png`,
+  ogImageWidth: 1200,
+  ogImageHeight: 630,
+  ogImageType: 'image/png',
+  ogImageAlt: () => t('landing.meta.imageAlt'),
+  twitterTitle: () => t('landing.meta.title'),
+  twitterDescription: () => t('landing.meta.description'),
+  twitterImage: `${siteUrl}/og-image.png`,
+  twitterImageAlt: () => t('landing.meta.imageAlt'),
 })
 
 /*

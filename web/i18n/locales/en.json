@@ -53,6 +53,10 @@
       "accountDeactivated": "This account has been deactivated.",
       "googleRejected": "Google rejected the account (unverified email or invalid token).",
       "googleNotConfigured": "Google sign-in isn't configured on the server yet."
+    },
+    "meta": {
+      "title": "Log in · TapeandoCartones",
+      "description": "Log in to TapeandoCartones to track life in your Commander games, manage your decks and see your playgroup stats."
     }
   },
   "register": {
@@ -84,6 +88,10 @@
       "registerFailed": "Couldn't create the account.",
       "invalidData": "Check your details: the email must be valid and the password at least 8 characters long.",
       "alreadyExists": "An account with that username or email already exists."
+    },
+    "meta": {
+      "title": "Sign up · TapeandoCartones",
+      "description": "Create your free TapeandoCartones account: life tracker, Moxfield deck import and stats for Commander."
     }
   },
   "verifyEmail": {
@@ -763,7 +771,8 @@
   "landing": {
     "meta": {
       "title": "TapeandoCartones · Life tracker and stats for Commander",
-      "description": "Track life and commander damage at the table, import your decks from Moxfield and see who really wins in your playgroup. Free app for Magic: The Gathering Commander."
+      "description": "Track life and commander damage at the table, import your decks from Moxfield and see who really wins in your playgroup. Free app for Magic: The Gathering Commander.",
+      "imageAlt": "TapeandoCartones logo next to the app dashboard showing the best deck, win rate and recent games"
     },
     "nav": {
       "login": "Log in",

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DISALLOWED_PATHS } from '#shared/seo'
+
 // <html lang> following the active locale: @nuxtjs/i18n doesn't set it on its
 // own, and without it a screen reader announces the page in the system
 // language instead of the one it's written in. Written by hand rather than
@@ -11,6 +13,27 @@ useHead({
   htmlAttrs: {
     lang: computed(() => localeProperties.value.language ?? localeProperties.value.code),
   },
+})
+
+// Site-wide SEO tags. The canonical URL drops the query string, so links with
+// tracking parameters (?utm_...) or a login ?redirect= collapse into one page
+// instead of competing as duplicates. Pages that require a session also get
+// noindex on top of their robots.txt Disallow, in case one is reached through
+// an external link and indexed without being crawled.
+const route = useRoute()
+const siteUrl = useSiteUrl()
+const canonicalUrl = computed(() => `${siteUrl}${route.path}`)
+const isPrivatePath = computed(() =>
+  DISALLOWED_PATHS.some(prefix => route.path === prefix || route.path.startsWith(prefix.endsWith('/') ? prefix : `${prefix}/`)),
+)
+useHead({
+  link: [{ rel: 'canonical', href: canonicalUrl }],
+})
+useSeoMeta({
+  ogUrl: canonicalUrl,
+  ogSiteName: 'TapeandoCartones',
+  twitterCard: 'summary_large_image',
+  robots: () => (isPrivatePath.value ? 'noindex, nofollow' : undefined),
 })
 
 // Moves keyboard focus to the new page's <h1> after each client-side

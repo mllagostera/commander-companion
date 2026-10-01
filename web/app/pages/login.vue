@@ -4,6 +4,14 @@ definePageMeta({ layout: false })
 const { login, loginWithGoogle, resendVerification } = useAuth()
 const { renderButton } = useGoogleIdentity()
 const { theme } = useTheme()
+const { t } = useI18n()
+
+useSeoMeta({
+  title: () => t('login.meta.title'),
+  description: () => t('login.meta.description'),
+  ogTitle: () => t('login.meta.title'),
+  ogDescription: () => t('login.meta.description'),
+})
 
 /**
  * Where to land after logging in. `auth.global.ts` puts the blocked
