@@ -57,7 +57,10 @@ enum class RemoteSyncStatus {
     /** Still creating/joining the remote game and, in joined mode, fetching the rest of the table. */
     Connecting,
 
-    /** Sync isn't attempted (e.g. the user has no decks). 100% local game. */
+    /** Casual game (no playgroup, no assigned seats): local by design, so there's nothing to report. */
+    Casual,
+
+    /** Group game where no seat ended up assigned to a member with a deck: sync isn't attempted. */
     Disabled,
 
     /** Game created and joined, but `pending`: waiting for a second player to join. */
