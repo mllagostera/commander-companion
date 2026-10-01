@@ -41,7 +41,7 @@ export function usePlaygroups() {
 }
 
 export function createPlaygroupError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.playgroups.create.needName')
@@ -55,7 +55,7 @@ export function createPlaygroupError(err: unknown): string {
  * doesn't distinguish, see getMemberPlaygroup in internal/playgroups/service.go).
  */
 export function getPlaygroupError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.playgroups.get.notFoundOrNotMember')
@@ -66,7 +66,7 @@ export function getPlaygroupError(err: unknown): string {
 
 /** Same error mapping as createPlaygroupError/getPlaygroupError: 400 for no name, 404 if not a member. */
 export function updatePlaygroupError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.playgroups.update.needName')
@@ -79,7 +79,7 @@ export function updatePlaygroupError(err: unknown): string {
 
 /** See ErrInvalidUserID (400), ErrUserNotFound (404) and ErrAlreadyMember (409) in internal/playgroups/service.go. */
 export function addMemberError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.playgroups.addMember.invalidUserId')

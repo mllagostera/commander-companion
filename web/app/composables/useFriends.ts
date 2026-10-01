@@ -60,7 +60,7 @@ export function useFriends() {
 
 /** See ErrCannotFriendSelf/ErrInvalidUserID (400), ErrUserNotFound (404), ErrAlreadyFriends/ErrRequestAlreadyPending (409) in internal/friends/service.go. */
 export function sendFriendRequestError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.friends.send.invalid')
@@ -75,7 +75,7 @@ export function sendFriendRequestError(err: unknown): string {
 
 /** See ErrRequestNotFound (404) and ErrRequestNotPending (409) in internal/friends/service.go. */
 export function respondFriendRequestError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.friends.respond.notFound')
@@ -87,6 +87,6 @@ export function respondFriendRequestError(err: unknown): string {
 }
 
 export function listFriendsError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   return apiErrorMessage(err, t('errors.friends.list.generic'))
 }

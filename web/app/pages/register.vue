@@ -58,7 +58,7 @@ async function handleSubmit() {
     await register(username.value, email.value, password.value)
     registeredEmail.value = email.value
   } catch (err) {
-    errorMessage.value = apiErrorMessage(err, t('register.errors.registerFailed'))
+    errorMessage.value = registerError(err)
   } finally {
     isSubmitting.value = false
   }

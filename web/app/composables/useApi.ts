@@ -34,6 +34,13 @@ export function useApi() {
   return { apiFetch }
 }
 
+/*
+ * The per-flow error translators built on these helpers (sendFriendRequestError,
+ * loginError, ...) run inside an event handler's `catch`, where there's no current
+ * component instance: they take `t` from `useNuxtApp().$i18n`, because `useI18n()`
+ * throws there (vue-i18n's MUST_BE_CALL_SETUP_TOP) and the error is never shown.
+ */
+
 /** HTTP status of an ofetch/h3 error, regardless of which layer it comes from. */
 export function apiErrorStatus(err: unknown): number | undefined {
   const e = err as { status?: number; statusCode?: number }

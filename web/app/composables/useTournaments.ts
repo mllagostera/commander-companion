@@ -92,7 +92,7 @@ export function useTournaments() {
 }
 
 export function createTournamentError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.tournaments.create.needName')
@@ -103,7 +103,7 @@ export function createTournamentError(err: unknown): string {
 
 /** See ErrTournamentNotFound (404, invalid code), ErrAlreadyJoined/ErrTournamentNotOpen (409) in internal/tournaments/service.go. */
 export function joinTournamentError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.tournaments.join.invalidCode')
@@ -115,7 +115,7 @@ export function joinTournamentError(err: unknown): string {
 }
 
 export function addGuestParticipantError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.tournaments.addGuest.missingFields')
@@ -130,7 +130,7 @@ export function addGuestParticipantError(err: unknown): string {
 
 /** See ErrTournamentNotFound (404, not yours) and ErrTournamentNotDeletable (409) in internal/tournaments/service.go. */
 export function deleteTournamentError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.tournaments.delete.notOrganizer')
@@ -142,7 +142,7 @@ export function deleteTournamentError(err: unknown): string {
 }
 
 export function startTournamentError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.tournaments.start.invalidCount')
@@ -156,7 +156,7 @@ export function startTournamentError(err: unknown): string {
 }
 
 export function recordTableResultError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('errors.tournaments.recordResult.invalid')
@@ -168,7 +168,7 @@ export function recordTableResultError(err: unknown): string {
 }
 
 export function advanceRoundError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 409:
       return t('errors.tournaments.advanceRound.notComplete')
@@ -178,7 +178,7 @@ export function advanceRoundError(err: unknown): string {
 }
 
 export function lookupTournamentError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.tournaments.lookup.notFound')
