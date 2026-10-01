@@ -4,7 +4,6 @@ definePageMeta({ layout: false })
 const { login, loginWithGoogle, resendVerification } = useAuth()
 const { renderButton } = useGoogleIdentity()
 const { theme } = useTheme()
-const { t } = useI18n()
 
 /**
  * Where to land after logging in. `auth.global.ts` puts the blocked
@@ -64,10 +63,8 @@ async function handleSubmit() {
     await login(email.value, password.value)
     isNavigating.value = true
   } catch (err) {
-    if (apiErrorStatus(err) === 403) {
-      needsVerification.value = true
-    }
-    errorMessage.value = apiErrorMessage(err, t('login.errors.loginFailed'))
+    needsVerification.value = isEmailNotConfirmedError(err)
+    errorMessage.value = loginError(err)
   } finally {
     isSubmitting.value = false
     if (!isNavigating.value) stopSlowHint()
@@ -82,7 +79,7 @@ async function handleResendVerification() {
     await resendVerification(email.value)
     resendSent.value = true
   } catch (err) {
-    errorMessage.value = apiErrorMessage(err, t('login.errors.resendFailed'))
+    errorMessage.value = resendVerificationError(err)
   } finally {
     isResending.value = false
   }
@@ -99,7 +96,7 @@ async function handleGoogleCredential(idToken: string) {
     await loginWithGoogle(idToken)
     isNavigating.value = true
   } catch (err) {
-    errorMessage.value = apiErrorMessage(err, t('login.errors.googleFailed'))
+    errorMessage.value = googleLoginError(err)
   } finally {
     isSubmitting.value = false
     if (!isNavigating.value) stopSlowHint()

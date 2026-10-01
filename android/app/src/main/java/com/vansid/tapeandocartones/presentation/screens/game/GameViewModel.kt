@@ -210,6 +210,12 @@ class GameViewModel @Inject constructor(
             if (userId != null && deckId != null) SeatAssignment(index, userId, deckId) else null
         }
         ownedSeatIds = assignments.map { it.seatIndex + 1 }.toSet()
+        // Casual game: set synchronously (still inside init) so the tracker never flashes the
+        // "Connecting" banner for a game that was never going to touch the backend.
+        if (playgroupId == null && assignments.isEmpty()) {
+            updateRemoteSync(RemoteSyncState(status = RemoteSyncStatus.Casual))
+            return
+        }
         launchRemote {
             gameRepository.bootstrapRemoteGame(playgroupId, assignments).fold(
                 onSuccess = { session ->

@@ -146,6 +146,9 @@ fun PlayerSetupScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 GradientButton(
                     text = stringResource(R.string.setup_start_game),
+                    // A Group game needs a group: without one the game would silently degrade to
+                    // a local-only one (no members to seat, nothing mirrored to the backend).
+                    enabled = mode == SetupMode.CASUAL || selectedPlaygroup != null,
                     onClick = {
                         val configs = (0 until playerCount).map { index ->
                             PlayerConfig(

@@ -45,7 +45,14 @@
     "errors": {
       "loginFailed": "No s'ha pogut iniciar sessió.",
       "resendFailed": "No s'ha pogut reenviar el correu de verificació.",
-      "googleFailed": "No s'ha pogut iniciar sessió amb Google."
+      "googleFailed": "No s'ha pogut iniciar sessió amb Google.",
+      "missingFields": "Omple el correu i la contrasenya.",
+      "badCredentials": "Correu o contrasenya incorrectes.",
+      "googleOnlyAccount": "Aquest compte es va crear amb Google i no té contrasenya. Entra amb Google.",
+      "emailNotConfirmed": "Encara no has confirmat el teu correu. Revisa la teva safata d'entrada.",
+      "accountDeactivated": "Aquest compte s'ha desactivat.",
+      "googleRejected": "Google ha rebutjat el compte (correu no verificat o token no vàlid).",
+      "googleNotConfigured": "L'inici de sessió amb Google encara no està configurat al servidor."
     }
   },
   "register": {
@@ -74,7 +81,9 @@
     "errors": {
       "passwordMismatch": "Les contrasenyes no coincideixen.",
       "usernameTaken": "Aquest nom d'usuari ja està en ús.",
-      "registerFailed": "No s'ha pogut crear el compte."
+      "registerFailed": "No s'ha pogut crear el compte.",
+      "invalidData": "Revisa les dades: el correu ha de ser vàlid i la contrasenya ha de tenir almenys 8 caràcters.",
+      "alreadyExists": "Ja existeix un compte amb aquest nom d'usuari o correu."
     }
   },
   "verifyEmail": {
@@ -90,7 +99,8 @@
       "title": "No s'ha pogut verificar",
       "requestNewLinkIntro": "Pots demanar un enllaç nou des de",
       "loginLink": "iniciar sessió"
-    }
+    },
+    "invalidOrExpired": "L'enllaç de verificació no és vàlid o ha caducat."
   },
   "dashboard": {
     "greeting": "Hola, {username}",
@@ -476,7 +486,9 @@
   },
   "errors": {
     "auth": {
-      "noActiveSession": "No hi ha cap sessió activa."
+      "noActiveSession": "No hi ha cap sessió activa.",
+      "tooManyRequests": "Massa intents. Espera un minut i torna-ho a provar.",
+      "unreachable": "No s'ha pogut connectar amb el servidor. Torna-ho a provar d'aquí a uns segons."
     },
     "moxfieldImport": {
       "notFound": "No existeix cap deck públic de Moxfield amb aquest ID. Revisa l'URL i que el deck no sigui privat.",

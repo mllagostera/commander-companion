@@ -45,7 +45,14 @@
     "errors": {
       "loginFailed": "No se pudo iniciar sesión.",
       "resendFailed": "No se pudo reenviar el email de verificación.",
-      "googleFailed": "No se pudo iniciar sesión con Google."
+      "googleFailed": "No se pudo iniciar sesión con Google.",
+      "missingFields": "Rellena el email y la contraseña.",
+      "badCredentials": "Email o contraseña incorrectos.",
+      "googleOnlyAccount": "Esta cuenta se creó con Google y no tiene contraseña. Entra con Google.",
+      "emailNotConfirmed": "Todavía no has confirmado tu email. Revisa tu bandeja de entrada.",
+      "accountDeactivated": "Esta cuenta ha sido desactivada.",
+      "googleRejected": "Google rechazó la cuenta (email no verificado o token no válido).",
+      "googleNotConfigured": "El inicio de sesión con Google todavía no está configurado en el servidor."
     }
   },
   "register": {
@@ -74,7 +81,9 @@
     "errors": {
       "passwordMismatch": "Las contraseñas no coinciden.",
       "usernameTaken": "Ese nombre de usuario ya está en uso.",
-      "registerFailed": "No se pudo crear la cuenta."
+      "registerFailed": "No se pudo crear la cuenta.",
+      "invalidData": "Revisa los datos: el email tiene que ser válido y la contraseña tener al menos 8 caracteres.",
+      "alreadyExists": "Ya existe una cuenta con ese nombre de usuario o email."
     }
   },
   "verifyEmail": {
@@ -90,7 +99,8 @@
       "title": "No se pudo verificar",
       "requestNewLinkIntro": "Puedes pedir un link nuevo desde",
       "loginLink": "iniciar sesión"
-    }
+    },
+    "invalidOrExpired": "El enlace de verificación no es válido o ha caducado."
   },
   "dashboard": {
     "greeting": "Hola, {username}",
@@ -476,7 +486,9 @@
   },
   "errors": {
     "auth": {
-      "noActiveSession": "No hay una sesión activa."
+      "noActiveSession": "No hay una sesión activa.",
+      "tooManyRequests": "Demasiados intentos. Espera un minuto y vuelve a probar.",
+      "unreachable": "No se pudo conectar con el servidor. Inténtalo de nuevo en unos segundos."
     },
     "moxfieldImport": {
       "notFound": "No existe un deck público de Moxfield con ese ID. Revisa la URL y que el deck no sea privado.",

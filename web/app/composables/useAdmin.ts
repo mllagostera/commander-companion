@@ -43,7 +43,7 @@ export function useAdmin() {
 }
 
 export function adminError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 400:
       return t('admin.errors.cannotDeactivateSelf')

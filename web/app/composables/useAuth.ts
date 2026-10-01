@@ -155,3 +155,88 @@ export function useAuth() {
     resetSession,
   }
 }
+
+/*
+ * Error translation for the auth pages. The backend's messages are English-only
+ * (internal/users/service.go), so they're never shown as-is here: each status the
+ * flow can realistically hit maps to a translated message, and anything else falls
+ * back to the flow's generic one.
+ */
+
+/** Statuses every auth call can get regardless of the flow; undefined when it's flow-specific. */
+function commonAuthError(err: unknown): string | undefined {
+  const { t } = useNuxtApp().$i18n
+  const status = apiErrorStatus(err)
+  if (status === 429) return t('errors.auth.tooManyRequests')
+  // 502 is what server/utils/backend.ts:toBackendError uses when the API didn't answer.
+  if (status === undefined || status === 502 || status === 503) return t('errors.auth.unreachable')
+  return undefined
+}
+
+/**
+ * True when a 403 from login means "email not confirmed" rather than "account
+ * deactivated": both are 403, and only the backend message tells them apart
+ * (ErrEmailNotConfirmed vs ErrAccountDeactivated).
+ */
+export function isEmailNotConfirmedError(err: unknown): boolean {
+  return apiErrorStatus(err) === 403 && !apiErrorMessage(err, '').toLowerCase().includes('deactivated')
+}
+
+/** See ErrInvalidEmail/ErrPasswordTooShort (400) and ErrUserAlreadyExists (409). */
+export function registerError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  switch (apiErrorStatus(err)) {
+    case 400:
+      return t('register.errors.invalidData')
+    case 409:
+      return t('register.errors.alreadyExists')
+    default:
+      return commonAuthError(err) ?? t('register.errors.registerFailed')
+  }
+}
+
+/** See ErrInvalidCredentials/ErrGoogleOnlyAccount (401) and the two 403s in isEmailNotConfirmedError. */
+export function loginError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  switch (apiErrorStatus(err)) {
+    case 400:
+      return t('login.errors.missingFields')
+    case 401:
+      return apiErrorMessage(err, '').toLowerCase().includes('google')
+        ? t('login.errors.googleOnlyAccount')
+        : t('login.errors.badCredentials')
+    case 403:
+      return isEmailNotConfirmedError(err)
+        ? t('login.errors.emailNotConfirmed')
+        : t('login.errors.accountDeactivated')
+    default:
+      return commonAuthError(err) ?? t('login.errors.loginFailed')
+  }
+}
+
+/** See auth.Handler.GoogleLogin: 400 rejected token/unverified email, 403 deactivated, 501 not configured. */
+export function googleLoginError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  switch (apiErrorStatus(err)) {
+    case 400:
+      return t('login.errors.googleRejected')
+    case 403:
+      return t('login.errors.accountDeactivated')
+    case 501:
+      return t('login.errors.googleNotConfigured')
+    default:
+      return commonAuthError(err) ?? t('login.errors.googleFailed')
+  }
+}
+
+export function resendVerificationError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  return commonAuthError(err) ?? t('login.errors.resendFailed')
+}
+
+/** See ErrInvalidVerificationToken (400): the token doesn't exist, was used, or expired. */
+export function verifyEmailError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  if (apiErrorStatus(err) === 400) return t('verifyEmail.invalidOrExpired')
+  return commonAuthError(err) ?? t('verifyEmail.verifyFailed')
+}

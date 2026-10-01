@@ -45,7 +45,14 @@
     "errors": {
       "loginFailed": "Couldn't log in.",
       "resendFailed": "Couldn't resend the verification email.",
-      "googleFailed": "Couldn't log in with Google."
+      "googleFailed": "Couldn't log in with Google.",
+      "missingFields": "Enter your email and password.",
+      "badCredentials": "Wrong email or password.",
+      "googleOnlyAccount": "This account was created with Google and has no password. Sign in with Google.",
+      "emailNotConfirmed": "You haven't confirmed your email yet. Check your inbox.",
+      "accountDeactivated": "This account has been deactivated.",
+      "googleRejected": "Google rejected the account (unverified email or invalid token).",
+      "googleNotConfigured": "Google sign-in isn't configured on the server yet."
     }
   },
   "register": {
@@ -74,7 +81,9 @@
     "errors": {
       "passwordMismatch": "Passwords don't match.",
       "usernameTaken": "That username is already taken.",
-      "registerFailed": "Couldn't create the account."
+      "registerFailed": "Couldn't create the account.",
+      "invalidData": "Check your details: the email must be valid and the password at least 8 characters long.",
+      "alreadyExists": "An account with that username or email already exists."
     }
   },
   "verifyEmail": {
@@ -90,7 +99,8 @@
       "title": "Couldn't verify",
       "requestNewLinkIntro": "You can request a new link from",
       "loginLink": "login"
-    }
+    },
+    "invalidOrExpired": "The verification link is invalid or has expired."
   },
   "dashboard": {
     "greeting": "Hi, {username}",
@@ -476,7 +486,9 @@
   },
   "errors": {
     "auth": {
-      "noActiveSession": "There's no active session."
+      "noActiveSession": "There's no active session.",
+      "tooManyRequests": "Too many attempts. Wait a minute and try again.",
+      "unreachable": "Couldn't reach the server. Try again in a few seconds."
     },
     "moxfieldImport": {
       "notFound": "There's no public Moxfield deck with that ID. Check the URL and that the deck isn't private.",

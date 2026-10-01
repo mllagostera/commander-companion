@@ -18,7 +18,7 @@ export function useGames() {
 
 /** Translates a game's status into a readable label. */
 export function gameStatusLabel(status: Game['status']): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (status) {
     case 'pending':
       return t('gameStatus.pending')
@@ -33,7 +33,7 @@ export function gameStatusLabel(status: Game['status']): string {
 
 /** 404 here covers both "the group doesn't exist" and "you're not a member" (see games.ErrPlaygroupNotFound). */
 export function listPlaygroupGamesError(err: unknown): string {
-  const { t } = useI18n()
+  const { t } = useNuxtApp().$i18n
   switch (apiErrorStatus(err)) {
     case 404:
       return t('errors.games.notFoundOrNotMember')
