@@ -8,7 +8,7 @@ const uploadSourceMaps = Boolean(process.env.SENTRY_AUTH_TOKEN)
 export default defineNuxtConfig({
   compatibilityDate: '2026-07-27',
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n', '@sentry/nuxt/module'],
+  modules: ['@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n', '@sentry/nuxt/module', '@vercel/analytics'],
   // Nuxt only emits server source maps by default, and @sentry/nuxt treats
   // that default `client: false` as a deliberate opt-out, so the browser
   // bundles would reach Sentry minified. 'hidden' writes the .map files
