@@ -133,7 +133,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 }
 
 const listDecksByUserID = `-- name: ListDecksByUserID :many
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks WHERE user_id = $1 ORDER BY created_at DESC
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden FROM decks WHERE user_id = $1 ORDER BY created_at DESC
 `
 
 // A user's decks, for the "which deck are they playing" picker when proxy-joining
@@ -157,6 +157,10 @@ func (q *Queries) ListDecksByUserID(ctx context.Context, userID pgtype.UUID) ([]
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ImageUrl,
+			&i.Bracket,
+			&i.ColorIdentity,
+			&i.BracketOverridden,
+			&i.ColorIdentityOverridden,
 		); err != nil {
 			return nil, err
 		}

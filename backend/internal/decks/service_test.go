@@ -78,7 +78,7 @@ func TestCreateDeck_Success(t *testing.T) {
 	owner := createTestUser(t, pool, "create-deck@example.com")
 	svc := newDecksSvc(pool, nil)
 
-	res, err := svc.CreateDeck(context.Background(), owner.ID, decks.CreateDeckRequest{
+	res, err := svc.CreateDeck(context.Background(), owner.ID, &decks.CreateDeckRequest{
 		Name:      deckNameFixture,
 		Commander: deckCommanderFixture,
 	})
@@ -115,7 +115,7 @@ func TestCreateDeck_BlankFields(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := svc.CreateDeck(context.Background(), owner.ID, tc.req)
+			_, err := svc.CreateDeck(context.Background(), owner.ID, &tc.req)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("CreateDeck() error = %v, want %v", err, tc.wantErr)
 			}
@@ -125,7 +125,7 @@ func TestCreateDeck_BlankFields(t *testing.T) {
 		})
 	}
 
-	res, err := svc.CreateDeck(context.Background(), owner.ID, decks.CreateDeckRequest{
+	res, err := svc.CreateDeck(context.Background(), owner.ID, &decks.CreateDeckRequest{
 		Name:      "  Atraxa Superfriends  ",
 		Commander: "  Atraxa, Praetors' Voice  ",
 	})
@@ -145,7 +145,7 @@ func TestGetDeck_OwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 	intruder := createTestUser(t, pool, "intruder@example.com")
 	svc := newDecksSvc(pool, nil)
 
-	created, err := svc.CreateDeck(context.Background(), owner.ID, decks.CreateDeckRequest{
+	created, err := svc.CreateDeck(context.Background(), owner.ID, &decks.CreateDeckRequest{
 		Name:      "Deck privado",
 		Commander: "Some Commander",
 	})
@@ -195,15 +195,15 @@ func TestListDecks_OnlyReturnsOwnDecks(t *testing.T) {
 	svc := newDecksSvc(pool, nil)
 
 	deckA := decks.CreateDeckRequest{Name: "A1", Commander: "C1"}
-	if _, err := svc.CreateDeck(context.Background(), userA.ID, deckA); err != nil {
+	if _, err := svc.CreateDeck(context.Background(), userA.ID, &deckA); err != nil {
 		t.Fatalf("CreateDeck(A) error = %v", err)
 	}
 	deckB := decks.CreateDeckRequest{Name: "B1", Commander: "C2"}
-	if _, err := svc.CreateDeck(context.Background(), userB.ID, deckB); err != nil {
+	if _, err := svc.CreateDeck(context.Background(), userB.ID, &deckB); err != nil {
 		t.Fatalf("CreateDeck(B) error = %v", err)
 	}
 
-	listA, err := svc.ListDecks(context.Background(), userA.ID, firstPage())
+	listA, err := svc.ListDecks(context.Background(), userA.ID, firstPage(), common.DeckTraitFilter{})
 	if err != nil {
 		t.Fatalf("ListDecks(A) error = %v", err)
 	}
@@ -230,7 +230,7 @@ func TestListDecks_PaginatesWithCursor(t *testing.T) {
 	const total = 5
 	for i := range total {
 		req := decks.CreateDeckRequest{Name: fmt.Sprintf("Deck %d", i), Commander: "C"}
-		if _, err := svc.CreateDeck(context.Background(), owner.ID, req); err != nil {
+		if _, err := svc.CreateDeck(context.Background(), owner.ID, &req); err != nil {
 			t.Fatalf("CreateDeck(%d) error = %v", i, err)
 		}
 	}
@@ -253,7 +253,7 @@ func collectAllPages(t *testing.T, svc decks.Service, userID string, limit, maxP
 	page := common.PageRequest{Limit: int32(limit)}
 
 	for pages := 0; pages <= maxPages; pages++ {
-		res, err := svc.ListDecks(context.Background(), userID, page)
+		res, err := svc.ListDecks(context.Background(), userID, page, common.DeckTraitFilter{})
 		if err != nil {
 			t.Fatalf("ListDecks() página %d: error = %v", pages, err)
 		}
@@ -290,7 +290,7 @@ func TestListDecks_InvalidCursor(t *testing.T) {
 	svc := newDecksSvc(pool, nil)
 
 	page := common.PageRequest{Limit: common.DefaultPageLimit, Cursor: "no-es-un-cursor"}
-	_, err := svc.ListDecks(context.Background(), owner.ID, page)
+	_, err := svc.ListDecks(context.Background(), owner.ID, page, common.DeckTraitFilter{})
 	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusBadRequest {
 		t.Fatalf("ListDecks() con cursor inválido: code = %d, want %d", fiberErr.Code, fiber.StatusBadRequest)
 	}
@@ -305,7 +305,7 @@ func TestDeleteDeck_OwnedByAnotherUser_DoesNotDelete(t *testing.T) {
 	svc := newDecksSvc(pool, nil)
 
 	req := decks.CreateDeckRequest{Name: "No me borres", Commander: "C"}
-	created, err := svc.CreateDeck(context.Background(), owner.ID, req)
+	created, err := svc.CreateDeck(context.Background(), owner.ID, &req)
 	if err != nil {
 		t.Fatalf("CreateDeck() error = %v", err)
 	}
@@ -328,7 +328,7 @@ func TestDeleteDeck_Success(t *testing.T) {
 	svc := newDecksSvc(pool, nil)
 
 	req := decks.CreateDeckRequest{Name: "Borrame", Commander: "C"}
-	created, err := svc.CreateDeck(context.Background(), owner.ID, req)
+	created, err := svc.CreateDeck(context.Background(), owner.ID, &req)
 	if err != nil {
 		t.Fatalf("CreateDeck() error = %v", err)
 	}

@@ -11,18 +11,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const backfillSeatDeckTraits = `-- name: BackfillSeatDeckTraits :exec
+UPDATE game_players
+SET deck_bracket = CASE WHEN deck_bracket IS NULL OR deck_bracket_backfilled
+                        THEN $1::smallint ELSE deck_bracket END,
+    deck_bracket_backfilled = deck_bracket IS NULL OR deck_bracket_backfilled,
+    deck_color_identity = CASE WHEN deck_color_identity IS NULL OR deck_color_identity_backfilled
+                               THEN $2::text[] ELSE deck_color_identity END,
+    deck_color_identity_backfilled = deck_color_identity IS NULL OR deck_color_identity_backfilled
+WHERE deck_id = $3
+  AND (deck_bracket IS NULL OR deck_bracket_backfilled
+       OR deck_color_identity IS NULL OR deck_color_identity_backfilled)
+`
+
+type BackfillSeatDeckTraitsParams struct {
+	Bracket       pgtype.Int2 `json:"bracket"`
+	ColorIdentity []string    `json:"color_identity"`
+	DeckID        pgtype.UUID `json:"deck_id"`
+}
+
+// Copies the deck's current bracket and color identity onto its past seats
+// that had none when the game was played, and flags them as backfilled. A
+// backfilled seat keeps following the deck on every later change (its value
+// was a guess, and a mistake typed in must stay correctable); a seat that got
+// its value when it sat down keeps it: that's what was actually played.
+// Each field is handled on its own, since a seat can have one and not the other.
+// (On the right-hand side of SET, the columns read their pre-update values.)
+func (q *Queries) BackfillSeatDeckTraits(ctx context.Context, arg BackfillSeatDeckTraitsParams) error {
+	_, err := q.db.Exec(ctx, backfillSeatDeckTraits, arg.Bracket, arg.ColorIdentity, arg.DeckID)
+	return err
+}
+
 const createDeck = `-- name: CreateDeck :one
-INSERT INTO decks (user_id, name, commander, moxfield_id, image_url)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url
+INSERT INTO decks (
+  user_id, name, commander, moxfield_id, image_url,
+  bracket, color_identity, bracket_overridden, color_identity_overridden
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden
 `
 
 type CreateDeckParams struct {
-	UserID     pgtype.UUID `json:"user_id"`
-	Name       string      `json:"name"`
-	Commander  string      `json:"commander"`
-	MoxfieldID pgtype.Text `json:"moxfield_id"`
-	ImageUrl   pgtype.Text `json:"image_url"`
+	UserID                  pgtype.UUID `json:"user_id"`
+	Name                    string      `json:"name"`
+	Commander               string      `json:"commander"`
+	MoxfieldID              pgtype.Text `json:"moxfield_id"`
+	ImageUrl                pgtype.Text `json:"image_url"`
+	Bracket                 pgtype.Int2 `json:"bracket"`
+	ColorIdentity           []string    `json:"color_identity"`
+	BracketOverridden       bool        `json:"bracket_overridden"`
+	ColorIdentityOverridden bool        `json:"color_identity_overridden"`
 }
 
 func (q *Queries) CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, error) {
@@ -32,6 +70,10 @@ func (q *Queries) CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, e
 		arg.Commander,
 		arg.MoxfieldID,
 		arg.ImageUrl,
+		arg.Bracket,
+		arg.ColorIdentity,
+		arg.BracketOverridden,
+		arg.ColorIdentityOverridden,
 	)
 	var i Deck
 	err := row.Scan(
@@ -43,6 +85,10 @@ func (q *Queries) CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ImageUrl,
+		&i.Bracket,
+		&i.ColorIdentity,
+		&i.BracketOverridden,
+		&i.ColorIdentityOverridden,
 	)
 	return i, err
 }
@@ -57,7 +103,7 @@ func (q *Queries) DeleteDeck(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getDeck = `-- name: GetDeck :one
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks WHERE id = $1 LIMIT 1
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden FROM decks WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDeck(ctx context.Context, id pgtype.UUID) (Deck, error) {
@@ -72,12 +118,16 @@ func (q *Queries) GetDeck(ctx context.Context, id pgtype.UUID) (Deck, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ImageUrl,
+		&i.Bracket,
+		&i.ColorIdentity,
+		&i.BracketOverridden,
+		&i.ColorIdentityOverridden,
 	)
 	return i, err
 }
 
 const getDeckByMoxfieldID = `-- name: GetDeckByMoxfieldID :one
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden FROM decks
 WHERE user_id = $1 AND moxfield_id = $2
 ORDER BY created_at ASC
 LIMIT 1
@@ -103,23 +153,39 @@ func (q *Queries) GetDeckByMoxfieldID(ctx context.Context, arg GetDeckByMoxfield
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ImageUrl,
+		&i.Bracket,
+		&i.ColorIdentity,
+		&i.BracketOverridden,
+		&i.ColorIdentityOverridden,
 	)
 	return i, err
 }
 
 const listDecksPage = `-- name: ListDecksPage :many
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden FROM decks
 WHERE user_id = $1
+  AND ($2::smallint[] IS NULL OR bracket = ANY($2::smallint[]))
   AND (
-    $2::timestamp IS NULL
-    OR (created_at, id) < ($2::timestamp, $3::uuid)
+    $3::text[] IS NULL
+    OR CASE $4::text
+      WHEN 'includes' THEN color_identity @> $3::text[]
+      WHEN 'within' THEN color_identity <@ $3::text[]
+      ELSE color_identity @> $3::text[] AND color_identity <@ $3::text[]
+    END
+  )
+  AND (
+    $5::timestamp IS NULL
+    OR (created_at, id) < ($5::timestamp, $6::uuid)
   )
 ORDER BY created_at DESC, id DESC
-LIMIT $4
+LIMIT $7
 `
 
 type ListDecksPageParams struct {
 	UserID          pgtype.UUID      `json:"user_id"`
+	Brackets        []int16          `json:"brackets"`
+	Colors          []string         `json:"colors"`
+	ColorMode       string           `json:"color_mode"`
 	CursorCreatedAt pgtype.Timestamp `json:"cursor_created_at"`
 	CursorID        pgtype.UUID      `json:"cursor_id"`
 	PageLimit       int32            `json:"page_limit"`
@@ -128,9 +194,16 @@ type ListDecksPageParams struct {
 // Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
 // it returns the first page; with a cursor, the rows strictly after it in
 // list order. See internal/common/pagination.go.
+//
+// brackets/colors narrow the list (NULL = no filter, see
+// common.DeckTraitFilter); a deck whose value is unknown never matches.
+// "exact" is containment both ways, so it doesn't depend on letter order.
 func (q *Queries) ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([]Deck, error) {
 	rows, err := q.db.Query(ctx, listDecksPage,
 		arg.UserID,
+		arg.Brackets,
+		arg.Colors,
+		arg.ColorMode,
 		arg.CursorCreatedAt,
 		arg.CursorID,
 		arg.PageLimit,
@@ -151,6 +224,10 @@ func (q *Queries) ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ImageUrl,
+			&i.Bracket,
+			&i.ColorIdentity,
+			&i.BracketOverridden,
+			&i.ColorIdentityOverridden,
 		); err != nil {
 			return nil, err
 		}
@@ -164,26 +241,35 @@ func (q *Queries) ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([
 
 const updateDeckFromMoxfield = `-- name: UpdateDeckFromMoxfield :one
 UPDATE decks
-SET name = $2, commander = $3, image_url = $4, updated_at = now()
+SET name = $2, commander = $3, image_url = $4,
+    bracket = CASE WHEN bracket_overridden THEN bracket ELSE $5::smallint END,
+    color_identity = CASE WHEN color_identity_overridden THEN color_identity ELSE $6::text[] END,
+    updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url
+RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden
 `
 
 type UpdateDeckFromMoxfieldParams struct {
-	ID        pgtype.UUID `json:"id"`
-	Name      string      `json:"name"`
-	Commander string      `json:"commander"`
-	ImageUrl  pgtype.Text `json:"image_url"`
+	ID            pgtype.UUID `json:"id"`
+	Name          string      `json:"name"`
+	Commander     string      `json:"commander"`
+	ImageUrl      pgtype.Text `json:"image_url"`
+	Bracket       pgtype.Int2 `json:"bracket"`
+	ColorIdentity []string    `json:"color_identity"`
 }
 
-// Re-syncs name, commander, and image for an already-imported deck with what
-// Moxfield returns today (see internal/sync). updated_at marks the last successful sync.
+// Re-syncs name, commander, image, bracket and color identity for an
+// already-imported deck with what Moxfield returns today (see internal/sync).
+// A bracket/color identity set by hand (the *_overridden flags) is kept.
+// updated_at marks the last successful sync.
 func (q *Queries) UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFromMoxfieldParams) (Deck, error) {
 	row := q.db.QueryRow(ctx, updateDeckFromMoxfield,
 		arg.ID,
 		arg.Name,
 		arg.Commander,
 		arg.ImageUrl,
+		arg.Bracket,
+		arg.ColorIdentity,
 	)
 	var i Deck
 	err := row.Scan(
@@ -195,6 +281,54 @@ func (q *Queries) UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFrom
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ImageUrl,
+		&i.Bracket,
+		&i.ColorIdentity,
+		&i.BracketOverridden,
+		&i.ColorIdentityOverridden,
+	)
+	return i, err
+}
+
+const updateDeckTraits = `-- name: UpdateDeckTraits :one
+UPDATE decks
+SET bracket = $2, color_identity = $3, bracket_overridden = $4, color_identity_overridden = $5
+WHERE id = $1
+RETURNING id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden
+`
+
+type UpdateDeckTraitsParams struct {
+	ID                      pgtype.UUID `json:"id"`
+	Bracket                 pgtype.Int2 `json:"bracket"`
+	ColorIdentity           []string    `json:"color_identity"`
+	BracketOverridden       bool        `json:"bracket_overridden"`
+	ColorIdentityOverridden bool        `json:"color_identity_overridden"`
+}
+
+// Writes a deck's bracket and color identity with their override flags as
+// decks.Service.UpdateDeck resolved them. Doesn't touch updated_at: that one
+// means "last Moxfield sync".
+func (q *Queries) UpdateDeckTraits(ctx context.Context, arg UpdateDeckTraitsParams) (Deck, error) {
+	row := q.db.QueryRow(ctx, updateDeckTraits,
+		arg.ID,
+		arg.Bracket,
+		arg.ColorIdentity,
+		arg.BracketOverridden,
+		arg.ColorIdentityOverridden,
+	)
+	var i Deck
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Commander,
+		&i.MoxfieldID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ImageUrl,
+		&i.Bracket,
+		&i.ColorIdentity,
+		&i.BracketOverridden,
+		&i.ColorIdentityOverridden,
 	)
 	return i, err
 }

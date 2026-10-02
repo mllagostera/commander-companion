@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import type { CommanderSuggestion } from '#shared/types/scryfall'
-import type { Deck, DeckResyncJob, DeckStats, PaginatedResponse } from '~/types/api'
+import type { Deck, DeckResyncJob, DeckStats, DeckTraitFilter, ManaColor, PaginatedResponse } from '~/types/api'
 
 const { t } = useI18n()
-const { listDecksPage, createDeck, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus } = useDecks()
+const {
+  listDecksPage,
+  createDeck,
+  updateDeck,
+  importFromMoxfield,
+  syncFromMoxfield,
+  resyncAllDecks,
+  getResyncAllStatus,
+} = useDecks()
 const { allDeckStats } = useStatistics()
 const { showToast } = useToast()
 
@@ -13,28 +21,50 @@ const { showToast } = useToast()
 // below); a search, though, has to be able to match decks that haven't
 // scrolled into view yet, so typing into the search box eagerly fetches
 // every remaining page instead of only filtering what's already loaded.
+//
+// The bracket/color filter, unlike the search, runs server-side: changing it
+// refetches from the first page (useAsyncData's `watch`), and every later page
+// carries the same filter.
+const traitFilter = ref<DeckTraitFilter>(emptyDeckTraitFilter())
 const { data: firstPage, refresh: refreshFirstPage, error: listError } = await useAsyncData<PaginatedResponse<Deck>>(
   'decks-first-page',
-  () => listDecksPage(),
-  { default: () => ({ items: [], next_cursor: null }) },
+  () => listDecksPage(undefined, traitFilter.value),
+  { default: () => ({ items: [], next_cursor: null }), watch: [traitFilter] },
 )
 
 const decks = ref<Deck[]>([])
 const nextCursor = ref<string | null>(null)
 const isLoadingMore = ref(false)
 
+// Which listing `decks`/`nextCursor` belong to. Bumped whenever a listing ends
+// (new filter) or starts (a first page lands), so a page fetched for an
+// earlier listing is dropped instead of appended, whichever order the
+// responses come back in.
+let listing = 0
+
 function syncFromFirstPage(page: PaginatedResponse<Deck> | null | undefined) {
+  listing++
   decks.value = page?.items ?? []
   nextCursor.value = page?.next_cursor ?? null
 }
 
 watch(firstPage, syncFromFirstPage, { immediate: true })
 
+// The old listing's cursor means nothing under the new filter: drop it right
+// away, so neither scrolling nor a search asks for another page until the new
+// first page brings its own. 'sync' so this runs before anything else can.
+watch(traitFilter, () => {
+  listing++
+  nextCursor.value = null
+}, { flush: 'sync' })
+
 async function loadMore() {
   if (isLoadingMore.value || !nextCursor.value) return
   isLoadingMore.value = true
+  const listingAtStart = listing
   try {
-    const page = await listDecksPage(nextCursor.value)
+    const page = await listDecksPage(nextCursor.value, traitFilter.value)
+    if (listing !== listingAtStart) return
     decks.value = [...decks.value, ...page.items]
     nextCursor.value = page.next_cursor
   } finally {
@@ -113,6 +143,8 @@ const newDeckCommander = ref('')
 const createError = ref('')
 const isCreating = ref(false)
 const pickedCommander = ref<CommanderSuggestion | null>(null)
+const newDeckBracket = ref<number | null>(null)
+const newDeckColors = ref<ManaColor[] | null>(null)
 
 /**
  * The picked commander's art, but only while the field still holds that
@@ -134,6 +166,8 @@ function openCreateModal() {
   newDeckName.value = ''
   newDeckCommander.value = ''
   pickedCommander.value = null
+  newDeckBracket.value = null
+  newDeckColors.value = null
   createError.value = ''
   isCreateModalOpen.value = true
 }
@@ -155,6 +189,8 @@ async function handleCreate() {
       name: newDeckName.value,
       commander: newDeckCommander.value,
       imageUrl: newDeckImageUrl.value,
+      bracket: newDeckBracket.value,
+      colorIdentity: newDeckColors.value,
     })
     closeCreateModal()
     await refresh()
@@ -228,6 +264,78 @@ async function handleSync(deck: Deck) {
   }
 }
 
+// ------------------------------------------- edit bracket / color identity
+// Whatever is saved here is flagged as set by hand, so "Actualizar" keeps it.
+// On a Moxfield deck, "use Moxfield's" drops that and takes Moxfield's value
+// right away (the backend fetches it in the same request).
+const editingDeck = ref<Deck | null>(null)
+const editModalRef = ref<HTMLElement | null>(null)
+const editBracket = ref<number | null>(null)
+const editColors = ref<ManaColor[] | null>(null)
+const editError = ref('')
+const isSavingEdit = ref(false)
+const isEditModalOpen = computed(() => editingDeck.value !== null)
+
+function openEditModal(deck: Deck) {
+  editingDeck.value = deck
+  editBracket.value = deck.bracket
+  editColors.value = deck.color_identity ? [...deck.color_identity] : null
+  editError.value = ''
+}
+
+function closeEditModal() {
+  editingDeck.value = null
+}
+
+useModalA11y(isEditModalOpen, editModalRef, closeEditModal)
+
+function replaceDeck(updated: Deck) {
+  const idx = decks.value.findIndex((d) => d.id === updated.id)
+  if (idx !== -1) decks.value[idx] = updated
+}
+
+function sameColors(a: ManaColor[] | null, b: ManaColor[] | null): boolean {
+  return a === null || b === null ? a === b : a.join('') === b.join('')
+}
+
+async function saveEdit() {
+  const deck = editingDeck.value
+  if (!deck) return
+  const body: Parameters<typeof updateDeck>[1] = {}
+  if (editBracket.value !== deck.bracket) body.bracket = editBracket.value
+  if (!sameColors(editColors.value, deck.color_identity)) body.color_identity = editColors.value
+  if (!Object.keys(body).length) {
+    closeEditModal()
+    return
+  }
+  await submitEdit(deck, body, true)
+}
+
+async function resetEdit(field: 'bracket' | 'color_identity') {
+  const deck = editingDeck.value
+  if (!deck) return
+  await submitEdit(deck, field === 'bracket' ? { reset_bracket: true } : { reset_color_identity: true }, false)
+}
+
+async function submitEdit(deck: Deck, body: Parameters<typeof updateDeck>[1], closeAfter: boolean) {
+  editError.value = ''
+  isSavingEdit.value = true
+  try {
+    const updated = await updateDeck(deck.id, body)
+    replaceDeck(updated)
+    if (closeAfter) {
+      closeEditModal()
+      showToast(t('toast.deckUpdated'))
+    } else {
+      openEditModal(updated)
+    }
+  } catch (err) {
+    editError.value = updateDeckError(err)
+  } finally {
+    isSavingEdit.value = false
+  }
+}
+
 // --------------------------------------------------- resync all decks
 const resyncJob = ref<DeckResyncJob | null>(null)
 const resyncError = ref('')
@@ -296,9 +404,17 @@ watch(deckSearch, (q) => {
 
 onUnmounted(() => clearTimeout(searchDebounce))
 
+// A new trait filter starts the listing over from page 1; if a search is
+// active it still has to see every page of the new listing.
+watch(firstPage, () => {
+  if (deckSearch.value.trim()) loadAllRemainingOnce()
+})
+
 function statsFor(deck: Deck): DeckStats | null {
   return statsByDeckId.value.get(deck.id) ?? null
 }
+
+const isTraitFilterActive = computed(() => isDeckTraitFilterActive(traitFilter.value))
 
 const filteredDecks = computed(() => {
   const q = deckSearch.value.trim().toLowerCase()
@@ -379,12 +495,14 @@ const filteredDecks = computed(() => {
       />
     </section>
 
+    <DeckTraitFilterBar v-model="traitFilter" />
+
     <p v-if="listError" class="text-sm" style="color: var(--lose);">{{ $t('decks.loadError') }}</p>
     <!-- Two different "nothing to show" cases: an account with no decks at all
-         (offer the import) versus a search that matched none of them (offering
-         the import there would be answering a question nobody asked). -->
+         (offer the import) versus a search or filter that matched none of them
+         (offering the import there would be answering a question nobody asked). -->
     <EmptyState
-      v-else-if="!decks?.length"
+      v-else-if="!decks?.length && !isTraitFilterActive"
       :title="$t('decks.emptyTitle')"
       :body="$t('decks.emptyBody')"
       :cta-label="$t('decks.addDeck')"
@@ -393,7 +511,7 @@ const filteredDecks = computed(() => {
     <EmptyState
       v-else-if="!filteredDecks.length"
       :title="$t('decks.noMatchesTitle')"
-      :body="$t('decks.noMatchesBody')"
+      :body="isTraitFilterActive ? $t('decks.noFilterMatchesBody') : $t('decks.noMatchesBody')"
     />
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -407,6 +525,7 @@ const filteredDecks = computed(() => {
           <div class="pointer-events-none">
             <p class="font-semibold text-white">{{ deck.name }}</p>
             <p class="mt-1 text-xs text-white/70">{{ deck.commander }}</p>
+            <DeckTraits :bracket="deck.bracket" :colors="deck.color_identity" on-art class="mt-1.5" />
             <p v-if="statsFor(deck)" class="mt-1 text-[11px] text-white/60">
               {{ $t('decks.stats', { played: statsFor(deck)!.games_played, won: statsFor(deck)!.games_won }) }}
             </p>
@@ -429,6 +548,14 @@ const filteredDecks = computed(() => {
               @click="handleSync(deck)"
             >
               {{ syncState[deck.id]?.loading ? $t('decks.sync.syncing') : $t('decks.sync.action') }}
+            </button>
+            <button
+              type="button"
+              class="rounded-full border border-white/25 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10"
+              :aria-label="$t('deckTraits.edit.actionFor', { name: deck.name })"
+              @click="openEditModal(deck)"
+            >
+              {{ $t('deckTraits.edit.action') }}
             </button>
             <span
               v-if="syncState[deck.id]?.message"
@@ -517,6 +644,8 @@ const filteredDecks = computed(() => {
             <p class="text-[11px]" style="color: var(--text-muted);">{{ $t('decks.create.artAttached') }}</p>
           </div>
 
+          <DeckTraitsEditor v-model:bracket="newDeckBracket" v-model:colors="newDeckColors" id-prefix="new-deck" />
+
           <button
             type="submit"
             :disabled="isCreating || !canSubmitCreate"
@@ -542,6 +671,82 @@ const filteredDecks = computed(() => {
             {{ $t('decks.create.moxfieldAction') }}
           </button>
         </p>
+      </div>
+    </div>
+
+    <div
+      v-if="editingDeck"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="closeEditModal"
+    >
+      <div
+        ref="editModalRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="decks-edit-title"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
+        <div class="flex items-center justify-between">
+          <div class="min-w-0">
+            <h2 id="decks-edit-title" class="text-[15px] font-medium">{{ $t('deckTraits.edit.title') }}</h2>
+            <p class="mt-0.5 truncate text-[12px]" style="color: var(--text-muted);">{{ editingDeck.name }}</p>
+          </div>
+          <button
+            type="button"
+            :aria-label="$t('common.close')"
+            class="-m-2 p-2 text-sm"
+            style="color: var(--text-dim);"
+            @click="closeEditModal"
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+
+        <form class="mt-4 flex flex-col gap-4" @submit.prevent="saveEdit">
+          <DeckTraitsEditor v-model:bracket="editBracket" v-model:colors="editColors" id-prefix="edit-deck" />
+
+          <!-- Only a Moxfield deck has a value to go back to, and only one set
+               by hand needs going back. -->
+          <div
+            v-if="editingDeck.moxfield_id && (editingDeck.bracket_overridden || editingDeck.color_identity_overridden)"
+            class="flex flex-col items-start gap-1 rounded-[var(--radius-md)] border p-3 text-[12px]"
+            style="border-color: var(--card-border); background: var(--card-bg); color: var(--text-muted);"
+          >
+            <p>{{ $t('deckTraits.edit.overriddenHint') }}</p>
+            <button
+              v-if="editingDeck.bracket_overridden"
+              type="button"
+              :disabled="isSavingEdit"
+              class="py-1 underline disabled:opacity-50"
+              style="color: var(--accent-link);"
+              @click="resetEdit('bracket')"
+            >
+              {{ $t('deckTraits.edit.resetBracket') }}
+            </button>
+            <button
+              v-if="editingDeck.color_identity_overridden"
+              type="button"
+              :disabled="isSavingEdit"
+              class="py-1 underline disabled:opacity-50"
+              style="color: var(--accent-link);"
+              @click="resetEdit('color_identity')"
+            >
+              {{ $t('deckTraits.edit.resetColors') }}
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            :disabled="isSavingEdit"
+            class="rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] transition-transform hover:scale-[1.02] disabled:opacity-50"
+            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+          >
+            {{ isSavingEdit ? $t('deckTraits.edit.saving') : $t('deckTraits.edit.save') }}
+          </button>
+        </form>
+
+        <p v-if="editError" class="mt-3 text-sm" style="color: var(--lose);">{{ editError }}</p>
       </div>
     </div>
 

@@ -222,7 +222,8 @@
       "submitting": "Creating…",
       "moxfieldPrompt": "Already have it on Moxfield?",
       "moxfieldAction": "Import it instead"
-    }
+    },
+    "noFilterMatchesBody": "No deck has that bracket or those colors. Try removing a filter."
   },
   "statistics": {
     "title": "Statistics",
@@ -288,7 +289,21 @@
       "biggestHit": "Biggest hit",
       "loadMore": "Load more",
       "emptyTitle": "No finished games yet",
-      "emptyBody": "Every game you finish is listed here with its decks and result."
+      "emptyBody": "Every game you finish is listed here with its decks and result.",
+      "filterHint": "Filters apply to your deck as it was when the game was played.",
+      "noFilterMatchesTitle": "No games match",
+      "noFilterMatchesBody": "You haven't played any game with that bracket or those colors. Try removing a filter."
+    },
+    "breakdown": {
+      "heading": "By bracket and colors",
+      "byBracket": "By bracket",
+      "byColors": "By colors",
+      "groupByAriaLabel": "Group by",
+      "emptyTitle": "No data yet",
+      "emptyBody": "Once you finish games with decks that have a bracket or colors, you'll see how you do with each here.",
+      "unknownBracket": "No bracket",
+      "unknownColors": "No colors",
+      "summary": "{played} games · {won} wins · {rate}"
     }
   },
   "settings": {
@@ -490,7 +505,8 @@
     "roundAdvanced": "Round advanced",
     "friendRequestSent": "Friend request sent to {username}",
     "friendAdded": "You and {username} are now friends",
-    "deckCreated": "Deck created"
+    "deckCreated": "Deck created",
+    "deckUpdated": "Deck updated"
   },
   "gameStatus": {
     "pending": "Pending",
@@ -631,6 +647,10 @@
     "createDeck": {
       "missingFields": "A deck needs a name and a commander.",
       "generic": "Couldn't create the deck."
+    },
+    "updateDeck": {
+      "generic": "Couldn't save the deck.",
+      "moxfieldUnavailable": "Moxfield isn't responding right now. Try again in a few minutes."
     }
   },
   "tournaments": {
@@ -913,5 +933,41 @@
       "body": "An unexpected error occurred. Please try again in a moment."
     },
     "goHome": "Back to home"
+  },
+  "deckTraits": {
+    "bracket": "Bracket {n}",
+    "bracketShort": "B{n}",
+    "colors": {
+      "W": "White",
+      "U": "Blue",
+      "B": "Black",
+      "R": "Red",
+      "G": "Green",
+      "C": "Colorless"
+    },
+    "filter": {
+      "bracketLabel": "Bracket",
+      "colorsLabel": "Colors",
+      "clear": "Clear filters",
+      "mode": {
+        "exact": "Exactly these",
+        "includes": "Includes these",
+        "within": "Only these",
+        "ariaLabel": "How to match colors"
+      }
+    },
+    "edit": {
+      "action": "Edit",
+      "actionFor": "Edit bracket and colors of {name}",
+      "title": "Bracket and colors",
+      "bracketLabel": "Bracket",
+      "colorsLabel": "Color identity",
+      "unknown": "Not set",
+      "overriddenHint": "You changed something by hand, so “Update” leaves it alone.",
+      "resetBracket": "Use Moxfield's bracket",
+      "resetColors": "Use Moxfield's colors",
+      "save": "Save",
+      "saving": "Saving…"
+    }
   }
 }

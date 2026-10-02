@@ -222,7 +222,8 @@
       "submitting": "Creant…",
       "moxfieldPrompt": "Ja el tens a Moxfield?",
       "moxfieldAction": "Importa'l en lloc d'això"
-    }
+    },
+    "noFilterMatchesBody": "Cap deck no té aquest bracket o aquests colors. Prova de treure algun filtre."
   },
   "statistics": {
     "title": "Estadístiques",
@@ -288,7 +289,21 @@
       "biggestHit": "Cop més fort",
       "loadMore": "Carrega'n més",
       "emptyTitle": "Encara no hi ha partides finalitzades",
-      "emptyBody": "Cada partida que acabis es llista aquí amb els seus decks i el resultat."
+      "emptyBody": "Cada partida que acabis es llista aquí amb els seus decks i el resultat.",
+      "filterHint": "Els filtres s’apliquen al teu deck tal com era quan es va jugar la partida.",
+      "noFilterMatchesTitle": "Cap partida no coincideix",
+      "noFilterMatchesBody": "No has jugat cap partida amb aquest bracket o aquests colors. Prova de treure algun filtre."
+    },
+    "breakdown": {
+      "heading": "Per bracket i colors",
+      "byBracket": "Per bracket",
+      "byColors": "Per colors",
+      "groupByAriaLabel": "Agrupa per",
+      "emptyTitle": "Encara no hi ha dades",
+      "emptyBody": "Quan acabis partides amb decks que tinguin bracket o colors, aquí veuràs com et va amb cadascun.",
+      "unknownBracket": "Sense bracket",
+      "unknownColors": "Sense colors",
+      "summary": "{played} partides · {won} victòries · {rate}"
     }
   },
   "settings": {
@@ -490,7 +505,8 @@
     "roundAdvanced": "Ronda avançada",
     "friendRequestSent": "Sol·licitud d'amistat enviada a {username}",
     "friendAdded": "Ara tu i {username} sou amics",
-    "deckCreated": "Deck creat"
+    "deckCreated": "Deck creat",
+    "deckUpdated": "Deck actualitzat"
   },
   "gameStatus": {
     "pending": "Pendent",
@@ -631,6 +647,10 @@
     "createDeck": {
       "missingFields": "Un deck necessita nom i comandant.",
       "generic": "No s'ha pogut crear el deck."
+    },
+    "updateDeck": {
+      "generic": "No s'ha pogut desar el deck.",
+      "moxfieldUnavailable": "Moxfield no respon ara mateix. Torna-ho a provar d’aquí a uns minuts."
     }
   },
   "tournaments": {
@@ -913,5 +933,41 @@
       "body": "S'ha produït un error inesperat. Torna-ho a provar d'aquí a un moment."
     },
     "goHome": "Torna a l'inici"
+  },
+  "deckTraits": {
+    "bracket": "Bracket {n}",
+    "bracketShort": "B{n}",
+    "colors": {
+      "W": "Blanc",
+      "U": "Blau",
+      "B": "Negre",
+      "R": "Vermell",
+      "G": "Verd",
+      "C": "Incolor"
+    },
+    "filter": {
+      "bracketLabel": "Bracket",
+      "colorsLabel": "Colors",
+      "clear": "Treu els filtres",
+      "mode": {
+        "exact": "Exactament aquests",
+        "includes": "Inclou aquests",
+        "within": "Només d’aquests",
+        "ariaLabel": "Com comparar els colors"
+      }
+    },
+    "edit": {
+      "action": "Edita",
+      "actionFor": "Edita el bracket i els colors de {name}",
+      "title": "Bracket i colors",
+      "bracketLabel": "Bracket",
+      "colorsLabel": "Identitat de color",
+      "unknown": "Sense definir",
+      "overriddenHint": "Has canviat alguna cosa a mà, així que «Actualitza» no ho toca.",
+      "resetBracket": "Fes servir el bracket de Moxfield",
+      "resetColors": "Fes servir els colors de Moxfield",
+      "save": "Desa",
+      "saving": "Desant…"
+    }
   }
 }

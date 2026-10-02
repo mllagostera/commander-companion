@@ -1,9 +1,12 @@
 package decks
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,6 +44,11 @@ var (
 	// Nothing else identifies a Commander deck, and the whole app keys off it
 	// (statistics group by deck, DeckArt falls back to its first letter).
 	ErrCommanderRequired = common.InvalidInput("commander is required")
+	// ErrResetWithoutMoxfield indicates a reset_* on a deck that wasn't imported
+	// from Moxfield: there's no Moxfield value to go back to.
+	ErrResetWithoutMoxfield = common.InvalidInput("only a deck imported from moxfield can be reset to its moxfield values")
+	// ErrSetAndReset indicates a field both set and reset in the same request.
+	ErrSetAndReset = common.InvalidInput("a field cannot be both set and reset")
 )
 
 // MoxfieldClient is what decks needs from a Moxfield client (allows mocking it in tests).
@@ -50,9 +58,13 @@ type MoxfieldClient interface {
 
 // Service defines the business logic of the decks module.
 type Service interface {
-	CreateDeck(ctx context.Context, userID string, req CreateDeckRequest) (*DeckResponse, error)
+	CreateDeck(ctx context.Context, userID string, req *CreateDeckRequest) (*DeckResponse, error)
 	GetDeck(ctx context.Context, userID, id string) (*DeckResponse, error)
-	ListDecks(ctx context.Context, userID string, page common.PageRequest) (*DeckListResponse, error)
+	ListDecks(
+		ctx context.Context, userID string, page common.PageRequest, filter common.DeckTraitFilter,
+	) (*DeckListResponse, error)
+	// UpdateDeck sets or resets a deck's bracket and color identity (see UpdateDeckRequest).
+	UpdateDeck(ctx context.Context, userID, id string, req UpdateDeckRequest) (*DeckResponse, error)
 	DeleteDeck(ctx context.Context, userID, id string) error
 	ImportFromMoxfield(ctx context.Context, userID string, req ImportMoxfieldRequest) (*DeckResponse, error)
 	// ResyncFromMoxfield queries Moxfield again for an ALREADY imported deck and
@@ -74,7 +86,7 @@ func NewService(db *pgxpool.Pool, moxfieldClient MoxfieldClient) Service {
 }
 
 // CreateDeck creates a new deck for the given user.
-func (s *service) CreateDeck(ctx context.Context, userID string, req CreateDeckRequest) (*DeckResponse, error) {
+func (s *service) CreateDeck(ctx context.Context, userID string, req *CreateDeckRequest) (*DeckResponse, error) {
 	// Trimmed and required, same as playgroups/tournaments do with their own
 	// names: until the web client grew a "new deck" form this endpoint was
 	// only ever called by the Moxfield import (which fills both fields from
@@ -103,12 +115,26 @@ func (s *service) CreateDeck(ctx context.Context, userID string, req CreateDeckR
 		imageURL = pgtype.Text{String: req.ImageURL, Valid: true}
 	}
 
+	if req.Bracket != nil && !common.ValidBracket(*req.Bracket) {
+		return nil, common.ErrInvalidBracket
+	}
+	colorIdentity, err := common.NormalizeColorIdentity(req.ColorIdentity)
+	if err != nil {
+		return nil, err
+	}
+
+	// Whatever the user typed here is theirs: flagged as overridden so a
+	// later Moxfield sync (if the deck carries a moxfield_id) doesn't undo it.
 	deck, err := s.repo.CreateDeck(ctx, CreateDeckParams{
-		UserID:     uid,
-		Name:       name,
-		Commander:  commander,
-		MoxfieldID: moxfieldID,
-		ImageUrl:   imageURL,
+		UserID:                  uid,
+		Name:                    name,
+		Commander:               commander,
+		MoxfieldID:              moxfieldID,
+		ImageUrl:                imageURL,
+		Bracket:                 int2FromPtr(req.Bracket),
+		ColorIdentity:           colorIdentity,
+		BracketOverridden:       req.Bracket != nil,
+		ColorIdentityOverridden: colorIdentity != nil,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating deck: %w", err)
@@ -130,7 +156,7 @@ func (s *service) GetDeck(ctx context.Context, userID, id string) (*DeckResponse
 // recent to the oldest. See internal/common/pagination.go for the cursor
 // scheme.
 func (s *service) ListDecks(
-	ctx context.Context, userID string, page common.PageRequest,
+	ctx context.Context, userID string, page common.PageRequest, filter common.DeckTraitFilter,
 ) (*DeckListResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
@@ -139,7 +165,13 @@ func (s *service) ListDecks(
 
 	// One row more than the limit is requested: if it comes back, there's a next
 	// page. This avoids a separate COUNT(*) just to know whether to keep paginating.
-	params := ListDecksPageParams{UserID: uid, PageLimit: page.Limit + 1}
+	params := ListDecksPageParams{
+		UserID:    uid,
+		PageLimit: page.Limit + 1,
+		Brackets:  filter.Brackets,
+		Colors:    filter.Colors,
+		ColorMode: filter.ColorMode,
+	}
 	if page.Cursor != "" {
 		cursorCreatedAt, cursorID, decodeErr := decodeCursor(page.Cursor)
 		if decodeErr != nil {
@@ -226,11 +258,13 @@ func (s *service) ImportFromMoxfield(
 	}
 
 	deck, err := s.repo.CreateDeck(ctx, CreateDeckParams{
-		UserID:     uid,
-		Name:       moxDeck.Name,
-		Commander:  moxDeck.Commander,
-		MoxfieldID: pgtype.Text{String: moxDeck.PublicID, Valid: true},
-		ImageUrl:   imageURL,
+		UserID:        uid,
+		Name:          moxDeck.Name,
+		Commander:     moxDeck.Commander,
+		MoxfieldID:    pgtype.Text{String: moxDeck.PublicID, Valid: true},
+		ImageUrl:      imageURL,
+		Bracket:       int2FromPtr(moxDeck.Bracket),
+		ColorIdentity: moxDeck.ColorIdentity,
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -258,7 +292,8 @@ func mapMoxfieldGetDeckError(err error) error {
 }
 
 // ResyncFromMoxfield queries Moxfield again for a deck already imported by the
-// user and updates the name and commander with what Moxfield returns today. Unlike
+// user and updates name, commander, art, bracket and color identity with what
+// Moxfield returns today -- except a bracket/color identity set by hand. Unlike
 // ImportFromMoxfield (which creates a new deck), here the deck must already
 // exist: if the user has none with that moxfield_id it's a 404, following the
 // same criteria as the rest of the module ("doesn't exist" is not distinguished from "isn't yours").
@@ -281,28 +316,206 @@ func (s *service) ResyncFromMoxfield(
 		return nil, ErrNoCommander
 	}
 
-	changed := moxDeck.Name != deck.Name || moxDeck.Commander != deck.Commander || moxDeck.ImageURL != deck.ImageUrl.String
-
 	var imageURL pgtype.Text
 	if moxDeck.ImageURL != "" {
 		imageURL = pgtype.Text{String: moxDeck.ImageURL, Valid: true}
 	}
 
 	updated, err := s.repo.UpdateDeckFromMoxfield(ctx, UpdateDeckFromMoxfieldParams{
-		ID:        deck.ID,
-		Name:      moxDeck.Name,
-		Commander: moxDeck.Commander,
-		ImageUrl:  imageURL,
+		ID:            deck.ID,
+		Name:          moxDeck.Name,
+		Commander:     moxDeck.Commander,
+		ImageUrl:      imageURL,
+		Bracket:       int2FromPtr(moxDeck.Bracket),
+		ColorIdentity: moxDeck.ColorIdentity,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("updating deck from moxfield: %w", err)
+	}
+	if err := s.backfillSeats(ctx, &updated); err != nil {
+		return nil, err
 	}
 
 	return &MoxfieldSyncState{
 		Deck:         toDeckResponse(&updated),
 		LastSyncedAt: lastSyncedAt(&updated),
-		Changed:      changed,
+		Changed:      deckChanged(deck, &updated),
 	}, nil
+}
+
+// deckChanged reports whether a resync changed anything the user can see.
+func deckChanged(before, after *Deck) bool {
+	return after.Name != before.Name || after.Commander != before.Commander ||
+		after.ImageUrl != before.ImageUrl || after.Bracket != before.Bracket ||
+		!sameColorIdentity(after.ColorIdentity, before.ColorIdentity)
+}
+
+// traitUpdate is an UpdateDeckRequest once parsed and validated.
+type traitUpdate struct {
+	setBracket, setColors     bool
+	bracket                   *int
+	colorIdentity             []string
+	resetBracket, resetColors bool
+}
+
+func parseTraitUpdate(req *UpdateDeckRequest) (*traitUpdate, error) {
+	setBracket, bracket, err := parseBracketField(req.Bracket)
+	if err != nil {
+		return nil, err
+	}
+	setColors, colorIdentity, err := parseColorIdentityField(req.ColorIdentity)
+	if err != nil {
+		return nil, err
+	}
+	if (setBracket && req.ResetBracket) || (setColors && req.ResetColorIdentity) {
+		return nil, ErrSetAndReset
+	}
+	return &traitUpdate{
+		setBracket: setBracket, bracket: bracket,
+		setColors: setColors, colorIdentity: colorIdentity,
+		resetBracket: req.ResetBracket, resetColors: req.ResetColorIdentity,
+	}, nil
+}
+
+// UpdateDeck sets or resets a deck's bracket and color identity. A value set
+// here is flagged as overridden so resyncs keep it; a reset drops the flag and
+// takes Moxfield's current value, fetched before anything is written so a
+// Moxfield outage leaves the deck untouched.
+func (s *service) UpdateDeck(ctx context.Context, userID, id string, req UpdateDeckRequest) (*DeckResponse, error) {
+	deck, err := s.getOwnedDeck(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	update, err := parseTraitUpdate(&req)
+	if err != nil {
+		return nil, err
+	}
+	params, err := s.resolveTraits(ctx, deck, update)
+	if err != nil {
+		return nil, err
+	}
+
+	updated, err := s.repo.UpdateDeckTraits(ctx, *params)
+	if err != nil {
+		return nil, fmt.Errorf("updating deck traits: %w", err)
+	}
+	if err := s.backfillSeats(ctx, &updated); err != nil {
+		return nil, err
+	}
+	return toDeckResponse(&updated), nil
+}
+
+// resolveTraits works out the deck's new bracket/color identity and override
+// flags: it starts from what's stored, takes Moxfield's values for the resets,
+// then the values set by hand.
+func (s *service) resolveTraits(ctx context.Context, deck *Deck, update *traitUpdate) (*UpdateDeckTraitsParams, error) {
+	params := &UpdateDeckTraitsParams{
+		ID:                      deck.ID,
+		Bracket:                 deck.Bracket,
+		ColorIdentity:           deck.ColorIdentity,
+		BracketOverridden:       deck.BracketOverridden,
+		ColorIdentityOverridden: deck.ColorIdentityOverridden,
+	}
+
+	if update.resetBracket || update.resetColors {
+		if !deck.MoxfieldID.Valid {
+			return nil, ErrResetWithoutMoxfield
+		}
+		moxDeck, err := s.moxfield.GetDeck(ctx, deck.MoxfieldID.String)
+		if err != nil {
+			return nil, mapMoxfieldGetDeckError(err)
+		}
+		if update.resetBracket {
+			params.Bracket, params.BracketOverridden = int2FromPtr(moxDeck.Bracket), false
+		}
+		if update.resetColors {
+			params.ColorIdentity, params.ColorIdentityOverridden = moxDeck.ColorIdentity, false
+		}
+	}
+	if update.setBracket {
+		params.Bracket, params.BracketOverridden = int2FromPtr(update.bracket), true
+	}
+	if update.setColors {
+		params.ColorIdentity, params.ColorIdentityOverridden = update.colorIdentity, true
+	}
+	return params, nil
+}
+
+// parseBracketField reads PATCH's `bracket`: absent leaves it alone, null
+// clears it, a number sets it.
+func parseBracketField(raw json.RawMessage) (set bool, bracket *int, err error) {
+	if raw == nil {
+		return false, nil, nil
+	}
+	if bytes.Equal(raw, []byte("null")) {
+		return true, nil, nil
+	}
+	var value int
+	if err := json.Unmarshal(raw, &value); err != nil || !common.ValidBracket(value) {
+		return false, nil, common.ErrInvalidBracket
+	}
+	return true, &value, nil
+}
+
+// parseColorIdentityField reads PATCH's `color_identity`, with the same
+// absent/null/value rules as parseBracketField.
+func parseColorIdentityField(raw json.RawMessage) (set bool, identity []string, err error) {
+	if raw == nil {
+		return false, nil, nil
+	}
+	if bytes.Equal(raw, []byte("null")) {
+		return true, nil, nil
+	}
+	var letters []string
+	if json.Unmarshal(raw, &letters) != nil {
+		return false, nil, common.ErrInvalidColorIdentity
+	}
+	if letters == nil {
+		letters = []string{}
+	}
+	identity, err = common.NormalizeColorIdentity(letters)
+	if err != nil {
+		return false, nil, err
+	}
+	return true, identity, nil
+}
+
+// backfillSeats copies the deck's current bracket/color identity onto the
+// past seats that had none when played, and keeps earlier backfills in step
+// with it (see BackfillSeatDeckTraits). Runs even when the deck's values are
+// unknown: clearing one has to reach the seats that copied it.
+func (s *service) backfillSeats(ctx context.Context, deck *Deck) error {
+	err := s.repo.BackfillSeatDeckTraits(ctx, BackfillSeatDeckTraitsParams{
+		DeckID:        deck.ID,
+		Bracket:       deck.Bracket,
+		ColorIdentity: deck.ColorIdentity,
+	})
+	if err != nil {
+		return fmt.Errorf("backfilling seat deck traits: %w", err)
+	}
+	return nil
+}
+
+// sameColorIdentity compares two stored identities, telling unknown (nil)
+// apart from colorless (empty).
+func sameColorIdentity(a, b []string) bool {
+	return (a == nil) == (b == nil) && slices.Equal(a, b)
+}
+
+func int2FromPtr(value *int) pgtype.Int2 {
+	if value == nil {
+		return pgtype.Int2{}
+	}
+	//nolint:gosec // brackets are validated to [1, 5] before reaching here
+	return pgtype.Int2{Int16: int16(*value), Valid: true}
+}
+
+func ptrFromInt2(value pgtype.Int2) *int {
+	if !value.Valid {
+		return nil
+	}
+	v := int(value.Int16)
+	return &v
 }
 
 // GetMoxfieldSyncState returns the stored state of an imported deck without calling
@@ -383,5 +596,10 @@ func toDeckResponse(deck *Deck) *DeckResponse {
 		Commander:  deck.Commander,
 		MoxfieldID: deck.MoxfieldID.String,
 		ImageURL:   deck.ImageUrl.String,
+
+		Bracket:                 ptrFromInt2(deck.Bracket),
+		ColorIdentity:           deck.ColorIdentity,
+		BracketOverridden:       deck.BracketOverridden,
+		ColorIdentityOverridden: deck.ColorIdentityOverridden,
 	}
 }

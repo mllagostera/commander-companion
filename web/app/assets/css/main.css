@@ -113,6 +113,21 @@
   --radius-sm: 10px;
 }
 
+/*
+ * Mana colors for color-identity pips (ManaPips.vue), the same pastel set the
+ * Android app uses for seats. Not theme-dependent: a pip is a filled disc with
+ * --mana-ink on top, readable on both the dark and the light page.
+ */
+:root {
+  --mana-w: #f8e7b9;
+  --mana-u: #b3ceea;
+  --mana-b: #a69f9d;
+  --mana-r: #eb9f82;
+  --mana-g: #c4d3ca;
+  --mana-c: #c9c9c9;
+  --mana-ink: #1a1325;
+}
+
 body {
   margin: 0;
   background: var(--page-solid);

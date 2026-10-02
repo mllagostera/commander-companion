@@ -78,6 +78,12 @@ type Deck struct {
 	// ImageURL is the art crop of the deck's main card (usually the
 	// commander), or "" if Moxfield didn't report one.
 	ImageURL string
+	// Bracket is the deck's Commander bracket (1-5), or nil when the author
+	// opted out of brackets or Moxfield reported none.
+	Bracket *int
+	// ColorIdentity is in WUBRG order; empty is colorless, nil means Moxfield
+	// didn't report it.
+	ColorIdentity []string
 }
 
 // Client is an HTTP client for Moxfield's public API.
@@ -100,6 +106,14 @@ type deckResponse struct {
 	// Main is the card Moxfield highlights as the deck's cover (usually the
 	// commander); its Id is what builds the art crop URL shown as og:image.
 	Main *cardInfo `json:"main"`
+	// Bracket is the one the author declared, AutoBracket the one Moxfield
+	// computes; they match unless the author picked one by hand. 0 = none.
+	Bracket        int  `json:"bracket"`
+	AutoBracket    int  `json:"autoBracket"`
+	IgnoreBrackets bool `json:"ignoreBrackets"`
+	// ColorIdentity stays nil when the field is missing, and empty for a
+	// colorless deck.
+	ColorIdentity []string `json:"colorIdentity"`
 }
 
 type deckBoards struct {
@@ -197,11 +211,45 @@ func (c *Client) getDeckOnce(ctx context.Context, publicID string) (*Deck, time.
 	}
 
 	return &Deck{
-		PublicID:  parsed.PublicID,
-		Name:      parsed.Name,
-		Commander: commanderNames(parsed.Boards.Commanders.Cards),
-		ImageURL:  mainImageURL(parsed.Main),
+		PublicID:      parsed.PublicID,
+		Name:          parsed.Name,
+		Commander:     commanderNames(parsed.Boards.Commanders.Cards),
+		ImageURL:      mainImageURL(parsed.Main),
+		Bracket:       deckBracket(&parsed),
+		ColorIdentity: colorIdentity(parsed.ColorIdentity),
 	}, 0, nil
+}
+
+// deckBracket prefers the bracket the author declared, falls back to the one
+// Moxfield computed, and reports none when the author opted out of brackets.
+func deckBracket(parsed *deckResponse) *int {
+	if parsed.IgnoreBrackets {
+		return nil
+	}
+	for _, bracket := range []int{parsed.Bracket, parsed.AutoBracket} {
+		if bracket >= 1 && bracket <= 5 {
+			return &bracket
+		}
+	}
+	return nil
+}
+
+// colorIdentity keeps Moxfield's letters in WUBRG order, dropping anything
+// else. nil (field missing) stays nil, so "unknown" isn't mistaken for colorless.
+func colorIdentity(letters []string) []string {
+	if letters == nil {
+		return nil
+	}
+	identity := make([]string, 0, len(letters))
+	for _, color := range []string{"W", "U", "B", "R", "G"} {
+		for _, letter := range letters {
+			if strings.EqualFold(letter, color) {
+				identity = append(identity, color)
+				break
+			}
+		}
+	}
+	return identity
 }
 
 // retryAfterDuration parses the Retry-After header (only the seconds form,

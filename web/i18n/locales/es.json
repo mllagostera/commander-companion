@@ -222,7 +222,8 @@
       "submitting": "Creando…",
       "moxfieldPrompt": "¿Ya lo tienes en Moxfield?",
       "moxfieldAction": "Impórtalo en su lugar"
-    }
+    },
+    "noFilterMatchesBody": "Ningún deck tiene ese bracket o esos colores. Prueba a quitar algún filtro."
   },
   "statistics": {
     "title": "Estadísticas",
@@ -288,7 +289,21 @@
       "biggestHit": "Golpe más fuerte",
       "loadMore": "Cargar más",
       "emptyTitle": "Todavía no hay partidas finalizadas",
-      "emptyBody": "Cada partida que termines se lista aquí con sus decks y su resultado."
+      "emptyBody": "Cada partida que termines se lista aquí con sus decks y su resultado.",
+      "filterHint": "Los filtros se aplican a tu deck tal como era al jugar la partida.",
+      "noFilterMatchesTitle": "Ninguna partida coincide",
+      "noFilterMatchesBody": "No has jugado ninguna partida con ese bracket o esos colores. Prueba a quitar algún filtro."
+    },
+    "breakdown": {
+      "heading": "Por bracket y colores",
+      "byBracket": "Por bracket",
+      "byColors": "Por colores",
+      "groupByAriaLabel": "Agrupar por",
+      "emptyTitle": "Todavía no hay datos",
+      "emptyBody": "Cuando termines partidas con decks que tengan bracket o colores, verás aquí cómo te va con cada uno.",
+      "unknownBracket": "Sin bracket",
+      "unknownColors": "Sin colores",
+      "summary": "{played} partidas · {won} victorias · {rate}"
     }
   },
   "settings": {
@@ -490,7 +505,8 @@
     "roundAdvanced": "Ronda avanzada",
     "friendRequestSent": "Solicitud de amistad enviada a {username}",
     "friendAdded": "Ahora tú y {username} son amigos",
-    "deckCreated": "Deck creado"
+    "deckCreated": "Deck creado",
+    "deckUpdated": "Deck actualizado"
   },
   "gameStatus": {
     "pending": "Pendiente",
@@ -631,6 +647,10 @@
     "createDeck": {
       "missingFields": "Un deck necesita nombre y comandante.",
       "generic": "No se pudo crear el deck."
+    },
+    "updateDeck": {
+      "generic": "No se pudo guardar el deck.",
+      "moxfieldUnavailable": "Moxfield no responde ahora mismo. Inténtalo de nuevo en unos minutos."
     }
   },
   "tournaments": {
@@ -913,5 +933,41 @@
       "body": "Ha ocurrido un error inesperado. Inténtalo de nuevo en un momento."
     },
     "goHome": "Volver al inicio"
+  },
+  "deckTraits": {
+    "bracket": "Bracket {n}",
+    "bracketShort": "B{n}",
+    "colors": {
+      "W": "Blanco",
+      "U": "Azul",
+      "B": "Negro",
+      "R": "Rojo",
+      "G": "Verde",
+      "C": "Incoloro"
+    },
+    "filter": {
+      "bracketLabel": "Bracket",
+      "colorsLabel": "Colores",
+      "clear": "Quitar filtros",
+      "mode": {
+        "exact": "Exactamente estos",
+        "includes": "Incluye estos",
+        "within": "Solo de estos",
+        "ariaLabel": "Cómo comparar los colores"
+      }
+    },
+    "edit": {
+      "action": "Editar",
+      "actionFor": "Editar bracket y colores de {name}",
+      "title": "Bracket y colores",
+      "bracketLabel": "Bracket",
+      "colorsLabel": "Identidad de color",
+      "unknown": "Sin definir",
+      "overriddenHint": "Has cambiado algo a mano, así que «Actualizar» no lo toca.",
+      "resetBracket": "Usar el bracket de Moxfield",
+      "resetColors": "Usar los colores de Moxfield",
+      "save": "Guardar",
+      "saving": "Guardando…"
+    }
   }
 }

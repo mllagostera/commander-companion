@@ -90,7 +90,7 @@ func (f *dashboardFixture) createPlaygroup(t *testing.T, name string) string {
 
 func (f *dashboardFixture) createDeck(t *testing.T, ownerID, name string) string {
 	t.Helper()
-	deck, err := f.decksSvc.CreateDeck(context.Background(), ownerID, decks.CreateDeckRequest{
+	deck, err := f.decksSvc.CreateDeck(context.Background(), ownerID, &decks.CreateDeckRequest{
 		Name: name, Commander: name + " commander",
 	})
 	if err != nil {

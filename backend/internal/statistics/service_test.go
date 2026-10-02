@@ -82,11 +82,11 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, creatorID, playgroupID
 		t.Fatalf("registering user 2: %v", err)
 	}
 
-	deck1, err := decksSvc.CreateDeck(ctx, user1.ID, decks.CreateDeckRequest{Name: "D1", Commander: "C1"})
+	deck1, err := decksSvc.CreateDeck(ctx, user1.ID, &decks.CreateDeckRequest{Name: "D1", Commander: "C1"})
 	if err != nil {
 		t.Fatalf("creating deck 1: %v", err)
 	}
-	deck2, err := decksSvc.CreateDeck(ctx, user2.ID, decks.CreateDeckRequest{Name: "D2", Commander: "C2"})
+	deck2, err := decksSvc.CreateDeck(ctx, user2.ID, &decks.CreateDeckRequest{Name: "D2", Commander: "C2"})
 	if err != nil {
 		t.Fatalf("creating deck 2: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestGetDeckStats_OwnedByAnotherUser_ReturnsNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registering user: %v", err)
 	}
-	deck, err := decksSvc.CreateDeck(ctx, owner.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
+	deck, err := decksSvc.CreateDeck(ctx, owner.ID, &decks.CreateDeckRequest{Name: "D", Commander: "C"})
 	if err != nil {
 		t.Fatalf("creating deck: %v", err)
 	}
@@ -332,7 +332,7 @@ func TestRecalculateForGame_AccumulatesAcrossGames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registering opponent: %v", err)
 	}
-	opponentDeck, err := decksSvc.CreateDeck(ctx, opponent.ID, decks.CreateDeckRequest{Name: "OD", Commander: "OC"})
+	opponentDeck, err := decksSvc.CreateDeck(ctx, opponent.ID, &decks.CreateDeckRequest{Name: "OD", Commander: "OC"})
 	if err != nil {
 		t.Fatalf("creating opponent's deck: %v", err)
 	}
@@ -358,7 +358,7 @@ func setupListDeckStatsFixture(t *testing.T, pool *pgxpool.Pool) (*twoPlayerGame
 	g := setupTwoPlayerGame(t, pool, "irrelevant", "")
 
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
-	unplayedDeck, err := decksSvc.CreateDeck(ctx, g.user1.ID, decks.CreateDeckRequest{Name: "D3", Commander: "C3"})
+	unplayedDeck, err := decksSvc.CreateDeck(ctx, g.user1.ID, &decks.CreateDeckRequest{Name: "D3", Commander: "C3"})
 	if err != nil {
 		t.Fatalf("creating unplayed deck: %v", err)
 	}
@@ -590,7 +590,9 @@ func TestListFinishedGames_ReturnsPlayersWithWinFlag(t *testing.T) {
 	mustRecordElimination(t, g.actions, g.gameID, g.user1.ID, g.player1ID, g.player2ID)
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
 
-	page, err := g.stats.ListFinishedGames(context.Background(), common.PageRequest{Limit: 10}, g.user1.ID)
+	page, err := g.stats.ListFinishedGames(
+		context.Background(), common.PageRequest{Limit: 10}, g.user1.ID, common.DeckTraitFilter{},
+	)
 	if err != nil {
 		t.Fatalf("ListFinishedGames() error = %v, want nil", err)
 	}
@@ -613,7 +615,8 @@ func assertFinishedGamePlayers(
 ) {
 	t.Helper()
 	wonByUser := make(map[string]bool, len(players))
-	for _, p := range players {
+	for i := range players {
+		p := &players[i]
 		if p.Username == "" || p.DeckName == "" {
 			t.Fatalf("player %+v missing username/deck_name enrichment", p)
 		}
@@ -675,7 +678,9 @@ func TestTurnTimes_UserStatsAndFinishedGame(t *testing.T) {
 			stats.TimedTurns, stats.LongestTurnMs, stats.AverageTurnMs)
 	}
 
-	page, err := g.stats.ListFinishedGames(context.Background(), common.PageRequest{Limit: 10}, g.user1.ID)
+	page, err := g.stats.ListFinishedGames(
+		context.Background(), common.PageRequest{Limit: 10}, g.user1.ID, common.DeckTraitFilter{},
+	)
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("ListFinishedGames() = %+v, %v, want 1 item", page, err)
 	}
@@ -691,7 +696,8 @@ func assertFinishedGameTurnTimes(
 	if longest == nil || longest.DurationMs != 100_000 || longest.Username != longestBy.Username {
 		t.Fatalf("LongestTurn = %+v, want 100000 by %s", item.LongestTurn, longestBy.Username)
 	}
-	for _, p := range item.Players {
+	for i := range item.Players {
+		p := &item.Players[i]
 		if p.AverageTurnMs == nil || *p.AverageTurnMs != wantAverage[p.UserID] {
 			t.Fatalf("player %s AverageTurnMs = %v, want %d", p.Username, p.AverageTurnMs, wantAverage[p.UserID])
 		}
@@ -710,7 +716,9 @@ func TestTurnTimes_NoTimedTurns_AreZeroAndOmitted(t *testing.T) {
 	if stats.TimedTurns != 0 || stats.LongestTurnMs != 0 || stats.AverageTurnMs != 0 {
 		t.Fatalf("GetUserStats() turn times = %+v, want zeros", stats)
 	}
-	page, err := g.stats.ListFinishedGames(context.Background(), common.PageRequest{Limit: 10}, g.user1.ID)
+	page, err := g.stats.ListFinishedGames(
+		context.Background(), common.PageRequest{Limit: 10}, g.user1.ID, common.DeckTraitFilter{},
+	)
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("ListFinishedGames() = %+v, %v, want 1 item", page, err)
 	}
@@ -745,7 +753,7 @@ func TestUndoneActions_DoNotCountTowardsStatistics(t *testing.T) {
 	if stats := mustGetUserStats(t, g.stats, g.user2.ID); stats.TotalDamageDealt != 0 {
 		t.Fatalf("user 2 TotalDamageDealt = %d, want 0 (their only hit was undone)", stats.TotalDamageDealt)
 	}
-	page, err := g.stats.ListFinishedGames(ctx, common.PageRequest{Limit: 10}, g.user1.ID)
+	page, err := g.stats.ListFinishedGames(ctx, common.PageRequest{Limit: 10}, g.user1.ID, common.DeckTraitFilter{})
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("ListFinishedGames() = %+v, %v, want 1 item", page, err)
 	}

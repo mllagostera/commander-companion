@@ -61,7 +61,7 @@ func createTestUser(t *testing.T, usersSvc users.Service, email string) *users.U
 
 func createTestDeck(t *testing.T, decksSvc decks.Service, userID, name string) *decks.DeckResponse {
 	t.Helper()
-	deck, err := decksSvc.CreateDeck(context.Background(), userID, decks.CreateDeckRequest{
+	deck, err := decksSvc.CreateDeck(context.Background(), userID, &decks.CreateDeckRequest{
 		Name: name, Commander: name + " Commander",
 	})
 	if err != nil {

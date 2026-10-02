@@ -1,13 +1,15 @@
-import type { Deck, DeckResyncJob, PaginatedResponse, SyncResponse } from '~/types/api'
+import type { Deck, DeckResyncJob, DeckTraitFilter, ManaColor, PaginatedResponse, SyncResponse, UpdateDeckBody } from '~/types/api'
 
 export function useDecks() {
   const { apiFetch } = useApi()
 
   /** One page of the authenticated user's decks (default 20). Pass the
    * previous page's `next_cursor` to get the next one; omit it for the first
-   * page. For the full list, use listAllDecks. */
-  function listDecksPage(cursor?: string): Promise<PaginatedResponse<Deck>> {
-    return apiFetch<PaginatedResponse<Deck>>('/decks', { query: cursor ? { cursor } : undefined })
+   * page. For the full list, use listAllDecks. `filter` narrows it server-side;
+   * pass the same one with every cursor of a listing. */
+  function listDecksPage(cursor?: string, filter?: DeckTraitFilter): Promise<PaginatedResponse<Deck>> {
+    const query = { ...(filter ? deckTraitFilterQuery(filter) : {}), ...(cursor ? { cursor } : {}) }
+    return apiFetch<PaginatedResponse<Deck>>('/decks', { query })
   }
 
   /**
@@ -30,16 +32,34 @@ export function useDecks() {
    * Creates a deck by hand. `imageUrl` is the art of the commander picked from
    * the Scryfall typeahead — omitted when the user typed a name instead of
    * choosing a suggestion, which leaves the deck on DeckArt's placeholder.
+   * `bracket`/`colorIdentity` are optional; null (unknown) is left out.
    */
-  function createDeck(input: { name: string, commander: string, imageUrl?: string | null }) {
+  function createDeck(input: {
+    name: string
+    commander: string
+    imageUrl?: string | null
+    bracket?: number | null
+    colorIdentity?: ManaColor[] | null
+  }) {
     return apiFetch<Deck>('/decks', {
       method: 'POST',
       body: {
         name: input.name.trim(),
         commander: input.commander.trim(),
         ...(input.imageUrl ? { image_url: input.imageUrl } : {}),
+        ...(input.bracket != null ? { bracket: input.bracket } : {}),
+        ...(input.colorIdentity ? { color_identity: input.colorIdentity } : {}),
       },
     })
+  }
+
+  /**
+   * Sets or resets a deck's bracket and color identity. A value set here sticks
+   * through Moxfield resyncs until it's reset (see UpdateDeckBody).
+   */
+  function updateDeck(id: string, body: UpdateDeckBody) {
+    // Spread into a fresh literal: apiFetch wants a Record, which an interface isn't.
+    return apiFetch<Deck>(`/decks/${id}`, { method: 'PATCH', body: { ...body } })
   }
 
   /** `input` accepts either the full Moxfield URL or just the public ID. */
@@ -52,7 +72,7 @@ export function useDecks() {
 
   /**
    * Re-syncs an already imported deck with its current version on Moxfield
-   * (name, commander and image). `moxfieldId` accepts either the public ID
+   * (name, commander, image, and bracket/color identity unless set by hand). `moxfieldId` accepts either the public ID
    * or the full URL, same as import.
    */
   function syncFromMoxfield(moxfieldId: string) {
@@ -71,7 +91,16 @@ export function useDecks() {
     return apiFetch<DeckResyncJob>(`/decks/resync-all/${jobId}`)
   }
 
-  return { listDecksPage, listAllDecks, createDeck, importFromMoxfield, syncFromMoxfield, resyncAllDecks, getResyncAllStatus }
+  return {
+    listDecksPage,
+    listAllDecks,
+    createDeck,
+    updateDeck,
+    importFromMoxfield,
+    syncFromMoxfield,
+    resyncAllDecks,
+    getResyncAllStatus,
+  }
 }
 
 /**
@@ -120,4 +149,11 @@ export function resyncAllDecksError(err: unknown): string {
     default:
       return apiErrorMessage(err, t('errors.resyncAllDecks.generic'))
   }
+}
+
+/** Translates PATCH /decks/{id} errors; 503 is a reset that needed Moxfield while it was down. */
+export function updateDeckError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  if (apiErrorStatus(err) === 503) return t('errors.updateDeck.moxfieldUnavailable')
+  return apiErrorMessage(err, t('errors.updateDeck.generic'))
 }

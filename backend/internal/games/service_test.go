@@ -67,7 +67,7 @@ func createUserAndDeck(t *testing.T, pool *pgxpool.Pool, email string) (userID, 
 	}
 
 	decksSvc := decks.NewService(pool, noopMoxfieldClient{})
-	deck, err := decksSvc.CreateDeck(ctx, user.ID, decks.CreateDeckRequest{
+	deck, err := decksSvc.CreateDeck(ctx, user.ID, &decks.CreateDeckRequest{
 		Name:      "Deck de " + email,
 		Commander: "Some Commander",
 	})

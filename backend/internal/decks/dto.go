@@ -1,6 +1,9 @@
 package decks
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // CreateDeckRequest is the payload for creating a deck manually.
 type CreateDeckRequest struct {
@@ -8,6 +11,20 @@ type CreateDeckRequest struct {
 	Commander  string `json:"commander"`
 	MoxfieldID string `json:"moxfield_id,omitempty"`
 	ImageURL   string `json:"image_url,omitempty"`
+	// Bracket and ColorIdentity are optional; a value given here counts as
+	// set by hand (see UpdateDeckRequest).
+	Bracket       *int     `json:"bracket,omitempty"`
+	ColorIdentity []string `json:"color_identity,omitempty"`
+}
+
+// UpdateDeckRequest is the payload for PATCH /decks/{id}. Bracket and
+// ColorIdentity are kept raw so a field that's absent (leave it alone) can be
+// told apart from one sent as null (clear it to unknown).
+type UpdateDeckRequest struct {
+	Bracket            json.RawMessage `json:"bracket"`
+	ColorIdentity      json.RawMessage `json:"color_identity"`
+	ResetBracket       bool            `json:"reset_bracket"`
+	ResetColorIdentity bool            `json:"reset_color_identity"`
 }
 
 // ImportMoxfieldRequest is the payload for importing a deck from Moxfield.
@@ -25,6 +42,12 @@ type DeckResponse struct {
 	Commander  string `json:"commander"`
 	MoxfieldID string `json:"moxfield_id,omitempty"`
 	ImageURL   string `json:"image_url,omitempty"`
+	// Bracket and ColorIdentity are always present: null is unknown, and an
+	// empty ColorIdentity is colorless.
+	Bracket                 *int     `json:"bracket"`
+	ColorIdentity           []string `json:"color_identity"`
+	BracketOverridden       bool     `json:"bracket_overridden"`
+	ColorIdentityOverridden bool     `json:"color_identity_overridden"`
 }
 
 // DeckListResponse is a page of decks. NextCursor is the cursor to pass as the

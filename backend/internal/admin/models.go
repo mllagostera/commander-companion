@@ -16,14 +16,18 @@ type CommanderDamage struct {
 }
 
 type Deck struct {
-	ID         pgtype.UUID      `json:"id"`
-	UserID     pgtype.UUID      `json:"user_id"`
-	Name       string           `json:"name"`
-	Commander  string           `json:"commander"`
-	MoxfieldID pgtype.Text      `json:"moxfield_id"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
-	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
-	ImageUrl   pgtype.Text      `json:"image_url"`
+	ID                      pgtype.UUID      `json:"id"`
+	UserID                  pgtype.UUID      `json:"user_id"`
+	Name                    string           `json:"name"`
+	Commander               string           `json:"commander"`
+	MoxfieldID              pgtype.Text      `json:"moxfield_id"`
+	CreatedAt               pgtype.Timestamp `json:"created_at"`
+	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
+	ImageUrl                pgtype.Text      `json:"image_url"`
+	Bracket                 pgtype.Int2      `json:"bracket"`
+	ColorIdentity           []string         `json:"color_identity"`
+	BracketOverridden       bool             `json:"bracket_overridden"`
+	ColorIdentityOverridden bool             `json:"color_identity_overridden"`
 }
 
 type DeckResyncJob struct {
@@ -88,16 +92,20 @@ type GameAction struct {
 }
 
 type GamePlayer struct {
-	ID                 pgtype.UUID `json:"id"`
-	GameID             pgtype.UUID `json:"game_id"`
-	UserID             pgtype.UUID `json:"user_id"`
-	DeckID             pgtype.UUID `json:"deck_id"`
-	LifeTotal          pgtype.Int4 `json:"life_total"`
-	PoisonCounters     pgtype.Int4 `json:"poison_counters"`
-	EnergyCounters     pgtype.Int4 `json:"energy_counters"`
-	ExperienceCounters pgtype.Int4 `json:"experience_counters"`
-	IsEliminated       pgtype.Bool `json:"is_eliminated"`
-	AddedBy            pgtype.UUID `json:"added_by"`
+	ID                          pgtype.UUID `json:"id"`
+	GameID                      pgtype.UUID `json:"game_id"`
+	UserID                      pgtype.UUID `json:"user_id"`
+	DeckID                      pgtype.UUID `json:"deck_id"`
+	LifeTotal                   pgtype.Int4 `json:"life_total"`
+	PoisonCounters              pgtype.Int4 `json:"poison_counters"`
+	EnergyCounters              pgtype.Int4 `json:"energy_counters"`
+	ExperienceCounters          pgtype.Int4 `json:"experience_counters"`
+	IsEliminated                pgtype.Bool `json:"is_eliminated"`
+	AddedBy                     pgtype.UUID `json:"added_by"`
+	DeckBracket                 pgtype.Int2 `json:"deck_bracket"`
+	DeckColorIdentity           []string    `json:"deck_color_identity"`
+	DeckBracketBackfilled       bool        `json:"deck_bracket_backfilled"`
+	DeckColorIdentityBackfilled bool        `json:"deck_color_identity_backfilled"`
 }
 
 type MoxfieldImportJob struct {

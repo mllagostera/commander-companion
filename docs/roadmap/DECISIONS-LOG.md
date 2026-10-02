@@ -2311,3 +2311,82 @@ Verified on the 1080x2160 AVD against the `tc-capture` stack: every step, deck c
 freeing a seat, and the preselection on a second game; `./gradlew lintDebug
 testDebugUnitTest` green. Not done from the brainstorm: a progress ring on ▶ and an undo
 for freeing a seat. The Play Store "seat picker" screenshot predates this change.
+
+### Stage 8 — Deck bracket and color identity, backend (built 2026-10-02)
+
+The repo owner wanted to filter by Commander bracket and color identity in the deck
+list, statistics, game history and the pregame deck picker, with values editable on
+every deck and the "update" buttons pulling them from Moxfield. Design and rejected
+alternatives are in [ADR-0021](../decisions/0021-deck-bracket-and-color-identity.md);
+this entry records how it was checked.
+
+Looking at a real deck (`d-OgAbCzo3aerV4i_-Xi6Q`, "Multiverse Reforged") showed
+Moxfield's response carries `bracket`, `autoBracket`, `ignoreBrackets` and
+`colorIdentity` at the top level, next to fields we still ignore (card lists with
+prices and legalities, tokens, authors, view/like counts). Only the two the owner
+asked for are stored; the rest were left out on purpose (about 700 KB per deck,
+prices go stale fast, and the API is unofficial).
+
+This PR covers the API and data model only (migration `00023`, `openapi.yaml`,
+`schema.dbml`); web and Android follow as separate PRs. `CreateDeck` now takes its
+request by pointer because the bigger struct tripped `gocritic`'s `hugeParam`.
+
+Verified in Docker (no Go toolchain on this machine): `sqlc/sqlc:1.27.0` regenerated
+the queries, the migration ran up/down/up with goose v3.28.0 against a throwaway
+`postgres:18-alpine`, `go test -p 1 ./...` passed for every package (12 new tests:
+Moxfield parsing, import/create/resync/PATCH rules, list filters, history filters on
+the seat snapshot both when seated and backfilled, breakdown), and
+`golangci-lint v2.12.2` reports 0 issues. End to end against the real Moxfield from
+the `tc-capture` stack: importing that deck stored bracket 2 and `WUBR`;
+`bracket=2&colors=wubr` found it and `colors=g&color_mode=includes` didn't; a bracket
+set by hand to 3 survived `POST /sync/moxfield`; `reset_bracket` brought back 2; an
+out-of-range filter answered 400.
+
+### Stage 8 — Deck bracket and color identity, web client (built 2026-10-02)
+
+Same PR as the backend entry above. `/decks` shows each deck's bracket (`B3` badge)
+and color pips, and gets a filter bar (brackets 1-5, the five colors plus colorless,
+and exact/includes/within once a color is picked); the filter runs server-side, so
+changing it refetches page 1 and every later page carries it, and a page that lands
+after the filter changed is dropped. An "Editar" button per deck opens a modal with
+the bracket and color identity (both can be left unknown, which is not colorless)
+and, on a Moxfield deck with something set by hand, "use Moxfield's" resets. The
+create form takes both too. `/statistics` gains a by-bracket / by-colors breakdown
+and the same filter on the games history, which applies to the seat snapshot (the
+deck as it was played), shown under each seat.
+
+Gotcha worth keeping: Nuxt's auto-import scanner (mlly's `findExports`) silently
+drops an exported function that follows an exported array literal
+(`export const X = [1, 2]` then `export function f()`), so `emptyDeckTraitFilter`
+was "not found" at typecheck. `utils/deckTraits.ts` keeps its array constants at the
+end of the file, with a comment saying why.
+
+Verified: `npm run lint` and `npm run typecheck` clean; `nuxt dev` against the
+rebuilt `tc-capture` API, driven with Playwright as chandra (four demo decks given
+brackets/colors through the new PATCH): filters (bracket 3 + includes black → only
+Kaalia; exactly black → the no-match state), the edit modal, both breakdowns (the
+backfill had filed the demo history under the new brackets) and the history filtered
+to bracket 4 (the four Yuriko games), with no console errors. Screenshot in
+`docs/ux/screenshots/web-deck-bracket-colors.png`.
+
+Review fixes (same day, same PR):
+
+- **A wrong value froze on old games.** The first backfill only filled seats that were
+  still NULL, so a bracket typed by mistake and corrected a second later stayed on
+  those games for good. Seats filled in after the fact are now flagged
+  `deck_*_backfilled` (added to migration `00023` itself, which hadn't shipped) and keep
+  following the deck; seats that got their value when they sat down are still never
+  rewritten. Clearing a value now reaches the backfilled seats too. Covered by
+  `TestFinishedGames_BackfilledSeatsFollowTheDeck_SeatedOnesDont`; ADR-0021 updated.
+- **A stale cursor could be sent with the new filter.** Changing the filter on
+  `/decks` while a search was loading every page sent the old listing's cursor with the
+  new filter, and if that answer landed after the new first page its decks were
+  appended (reproduced with Playwright and 30 temporary decks, delaying responses:
+  20 cards, 5 duplicated). The cursor is now dropped the moment the filter changes and
+  every page is tied to a listing counter; same in the statistics history, where
+  "load more" could do the same. After the fix: 15 unique cards, and "load more" is
+  hidden until the new first page arrives.
+- **`schema.dbml` didn't compile** (CI's "schema.dbml matches the migrations" was red):
+  an apostrophe inside a single-quoted note. Reworded; the check now passes locally
+  (151 columns on both sides).
+
