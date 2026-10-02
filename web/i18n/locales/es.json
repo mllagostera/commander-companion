@@ -719,6 +719,7 @@
       "title": "Panel de administración",
       "subtitle": "Estadísticas globales de la app y gestión de usuarios.",
       "manageUsers": "Gestionar usuarios",
+      "manageGames": "Partidas sin terminar",
       "loadError": "No se pudieron cargar las estadísticas.",
       "stats": {
         "totalUsers": "Usuarios totales",
@@ -772,11 +773,36 @@
       "deactivateConfirmTitle": "¿Desactivar a {username}?",
       "deactivateConfirmBody": "No va a poder iniciar sesión hasta que un admin reactive la cuenta. Sus decks, partidas y estadísticas se conservan."
     },
+    "games": {
+      "back": "← Volver al panel",
+      "title": "Partidas sin terminar",
+      "subtitle": "Partidas que se abrieron y nunca se finalizaron, de la más antigua a la más reciente. Las finalizadas no aparecen: ya cuentan en las estadísticas.",
+      "filterLabel": "Filtrar por estado",
+      "filters": {
+        "all": "Todas",
+        "pending": "Sin empezar",
+        "active": "En curso"
+      },
+      "status": {
+        "pending": "Sin empezar",
+        "active": "En curso"
+      },
+      "noPlaygroup": "Sin grupo",
+      "noPlayers": "Sin jugadores",
+      "createdAgo": "Creada {age}",
+      "delete": "Eliminar",
+      "deleteConfirmTitle": "¿Eliminar esta partida?",
+      "deleteConfirmBody": "Se borran la partida, sus jugadores y sus acciones. No afecta a las estadísticas. No se puede deshacer.",
+      "loadError": "No se pudieron cargar las partidas.",
+      "empty": "No hay partidas sin terminar."
+    },
     "errors": {
       "cannotDeactivateSelf": "No podés desactivar tu propia cuenta.",
       "forbidden": "No tenés acceso de administrador.",
       "userNotFound": "Este usuario ya no existe.",
-      "generic": "Algo salió mal. Intentá de nuevo."
+      "generic": "Algo salió mal. Intentá de nuevo.",
+      "gameNotFound": "Esta partida ya no existe.",
+      "gameFinished": "Esta partida ya se finalizó y no se puede eliminar."
     }
   },
   "landing": {

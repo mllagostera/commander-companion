@@ -25,6 +25,25 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-02 — Admins can delete unfinished games.** Requested by the user: games
+that get opened and never closed pile up, and there was no way to remove them.
+`GET /admin/games` lists `pending`/`active` games oldest first (with group and
+players, optional `status` filter) and `DELETE /admin/games/{id}` deletes one with
+its seats, actions and commander damage in one transaction, row-locked against a
+concurrent `FinishGame`. Finished games are refused (409): their statistics are
+already applied and `RecalculateForGame` has no inverse. Web page `/admin/games`
+with a status filter and a confirm dialog. Live clients get a new `game_deleted`
+WebSocket event. See [ADR-0018](../decisions/0018-admin-role-and-user-moderation.md)'s
+third addendum. Verified with the full backend suite under `-race` against
+`postgres:18-alpine` (sqlc 1.27.0 regenerated, `golangci-lint` clean on the touched
+packages), `npm run lint`/`typecheck`/`build`, `check-architecture.sh`, and by
+driving the real app: curl against the API (200/400/403/404/409 cases), Playwright
+through the web page (list, filter, delete, reload), and a WebSocket client
+receiving `game_deleted`. That last check also found a pre-existing gap: the
+server-side close of a room (also used by `game_finished`) only takes effect at
+the 60 s read deadline, because closing a hijacked fasthttp connection is a no-op
+until the handler returns. The event itself arrives immediately. Not fixed here.
+
 **2026-10-02 — Deleting a playgroup.** A group created by mistake could not be
 removed. `DELETE /playgroups/{id}` now does it, with two rules agreed with the user:
 **only the creator**, and **only while the group has no games** (any status), so it

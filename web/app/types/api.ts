@@ -426,7 +426,7 @@ export interface AdminOverviewStats {
   total_playgroups: number
   total_finished_games: number
   total_tournaments: number
-  /** Users with an unexpired, unrevoked refresh token right now — an "has a live session" proxy, not real-time presence. */
+  /** Users who made an authenticated request in the last 5 minutes (users.last_seen_at). */
   online_users: number
   /** Games currently in the 'active' state. */
   active_games: number
@@ -439,4 +439,22 @@ export interface AdminDailyActivityPoint {
   games_started: number
   /** Distinct users who played at least one game that day. */
   active_users: number
+}
+
+/** One seat of a game in `GET /admin/games`. */
+export interface AdminGamePlayer {
+  user_id: string
+  username: string
+}
+
+/** One row of `GET /admin/games`: a game opened but never finished (paginated via PaginatedResponse, oldest first). */
+export interface AdminUnfinishedGame {
+  id: string
+  status: 'pending' | 'active'
+  created_at: string
+  started_at: string | null
+  /** Null for a game that isn't tied to a playgroup. */
+  playgroup_id: string | null
+  playgroup_name: string | null
+  players: AdminGamePlayer[]
 }

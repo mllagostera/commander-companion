@@ -287,10 +287,11 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	friendsService := friends.NewService(db.Pool)
 	friends.NewHandler(friendsService).RegisterRoutes(protected)
 
-	// admin: user management + global stats overview for the admin dashboard (see
-	// internal/admin and ADR-0018). RequireAdmin is chained after RequireAuth
-	// (protected already has it) and checks is_admin fresh from the DB per request.
+	// admin: user management, global stats overview and unfinished-game cleanup
+	// for the admin dashboard (see internal/admin and ADR-0018). RequireAdmin is
+	// chained after RequireAuth (protected already has it) and checks is_admin
+	// fresh from the DB per request.
 	adminGroup := protected.Group("/admin", auth.RequireAdmin(usersService))
-	adminService := admin.NewService(db.Pool)
+	adminService := admin.NewService(db.Pool, wsHub)
 	admin.NewHandler(adminService).RegisterRoutes(adminGroup)
 }

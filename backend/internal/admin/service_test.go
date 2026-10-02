@@ -16,13 +16,29 @@ import (
 
 const testPassword = "correct-horse-battery-staple"
 
+// fakeBroadcaster records the games admin announced as deleted.
+type fakeBroadcaster struct {
+	deleted []string
+}
+
+func (f *fakeBroadcaster) BroadcastGameDeleted(gameID string) {
+	f.deleted = append(f.deleted, gameID)
+}
+
 func newAdminSvc(t *testing.T) (admin.Service, *pgxpool.Pool) {
+	t.Helper()
+	svc, pool, _ := newAdminSvcWithBroadcaster(t)
+	return svc, pool
+}
+
+func newAdminSvcWithBroadcaster(t *testing.T) (admin.Service, *pgxpool.Pool, *fakeBroadcaster) {
 	t.Helper()
 	pool := testutil.DB(t)
 	// "games"/"playgroups" clean up game_players via CASCADE; "users" cleans up
 	// decks/refresh_tokens (same set statistics.service_test.go uses).
 	testutil.Truncate(t, pool, "games", "playgroups", "users")
-	return admin.NewService(pool), pool
+	broadcaster := &fakeBroadcaster{}
+	return admin.NewService(pool, broadcaster), pool, broadcaster
 }
 
 // createPlaygroup inserts a bare playgroup row directly (no member rows needed:
@@ -53,12 +69,38 @@ func createGame(t *testing.T, pool *pgxpool.Pool, playgroupID, status string, st
 	return id
 }
 
-func addGamePlayer(t *testing.T, pool *pgxpool.Pool, gameID, userID string) {
+// createGameCreatedAt inserts a game row with an explicit created_at, so tests
+// can control the order of ListUnfinishedGames (oldest first).
+func createGameCreatedAt(t *testing.T, pool *pgxpool.Pool, playgroupID, status string, createdAt time.Time) string {
 	t.Helper()
-	if _, err := pool.Exec(context.Background(),
-		"INSERT INTO game_players (game_id, user_id) VALUES ($1, $2)", gameID, userID); err != nil {
+	var id string
+	err := pool.QueryRow(context.Background(),
+		"INSERT INTO games (playgroup_id, status, created_at) VALUES ($1, $2, $3) RETURNING id",
+		playgroupID, status, createdAt).Scan(&id)
+	if err != nil {
+		t.Fatalf("inserting test game: %v", err)
+	}
+	return id
+}
+
+func addGamePlayer(t *testing.T, pool *pgxpool.Pool, gameID, userID string) string {
+	t.Helper()
+	var id string
+	if err := pool.QueryRow(context.Background(),
+		"INSERT INTO game_players (game_id, user_id) VALUES ($1, $2) RETURNING id",
+		gameID, userID).Scan(&id); err != nil {
 		t.Fatalf("insertando game_player de test: %v", err)
 	}
+	return id
+}
+
+func countRows(t *testing.T, pool *pgxpool.Pool, query string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(), query, args...).Scan(&n); err != nil {
+		t.Fatalf("counting rows (%s): %v", query, err)
+	}
+	return n
 }
 
 // setLastSeen sets userID's last_seen_at to ago before now, standing in for the
@@ -379,5 +421,207 @@ func TestGetDailyActivity_ClampsDaysBack(t *testing.T) {
 	}
 	if len(tooMany) != 90 {
 		t.Fatalf("GetDailyActivity(10000) devolvió %d puntos, want 90 (clamped to the maximum)", len(tooMany))
+	}
+}
+
+func TestListUnfinishedGames_OldestFirst_ExcludesFinished(t *testing.T) {
+	svc, pool := newAdminSvc(t)
+
+	playgroupID := createPlaygroup(t, pool, "order-pg")
+	now := time.Now()
+	newer := createGameCreatedAt(t, pool, playgroupID, "pending", now.Add(-time.Hour))
+	older := createGameCreatedAt(t, pool, playgroupID, "active", now.Add(-48*time.Hour))
+	createGameCreatedAt(t, pool, playgroupID, "finished", now.Add(-72*time.Hour))
+
+	res, err := svc.ListUnfinishedGames(context.Background(), common.PageRequest{Limit: 10}, "")
+	if err != nil {
+		t.Fatalf("ListUnfinishedGames() error = %v, want nil", err)
+	}
+	if len(res.Items) != 2 {
+		t.Fatalf("ListUnfinishedGames() returned %d games, want 2 (the finished one must not appear)", len(res.Items))
+	}
+	if res.Items[0].ID != older || res.Items[1].ID != newer {
+		t.Fatalf("ListUnfinishedGames() order = [%s, %s], want oldest first [%s, %s]",
+			res.Items[0].ID, res.Items[1].ID, older, newer)
+	}
+	if res.NextCursor != nil {
+		t.Fatalf("ListUnfinishedGames() next_cursor = %v, want nil on the last page", *res.NextCursor)
+	}
+}
+
+func TestListUnfinishedGames_IncludesPlaygroupAndPlayers(t *testing.T) {
+	svc, pool := newAdminSvc(t)
+
+	alice := registerUser(t, pool, "alice", "alice@example.com")
+	bob := registerUser(t, pool, "bob", "bob@example.com")
+	playgroupID := createPlaygroup(t, pool, "friday-pg")
+	seated := createGameCreatedAt(t, pool, playgroupID, "active", time.Now().Add(-2*time.Hour))
+	createGameCreatedAt(t, pool, playgroupID, "pending", time.Now().Add(-time.Hour))
+	addGamePlayer(t, pool, seated, bob.ID)
+	addGamePlayer(t, pool, seated, alice.ID)
+
+	res, err := svc.ListUnfinishedGames(context.Background(), common.PageRequest{Limit: 10}, "")
+	if err != nil {
+		t.Fatalf("ListUnfinishedGames() error = %v, want nil", err)
+	}
+	first, empty := res.Items[0], res.Items[1]
+	if first.PlaygroupName == nil || *first.PlaygroupName != "friday-pg" {
+		t.Fatalf("ListUnfinishedGames() playgroup_name = %v, want friday-pg", first.PlaygroupName)
+	}
+	if len(first.Players) != 2 || first.Players[0].Username != "alice" || first.Players[1].Username != "bob" {
+		t.Fatalf("ListUnfinishedGames() players = %+v, want alice and bob, by username", first.Players)
+	}
+	if empty.Players == nil || len(empty.Players) != 0 {
+		t.Fatalf("ListUnfinishedGames() players of a game with no seats = %v, want an empty list", empty.Players)
+	}
+}
+
+func TestListUnfinishedGames_FiltersByStatus(t *testing.T) {
+	svc, pool := newAdminSvc(t)
+
+	playgroupID := createPlaygroup(t, pool, "filter-pg")
+	pending := createGameCreatedAt(t, pool, playgroupID, "pending", time.Now().Add(-time.Hour))
+	createGameCreatedAt(t, pool, playgroupID, "active", time.Now().Add(-2*time.Hour))
+
+	res, err := svc.ListUnfinishedGames(context.Background(), common.PageRequest{Limit: 10}, "pending")
+	if err != nil {
+		t.Fatalf("ListUnfinishedGames(pending) error = %v, want nil", err)
+	}
+	if len(res.Items) != 1 || res.Items[0].ID != pending {
+		t.Fatalf("ListUnfinishedGames(pending) = %+v, want only %s", res.Items, pending)
+	}
+}
+
+func TestListUnfinishedGames_InvalidStatus_ReturnsError(t *testing.T) {
+	svc, _ := newAdminSvc(t)
+
+	_, err := svc.ListUnfinishedGames(context.Background(), common.PageRequest{Limit: 10}, "finished")
+	if !errors.Is(err, admin.ErrInvalidGameStatus) {
+		t.Fatalf("ListUnfinishedGames(finished) error = %v, want ErrInvalidGameStatus", err)
+	}
+}
+
+func TestListUnfinishedGames_Paginates(t *testing.T) {
+	svc, pool := newAdminSvc(t)
+
+	playgroupID := createPlaygroup(t, pool, "page-pg")
+	now := time.Now()
+	createGameCreatedAt(t, pool, playgroupID, "pending", now.Add(-3*time.Hour))
+	createGameCreatedAt(t, pool, playgroupID, "pending", now.Add(-2*time.Hour))
+	newest := createGameCreatedAt(t, pool, playgroupID, "active", now.Add(-time.Hour))
+
+	first, err := svc.ListUnfinishedGames(context.Background(), common.PageRequest{Limit: 2}, "")
+	if err != nil {
+		t.Fatalf("ListUnfinishedGames() page 1 error = %v, want nil", err)
+	}
+	if len(first.Items) != 2 || first.NextCursor == nil {
+		t.Fatalf("ListUnfinishedGames() page 1 = %d items, next_cursor %v; want 2 and a cursor",
+			len(first.Items), first.NextCursor)
+	}
+
+	second, err := svc.ListUnfinishedGames(context.Background(),
+		common.PageRequest{Limit: 2, Cursor: *first.NextCursor}, "")
+	if err != nil {
+		t.Fatalf("ListUnfinishedGames() page 2 error = %v, want nil", err)
+	}
+	if len(second.Items) != 1 || second.Items[0].ID != newest || second.NextCursor != nil {
+		t.Fatalf("ListUnfinishedGames() page 2 = %+v, want only %s and no cursor", second.Items, newest)
+	}
+}
+
+// seedGameWithDependents creates an active game in playgroupID with two seats and
+// a row in every table that points at games (or at its seats), so a delete that
+// misses one of them fails on its FK.
+func seedGameWithDependents(t *testing.T, pool *pgxpool.Pool, playgroupID string) string {
+	t.Helper()
+	ctx := context.Background()
+
+	alice := registerUser(t, pool, "del-alice", "del-alice@example.com")
+	bob := registerUser(t, pool, "del-bob", "del-bob@example.com")
+	gameID := createGame(t, pool, playgroupID, "active", time.Now())
+	aliceSeat := addGamePlayer(t, pool, gameID, alice.ID)
+	bobSeat := addGamePlayer(t, pool, gameID, bob.ID)
+	if _, err := pool.Exec(ctx,
+		"UPDATE games SET current_turn_player_id = $2 WHERE id = $1", gameID, aliceSeat); err != nil {
+		t.Fatalf("setting test current turn: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO game_actions (game_id, actor_id, target_id, action_type, payload)
+		 VALUES ($1, $2, $3, 'CommanderDamage', '{"amount": 5}')`, gameID, aliceSeat, bobSeat); err != nil {
+		t.Fatalf("inserting test game action: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		"INSERT INTO commander_damage (game_id, attacker_id, defender_id, amount) VALUES ($1, $2, $3, 5)",
+		gameID, aliceSeat, bobSeat); err != nil {
+		t.Fatalf("inserting test commander damage: %v", err)
+	}
+	return gameID
+}
+
+func TestDeleteUnfinishedGame_DeletesGameAndDependentRows(t *testing.T) {
+	svc, pool, broadcaster := newAdminSvcWithBroadcaster(t)
+
+	playgroupID := createPlaygroup(t, pool, "delete-pg")
+	gameID := seedGameWithDependents(t, pool, playgroupID)
+
+	if err := svc.DeleteUnfinishedGame(context.Background(), gameID); err != nil {
+		t.Fatalf("DeleteUnfinishedGame() error = %v, want nil", err)
+	}
+
+	for _, table := range []string{"game_actions", "commander_damage", "game_players"} {
+		if n := countRows(t, pool, "SELECT count(*) FROM "+table+" WHERE game_id = $1", gameID); n != 0 {
+			t.Fatalf("%s rows left for the deleted game = %d, want 0", table, n)
+		}
+	}
+	if n := countRows(t, pool, "SELECT count(*) FROM games WHERE id = $1", gameID); n != 0 {
+		t.Fatalf("games rows left = %d, want 0", n)
+	}
+	if n := countRows(t, pool, "SELECT count(*) FROM playgroups WHERE id = $1", playgroupID); n != 1 {
+		t.Fatalf("playgroup rows = %d, want 1 (deleting a game must not touch its group)", n)
+	}
+	if len(broadcaster.deleted) != 1 || broadcaster.deleted[0] != gameID {
+		t.Fatalf("broadcast game_deleted = %v, want [%s]", broadcaster.deleted, gameID)
+	}
+}
+
+func TestDeleteUnfinishedGame_PendingGame_Succeeds(t *testing.T) {
+	svc, pool := newAdminSvc(t)
+
+	gameID := createGameCreatedAt(t, pool, createPlaygroup(t, pool, "pending-pg"), "pending", time.Now())
+
+	if err := svc.DeleteUnfinishedGame(context.Background(), gameID); err != nil {
+		t.Fatalf("DeleteUnfinishedGame() error = %v, want nil", err)
+	}
+	if n := countRows(t, pool, "SELECT count(*) FROM games WHERE id = $1", gameID); n != 0 {
+		t.Fatalf("games rows left = %d, want 0", n)
+	}
+}
+
+func TestDeleteUnfinishedGame_FinishedGame_ReturnsConflictAndKeepsIt(t *testing.T) {
+	svc, pool, broadcaster := newAdminSvcWithBroadcaster(t)
+
+	user := registerUser(t, pool, "finished-user", "finished-user@example.com")
+	gameID := createGame(t, pool, createPlaygroup(t, pool, "finished-pg"), "finished", time.Now())
+	addGamePlayer(t, pool, gameID, user.ID)
+
+	err := svc.DeleteUnfinishedGame(context.Background(), gameID)
+	if !errors.Is(err, admin.ErrGameFinished) {
+		t.Fatalf("DeleteUnfinishedGame(finished) error = %v, want ErrGameFinished", err)
+	}
+	if n := countRows(t, pool, "SELECT count(*) FROM game_players WHERE game_id = $1", gameID); n != 1 {
+		t.Fatalf("game_players rows = %d, want 1 (a rejected delete must leave the game intact)", n)
+	}
+	if len(broadcaster.deleted) != 0 {
+		t.Fatalf("broadcast game_deleted = %v, want none", broadcaster.deleted)
+	}
+}
+
+func TestDeleteUnfinishedGame_UnknownOrMalformedID_ReturnsNotFound(t *testing.T) {
+	svc, _ := newAdminSvc(t)
+
+	for _, id := range []string{"00000000-0000-0000-0000-000000000000", "not-a-uuid"} {
+		if err := svc.DeleteUnfinishedGame(context.Background(), id); !errors.Is(err, admin.ErrGameNotFound) {
+			t.Fatalf("DeleteUnfinishedGame(%q) error = %v, want ErrGameNotFound", id, err)
+		}
 	}
 }

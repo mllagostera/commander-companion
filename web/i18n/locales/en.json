@@ -719,6 +719,7 @@
       "title": "Admin dashboard",
       "subtitle": "Global app stats and user management.",
       "manageUsers": "Manage users",
+      "manageGames": "Unfinished games",
       "loadError": "Couldn't load the overview stats.",
       "stats": {
         "totalUsers": "Total users",
@@ -772,11 +773,36 @@
       "deactivateConfirmTitle": "Deactivate {username}?",
       "deactivateConfirmBody": "They won't be able to log in until an admin reactivates the account. Their decks, games, and stats are kept."
     },
+    "games": {
+      "back": "← Back to dashboard",
+      "title": "Unfinished games",
+      "subtitle": "Games that were opened and never finished, oldest first. Finished games aren't listed: they already count in the statistics.",
+      "filterLabel": "Filter by status",
+      "filters": {
+        "all": "All",
+        "pending": "Not started",
+        "active": "In progress"
+      },
+      "status": {
+        "pending": "Not started",
+        "active": "In progress"
+      },
+      "noPlaygroup": "No group",
+      "noPlayers": "No players",
+      "createdAgo": "Created {age}",
+      "delete": "Delete",
+      "deleteConfirmTitle": "Delete this game?",
+      "deleteConfirmBody": "The game, its players and its actions are deleted. Statistics aren't affected. This can't be undone.",
+      "loadError": "Couldn't load the games.",
+      "empty": "There are no unfinished games."
+    },
     "errors": {
       "cannotDeactivateSelf": "You can't deactivate your own account.",
       "forbidden": "You don't have admin access.",
       "userNotFound": "This user no longer exists.",
-      "generic": "Something went wrong. Try again."
+      "generic": "Something went wrong. Try again.",
+      "gameNotFound": "This game no longer exists.",
+      "gameFinished": "This game has already finished and can't be deleted."
     }
   },
   "landing": {

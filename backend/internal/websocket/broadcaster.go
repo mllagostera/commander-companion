@@ -6,9 +6,9 @@ import (
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 )
 
-// This file adapts *Hub to the Broadcaster interfaces that game-actions and games
+// This file adapts *Hub to the Broadcaster interfaces that game-actions, games and admin
 // define on the consumer side (same pattern as games.StatisticsRecalculator, see
-// backend/internal/games/service.go): neither of those two packages imports
+// backend/internal/games/service.go): none of those packages imports
 // internal/websocket, it's websocket that imports their types to be able to satisfy their
 // interfaces. See ADR-0005.
 
@@ -44,6 +44,18 @@ func (h *Hub) BroadcastGameFinished(gameID string) {
 	msg, err := encodeEnvelope(EventGameFinished, gameID, "", nil)
 	if err != nil {
 		log.Printf("websocket: encoding game_finished envelope for game %s: %v", gameID, err)
+		return
+	}
+	h.Broadcast(gameID, msg)
+	h.CloseRoom(gameID)
+}
+
+// BroadcastGameDeleted implements admin.GameBroadcaster: notifies the whole room that an
+// admin deleted the game and closes its connections, same as BroadcastGameFinished.
+func (h *Hub) BroadcastGameDeleted(gameID string) {
+	msg, err := encodeEnvelope(EventGameDeleted, gameID, "", nil)
+	if err != nil {
+		log.Printf("websocket: encoding game_deleted envelope for game %s: %v", gameID, err)
 		return
 	}
 	h.Broadcast(gameID, msg)
