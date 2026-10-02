@@ -1,7 +1,18 @@
 <script setup lang="ts">
-import type { Deck, DeckStats, FinishedGame, FinishedGamePlayer, OpponentStats, PlaygroupGameCount, UserStats } from '~/types/api'
+import type {
+  BreakdownItem,
+  BreakdownResponse,
+  Deck,
+  DeckStats,
+  DeckTraitFilter,
+  FinishedGame,
+  FinishedGamePlayer,
+  OpponentStats,
+  PlaygroupGameCount,
+  UserStats,
+} from '~/types/api'
 
-const { userStats, allDeckStats, playgroupGameCounts, opponentStats, listFinishedGames } = useStatistics()
+const { userStats, allDeckStats, playgroupGameCounts, opponentStats, listFinishedGames, breakdown } = useStatistics()
 const { listAllDecks } = useDecks()
 const { d, t } = useI18n()
 
@@ -47,6 +58,33 @@ const mostPlayedGroup = computed(() => {
   const list = (data.value?.groupCounts ?? []).filter((g) => g.games_played > 0)
   return list.length ? list.reduce((a, b) => (b.games_played > a.games_played ? b : a)) : null
 })
+
+// ------------------------------------------------------------- by bracket / color identity
+// By the user's own deck as it was when each game was played (the per-seat
+// snapshot, see ADR-0021), so retuning a deck doesn't re-file its old games.
+
+const breakdownGroupBy = ref<BreakdownResponse['group_by']>('bracket')
+const breakdownOptions = computed(() => [
+  { value: 'bracket', label: t('statistics.breakdown.byBracket') },
+  { value: 'color_identity', label: t('statistics.breakdown.byColors') },
+])
+
+const { data: breakdownData, error: breakdownError } = await useAsyncData(
+  'statistics-breakdown',
+  () => breakdown(breakdownGroupBy.value),
+  { watch: [breakdownGroupBy] },
+)
+
+/** Known groups first (the API already sorts by games played), unknown last. */
+const breakdownItems = computed<BreakdownItem[]>(() => {
+  const items = breakdownData.value?.items ?? []
+  const isUnknown = (i: BreakdownItem) => (breakdownGroupBy.value === 'bracket' ? i.bracket == null : i.color_identity == null)
+  return [...items.filter((i) => !isUnknown(i)), ...items.filter(isUnknown)]
+})
+
+function winShare(item: BreakdownItem): number {
+  return item.games_played ? Math.round((item.games_won / item.games_played) * 100) : 0
+}
 
 // -------------------------------------------------------------------------- tabs + deck sorting
 
@@ -96,37 +134,48 @@ const finishedGamesCursor = ref<string | null>(null)
 const finishedGamesLoading = ref(false)
 const finishedGamesError = ref(false)
 const finishedGamesLoaded = ref(false)
+const gamesFilter = ref<DeckTraitFilter>(emptyDeckTraitFilter())
 
 async function loadFinishedGames() {
   finishedGamesLoading.value = true
   finishedGamesError.value = false
+  const filterAtStart = gamesFilter.value
   try {
-    const page = await listFinishedGames()
+    const page = await listFinishedGames(undefined, filterAtStart)
+    // A newer filter already started its own load; this result is stale.
+    if (gamesFilter.value !== filterAtStart) return
     finishedGames.value = page.items
     finishedGamesCursor.value = page.next_cursor
   } catch {
-    finishedGamesError.value = true
+    if (gamesFilter.value === filterAtStart) finishedGamesError.value = true
   } finally {
-    finishedGamesLoading.value = false
-    finishedGamesLoaded.value = true
+    // A stale load leaves the flags to the newer one still in flight.
+    if (gamesFilter.value === filterAtStart) {
+      finishedGamesLoading.value = false
+      finishedGamesLoaded.value = true
+    }
   }
 }
 
 async function loadMoreFinishedGames() {
   if (!finishedGamesCursor.value) return
   finishedGamesLoading.value = true
+  const filterAtStart = gamesFilter.value
   try {
-    const page = await listFinishedGames(finishedGamesCursor.value)
+    const page = await listFinishedGames(finishedGamesCursor.value, filterAtStart)
+    if (gamesFilter.value !== filterAtStart) return
     finishedGames.value = [...finishedGames.value, ...page.items]
     finishedGamesCursor.value = page.next_cursor
   } finally {
-    finishedGamesLoading.value = false
+    if (gamesFilter.value === filterAtStart) finishedGamesLoading.value = false
   }
 }
 
 watch(activeTab, (tab) => {
   if (tab === 'games' && !finishedGamesLoaded.value) loadFinishedGames()
 })
+
+watch(gamesFilter, () => loadFinishedGames())
 
 function winnerOf(game: FinishedGame): FinishedGamePlayer | null {
   return game.players.find((p) => p.won) ?? null
@@ -234,6 +283,47 @@ function formatDuration(game: FinishedGame): string {
       </section>
 
       <section>
+        <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-[15px] font-medium">{{ $t('statistics.breakdown.heading') }}</h2>
+          <SortSelect
+            :model-value="breakdownGroupBy"
+            :options="breakdownOptions"
+            :select-label="$t('statistics.breakdown.groupByAriaLabel')"
+            @update:model-value="(v) => (breakdownGroupBy = v as BreakdownResponse['group_by'])"
+          />
+        </div>
+        <p v-if="breakdownError" class="text-sm" style="color: var(--lose);">{{ $t('statistics.loadError') }}</p>
+        <EmptyState
+          v-else-if="!breakdownItems.length"
+          :title="$t('statistics.breakdown.emptyTitle')"
+          :body="$t('statistics.breakdown.emptyBody')"
+        />
+        <ul v-else class="flex flex-col gap-2">
+          <li
+            v-for="item in breakdownItems"
+            :key="breakdownGroupBy === 'bracket' ? String(item.bracket) : (item.color_identity?.join('') ?? 'unknown')"
+            class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-md)] border px-5 py-3"
+            style="border-color: var(--card-border); background: var(--card-bg);"
+          >
+            <span class="flex min-w-[120px] items-center text-sm font-medium">
+              <template v-if="breakdownGroupBy === 'bracket'">
+                {{ item.bracket != null ? $t('deckTraits.bracket', { n: item.bracket }) : $t('statistics.breakdown.unknownBracket') }}
+              </template>
+              <ManaPips v-else-if="item.color_identity != null" :colors="item.color_identity" size="md" />
+              <template v-else>{{ $t('statistics.breakdown.unknownColors') }}</template>
+            </span>
+            <!-- Decorative: the numbers next to it carry the same information. -->
+            <span class="h-1.5 min-w-[80px] flex-1 overflow-hidden rounded-full" style="background: var(--input-border);" aria-hidden="true">
+              <span class="block h-full rounded-full" :style="{ width: `${winShare(item)}%`, background: 'var(--win)' }" />
+            </span>
+            <span class="text-[13px]" style="color: var(--text-muted);">
+              {{ $t('statistics.breakdown.summary', { played: item.games_played, won: item.games_won, rate: winRate(item.games_played, item.games_won) }) }}
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <section>
         <div role="tablist" class="mb-3.5 flex gap-2.5" @keydown="handleTabKeydown">
           <button
             id="statistics-tab-decks"
@@ -332,10 +422,18 @@ function formatDuration(game: FinishedGame): string {
         </div>
 
         <div v-else id="statistics-panel-games" role="tabpanel" aria-labelledby="statistics-tab-games" tabindex="0">
+          <p class="mb-2 text-[12px]" style="color: var(--text-dim);">{{ $t('statistics.finishedGames.filterHint') }}</p>
+          <DeckTraitFilterBar v-model="gamesFilter" class="mb-3.5" />
+
           <p v-if="finishedGamesLoading && !finishedGames.length" class="text-sm" style="color: var(--text-muted);">
             {{ $t('statistics.finishedGames.loading') }}
           </p>
           <p v-else-if="finishedGamesError" class="text-sm" style="color: var(--lose);">{{ $t('statistics.loadError') }}</p>
+          <EmptyState
+            v-else-if="!finishedGames.length && isDeckTraitFilterActive(gamesFilter)"
+            :title="$t('statistics.finishedGames.noFilterMatchesTitle')"
+            :body="$t('statistics.finishedGames.noFilterMatchesBody')"
+          />
           <EmptyState
             v-else-if="!finishedGames.length"
             :title="$t('statistics.finishedGames.emptyTitle')"
@@ -385,6 +483,7 @@ function formatDuration(game: FinishedGame): string {
                       >
                         {{ player.username }}
                       </p>
+                      <DeckTraits :bracket="player.deck_bracket" :colors="player.deck_color_identity" />
                     </div>
                   </div>
 

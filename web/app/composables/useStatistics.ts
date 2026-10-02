@@ -1,6 +1,8 @@
 import type {
+  BreakdownResponse,
   Dashboard,
   DeckStats,
+  DeckTraitFilter,
   FinishedGame,
   OpponentStats,
   PaginatedResponse,
@@ -49,9 +51,19 @@ export function useStatistics() {
     return apiFetch<OpponentStats[]>('/statistics/opponents')
   }
 
-  /** One page of the finished-games history, most recent first. Pass the previous page's next_cursor for the next one. */
-  function listFinishedGames(cursor?: string) {
-    return apiFetch<PaginatedResponse<FinishedGame>>('/statistics/games', { query: cursor ? { cursor } : undefined })
+  /**
+   * One page of the finished-games history, most recent first. Pass the previous
+   * page's next_cursor for the next one. `filter` keeps games where the user's
+   * own deck matched, as it was when the game was played.
+   */
+  function listFinishedGames(cursor?: string, filter?: DeckTraitFilter) {
+    const query = { ...(filter ? deckTraitFilterQuery(filter) : {}), ...(cursor ? { cursor } : {}) }
+    return apiFetch<PaginatedResponse<FinishedGame>>('/statistics/games', { query })
+  }
+
+  /** The user's finished games grouped by their own deck's bracket or color identity. */
+  function breakdown(groupBy: BreakdownResponse['group_by']) {
+    return apiFetch<BreakdownResponse>('/statistics/breakdown', { query: { group_by: groupBy } })
   }
 
   /**
@@ -72,6 +84,7 @@ export function useStatistics() {
     playgroupGameCounts,
     opponentStats,
     listFinishedGames,
+    breakdown,
     dashboard,
   }
 }

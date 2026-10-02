@@ -2342,3 +2342,30 @@ the `tc-capture` stack: importing that deck stored bracket 2 and `WUBR`;
 set by hand to 3 survived `POST /sync/moxfield`; `reset_bracket` brought back 2; an
 out-of-range filter answered 400.
 
+### Stage 8 — Deck bracket and color identity, web client (built 2026-10-02)
+
+Same PR as the backend entry above. `/decks` shows each deck's bracket (`B3` badge)
+and color pips, and gets a filter bar (brackets 1-5, the five colors plus colorless,
+and exact/includes/within once a color is picked); the filter runs server-side, so
+changing it refetches page 1 and every later page carries it, and a page that lands
+after the filter changed is dropped. An "Editar" button per deck opens a modal with
+the bracket and color identity (both can be left unknown, which is not colorless)
+and, on a Moxfield deck with something set by hand, "use Moxfield's" resets. The
+create form takes both too. `/statistics` gains a by-bracket / by-colors breakdown
+and the same filter on the games history, which applies to the seat snapshot (the
+deck as it was played), shown under each seat.
+
+Gotcha worth keeping: Nuxt's auto-import scanner (mlly's `findExports`) silently
+drops an exported function that follows an exported array literal
+(`export const X = [1, 2]` then `export function f()`), so `emptyDeckTraitFilter`
+was "not found" at typecheck. `utils/deckTraits.ts` keeps its array constants at the
+end of the file, with a comment saying why.
+
+Verified: `npm run lint` and `npm run typecheck` clean; `nuxt dev` against the
+rebuilt `tc-capture` API, driven with Playwright as chandra (four demo decks given
+brackets/colors through the new PATCH): filters (bracket 3 + includes black → only
+Kaalia; exactly black → the no-match state), the edit modal, both breakdowns (the
+backfill had filed the demo history under the new brackets) and the history filtered
+to bracket 4 (the four Yuriko games), with no console errors. Screenshot in
+`docs/ux/screenshots/web-deck-bracket-colors.png`.
+

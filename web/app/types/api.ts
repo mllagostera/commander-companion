@@ -10,6 +10,9 @@ export interface PaginatedResponse<T> {
   next_cursor: string | null
 }
 
+/** A color of a color identity, in WUBRG order wherever the API returns a list of them. */
+export type ManaColor = 'W' | 'U' | 'B' | 'R' | 'G'
+
 export interface Deck {
   id: string
   user_id: string
@@ -17,6 +20,46 @@ export interface Deck {
   commander: string
   moxfield_id: string | null
   image_url: string | null
+  /** Commander bracket 1-5; null when unknown (see ADR-0021). */
+  bracket: number | null
+  /** WUBRG order; [] is colorless, null is unknown. */
+  color_identity: ManaColor[] | null
+  /** Set by hand: Moxfield resyncs leave it alone until it's reset. */
+  bracket_overridden: boolean
+  color_identity_overridden: boolean
+}
+
+/** Body of `PATCH /decks/{id}`. Absent fields are left alone; null clears to unknown. */
+export interface UpdateDeckBody {
+  bracket?: number | null
+  color_identity?: ManaColor[] | null
+  reset_bracket?: boolean
+  reset_color_identity?: boolean
+}
+
+/**
+ * The `bracket` / `colors` / `color_mode` filters of `GET /decks` and
+ * `GET /statistics/games`. Empty lists don't filter; `colorless` asks for
+ * colorless decks (and ignores `colors`).
+ */
+export interface DeckTraitFilter {
+  brackets: number[]
+  colors: ManaColor[]
+  colorless: boolean
+  colorMode: 'exact' | 'includes' | 'within'
+}
+
+/** One group of `GET /statistics/breakdown`; only the key matching group_by is present. */
+export interface BreakdownItem {
+  bracket?: number | null
+  color_identity?: ManaColor[] | null
+  games_played: number
+  games_won: number
+}
+
+export interface BreakdownResponse {
+  group_by: 'bracket' | 'color_identity'
+  items: BreakdownItem[]
 }
 
 /**
@@ -208,6 +251,9 @@ export interface FinishedGamePlayer {
   deck_name: string
   deck_commander: string
   deck_image_url: string | null
+  /** The deck's bracket / color identity when this seat sat down (null if unknown then). */
+  deck_bracket: number | null
+  deck_color_identity: ManaColor[] | null
   won: boolean
 }
 
