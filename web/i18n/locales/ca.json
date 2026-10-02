@@ -708,6 +708,7 @@
       "title": "Panell d'administració",
       "subtitle": "Estadístiques globals de l'app i gestió d'usuaris.",
       "manageUsers": "Gestionar usuaris",
+      "manageGames": "Partides sense acabar",
       "loadError": "No s'han pogut carregar les estadístiques.",
       "stats": {
         "totalUsers": "Usuaris totals",
@@ -761,11 +762,36 @@
       "deactivateConfirmTitle": "Vols desactivar {username}?",
       "deactivateConfirmBody": "No podrà iniciar sessió fins que un admin reactivi el compte. Els seus decks, partides i estadístiques es conserven."
     },
+    "games": {
+      "back": "← Tornar al panell",
+      "title": "Partides sense acabar",
+      "subtitle": "Partides que es van obrir i no es van acabar mai, de la més antiga a la més recent. Les acabades no hi apareixen: ja compten a les estadístiques.",
+      "filterLabel": "Filtrar per estat",
+      "filters": {
+        "all": "Totes",
+        "pending": "Sense començar",
+        "active": "En curs"
+      },
+      "status": {
+        "pending": "Sense començar",
+        "active": "En curs"
+      },
+      "noPlaygroup": "Sense grup",
+      "noPlayers": "Sense jugadors",
+      "createdAgo": "Creada {age}",
+      "delete": "Eliminar",
+      "deleteConfirmTitle": "Eliminar aquesta partida?",
+      "deleteConfirmBody": "S'esborren la partida, els seus jugadors i les seves accions. No afecta les estadístiques. No es pot desfer.",
+      "loadError": "No s'han pogut carregar les partides.",
+      "empty": "No hi ha partides sense acabar."
+    },
     "errors": {
       "cannotDeactivateSelf": "No pots desactivar el teu propi compte.",
       "forbidden": "No tens accés d'administrador.",
       "userNotFound": "Aquest usuari ja no existeix.",
-      "generic": "Alguna cosa ha fallat. Torna-ho a provar."
+      "generic": "Alguna cosa ha fallat. Torna-ho a provar.",
+      "gameNotFound": "Aquesta partida ja no existeix.",
+      "gameFinished": "Aquesta partida ja s'ha acabat i no es pot eliminar."
     }
   },
   "landing": {

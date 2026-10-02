@@ -74,12 +74,12 @@ Every message the server sends over the socket uses the same JSON envelope:
 ```
 
 - `type`: one of `connected`, `game_action`, `action_undone`,
-  `game_finished`, `error` (see below).
+  `game_finished`, `game_deleted`, `error` (see below).
 - `game_id`: always present, redundant with the room the connection is
   subscribed to (simplifies the client: it doesn't need to remember which
   game each socket belongs to if it can already read it from the message).
 - `actor_id`: who originated the event; empty/omitted on events with no
-  natural actor (`connected`, `game_finished`, `error`).
+  natural actor (`connected`, `game_finished`, `game_deleted`, `error`).
 - `payload`: specific to `type`; see per-event detail below.
 - `timestamp`: server time at the moment the message is emitted (RFC3339,
   UTC), **not necessarily equal** to `GameActionResponse.created_at`
@@ -111,6 +111,11 @@ By type:
   `/statistics/*` endpoints) if it needs it, instead of the server
   duplicating that information over two channels. See "REST remains the
   source of truth" below.
+- **`game_deleted`** (added 2026-10-02, see ADR-0018's third addendum): empty
+  `payload`. An admin deleted the game (only ever a `pending`/`active` one,
+  `DELETE /admin/games/:id`); it no longer exists over REST either. The
+  connection is closed right after, same as on `game_finished`, and a client
+  should stop reconnecting to it.
 - **`error`**: only used during the authentication handshake (see section
   3), never after the connection has been authenticated.
   `payload: { "message": "..." }`.
@@ -212,6 +217,9 @@ it's issued.
   consume a file descriptor with no purpose. A client that wants the final
   result already knows to request it via REST (`GET /games/:id`,
   `/statistics/*` endpoints).
+- **An admin deletes the game** (`admin.Service.DeleteUnfinishedGame`, via
+  `admin.GameBroadcaster`): same as finishing it — `game_deleted` to the whole
+  room, then every connection is closed.
 - **Reconnection**: there's no session continuity between connections — a
   reconnection is indistinguishable from a new connection (new `auth`
   message, new entry in the room). The client is responsible for, upon

@@ -63,7 +63,7 @@ components:
             flow (POST /users/{id}/password rejects it for these accounts).
         is_admin:
           type: boolean
-          description: Grants access to the admin dashboard (GET/PATCH /admin/*). See ADR-0018.
+          description: Grants access to the admin dashboard (/admin/*). See ADR-0018.
         is_active:
           type: boolean
           description: >-
@@ -1222,6 +1222,59 @@ components:
         active_users:
           type: integer
           description: Distinct users who played at least one game that day.
+
+    AdminUnfinishedGame:
+      type: object
+      description: One game of GET /admin/games — opened but never finished.
+      required: [id, status, created_at, started_at, playgroup_id, playgroup_name, players]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, active]
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null while the game is still pending.
+        playgroup_id:
+          type: string
+          format: uuid
+          nullable: true
+        playgroup_name:
+          type: string
+          nullable: true
+        players:
+          type: array
+          description: Seated players, by username. Empty for a game nobody joined.
+          items:
+            type: object
+            required: [user_id, username]
+            properties:
+              user_id:
+                type: string
+                format: uuid
+              username:
+                type: string
+    AdminUnfinishedGameListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUnfinishedGame'
+        next_cursor:
+          type: string
+          nullable: true
+          description: >-
+            Cursor to pass as the `cursor` query param to request the next
+            page. It is null on the last page.
 
     HealthResponse:
       type: object
@@ -3735,6 +3788,86 @@ Disallow: /
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/games:
+    get:
+      summary: List games that were opened but never finished (admin only)
+      operationId: listAdminUnfinishedGames
+      tags:
+        - Admin
+      description: >-
+        Games still `pending` or `active`, oldest first, so abandoned ones
+        surface at the top. Finished games are never listed: they already count
+        in the players' statistics and can't be deleted. Cursor-paginated,
+        keyset over created_at + id ascending.
+      parameters:
+        - $ref: '#/components/parameters/CursorParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - in: query
+          name: status
+          required: false
+          description: Narrows the list to one of the two unfinished states. Omit for both.
+          schema:
+            type: string
+            enum: [pending, active]
+      responses:
+        '200':
+          description: A page of unfinished games
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUnfinishedGameListResponse'
+        '400':
+          description: Invalid cursor, limit or status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/games/{id}:
+    delete:
+      summary: Delete an unfinished game (admin only)
+      operationId: deleteAdminUnfinishedGame
+      tags:
+        - Admin
+      description: >-
+        Deletes a `pending` or `active` game along with its players, actions
+        and commander damage, in one transaction. Statistics are untouched:
+        they're only computed when a game finishes. Clients connected to the
+        game's WebSocket get a `game_deleted` event and are disconnected (see
+        ADR-0005).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Game deleted
+        '403':
+          description: The authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Game not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The game is finished and can't be deleted
           content:
             application/json:
               schema:

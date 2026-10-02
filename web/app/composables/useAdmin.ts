@@ -1,4 +1,11 @@
-import type { AdminDailyActivityPoint, AdminOverviewStats, AdminUserDetail, PaginatedResponse, AdminUserSummary } from '~/types/api'
+import type {
+  AdminDailyActivityPoint,
+  AdminOverviewStats,
+  AdminUnfinishedGame,
+  AdminUserDetail,
+  AdminUserSummary,
+  PaginatedResponse,
+} from '~/types/api'
 
 /**
  * Admin dashboard API client. Every call here hits an endpoint gated by
@@ -39,7 +46,28 @@ export function useAdmin() {
     })
   }
 
-  return { listUsers, getUser, updateUserStatus, getOverviewStats, getDailyActivity }
+  /** One page of games opened but never finished, oldest first. status narrows it to one of the two unfinished states. */
+  function listUnfinishedGames(cursor?: string, status?: 'pending' | 'active') {
+    const query: Record<string, string> = {}
+    if (cursor) query.cursor = cursor
+    if (status) query.status = status
+    return apiFetch<PaginatedResponse<AdminUnfinishedGame>>('/admin/games', { query })
+  }
+
+  /** Deletes a pending/active game. The backend rejects a finished one with a 409. */
+  function deleteUnfinishedGame(id: string) {
+    return apiFetch<null>(`/admin/games/${id}`, { method: 'DELETE' })
+  }
+
+  return {
+    listUsers,
+    getUser,
+    updateUserStatus,
+    getOverviewStats,
+    getDailyActivity,
+    listUnfinishedGames,
+    deleteUnfinishedGame,
+  }
 }
 
 export function adminError(err: unknown): string {
@@ -53,5 +81,18 @@ export function adminError(err: unknown): string {
       return t('admin.errors.userNotFound')
     default:
       return apiErrorMessage(err, t('admin.errors.generic'))
+  }
+}
+
+/** Same as adminError, with the messages that fit a game deletion instead of a user update. */
+export function adminGameError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  switch (apiErrorStatus(err)) {
+    case 404:
+      return t('admin.errors.gameNotFound')
+    case 409:
+      return t('admin.errors.gameFinished')
+    default:
+      return adminError(err)
   }
 }

@@ -5,7 +5,9 @@
 decks moderation are deferred to later phases, see Consequences. Same-day
 addendum: online users, active games, and a historical activity chart added
 to the overview (see Addendum below). Second addendum (2026-10-02): "online
-users" redefined from refresh tokens to `users.last_seen_at`.
+users" redefined from refresh tokens to `users.last_seen_at`. Third addendum
+(2026-10-02): admins can list and delete games that were opened but never
+finished.
 
 ## Context
 
@@ -184,7 +186,40 @@ write is only logged. `GetAdminOverviewStats` counts
   clients integrate an SDK, and would send user data to a third party just
   for one counter.
 
-## Consequences
+## Addendum (2026-10-02): deleting unfinished games
+
+Games get created and never finished: a table that broke up, a test game, a
+game started on the wrong group. Nothing closes them, so they sit in their
+players' game lists and in the "active games" count forever. Admins now have
+`GET /admin/games` (pending/active games, oldest first, with group and players)
+and `DELETE /admin/games/{id}`, plus a web page at `/admin/games`.
+
+- **Only unfinished games.** A finished game has already gone through
+  `statistics.RecalculateForGame`, which is additive and has no inverse yet
+  (see ADR-0011), so deleting one would leave every player's statistics
+  counting a game that no longer exists. `pending`/`active` games never
+  reached that point, so deleting them only removes their own rows. A
+  finished game gets `409`.
+- **Hard delete, no archive.** Nothing outside the game points at it once
+  statistics are out of the picture, and an abandoned game has no history
+  worth keeping. None of the FKs onto `games` cascade, so the service
+  deletes `commander_damage`, `game_actions` and `game_players` first (after
+  clearing `games.current_turn_player_id`, which points back at a seat), all
+  in one transaction.
+- **Row lock against a concurrent finish.** The transaction starts with
+  `SELECT ... FOR UPDATE` on the game. A `FinishGame` running at the same time
+  either commits first (the delete then sees `finished` and returns 409) or
+  waits and then updates 0 rows (it returns its usual 409). New seats or
+  actions wait on the same lock through their FK checks.
+- **Live clients are told.** Deleting broadcasts a new `game_deleted`
+  WebSocket event and closes the room (see ADR-0005), through an
+  `admin.GameBroadcaster` interface implemented by `*websocket.Hub`, the same
+  consumer-side pattern as `games.Broadcaster`. The Android client doesn't
+  handle `game_deleted` yet: it ignores unknown events, so after a delete it
+  keeps trying to reconnect (with backoff) until the user leaves the screen.
+- **Only admins.** Players can't delete their own unfinished games. That's
+  a separate, still open question: who in a group may delete a game.
+
 
 - Phase 1 ships `backend/internal/admin` (`GET /admin/users`,
   `GET /admin/users/{id}`, `PATCH /admin/users/{id}/status`,

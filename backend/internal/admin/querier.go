@@ -11,6 +11,13 @@ import (
 )
 
 type Querier interface {
+	// games.current_turn_player_id points back at game_players (00008_current_turn.sql),
+	// so it has to be cleared before the seats can be deleted.
+	ClearGameCurrentTurn(ctx context.Context, id pgtype.UUID) error
+	DeleteGame(ctx context.Context, id pgtype.UUID) error
+	DeleteGameActions(ctx context.Context, gameID pgtype.UUID) error
+	DeleteGameCommanderDamage(ctx context.Context, gameID pgtype.UUID) error
+	DeleteGamePlayers(ctx context.Context, gameID pgtype.UUID) error
 	// Global counts for the admin dashboard's home page. Live-computed on every
 	// call, no summary table — same "live aggregation, no summary table" choice
 	// already made for GetPlaygroupStats (internal/statistics); admin-panel
@@ -34,6 +41,16 @@ type Querier interface {
 	// one row per call this is simpler to read and just as cheap, and it avoids
 	// fan-out duplicating the user's columns per matching deck/game_player row.
 	GetUserDetail(ctx context.Context, id pgtype.UUID) (GetUserDetailRow, error)
+	// Every seat across a page of games in one round trip, with the username so the
+	// admin can tell who left the game open.
+	ListPlayersForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListPlayersForGamesRow, error)
+	// Games that were opened but never finished ('pending' or 'active'), for the
+	// admin games screen, so abandoned ones can be found and deleted. Oldest first:
+	// the longer a game has been open, the more likely it was abandoned. Keyset
+	// pagination over (created_at, id) ASC — same cursor scheme as ListUsersPage,
+	// with the comparison flipped for the ascending order. An optional status
+	// narrows the list to one of the two unfinished states.
+	ListUnfinishedGamesPage(ctx context.Context, arg ListUnfinishedGamesPageParams) ([]ListUnfinishedGamesPageRow, error)
 	// Keyset pagination over (created_at, id) DESC, same scheme as
 	// playgroups.ListPlaygroupsForUserPage (see internal/common/pagination.go). The
 	// search filter reuses the same ILIKE-both-fields approach as
@@ -41,6 +58,11 @@ type Querier interface {
 	// admin-only (see auth.RequireAdmin), so the "don't let email be enumerated by
 	// partial match" concern that keeps users.SearchUsers email-exact-only doesn't apply.
 	ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([]User, error)
+	// Locks the game row for the rest of DeleteUnfinishedGame's transaction. A
+	// concurrent FinishGame (UPDATE ... AND status = 'active') or a new seat/action
+	// (whose FK check takes a KEY SHARE lock on this row) waits behind it, so the
+	// status checked here can't change before the delete commits.
+	LockGameStatus(ctx context.Context, id pgtype.UUID) (string, error)
 	UpdateUserActiveStatus(ctx context.Context, arg UpdateUserActiveStatusParams) (User, error)
 }
 
