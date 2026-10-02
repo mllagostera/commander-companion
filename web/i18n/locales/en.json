@@ -836,7 +836,7 @@
         "eyebrow": "At the table",
         "title": "Built for the middle of the table",
         "body": "Each player gets their own corner of the screen, rotated to face them. Tap to change life, open the overlay for commander damage and poison, and pass the turn without looking for buttons.",
-        "alt": "Four-player life tracker with the commander damage and poison panel open"
+        "alt": "Four-player life tracker showing the commander damage taken from each opponent"
       },
       "tournaments": {
         "eyebrow": "After the game",
@@ -844,6 +844,18 @@
         "body": "Group your regular players, run a Swiss tournament on game night and let the app handle tables, points and standings.",
         "alt": "Tournament round with the table assignments and the standings"
       }
+    },
+    "android": {
+      "eyebrow": "Coming soon",
+      "title": "TapeandoCartones, on Android too",
+      "body": "We're finishing the Android app. Bring it to the table: the life tracker on your phone, connected to your account.",
+      "points": {
+        "offline": "The game keeps going even when you lose signal.",
+        "devices": "Every player can join from their own phone and follow the game live.",
+        "synced": "Your decks, playgroups and stats, the same as on the web."
+      },
+      "badge": "Coming soon to Google Play",
+      "alt": "Home screen of the TapeandoCartones Android app"
     },
     "cta": {
       "title": "Your next game starts here",

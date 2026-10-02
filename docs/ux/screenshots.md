@@ -12,6 +12,9 @@ Chromium browser through each flow end-to-end and saved a screenshot at each
 step (locale `es-ES`, viewport 1440×900, dark theme — the app's default).
 The script isn't part of the repo; it exists only to produce this gallery
 and gets re-run by hand whenever the UI changes enough to make these stale.
+The landing page and Play Store screenshots are a separate, scripted set:
+[`scripts/screenshots/`](../../scripts/screenshots/README.md) seeds demo data and
+captures them from the web client and the Android emulator.
 See [`wireframes.md`](wireframes.md) for the Android screens (no emulator
 was available to capture those the same way — see `docs/roadmap/TASKS.md`)
 and [`use-cases.md`](use-cases.md) for the step-by-step flows behind

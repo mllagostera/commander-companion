@@ -836,7 +836,7 @@
         "eyebrow": "A la taula",
         "title": "Fet per al centre de la taula",
         "body": "Cada jugador té el seu racó de la pantalla, girat cap a ell. Toca per canviar la vida, obre el panell de dany de comandant i verí, i passa el torn sense buscar botons.",
-        "alt": "Comptador de vides per a quatre jugadors amb el panell de dany de comandant i verí obert"
+        "alt": "Comptador de vides per a quatre jugadors amb el dany de comandant rebut de cada rival"
       },
       "tournaments": {
         "eyebrow": "Després de la partida",
@@ -844,6 +844,18 @@
         "body": "Agrupa els teus jugadors habituals, munta un torneig suís la nit de joc i deixa que l'app s'ocupi de les taules, els punts i la classificació.",
         "alt": "Ronda d'un torneig amb el repartiment de taules i la classificació"
       }
+    },
+    "android": {
+      "eyebrow": "Properament",
+      "title": "TapeandoCartones, també a Android",
+      "body": "Estem acabant l'app per a Android. Porta-la a la taula: el comptador de vides al teu mòbil, connectat al teu compte.",
+      "points": {
+        "offline": "La partida continua encara que et quedis sense cobertura.",
+        "devices": "Cada jugador pot unir-se des del seu propi mòbil i veure la partida en directe.",
+        "synced": "Els teus decks, grups i estadístiques, els mateixos que a la web."
+      },
+      "badge": "Properament a Google Play",
+      "alt": "Pantalla d'inici de l'app de TapeandoCartones per a Android"
     },
     "cta": {
       "title": "La teva propera partida comença aquí",
