@@ -227,7 +227,11 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	authHandler := auth.NewHandler(authService)
 	authHandler.RegisterPublicRoutes(api, authRateLimit) // login, google, refresh, logout
 
-	protected := api.Group("", auth.RequireAuth(cfg.Auth.JWTSecret))
+	// The activity tracker runs on every authenticated request (after RequireAuth,
+	// which gives it the user ID) to keep users.last_seen_at fresh for the admin
+	// overview's online_users — see users.ActivityTracker and ADR-0018's addendum.
+	activityTracker := users.NewActivityTracker(usersService)
+	protected := api.Group("", auth.RequireAuth(cfg.Auth.JWTSecret), activityTracker.Middleware())
 	authHandler.RegisterProtectedRoutes(protected) // GET /auth/me
 	// GET /users/search, PATCH /users/:id, POST /users/:id/password.
 	usersHandler.RegisterProtectedRoutes(protected, newSearchRateLimiter())

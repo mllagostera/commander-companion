@@ -53,10 +53,8 @@ type OverviewStatsResponse struct {
 	TotalPlaygroups    int64 `json:"total_playgroups"`
 	TotalFinishedGames int64 `json:"total_finished_games"`
 	TotalTournaments   int64 `json:"total_tournaments"`
-	// OnlineUsers approximates "currently online" as "has at least one unexpired,
-	// unrevoked refresh token" — there's no real-time presence tracking, so this
-	// reads as "has an active session right now", not "has the app open this
-	// instant". See ADR-0018's addendum.
+	// OnlineUsers counts users who made an authenticated request in the last 5
+	// minutes (users.last_seen_at). See ADR-0018's second addendum.
 	OnlineUsers int64 `json:"online_users"`
 	// ActiveGames is the count of games in the 'active' state (started, not yet finished).
 	ActiveGames int64 `json:"active_games"`

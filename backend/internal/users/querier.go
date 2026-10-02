@@ -39,6 +39,10 @@ type Querier interface {
 	// prefix/substring. Exact email search is handled separately, via GetUserByEmail.
 	SearchUsersByUsername(ctx context.Context, arg SearchUsersByUsernameParams) ([]User, error)
 	SetUserEmailVerified(ctx context.Context, id pgtype.UUID) (User, error)
+	// Records that the user just made an authenticated request (see ActivityTracker,
+	// which throttles this to once per minute per user, and the admin overview's
+	// online_users, which reads it).
+	TouchLastSeen(ctx context.Context, id pgtype.UUID) error
 	UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfieldUsernameParams) (User, error)
 	UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHashParams) (User, error)
 	UpdateUsername(ctx context.Context, arg UpdateUsernameParams) (User, error)

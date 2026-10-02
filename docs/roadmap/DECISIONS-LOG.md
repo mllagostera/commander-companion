@@ -25,6 +25,20 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-02 — Admin "online users" from `users.last_seen_at`.** The overview's
+online count used "has an unexpired refresh token", which with a 30-day
+`REFRESH_TOKEN_TTL` meant "logged in during the last month". It now counts users
+whose last authenticated request was in the last 5 minutes: migration 00021 adds
+`users.last_seen_at`, and `users.ActivityTracker` (middleware after
+`auth.RequireAuth`) writes it at most once a minute per user, from a goroutine. Vercel
+Analytics was ruled out (it never sees Android, which calls the API directly), as was
+a third-party SDK for a single counter. Idle-but-open clients drop off after 5
+minutes; no heartbeat yet. See
+[ADR-0018](../decisions/0018-admin-role-and-user-moderation.md)'s second addendum.
+Verified with the full backend suite under `-race` against `postgres:18-alpine`
+(migration up/down/up), sqlc 1.27.0 regenerated, `golangci-lint` clean on the touched
+packages.
+
 **2026-10-01 — Verification email per locale, and resend from Android.**
 Checking the Resend connection found `EMAIL_FROM` set to a `@gmail.com` address,
 which Resend rejects (403, unverified domain); the sender is now

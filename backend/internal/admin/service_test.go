@@ -61,15 +61,14 @@ func addGamePlayer(t *testing.T, pool *pgxpool.Pool, gameID, userID string) {
 	}
 }
 
-// insertActiveRefreshToken gives userID an unexpired, unrevoked refresh token, so it
-// counts toward GetOverviewStats' online_users. The hash doesn't need to be real (no
-// login flow is exercised here), only unique per row.
-func insertActiveRefreshToken(t *testing.T, pool *pgxpool.Pool, userID string) {
+// setLastSeen sets userID's last_seen_at to ago before now, standing in for the
+// writes users.ActivityTracker makes on authenticated requests.
+func setLastSeen(t *testing.T, pool *pgxpool.Pool, userID string, ago time.Duration) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 day')`,
-		userID, "test-hash-"+userID); err != nil {
-		t.Fatalf("insertando refresh token de test: %v", err)
+		`UPDATE users SET last_seen_at = now() - make_interval(secs => $2) WHERE id = $1`,
+		userID, ago.Seconds()); err != nil {
+		t.Fatalf("setting test last_seen_at: %v", err)
 	}
 }
 
@@ -276,7 +275,7 @@ func TestGetOverviewStats_CountsOnlineUsersAndActiveGames(t *testing.T) {
 
 	online := registerUser(t, pool, "online-user", "online-user@example.com")
 	registerUser(t, pool, "offline-user", "offline-user@example.com")
-	insertActiveRefreshToken(t, pool, online.ID)
+	setLastSeen(t, pool, online.ID, time.Minute)
 
 	playgroupID := createPlaygroup(t, pool, "activity-pg")
 	createGame(t, pool, playgroupID, "active", time.Now())
@@ -295,30 +294,19 @@ func TestGetOverviewStats_CountsOnlineUsersAndActiveGames(t *testing.T) {
 	}
 }
 
-func TestGetOverviewStats_ExpiredOrRevokedTokenDoesNotCountAsOnline(t *testing.T) {
+func TestGetOverviewStats_StaleOrNeverSeenDoesNotCountAsOnline(t *testing.T) {
 	svc, pool := newAdminSvc(t)
 
-	expired := registerUser(t, pool, "expired-session", "expired-session@example.com")
-	revoked := registerUser(t, pool, "revoked-session", "revoked-session@example.com")
-
-	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, now() - interval '1 day')`,
-		expired.ID, "expired-hash"); err != nil {
-		t.Fatalf("insertando refresh token vencido de test: %v", err)
-	}
-	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO refresh_tokens (user_id, token_hash, expires_at, revoked_at)
-		 VALUES ($1, $2, now() + interval '1 day', now())`,
-		revoked.ID, "revoked-hash"); err != nil {
-		t.Fatalf("insertando refresh token revocado de test: %v", err)
-	}
+	stale := registerUser(t, pool, "stale-user", "stale-user@example.com")
+	registerUser(t, pool, "never-seen", "never-seen@example.com")
+	setLastSeen(t, pool, stale.ID, 10*time.Minute)
 
 	stats, err := svc.GetOverviewStats(context.Background())
 	if err != nil {
 		t.Fatalf("GetOverviewStats() error = %v, want nil", err)
 	}
 	if stats.OnlineUsers != 0 {
-		t.Fatalf("GetOverviewStats() online_users = %d, want 0 (both tokens are expired/revoked)", stats.OnlineUsers)
+		t.Fatalf("GetOverviewStats() online_users = %d, want 0 (one seen 10 minutes ago, one never seen)", stats.OnlineUsers)
 	}
 }
 
