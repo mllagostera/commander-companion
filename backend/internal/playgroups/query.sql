@@ -1,6 +1,6 @@
 -- name: CreatePlaygroup :one
-INSERT INTO playgroups (name)
-VALUES ($1)
+INSERT INTO playgroups (name, created_by)
+VALUES ($1, $2)
 RETURNING *;
 
 -- name: UpdatePlaygroupName :one
@@ -13,6 +13,16 @@ SELECT * FROM playgroups WHERE id = $1 LIMIT 1;
 
 -- name: ListPlaygroups :many
 SELECT * FROM playgroups ORDER BY created_at DESC;
+
+-- name: DeletePlaygroupMembers :exec
+DELETE FROM playgroup_members WHERE playgroup_id = $1;
+
+-- name: DeletePlaygroup :exec
+-- No ON DELETE CASCADE from games (see 00001_initial_schema.sql): a group that
+-- has any game, in any status, makes this fail with games_playgroup_id_fkey,
+-- which is exactly the "only an empty group can be deleted" rule (see
+-- Service.DeletePlaygroup).
+DELETE FROM playgroups WHERE id = $1;
 
 -- name: AddPlaygroupMember :one
 INSERT INTO playgroup_members (playgroup_id, user_id)

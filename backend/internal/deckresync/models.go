@@ -119,6 +119,7 @@ type Playgroup struct {
 	Name      string           `json:"name"`
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	CreatedBy pgtype.UUID      `json:"created_by"`
 }
 
 type PlaygroupMember struct {

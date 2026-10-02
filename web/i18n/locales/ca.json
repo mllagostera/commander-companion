@@ -379,7 +379,11 @@
         "emptyTitle": "Encara no hi ha partides en aquest grup",
         "emptyBody": "Juga'n una i apareixerà aquí, juntament amb el win rate de cadascú."
       },
-      "formerMember": "Ex membre"
+      "formerMember": "Ex membre",
+      "delete": "Eliminar grup",
+      "deleting": "S'està eliminant…",
+      "deleteConfirmTitle": "Vols eliminar «{name}»?",
+      "deleteConfirmBody": "Se'n trauran tots els membres. Aquesta acció no es pot desfer."
     }
   },
   "friends": {
@@ -475,6 +479,7 @@
     "moxfieldLinked": "Compte de Moxfield vinculat",
     "groupCreated": "Grup creat",
     "groupRenamed": "Grup reanomenat",
+    "groupDeleted": "Grup eliminat",
     "deckImported": "Deck importat",
     "memberAdded": "{username} afegit al grup",
     "tournamentCreated": "Torneig creat",
@@ -547,6 +552,12 @@
         "userNotFound": "No existeix cap usuari amb aquest ID.",
         "alreadyMember": "Aquest usuari ja és membre del grup.",
         "generic": "No s'ha pogut afegir l'usuari."
+      },
+      "delete": {
+        "notCreator": "Només qui ha creat el grup el pot eliminar.",
+        "notFoundOrNotMember": "El grup no existeix o no n'ets membre.",
+        "hasGames": "Aquest grup ja té partides i no es pot eliminar.",
+        "generic": "No s'ha pogut eliminar el grup."
       }
     },
     "games": {
