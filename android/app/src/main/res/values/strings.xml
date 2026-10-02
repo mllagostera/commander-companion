@@ -87,6 +87,8 @@
     <string name="pregame_seat_label">Asiento %1$d</string>
     <string name="pregame_mulligans">Mulligans</string>
     <string name="pregame_begin">EMPEZAR</string>
+    <string name="pregame_no_deck">Sin deck</string>
+    <string name="pregame_free_seat">Liberar asiento</string>
 
     <!-- Game tracker -->
     <string name="tracker_rotate_prompt">Gira tu dispositivo\npara empezar la partida</string>

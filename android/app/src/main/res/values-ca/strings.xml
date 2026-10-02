@@ -84,6 +84,8 @@
     <string name="pregame_seat_label">Seient %1$d</string>
     <string name="pregame_mulligans">Mulligans</string>
     <string name="pregame_begin">COMENÇA</string>
+    <string name="pregame_no_deck">Sense deck</string>
+    <string name="pregame_free_seat">Allibera el seient</string>
 
     <!-- Game tracker -->
     <string name="tracker_rotate_prompt">Gira el teu dispositiu\nper començar la partida</string>

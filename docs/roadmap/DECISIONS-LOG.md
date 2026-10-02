@@ -2236,3 +2236,40 @@ too, and the PR mergeable. So the code compiles and its tests pass; what is stil
 is a real table on a real device, which is why both items stay `[ ]` in TASKS.md and why
 the screenshots AGENTS.md §8 asks for do not exist yet (waived by the repo owner for this
 PR only).
+
+### Stage 4 — Pregame seats as a member → deck → mulligans flow (built 2026-10-02)
+
+Reviewed on the emulator with the repo owner: once a deck was picked, nothing said it
+could be unpicked (tapping the lone card did it, by surprise), the layout jumped between
+the picked and unpicked states, deck names were truncated, a seated member could not be
+unseated, and the mulligan stepper (9 sp label, 18 dp buttons) was always on screen
+before anyone had even sat down.
+
+Each Group-mode seat now shows only the step it is on, in table order:
+
+1. **Member** — Guest or an available member.
+2. **Deck** — the member's decks (names wrap to two lines) plus a "No deck" option.
+   Picking one moves on; there is no confirm button, since it would cost a tap per
+   seat and the ▶ button already is the confirmation.
+3. **Mulligans** — a large counter, the seat painted with the deck's art, and a header
+   with the member (✕ frees the seat) and the deck (✎ goes back to step 2 with the
+   current deck still highlighted, so switching is one tap).
+
+Guests, members without decks and "No deck" go straight to step 3. Casual mode only
+ever shows step 3. Seat state stays in `rememberSaveable` lists; `seatDeckIds` uses
+`null` for undecided and `""` for "no deck", mirroring the Guest convention.
+
+**Last deck, local only (owner's call).** `LastDeckRepository` keeps the deck each member
+last played per playgroup in a device DataStore, written when ▶ is pressed and
+preselected when that member sits down again, so the common case skips step 2. Writes
+run on the repository's own scope because the pregame screen leaves the back stack
+right then and would cancel its ViewModel's scope.
+
+**Mulligans** stay game data that is shown nowhere but the game's statistics: the
+tracker never shows them (already the case), the end summary does. The History list
+also prints them today; whether that counts is an open question for the owner.
+
+Verified on the 1080x2160 AVD against the `tc-capture` stack: every step, deck change,
+freeing a seat, and the preselection on a second game; `./gradlew lintDebug
+testDebugUnitTest` green. Not done from the brainstorm: a progress ring on ▶ and an undo
+for freeing a seat. The Play Store "seat picker" screenshot predates this change.
