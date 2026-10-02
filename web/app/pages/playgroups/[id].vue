@@ -5,11 +5,12 @@ const route = useRoute()
 const playgroupId = route.params.id as string
 const { t, d } = useI18n()
 
-const { getPlaygroup, updatePlaygroup, addMember } = usePlaygroups()
+const { getPlaygroup, updatePlaygroup, deletePlaygroup, addMember } = usePlaygroups()
 const { playgroupStats } = useStatistics()
 const { listPlaygroupGames } = useGames()
 const { searchUsers } = useUsers()
 const { showToast } = useToast()
+const { user: authUser } = useAuth()
 
 const { data: playgroup, refresh, error: loadError } = await useAsyncData<Playgroup | null>(
   `playgroup-${playgroupId}`,
@@ -87,6 +88,48 @@ async function handleRename() {
     renameError.value = updatePlaygroupError(err)
   } finally {
     isRenaming.value = false
+  }
+}
+
+// --------------------------------------------------------------- delete
+// Only offered to the creator of a group with no games -- the same two rules the
+// backend enforces (see internal/playgroups/service.go: DeletePlaygroup). It's
+// for undoing a group created by mistake, never for erasing anyone's history.
+const canDelete = computed(() =>
+  !!authUser.value
+  && playgroup.value?.created_by === authUser.value.id
+  && !gamesError.value
+  && !games.value?.length,
+)
+const isDeleteConfirmOpen = ref(false)
+const deleteDialogRef = ref<HTMLElement | null>(null)
+const deleteError = ref('')
+const isDeleting = ref(false)
+
+function askDelete() {
+  deleteError.value = ''
+  isDeleteConfirmOpen.value = true
+}
+
+function cancelDelete() {
+  isDeleteConfirmOpen.value = false
+  deleteError.value = ''
+}
+
+useModalA11y(isDeleteConfirmOpen, deleteDialogRef, cancelDelete)
+
+async function confirmDelete() {
+  deleteError.value = ''
+  isDeleting.value = true
+  try {
+    await deletePlaygroup(playgroupId)
+    isDeleteConfirmOpen.value = false
+    showToast(t('toast.groupDeleted'))
+    await navigateTo('/playgroups')
+  } catch (err) {
+    deleteError.value = deletePlaygroupError(err)
+  } finally {
+    isDeleting.value = false
   }
 }
 
@@ -418,6 +461,60 @@ async function handleAddMember() {
           </div>
         </div>
       </section>
+
+      <section v-if="canDelete">
+        <button
+          type="button"
+          class="rounded-full border px-5 py-2.5 text-[13px]"
+          style="border-color: rgba(248,113,113,0.35); color: var(--lose);"
+          @click="askDelete"
+        >
+          {{ $t('playgroups.detail.delete') }}
+        </button>
+      </section>
     </template>
+
+    <div
+      v-if="isDeleteConfirmOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="cancelDelete"
+    >
+      <div
+        ref="deleteDialogRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="playgroup-delete-title"
+        class="w-full max-w-sm rounded-[var(--radius-xl)] border p-6"
+        style="border-color: var(--card-border); background: var(--page-solid);"
+      >
+        <h2 id="playgroup-delete-title" class="text-[15px] font-medium">
+          {{ $t('playgroups.detail.deleteConfirmTitle', { name: playgroup?.name }) }}
+        </h2>
+        <p class="mt-2 text-[13px]" style="color: var(--text-muted);">
+          {{ $t('playgroups.detail.deleteConfirmBody') }}
+        </p>
+
+        <div class="mt-5 flex justify-end gap-3">
+          <button
+            type="button"
+            class="rounded-full border px-4 py-2 text-sm"
+            style="border-color: var(--input-border); color: var(--text);"
+            @click="cancelDelete"
+          >
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            type="button"
+            :disabled="isDeleting"
+            class="rounded-full border px-5 py-2 text-sm font-semibold disabled:opacity-50"
+            style="border-color: rgba(248,113,113,0.35); background: var(--lose-bg); color: var(--lose);"
+            @click="confirmDelete"
+          >
+            {{ isDeleting ? $t('playgroups.detail.deleting') : $t('playgroups.detail.delete') }}
+          </button>
+        </div>
+        <p v-if="deleteError" class="mt-3 text-[13px]" style="color: var(--lose);">{{ deleteError }}</p>
+      </div>
+    </div>
   </div>
 </template>

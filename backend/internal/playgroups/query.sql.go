@@ -30,25 +30,53 @@ func (q *Queries) AddPlaygroupMember(ctx context.Context, arg AddPlaygroupMember
 }
 
 const createPlaygroup = `-- name: CreatePlaygroup :one
-INSERT INTO playgroups (name)
-VALUES ($1)
-RETURNING id, name, created_at, updated_at
+INSERT INTO playgroups (name, created_by)
+VALUES ($1, $2)
+RETURNING id, name, created_at, updated_at, created_by
 `
 
-func (q *Queries) CreatePlaygroup(ctx context.Context, name string) (Playgroup, error) {
-	row := q.db.QueryRow(ctx, createPlaygroup, name)
+type CreatePlaygroupParams struct {
+	Name      string      `json:"name"`
+	CreatedBy pgtype.UUID `json:"created_by"`
+}
+
+func (q *Queries) CreatePlaygroup(ctx context.Context, arg CreatePlaygroupParams) (Playgroup, error) {
+	row := q.db.QueryRow(ctx, createPlaygroup, arg.Name, arg.CreatedBy)
 	var i Playgroup
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
+const deletePlaygroup = `-- name: DeletePlaygroup :exec
+DELETE FROM playgroups WHERE id = $1
+`
+
+// No ON DELETE CASCADE from games (see 00001_initial_schema.sql): a group that
+// has any game, in any status, makes this fail with games_playgroup_id_fkey,
+// which is exactly the "only an empty group can be deleted" rule (see
+// Service.DeletePlaygroup).
+func (q *Queries) DeletePlaygroup(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deletePlaygroup, id)
+	return err
+}
+
+const deletePlaygroupMembers = `-- name: DeletePlaygroupMembers :exec
+DELETE FROM playgroup_members WHERE playgroup_id = $1
+`
+
+func (q *Queries) DeletePlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deletePlaygroupMembers, playgroupID)
+	return err
+}
+
 const getPlaygroup = `-- name: GetPlaygroup :one
-SELECT id, name, created_at, updated_at FROM playgroups WHERE id = $1 LIMIT 1
+SELECT id, name, created_at, updated_at, created_by FROM playgroups WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, error) {
@@ -59,6 +87,7 @@ func (q *Queries) GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, 
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -179,7 +208,7 @@ func (q *Queries) ListPlaygroupMembers(ctx context.Context, playgroupID pgtype.U
 }
 
 const listPlaygroups = `-- name: ListPlaygroups :many
-SELECT id, name, created_at, updated_at FROM playgroups ORDER BY created_at DESC
+SELECT id, name, created_at, updated_at, created_by FROM playgroups ORDER BY created_at DESC
 `
 
 func (q *Queries) ListPlaygroups(ctx context.Context) ([]Playgroup, error) {
@@ -196,6 +225,7 @@ func (q *Queries) ListPlaygroups(ctx context.Context) ([]Playgroup, error) {
 			&i.Name,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -208,7 +238,7 @@ func (q *Queries) ListPlaygroups(ctx context.Context) ([]Playgroup, error) {
 }
 
 const listPlaygroupsForUser = `-- name: ListPlaygroupsForUser :many
-SELECT p.id, p.name, p.created_at, p.updated_at FROM playgroups p
+SELECT p.id, p.name, p.created_at, p.updated_at, p.created_by FROM playgroups p
 JOIN playgroup_members pm ON pm.playgroup_id = p.id
 WHERE pm.user_id = $1
 ORDER BY p.created_at DESC
@@ -228,6 +258,7 @@ func (q *Queries) ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID)
 			&i.Name,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -240,7 +271,7 @@ func (q *Queries) ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID)
 }
 
 const listPlaygroupsForUserPage = `-- name: ListPlaygroupsForUserPage :many
-SELECT p.id, p.name, p.created_at, p.updated_at FROM playgroups p
+SELECT p.id, p.name, p.created_at, p.updated_at, p.created_by FROM playgroups p
 JOIN playgroup_members pm ON pm.playgroup_id = p.id
 WHERE pm.user_id = $1::uuid
   AND (
@@ -281,6 +312,7 @@ func (q *Queries) ListPlaygroupsForUserPage(ctx context.Context, arg ListPlaygro
 			&i.Name,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -295,7 +327,7 @@ func (q *Queries) ListPlaygroupsForUserPage(ctx context.Context, arg ListPlaygro
 const updatePlaygroupName = `-- name: UpdatePlaygroupName :one
 UPDATE playgroups SET name = $2
 WHERE id = $1
-RETURNING id, name, created_at, updated_at
+RETURNING id, name, created_at, updated_at, created_by
 `
 
 type UpdatePlaygroupNameParams struct {
@@ -311,6 +343,7 @@ func (q *Queries) UpdatePlaygroupName(ctx context.Context, arg UpdatePlaygroupNa
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }

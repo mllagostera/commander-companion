@@ -87,6 +87,8 @@ export interface DeckStats {
 export interface Playgroup {
   id: string
   name: string
+  /** The creator's user id, the only one who can delete the group. Null if that account no longer exists. */
+  created_by: string | null
   members?: PlaygroupMember[]
 }
 

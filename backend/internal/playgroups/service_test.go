@@ -427,3 +427,108 @@ func TestAddMember_UnknownTargetUser_ReturnsNotFound(t *testing.T) {
 		t.Fatalf("AddMember() con usuario inexistente: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
 	}
 }
+
+func TestCreatePlaygroup_RecordsCreator(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "created-by@example.com")
+
+	res := mustCreatePlaygroup(t, svc, owner.ID, "Mesa")
+	if res.CreatedBy == nil || *res.CreatedBy != owner.ID {
+		t.Fatalf("CreatePlaygroup() CreatedBy = %v, want %q", res.CreatedBy, owner.ID)
+	}
+}
+
+func TestDeletePlaygroup_Creator_DeletesGroupAndMembers(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "delete-owner@example.com")
+	member := createTestUser(t, pool, "delete-member@example.com")
+	pg := mustCreatePlaygroup(t, svc, owner.ID, "Creado por error")
+	addReq := playgroups.AddMemberRequest{UserID: member.ID}
+	if _, err := svc.AddMember(context.Background(), pg.ID, owner.ID, addReq); err != nil {
+		t.Fatalf("AddMember() error = %v, want nil", err)
+	}
+
+	if err := svc.DeletePlaygroup(context.Background(), pg.ID, owner.ID); err != nil {
+		t.Fatalf("DeletePlaygroup() error = %v, want nil", err)
+	}
+
+	_, err := svc.GetPlaygroup(context.Background(), owner.ID, pg.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("GetPlaygroup() after delete: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+	var remaining int
+	if err := pool.QueryRow(context.Background(),
+		"SELECT count(*) FROM playgroup_members WHERE playgroup_id = $1", pg.ID).Scan(&remaining); err != nil {
+		t.Fatalf("counting members: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("playgroup_members left after delete = %d, want 0", remaining)
+	}
+}
+
+func TestDeletePlaygroup_MemberNotCreator_ReturnsForbidden(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "delete-forbidden-owner@example.com")
+	member := createTestUser(t, pool, "delete-forbidden-member@example.com")
+	pg := mustCreatePlaygroup(t, svc, owner.ID, "Mesa")
+	addReq := playgroups.AddMemberRequest{UserID: member.ID}
+	if _, err := svc.AddMember(context.Background(), pg.ID, owner.ID, addReq); err != nil {
+		t.Fatalf("AddMember() error = %v, want nil", err)
+	}
+
+	err := svc.DeletePlaygroup(context.Background(), pg.ID, member.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusForbidden {
+		t.Fatalf("DeletePlaygroup() by a non-creator member: code = %d, want %d", fiberErr.Code, fiber.StatusForbidden)
+	}
+}
+
+func TestDeletePlaygroup_NotAMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "delete-notfound-owner@example.com")
+	outsider := createTestUser(t, pool, "delete-notfound-outsider@example.com")
+	pg := mustCreatePlaygroup(t, svc, owner.ID, "Mesa")
+
+	err := svc.DeletePlaygroup(context.Background(), pg.ID, outsider.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("DeletePlaygroup() by a non-member: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+}
+
+func TestDeletePlaygroup_WithGames_ReturnsConflictAndKeepsGroup(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "delete-games-owner@example.com")
+	pg := mustCreatePlaygroup(t, svc, owner.ID, "Mesa con partidas")
+	// A pending game is enough: any game, in any status, blocks the delete.
+	if _, err := pool.Exec(context.Background(),
+		"INSERT INTO games (playgroup_id, status) VALUES ($1, 'pending')", pg.ID); err != nil {
+		t.Fatalf("inserting test game: %v", err)
+	}
+
+	err := svc.DeletePlaygroup(context.Background(), pg.ID, owner.ID)
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusConflict {
+		t.Fatalf("DeletePlaygroup() with games: code = %d, want %d", fiberErr.Code, fiber.StatusConflict)
+	}
+
+	got, err := svc.GetPlaygroup(context.Background(), owner.ID, pg.ID)
+	if err != nil {
+		t.Fatalf("GetPlaygroup() after a rejected delete: error = %v, want nil", err)
+	}
+	if len(got.Members) != 1 {
+		t.Fatalf("members after a rejected delete = %d, want 1 (the transaction must roll back)", len(got.Members))
+	}
+}
