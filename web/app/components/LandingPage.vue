@@ -5,8 +5,9 @@
  *
  * Screenshots live in public/landing/: WebP captures of the running app
  * (1440x900, Spanish locale, dark theme) against a local stack seeded with
- * sample users, decks, games and a tournament. Re-capture them when the
- * screens they show change noticeably.
+ * sample users, decks, games and a tournament, and android.webp from the
+ * Android app's Play Store set. scripts/screenshots/ regenerates all of them
+ * (see its README); re-run it when the screens they show change noticeably.
  */
 const { t, locale, locales, setLocale, localeProperties } = useI18n()
 
@@ -19,7 +20,7 @@ const availableLocales = computed(() => locales.value as { code: string, name?: 
 // Two descriptions on purpose: Google shows ~155 characters of `description`,
 // while link previews (WhatsApp, X, LinkedIn) cut around 125.
 const siteUrl = useSiteUrl()
-const ogImage = `${siteUrl}/og-image.png?v=2`
+const ogImage = `${siteUrl}/og-image.png?v=3`
 useSeoMeta({
   title: () => t('landing.meta.title'),
   description: () => t('landing.meta.description'),
@@ -109,6 +110,8 @@ const pillars = computed(() => ['speed', 'simplicity', 'data'].map(key => ({
   title: t(`landing.pillars.${key}.title`),
   body: t(`landing.pillars.${key}.body`),
 })))
+
+const androidPoints = computed(() => ['offline', 'devices', 'synced'].map(key => t(`landing.android.points.${key}`)))
 
 const showcase = computed(() => [
   { src: '/landing/life-tracker.webp', width: 1440, height: 900, key: 'tracker' },
@@ -309,6 +312,67 @@ const showcase = computed(() => [
               class="block h-auto w-full rounded-[var(--radius-md)]"
             >
           </div>
+        </div>
+      </section>
+
+      <!-- Android app teaser: shown until the Play Store listing is live. -->
+      <section
+        class="relative overflow-hidden rounded-[var(--radius-xl)] border px-6 py-12 sm:px-12"
+        style="border-color: var(--card-border); background: var(--card-bg);"
+        aria-labelledby="landing-android-title"
+      >
+        <div
+          aria-hidden="true"
+          class="absolute -right-24 top-1/2 h-[420px] w-[420px] -translate-y-1/2 rounded-full blur-[80px]"
+          style="background: radial-gradient(circle, rgba(139,92,246,0.35), rgba(139,92,246,0) 70%);"
+        />
+        <div class="relative grid items-center gap-10 md:grid-cols-[1fr_auto] md:gap-16">
+          <div class="flex flex-col gap-4">
+            <span
+              class="w-fit rounded-full border px-3 py-1 text-[12px] font-medium"
+              style="border-color: var(--card-border); background: var(--card-bg-strong); color: var(--accent-link);"
+            >
+              {{ $t('landing.android.eyebrow') }}
+            </span>
+            <h2 id="landing-android-title" class="text-[26px] font-semibold leading-tight tracking-tight sm:text-[32px]">
+              {{ $t('landing.android.title') }}
+            </h2>
+            <p class="max-w-[520px] text-[15px] leading-relaxed" style="color: var(--text-muted);">
+              {{ $t('landing.android.body') }}
+            </p>
+            <ul class="mt-1 flex flex-col gap-2.5">
+              <li v-for="point in androidPoints" :key="point" class="flex items-start gap-2.5 text-[14px]">
+                <svg aria-hidden="true" class="mt-0.5 h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-link);">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                <span>{{ point }}</span>
+              </li>
+            </ul>
+            <p
+              class="mt-3 flex w-fit items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-medium"
+              style="border-color: var(--input-border); color: var(--text);"
+            >
+              <span aria-hidden="true" class="h-2 w-2 rounded-full" style="background: #a855f7; box-shadow: 0 0 10px #a855f7;" />
+              {{ $t('landing.android.badge') }}
+            </p>
+          </div>
+
+          <figure class="mx-auto w-[220px] sm:w-[250px]">
+            <div
+              class="rounded-[38px] border-[3px] p-2 shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+              style="border-color: #2a2342; background: #0a0714;"
+            >
+              <img
+                src="/landing/android.webp"
+                width="540"
+                height="1080"
+                loading="lazy"
+                decoding="async"
+                :alt="$t('landing.android.alt')"
+                class="block h-auto w-full rounded-[30px]"
+              >
+            </div>
+          </figure>
         </div>
       </section>
 

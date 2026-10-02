@@ -836,7 +836,7 @@
         "eyebrow": "En la mesa",
         "title": "Hecho para el centro de la mesa",
         "body": "Cada jugador tiene su esquina de la pantalla, girada hacia él. Toca para cambiar la vida, abre el panel de daño de comandante y veneno, y pasa el turno sin buscar botones.",
-        "alt": "Contador de vidas para cuatro jugadores con el panel de daño de comandante y veneno abierto"
+        "alt": "Contador de vidas para cuatro jugadores con el daño de comandante recibido de cada rival"
       },
       "tournaments": {
         "eyebrow": "Después de la partida",
@@ -844,6 +844,18 @@
         "body": "Agrupa a tus jugadores habituales, monta un torneo suizo la noche de juego y deja que la app se ocupe de las mesas, los puntos y la clasificación.",
         "alt": "Ronda de un torneo con el reparto de mesas y la clasificación"
       }
+    },
+    "android": {
+      "eyebrow": "Próximamente",
+      "title": "TapeandoCartones, también en Android",
+      "body": "Estamos terminando la app para Android. Llévala a la mesa: el contador de vidas en tu móvil, conectado a tu cuenta.",
+      "points": {
+        "offline": "La partida sigue aunque te quedes sin cobertura.",
+        "devices": "Cada jugador puede unirse desde su propio móvil y ver la partida en directo.",
+        "synced": "Tus decks, grupos y estadísticas, los mismos que en la web."
+      },
+      "badge": "Próximamente en Google Play",
+      "alt": "Pantalla de inicio de la app de TapeandoCartones para Android"
     },
     "cta": {
       "title": "Tu próxima partida empieza aquí",
