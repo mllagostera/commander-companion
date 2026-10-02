@@ -480,12 +480,11 @@ func parseColorIdentityField(raw json.RawMessage) (set bool, identity []string, 
 	return true, identity, nil
 }
 
-// backfillSeats fills the deck's now-known bracket/color identity into the
-// past seats that recorded none (see BackfillSeatDeckTraits).
+// backfillSeats copies the deck's current bracket/color identity onto the
+// past seats that had none when played, and keeps earlier backfills in step
+// with it (see BackfillSeatDeckTraits). Runs even when the deck's values are
+// unknown: clearing one has to reach the seats that copied it.
 func (s *service) backfillSeats(ctx context.Context, deck *Deck) error {
-	if !deck.Bracket.Valid && deck.ColorIdentity == nil {
-		return nil
-	}
 	err := s.repo.BackfillSeatDeckTraits(ctx, BackfillSeatDeckTraitsParams{
 		DeckID:        deck.ID,
 		Bracket:       deck.Bracket,

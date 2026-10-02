@@ -15,7 +15,7 @@ const adjustGamePlayerLife = `-- name: AdjustGamePlayerLife :one
 UPDATE game_players
 SET life_total = life_total + $1::int
 WHERE id = $2
-RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity, deck_bracket_backfilled, deck_color_identity_backfilled
 `
 
 type AdjustGamePlayerLifeParams struct {
@@ -39,6 +39,8 @@ func (q *Queries) AdjustGamePlayerLife(ctx context.Context, arg AdjustGamePlayer
 		&i.AddedBy,
 		&i.DeckBracket,
 		&i.DeckColorIdentity,
+		&i.DeckBracketBackfilled,
+		&i.DeckColorIdentityBackfilled,
 	)
 	return i, err
 }
@@ -47,7 +49,7 @@ const adjustGamePlayerPoison = `-- name: AdjustGamePlayerPoison :one
 UPDATE game_players
 SET poison_counters = poison_counters + $1::int
 WHERE id = $2
-RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity, deck_bracket_backfilled, deck_color_identity_backfilled
 `
 
 type AdjustGamePlayerPoisonParams struct {
@@ -71,6 +73,8 @@ func (q *Queries) AdjustGamePlayerPoison(ctx context.Context, arg AdjustGamePlay
 		&i.AddedBy,
 		&i.DeckBracket,
 		&i.DeckColorIdentity,
+		&i.DeckBracketBackfilled,
+		&i.DeckColorIdentityBackfilled,
 	)
 	return i, err
 }
@@ -176,7 +180,7 @@ func (q *Queries) GetGameActionForUpdate(ctx context.Context, arg GetGameActionF
 }
 
 const getGamePlayer = `-- name: GetGamePlayer :one
-SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity FROM game_players WHERE id = $1 LIMIT 1
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity, deck_bracket_backfilled, deck_color_identity_backfilled FROM game_players WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer, error) {
@@ -195,12 +199,14 @@ func (q *Queries) GetGamePlayer(ctx context.Context, id pgtype.UUID) (GamePlayer
 		&i.AddedBy,
 		&i.DeckBracket,
 		&i.DeckColorIdentity,
+		&i.DeckBracketBackfilled,
+		&i.DeckColorIdentityBackfilled,
 	)
 	return i, err
 }
 
 const getGamePlayerByGameAndUser = `-- name: GetGamePlayerByGameAndUser :one
-SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity FROM game_players WHERE game_id = $1 AND user_id = $2 LIMIT 1
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity, deck_bracket_backfilled, deck_color_identity_backfilled FROM game_players WHERE game_id = $1 AND user_id = $2 LIMIT 1
 `
 
 type GetGamePlayerByGameAndUserParams struct {
@@ -224,6 +230,8 @@ func (q *Queries) GetGamePlayerByGameAndUser(ctx context.Context, arg GetGamePla
 		&i.AddedBy,
 		&i.DeckBracket,
 		&i.DeckColorIdentity,
+		&i.DeckBracketBackfilled,
+		&i.DeckColorIdentityBackfilled,
 	)
 	return i, err
 }
@@ -374,7 +382,7 @@ const setGamePlayerEliminated = `-- name: SetGamePlayerEliminated :one
 UPDATE game_players
 SET is_eliminated = $1
 WHERE id = $2
-RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity, deck_bracket_backfilled, deck_color_identity_backfilled
 `
 
 type SetGamePlayerEliminatedParams struct {
@@ -398,6 +406,8 @@ func (q *Queries) SetGamePlayerEliminated(ctx context.Context, arg SetGamePlayer
 		&i.AddedBy,
 		&i.DeckBracket,
 		&i.DeckColorIdentity,
+		&i.DeckBracketBackfilled,
+		&i.DeckColorIdentityBackfilled,
 	)
 	return i, err
 }

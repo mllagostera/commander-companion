@@ -67,15 +67,23 @@ WHERE id = $1
 RETURNING *;
 
 -- name: BackfillSeatDeckTraits :exec
--- Fills the deck's bracket and color identity into its past seats that
--- recorded none (they were unknown when the game was played), so those games
--- count under them once they become known. A seat that already has a value
--- keeps it: that's what was actually played.
+-- Copies the deck's current bracket and color identity onto its past seats
+-- that had none when the game was played, and flags them as backfilled. A
+-- backfilled seat keeps following the deck on every later change (its value
+-- was a guess, and a mistake typed in must stay correctable); a seat that got
+-- its value when it sat down keeps it: that's what was actually played.
+-- Each field is handled on its own, since a seat can have one and not the other.
+-- (On the right-hand side of SET, the columns read their pre-update values.)
 UPDATE game_players
-SET deck_bracket = COALESCE(deck_bracket, sqlc.narg('bracket')::smallint),
-    deck_color_identity = COALESCE(deck_color_identity, sqlc.narg('color_identity')::text[])
+SET deck_bracket = CASE WHEN deck_bracket IS NULL OR deck_bracket_backfilled
+                        THEN sqlc.narg('bracket')::smallint ELSE deck_bracket END,
+    deck_bracket_backfilled = deck_bracket IS NULL OR deck_bracket_backfilled,
+    deck_color_identity = CASE WHEN deck_color_identity IS NULL OR deck_color_identity_backfilled
+                               THEN sqlc.narg('color_identity')::text[] ELSE deck_color_identity END,
+    deck_color_identity_backfilled = deck_color_identity IS NULL OR deck_color_identity_backfilled
 WHERE deck_id = sqlc.arg('deck_id')
-  AND (deck_bracket IS NULL OR deck_color_identity IS NULL);
+  AND (deck_bracket IS NULL OR deck_bracket_backfilled
+       OR deck_color_identity IS NULL OR deck_color_identity_backfilled);
 
 -- name: DeleteDeck :exec
 DELETE FROM decks WHERE id = $1;

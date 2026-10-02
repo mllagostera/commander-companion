@@ -2369,3 +2369,24 @@ backfill had filed the demo history under the new brackets) and the history filt
 to bracket 4 (the four Yuriko games), with no console errors. Screenshot in
 `docs/ux/screenshots/web-deck-bracket-colors.png`.
 
+Review fixes (same day, same PR):
+
+- **A wrong value froze on old games.** The first backfill only filled seats that were
+  still NULL, so a bracket typed by mistake and corrected a second later stayed on
+  those games for good. Seats filled in after the fact are now flagged
+  `deck_*_backfilled` (added to migration `00023` itself, which hadn't shipped) and keep
+  following the deck; seats that got their value when they sat down are still never
+  rewritten. Clearing a value now reaches the backfilled seats too. Covered by
+  `TestFinishedGames_BackfilledSeatsFollowTheDeck_SeatedOnesDont`; ADR-0021 updated.
+- **A stale cursor could be sent with the new filter.** Changing the filter on
+  `/decks` while a search was loading every page sent the old listing's cursor with the
+  new filter, and if that answer landed after the new first page its decks were
+  appended (reproduced with Playwright and 30 temporary decks, delaying responses:
+  20 cards, 5 duplicated). The cursor is now dropped the moment the filter changes and
+  every page is tied to a listing counter; same in the statistics history, where
+  "load more" could do the same. After the fix: 15 unique cards, and "load more" is
+  hidden until the new first page arrives.
+- **`schema.dbml` didn't compile** (CI's "schema.dbml matches the migrations" was red):
+  an apostrophe inside a single-quoted note. Reworded; the check now passes locally
+  (151 columns on both sides).
+

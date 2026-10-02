@@ -727,7 +727,7 @@ func (q *Queries) ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID
 }
 
 const listGamePlayersForGame = `-- name: ListGamePlayersForGame :many
-SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity FROM game_players WHERE game_id = $1
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity, deck_bracket_backfilled, deck_color_identity_backfilled FROM game_players WHERE game_id = $1
 `
 
 func (q *Queries) ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error) {
@@ -752,6 +752,8 @@ func (q *Queries) ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID
 			&i.AddedBy,
 			&i.DeckBracket,
 			&i.DeckColorIdentity,
+			&i.DeckBracketBackfilled,
+			&i.DeckColorIdentityBackfilled,
 		); err != nil {
 			return nil, err
 		}

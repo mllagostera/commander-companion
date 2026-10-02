@@ -119,8 +119,10 @@ Table game_players {
   experience_counters int [default: 0]
   is_eliminated boolean [default: false]
   added_by uuid [ref: > users.id, null, note: 'Who added them if not themselves (proxy-join in Group mode, see ADR-0013). Migration 00012_game_player_proxy_join.sql']
-  deck_bracket smallint [null, note: 'decks.bracket when the seat was added, so statistics/history filter by what was played. Filled later only while NULL, when the deck's bracket first becomes known. Migration 00023_deck_bracket_color_identity.sql']
+  deck_bracket smallint [null, note: 'decks.bracket when the seat was added, so statistics/history filter by what was played. NULL then = filled in later from the deck (see deck_bracket_backfilled). Migration 00023_deck_bracket_color_identity.sql']
   deck_color_identity "text[]" [null, note: 'decks.color_identity when the seat was added; same rules as deck_bracket. Migration 00023']
+  deck_bracket_backfilled boolean [not null, default: false, note: 'deck_bracket was filled in after the game (unknown then): it keeps following the deck, so a mistake can be corrected. False = set when seated, never rewritten. Migration 00023']
+  deck_color_identity_backfilled boolean [not null, default: false, note: 'Same as deck_bracket_backfilled, for deck_color_identity. Migration 00023']
 
   indexes {
     game_id [note: 'Hot path for reading the players of a game (migration 00003_indices.sql)']

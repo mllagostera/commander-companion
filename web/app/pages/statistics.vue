@@ -136,21 +136,28 @@ const finishedGamesError = ref(false)
 const finishedGamesLoaded = ref(false)
 const gamesFilter = ref<DeckTraitFilter>(emptyDeckTraitFilter())
 
+// Which listing the loaded games and cursor belong to: every first-page load
+// starts a new one, and any response for an earlier one (first page or "load
+// more") is dropped, whichever order they come back in.
+let gamesListing = 0
+
 async function loadFinishedGames() {
+  const mine = ++gamesListing
+  // The previous listing's cursor means nothing under a new filter: drop it so
+  // "load more" can't send it while this first page is in flight.
+  finishedGamesCursor.value = null
   finishedGamesLoading.value = true
   finishedGamesError.value = false
-  const filterAtStart = gamesFilter.value
   try {
-    const page = await listFinishedGames(undefined, filterAtStart)
-    // A newer filter already started its own load; this result is stale.
-    if (gamesFilter.value !== filterAtStart) return
+    const page = await listFinishedGames(undefined, gamesFilter.value)
+    if (mine !== gamesListing) return
     finishedGames.value = page.items
     finishedGamesCursor.value = page.next_cursor
   } catch {
-    if (gamesFilter.value === filterAtStart) finishedGamesError.value = true
+    if (mine === gamesListing) finishedGamesError.value = true
   } finally {
     // A stale load leaves the flags to the newer one still in flight.
-    if (gamesFilter.value === filterAtStart) {
+    if (mine === gamesListing) {
       finishedGamesLoading.value = false
       finishedGamesLoaded.value = true
     }
@@ -159,15 +166,15 @@ async function loadFinishedGames() {
 
 async function loadMoreFinishedGames() {
   if (!finishedGamesCursor.value) return
+  const mine = gamesListing
   finishedGamesLoading.value = true
-  const filterAtStart = gamesFilter.value
   try {
-    const page = await listFinishedGames(finishedGamesCursor.value, filterAtStart)
-    if (gamesFilter.value !== filterAtStart) return
+    const page = await listFinishedGames(finishedGamesCursor.value, gamesFilter.value)
+    if (mine !== gamesListing) return
     finishedGames.value = [...finishedGames.value, ...page.items]
     finishedGamesCursor.value = page.next_cursor
   } finally {
-    if (gamesFilter.value === filterAtStart) finishedGamesLoading.value = false
+    if (mine === gamesListing) finishedGamesLoading.value = false
   }
 }
 

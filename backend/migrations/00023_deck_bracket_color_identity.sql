@@ -18,9 +18,17 @@ ALTER TABLE decks
 -- What the deck was when it sat down at a game: a deck's bracket changes over
 -- time, and statistics/history filter by what was actually played. Copied
 -- from decks when the seat is added (games.AddGamePlayer).
+--
+-- A seat whose deck had no value then is filled in later from the deck
+-- (decks.BackfillSeatDeckTraits) and flagged *_backfilled: that value is only
+-- a best guess, so it keeps following the deck -- a value entered by mistake
+-- and corrected doesn't stay frozen on the old games. A seat that got its
+-- value when it sat down is never rewritten.
 ALTER TABLE game_players
   ADD COLUMN deck_bracket smallint CHECK (deck_bracket BETWEEN 1 AND 5),
-  ADD COLUMN deck_color_identity text[] CHECK (deck_color_identity <@ ARRAY['W', 'U', 'B', 'R', 'G']);
+  ADD COLUMN deck_color_identity text[] CHECK (deck_color_identity <@ ARRAY['W', 'U', 'B', 'R', 'G']),
+  ADD COLUMN deck_bracket_backfilled boolean NOT NULL DEFAULT false,
+  ADD COLUMN deck_color_identity_backfilled boolean NOT NULL DEFAULT false;
 
 -- +goose StatementEnd
 
@@ -28,6 +36,8 @@ ALTER TABLE game_players
 -- +goose StatementBegin
 
 ALTER TABLE game_players
+  DROP COLUMN deck_color_identity_backfilled,
+  DROP COLUMN deck_bracket_backfilled,
   DROP COLUMN deck_color_identity,
   DROP COLUMN deck_bracket;
 

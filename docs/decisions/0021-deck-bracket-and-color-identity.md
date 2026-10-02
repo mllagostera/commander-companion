@@ -53,9 +53,13 @@ caller's own seat snapshot, not by the deck's current value.
 
 Seats added before a deck's value was known (every game before this migration,
 and every game with a deck nobody has resynced yet) would otherwise stay
-unknown forever. So whenever a deck's value becomes known (resync or PATCH),
-`BackfillSeatDeckTraits` fills it into that deck's seats **that still have
-none**. A seat that already has a value is never rewritten: it is what was
+unknown forever. So whenever a deck's values change (resync or PATCH),
+`BackfillSeatDeckTraits` copies them onto that deck's seats that had none when
+played, flagging them `deck_*_backfilled`. A backfilled seat keeps following
+the deck on later changes: its value was only ever a guess, and freezing it
+would make a typo permanent (set bracket 5 by mistake, correct it to 2, and the
+old games would stay under 5 with no way to fix them -- found in review). A
+seat that got its value when it sat down is never rewritten: that is what was
 played.
 
 Rejected: filtering by the deck's current value (simpler, but re-files old
@@ -68,9 +72,11 @@ values yet).
 - One "update all" (`POST /decks/resync-all`) after deploying fills both the
   decks and their past seats, so existing statistics become filterable without a
   data migration.
-- The backfill is a best guess for games played before the value was known: a
-  deck retuned from bracket 2 to 3 before its first resync has its old games
-  filed under 3. Accepted; there's no source for the older value.
+- The backfill is a best guess for games played before the value was known,
+  and stays one: those games follow the deck's current value, so a deck
+  retuned from 2 to 3 moves its backfilled games to 3 as well. Accepted;
+  there's no source for the older value, and the alternative (freezing the
+  first guess) made mistakes uncorrectable.
 - Decks of other users only get values when *their* owner imports or resyncs;
   an opponent's seat can stay unknown. Filters are always on the caller's own
   seat, so this only affects what an opponent's row shows.

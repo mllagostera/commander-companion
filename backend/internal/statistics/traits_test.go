@@ -64,11 +64,6 @@ func TestFinishedGames_FilterBySeatSnapshot(t *testing.T) {
 	truncateStatsTables(t, pool)
 	g := setupFinishedTraitsGame(t, pool)
 
-	// The deck moves on after the game: the history still files it as played.
-	setDeckTraits(t, pool, g.user1.ID, g.deck1ID, decks.UpdateDeckRequest{
-		Bracket: json.RawMessage("4"), ColorIdentity: json.RawMessage(`["B"]`),
-	})
-
 	cases := map[string]struct {
 		filter common.DeckTraitFilter
 		want   int
@@ -91,14 +86,30 @@ func TestFinishedGames_FilterBySeatSnapshot(t *testing.T) {
 	assertSeatSnapshots(t, g, finishedGames(t, g, common.DeckTraitFilter{})[0].Players)
 }
 
-// A deck that already has traits when it sits down gets them copied onto the
-// seat right away (AddGamePlayer), without waiting for a backfill.
-func TestFinishedGames_SnapshotTakenWhenSeated(t *testing.T) {
+// assertGamesPerBracket checks how many of user1's finished games each bracket filter returns.
+func assertGamesPerBracket(t *testing.T, g *twoPlayerGame, want map[int16]int) {
+	t.Helper()
+	for bracket, n := range want {
+		if got := len(finishedGames(t, g, common.DeckTraitFilter{Brackets: []int16{bracket}})); got != n {
+			t.Errorf("bracket %d: %d games, want %d", bracket, got, n)
+		}
+	}
+}
+
+// A backfilled seat (its deck had no bracket when played) is only a guess, so
+// it follows later corrections; a seat that got its value when it sat down
+// (AddGamePlayer) never moves.
+func TestFinishedGames_BackfilledSeatsFollowTheDeck_SeatedOnesDont(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateStatsTables(t, pool)
-	g := setupFinishedTraitsGame(t, pool)
-	setDeckTraits(t, pool, g.user1.ID, g.deck1ID, decks.UpdateDeckRequest{Bracket: json.RawMessage("4")})
+	g := setupFinishedTraitsGame(t, pool) // game 1, backfilled with bracket 2
 
+	// A typo corrected: the backfilled game follows it.
+	setDeckTraits(t, pool, g.user1.ID, g.deck1ID, decks.UpdateDeckRequest{Bracket: json.RawMessage("5")})
+	setDeckTraits(t, pool, g.user1.ID, g.deck1ID, decks.UpdateDeckRequest{Bracket: json.RawMessage("4")})
+	assertGamesPerBracket(t, g, map[int16]int{2: 0, 5: 0, 4: 1})
+
+	// Game 2 sits down with the deck already at bracket 4.
 	second := mustCreateGame(t, g.games, g.user1.ID, "")
 	p1 := mustJoinReturningPlayerID(t, g.games, second.ID, g.user1.ID, g.deck1ID)
 	p2 := mustJoinReturningPlayerID(t, g.games, second.ID, g.user2.ID, g.deck2ID)
@@ -106,10 +117,15 @@ func TestFinishedGames_SnapshotTakenWhenSeated(t *testing.T) {
 	mustRecordElimination(t, g.actions, second.ID, g.user1.ID, p1, p2)
 	mustFinishGame(t, g.games, second.ID, g.user1.ID)
 
-	for bracket, want := range map[int16]int{2: 1, 4: 1, 3: 0} {
-		if got := len(finishedGames(t, g, common.DeckTraitFilter{Brackets: []int16{bracket}})); got != want {
-			t.Errorf("bracket %d: %d games, want %d", bracket, got, want)
-		}
+	// The deck is retuned: game 1 (a guess) moves, game 2 (what was played) stays.
+	setDeckTraits(t, pool, g.user1.ID, g.deck1ID, decks.UpdateDeckRequest{Bracket: json.RawMessage("1")})
+	assertGamesPerBracket(t, g, map[int16]int{1: 1, 4: 1, 2: 0})
+
+	// The colors were never touched again: game 1 still has the backfilled WU.
+	if got := len(finishedGames(t, g, common.DeckTraitFilter{
+		Colors: []string{"W", "U"}, ColorMode: common.ColorModeExact,
+	})); got != 2 {
+		t.Errorf("exact WU: %d games, want 2 (both seats have WU)", got)
 	}
 }
 

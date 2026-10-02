@@ -36,22 +36,35 @@ const decks = ref<Deck[]>([])
 const nextCursor = ref<string | null>(null)
 const isLoadingMore = ref(false)
 
+// Which listing `decks`/`nextCursor` belong to. Bumped whenever a listing ends
+// (new filter) or starts (a first page lands), so a page fetched for an
+// earlier listing is dropped instead of appended, whichever order the
+// responses come back in.
+let listing = 0
+
 function syncFromFirstPage(page: PaginatedResponse<Deck> | null | undefined) {
+  listing++
   decks.value = page?.items ?? []
   nextCursor.value = page?.next_cursor ?? null
 }
 
 watch(firstPage, syncFromFirstPage, { immediate: true })
 
+// The old listing's cursor means nothing under the new filter: drop it right
+// away, so neither scrolling nor a search asks for another page until the new
+// first page brings its own. 'sync' so this runs before anything else can.
+watch(traitFilter, () => {
+  listing++
+  nextCursor.value = null
+}, { flush: 'sync' })
+
 async function loadMore() {
   if (isLoadingMore.value || !nextCursor.value) return
   isLoadingMore.value = true
-  const filterAtStart = traitFilter.value
+  const listingAtStart = listing
   try {
-    const page = await listDecksPage(nextCursor.value, filterAtStart)
-    // The filter changed while this page was in flight: it belongs to the old
-    // listing, and the new first page has already replaced `decks`.
-    if (traitFilter.value !== filterAtStart) return
+    const page = await listDecksPage(nextCursor.value, traitFilter.value)
+    if (listing !== listingAtStart) return
     decks.value = [...decks.value, ...page.items]
     nextCursor.value = page.next_cursor
   } finally {

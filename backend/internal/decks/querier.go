@@ -11,10 +11,13 @@ import (
 )
 
 type Querier interface {
-	// Fills the deck's bracket and color identity into its past seats that
-	// recorded none (they were unknown when the game was played), so those games
-	// count under them once they become known. A seat that already has a value
-	// keeps it: that's what was actually played.
+	// Copies the deck's current bracket and color identity onto its past seats
+	// that had none when the game was played, and flags them as backfilled. A
+	// backfilled seat keeps following the deck on every later change (its value
+	// was a guess, and a mistake typed in must stay correctable); a seat that got
+	// its value when it sat down keeps it: that's what was actually played.
+	// Each field is handled on its own, since a seat can have one and not the other.
+	// (On the right-hand side of SET, the columns read their pre-update values.)
 	BackfillSeatDeckTraits(ctx context.Context, arg BackfillSeatDeckTraitsParams) error
 	CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, error)
 	DeleteDeck(ctx context.Context, id pgtype.UUID) error
