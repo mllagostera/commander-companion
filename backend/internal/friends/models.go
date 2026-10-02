@@ -186,17 +186,18 @@ type TournamentTableSeat struct {
 }
 
 type User struct {
-	ID               pgtype.UUID      `json:"id"`
-	Username         string           `json:"username"`
-	Email            string           `json:"email"`
-	PasswordHash     pgtype.Text      `json:"password_hash"`
-	CreatedAt        pgtype.Timestamp `json:"created_at"`
-	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
-	GoogleID         pgtype.Text      `json:"google_id"`
-	MoxfieldUsername pgtype.Text      `json:"moxfield_username"`
-	EmailVerified    bool             `json:"email_verified"`
-	IsAdmin          bool             `json:"is_admin"`
-	IsActive         bool             `json:"is_active"`
+	ID               pgtype.UUID        `json:"id"`
+	Username         string             `json:"username"`
+	Email            string             `json:"email"`
+	PasswordHash     pgtype.Text        `json:"password_hash"`
+	CreatedAt        pgtype.Timestamp   `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp   `json:"updated_at"`
+	GoogleID         pgtype.Text        `json:"google_id"`
+	MoxfieldUsername pgtype.Text        `json:"moxfield_username"`
+	EmailVerified    bool               `json:"email_verified"`
+	IsAdmin          bool               `json:"is_admin"`
+	IsActive         bool               `json:"is_active"`
+	LastSeenAt       pgtype.Timestamptz `json:"last_seen_at"`
 }
 
 type UserStatisticsSummary struct {

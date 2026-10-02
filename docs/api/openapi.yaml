@@ -1203,10 +1203,10 @@ components:
         online_users:
           type: integer
           description: >-
-            Approximates "currently online" as "has at least one unexpired,
-            unrevoked refresh token" — there's no real-time presence tracking,
-            so this reads as "has an active session right now," not "has the
-            app open this instant." See ADR-0018's addendum.
+            Users who made an authenticated API request in the last 5 minutes
+            (users.last_seen_at, written at most once a minute per user). A
+            user with the app open but idle drops off after the window. See
+            ADR-0018's second addendum.
         active_games:
           type: integer
           description: Games currently in the 'active' state (started, not yet finished).

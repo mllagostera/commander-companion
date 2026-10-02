@@ -20,8 +20,8 @@ SELECT
   (SELECT count(*) FROM playgroups) AS total_playgroups,
   (SELECT count(*) FROM games WHERE status = 'finished') AS total_finished_games,
   (SELECT count(*) FROM tournaments) AS total_tournaments,
-  (SELECT count(DISTINCT user_id) FROM refresh_tokens
-     WHERE revoked_at IS NULL AND expires_at > now()) AS online_users,
+  (SELECT count(*) FROM users
+     WHERE last_seen_at > now() - interval '5 minutes') AS online_users,
   (SELECT count(*) FROM games WHERE status = 'active') AS active_games
 `
 
@@ -42,11 +42,10 @@ type GetAdminOverviewStatsRow struct {
 // already made for GetPlaygroupStats (internal/statistics); admin-panel
 // traffic is low enough that this doesn't need to be pre-aggregated.
 //
-// online_users approximates "currently online" as "has at least one
-// unexpired, unrevoked refresh token" — there's no real-time presence
-// tracking (no heartbeat/websocket-wide registry), so this reads as "has an
-// active session right now", not "has the app open this instant". See
-// ADR-0018's addendum.
+// online_users counts users whose last authenticated request was in the last
+// 5 minutes (users.last_seen_at, kept fresh by users.ActivityTracker at most
+// once a minute per user). A user with the app open but idle drops off after
+// the window. See ADR-0018's second addendum.
 func (q *Queries) GetAdminOverviewStats(ctx context.Context) (GetAdminOverviewStatsRow, error) {
 	row := q.db.QueryRow(ctx, getAdminOverviewStats)
 	var i GetAdminOverviewStatsRow
@@ -111,7 +110,7 @@ func (q *Queries) GetDailyActivity(ctx context.Context, daysBack int32) ([]GetDa
 
 const getUserDetail = `-- name: GetUserDetail :one
 SELECT
-  u.id, u.username, u.email, u.password_hash, u.created_at, u.updated_at, u.google_id, u.moxfield_username, u.email_verified, u.is_admin, u.is_active,
+  u.id, u.username, u.email, u.password_hash, u.created_at, u.updated_at, u.google_id, u.moxfield_username, u.email_verified, u.is_admin, u.is_active, u.last_seen_at,
   (SELECT count(*) FROM decks d WHERE d.user_id = u.id) AS deck_count,
   (SELECT count(*) FROM game_players gp WHERE gp.user_id = u.id) AS games_played_count
 FROM users u
@@ -120,19 +119,20 @@ LIMIT 1
 `
 
 type GetUserDetailRow struct {
-	ID               pgtype.UUID      `json:"id"`
-	Username         string           `json:"username"`
-	Email            string           `json:"email"`
-	PasswordHash     pgtype.Text      `json:"password_hash"`
-	CreatedAt        pgtype.Timestamp `json:"created_at"`
-	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
-	GoogleID         pgtype.Text      `json:"google_id"`
-	MoxfieldUsername pgtype.Text      `json:"moxfield_username"`
-	EmailVerified    bool             `json:"email_verified"`
-	IsAdmin          bool             `json:"is_admin"`
-	IsActive         bool             `json:"is_active"`
-	DeckCount        int64            `json:"deck_count"`
-	GamesPlayedCount int64            `json:"games_played_count"`
+	ID               pgtype.UUID        `json:"id"`
+	Username         string             `json:"username"`
+	Email            string             `json:"email"`
+	PasswordHash     pgtype.Text        `json:"password_hash"`
+	CreatedAt        pgtype.Timestamp   `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp   `json:"updated_at"`
+	GoogleID         pgtype.Text        `json:"google_id"`
+	MoxfieldUsername pgtype.Text        `json:"moxfield_username"`
+	EmailVerified    bool               `json:"email_verified"`
+	IsAdmin          bool               `json:"is_admin"`
+	IsActive         bool               `json:"is_active"`
+	LastSeenAt       pgtype.Timestamptz `json:"last_seen_at"`
+	DeckCount        int64              `json:"deck_count"`
+	GamesPlayedCount int64              `json:"games_played_count"`
 }
 
 // A user's profile plus deck/games-played counts, for the admin user detail
@@ -154,6 +154,7 @@ func (q *Queries) GetUserDetail(ctx context.Context, id pgtype.UUID) (GetUserDet
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 		&i.DeckCount,
 		&i.GamesPlayedCount,
 	)
@@ -161,7 +162,7 @@ func (q *Queries) GetUserDetail(ctx context.Context, id pgtype.UUID) (GetUserDet
 }
 
 const listUsersPage = `-- name: ListUsersPage :many
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at FROM users
 WHERE (
     $1::text IS NULL
     OR username ILIKE '%' || $1::text || '%'
@@ -214,6 +215,7 @@ func (q *Queries) ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([
 			&i.EmailVerified,
 			&i.IsAdmin,
 			&i.IsActive,
+			&i.LastSeenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -228,7 +230,7 @@ func (q *Queries) ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([
 const updateUserActiveStatus = `-- name: UpdateUserActiveStatus :one
 UPDATE users SET is_active = $2
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
 `
 
 type UpdateUserActiveStatusParams struct {
@@ -251,6 +253,7 @@ func (q *Queries) UpdateUserActiveStatus(ctx context.Context, arg UpdateUserActi
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }

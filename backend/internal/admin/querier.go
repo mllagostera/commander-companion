@@ -16,11 +16,10 @@ type Querier interface {
 	// already made for GetPlaygroupStats (internal/statistics); admin-panel
 	// traffic is low enough that this doesn't need to be pre-aggregated.
 	//
-	// online_users approximates "currently online" as "has at least one
-	// unexpired, unrevoked refresh token" — there's no real-time presence
-	// tracking (no heartbeat/websocket-wide registry), so this reads as "has an
-	// active session right now", not "has the app open this instant". See
-	// ADR-0018's addendum.
+	// online_users counts users whose last authenticated request was in the last
+	// 5 minutes (users.last_seen_at, kept fresh by users.ActivityTracker at most
+	// once a minute per user). A user with the app open but idle drops off after
+	// the window. See ADR-0018's second addendum.
 	GetAdminOverviewStats(ctx context.Context) (GetAdminOverviewStatsRow, error)
 	// Historical series for the admin dashboard's activity chart: per day, how many
 	// games were started and how many distinct users played at least one of them.

@@ -15,8 +15,10 @@ Table users {
   email_verified boolean [not null, default: true, note: 'Default true: existing accounts and Google sign-ups (already confirmed by their id_token) are left verified. Only email/password sign-up forces false. Migration 00011_email_verification.sql']
   is_admin boolean [not null, default: false, note: 'Grants access to the admin dashboard (GET/PATCH /admin/*). Promoted by hand in the DB, no self-service UI. Migration 00018_admin_and_account_status.sql, see ADR-0018']
   is_active boolean [not null, default: true, note: 'False = account deactivated by an admin: blocks login and refresh, does not delete data. Migration 00018_admin_and_account_status.sql, see ADR-0018']
+  last_seen_at timestamptz [note: 'Last authenticated API request, written by users.ActivityTracker at most once a minute per user. Backs the admin overview online_users (last 5 minutes). NULL = never seen since the column was added. Migration 00021_users_last_seen_at.sql, see ADR-0018']
 
   indexes {
+    last_seen_at [name: 'users_last_seen_at_idx', note: 'Range count for online_users. Migration 00021_users_last_seen_at.sql']
     (`lower(email)`) [unique, name: 'users_email_lower_key', note: 'Case-insensitive email uniqueness, and the index behind the login lookup. Migration 00019_users_email_format.sql']
   }
 

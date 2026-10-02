@@ -4,7 +4,8 @@
 (role foundation, user management, global stats overview). Games/tournaments/
 decks moderation are deferred to later phases, see Consequences. Same-day
 addendum: online users, active games, and a historical activity chart added
-to the overview (see Addendum below).
+to the overview (see Addendum below). Second addendum (2026-10-02): "online
+users" redefined from refresh tokens to `users.last_seen_at`.
 
 ## Context
 
@@ -125,7 +126,8 @@ required its own trade-off — the same "cheap proxy over exact-but-expensive"
 pattern this ADR already uses elsewhere (e.g. `is_admin` checked per request
 rather than session-tracked in real time).
 
-**"Online users" = has an unexpired, unrevoked refresh token right now**,
+**"Online users" = has an unexpired, unrevoked refresh token right now**
+(superseded by the second addendum below),
 not real-time presence. There's no heartbeat, no websocket-wide connection
 registry, and no session table beyond `refresh_tokens` (see ADR-0001) — the
 one alternative considered, counting live `internal/websocket` Hub
@@ -156,6 +158,32 @@ service fills every day in the requested range to zero so the chart always
 gets a continuous series. `days` (default 30) is clamped to `[1, 90]`
 server-side so an arbitrary query param can't force an unbounded scan.
 
+## Addendum (2026-10-02): "online users" from `last_seen_at`
+
+The refresh-token proxy turned out too loose to be useful: a refresh token
+lives 30 days (`REFRESH_TOKEN_TTL`), so anyone who logged in during the last
+month counted as "online", whether or not they had opened the app since.
+
+**"Online users" now = made an authenticated API request in the last 5
+minutes.** Migration `00021_users_last_seen_at.sql` adds a nullable
+`users.last_seen_at timestamptz` (indexed). `users.ActivityTracker` is a
+middleware chained right after `auth.RequireAuth` on the whole protected API
+group; it writes `last_seen_at = now()` at most once per minute per user
+(throttled in memory) from a goroutine, so it adds no latency and a failed
+write is only logged. `GetAdminOverviewStats` counts
+`last_seen_at > now() - interval '5 minutes'`.
+
+- Covers web and Android alike, since both go through the same API.
+- A user with the app open but idle (no requests) drops off after 5 minutes.
+  A client heartbeat would close that gap; not added for now.
+- Each API instance throttles on its own; with several instances that only
+  means a few extra writes, never a missed one.
+- Third-party realtime analytics (Vercel Web Analytics, PostHog, ...) was
+  considered and rejected: Vercel never sees Android traffic (the app calls
+  the API directly), and the others count anonymous visitors unless both
+  clients integrate an SDK, and would send user data to a third party just
+  for one counter.
+
 ## Consequences
 
 - Phase 1 ships `backend/internal/admin` (`GET /admin/users`,
@@ -179,6 +207,8 @@ server-side so an arbitrary query param can't force an unbounded scan.
 ## References
 
 - `backend/migrations/00018_admin_and_account_status.sql`
+- `backend/migrations/00021_users_last_seen_at.sql`,
+  `backend/internal/users/activity.go` (`ActivityTracker`)
 - `docs/database/schema.dbml` (`users.is_admin`, `users.is_active`)
 - `backend/internal/admin/` (`service.go`, `handler.go`, `query.sql`)
 - `backend/internal/auth/middleware.go` (`RequireAdmin`)

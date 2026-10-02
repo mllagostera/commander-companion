@@ -150,6 +150,8 @@ type Service interface {
 	// IsAdmin reports whether the user has admin privileges, queried fresh from the DB
 	// (not trusted from a JWT claim) — see auth.RequireAdmin and ADR-0018.
 	IsAdmin(ctx context.Context, id string) (bool, error)
+	// TouchLastSeen sets last_seen_at to now. Called by ActivityTracker, not by handlers.
+	TouchLastSeen(ctx context.Context, id string) error
 }
 
 type service struct {
@@ -624,4 +626,17 @@ func toUserResponse(user *User) *UserResponse {
 		res.MoxfieldUsername = &user.MoxfieldUsername.String
 	}
 	return res
+}
+
+// TouchLastSeen sets the user's last_seen_at to now (see ActivityTracker).
+func (s *service) TouchLastSeen(ctx context.Context, id string) error {
+	uid, err := common.ParseUUID(id)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	if err := s.repo.TouchLastSeen(ctx, uid); err != nil {
+		return fmt.Errorf("touching user last_seen_at: %w", err)
+	}
+	return nil
 }

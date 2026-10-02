@@ -127,7 +127,7 @@ func (q *Queries) GetPendingRequestBetween(ctx context.Context, arg GetPendingRe
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active FROM users WHERE id = $1 LIMIT 1
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at FROM users WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -145,6 +145,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }

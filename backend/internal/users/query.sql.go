@@ -46,7 +46,7 @@ INSERT INTO users (
 ) VALUES (
   $1, $2, $3, $4
 )
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
 `
 
 type CreateUserParams struct {
@@ -80,6 +80,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -90,7 +91,7 @@ INSERT INTO users (
 ) VALUES (
   $1, $2, $3
 )
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
 `
 
 type CreateUserWithGoogleParams struct {
@@ -114,6 +115,7 @@ func (q *Queries) CreateUserWithGoogle(ctx context.Context, arg CreateUserWithGo
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -138,7 +140,7 @@ func (q *Queries) GetEmailVerificationTokenByHash(ctx context.Context, tokenHash
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at FROM users
 WHERE lower(email) = lower($1::text) LIMIT 1
 `
 
@@ -160,12 +162,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at FROM users
 WHERE google_id = $1 LIMIT 1
 `
 
@@ -184,12 +187,13 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at FROM users
 WHERE id = $1 LIMIT 1
 `
 
@@ -208,6 +212,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -234,7 +239,7 @@ func (q *Queries) GetUserRoleFlags(ctx context.Context, id pgtype.UUID) (GetUser
 const linkGoogleID = `-- name: LinkGoogleID :one
 UPDATE users SET google_id = $2, email_verified = true
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
 `
 
 type LinkGoogleIDParams struct {
@@ -260,6 +265,7 @@ func (q *Queries) LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (Use
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -275,7 +281,7 @@ func (q *Queries) MarkEmailVerificationTokenUsed(ctx context.Context, id pgtype.
 }
 
 const searchUsersByUsername = `-- name: SearchUsersByUsername :many
-SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active FROM users
+SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at FROM users
 WHERE username ILIKE '%' || $1 || '%'
 ORDER BY username
 LIMIT $2
@@ -311,6 +317,7 @@ func (q *Queries) SearchUsersByUsername(ctx context.Context, arg SearchUsersByUs
 			&i.EmailVerified,
 			&i.IsAdmin,
 			&i.IsActive,
+			&i.LastSeenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -325,7 +332,7 @@ func (q *Queries) SearchUsersByUsername(ctx context.Context, arg SearchUsersByUs
 const setUserEmailVerified = `-- name: SetUserEmailVerified :one
 UPDATE users SET email_verified = true
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
 `
 
 func (q *Queries) SetUserEmailVerified(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -343,14 +350,28 @@ func (q *Queries) SetUserEmailVerified(ctx context.Context, id pgtype.UUID) (Use
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
+}
+
+const touchLastSeen = `-- name: TouchLastSeen :exec
+UPDATE users SET last_seen_at = now()
+WHERE id = $1
+`
+
+// Records that the user just made an authenticated request (see ActivityTracker,
+// which throttles this to once per minute per user, and the admin overview's
+// online_users, which reads it).
+func (q *Queries) TouchLastSeen(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, touchLastSeen, id)
+	return err
 }
 
 const updateMoxfieldUsername = `-- name: UpdateMoxfieldUsername :one
 UPDATE users SET moxfield_username = $2
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
 `
 
 type UpdateMoxfieldUsernameParams struct {
@@ -373,6 +394,7 @@ func (q *Queries) UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfield
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -380,7 +402,7 @@ func (q *Queries) UpdateMoxfieldUsername(ctx context.Context, arg UpdateMoxfield
 const updatePasswordHash = `-- name: UpdatePasswordHash :one
 UPDATE users SET password_hash = $2
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
 `
 
 type UpdatePasswordHashParams struct {
@@ -403,6 +425,7 @@ func (q *Queries) UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHash
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -410,7 +433,7 @@ func (q *Queries) UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHash
 const updateUsername = `-- name: UpdateUsername :one
 UPDATE users SET username = $2
 WHERE id = $1
-RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
 `
 
 type UpdateUsernameParams struct {
@@ -433,6 +456,7 @@ func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) 
 		&i.EmailVerified,
 		&i.IsAdmin,
 		&i.IsActive,
+		&i.LastSeenAt,
 	)
 	return i, err
 }

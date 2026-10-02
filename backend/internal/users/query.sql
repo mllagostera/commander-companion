@@ -86,6 +86,13 @@ SELECT EXISTS(SELECT 1 FROM users WHERE username = $1) AS exists;
 SELECT is_admin, is_active FROM users
 WHERE id = $1 LIMIT 1;
 
+-- name: TouchLastSeen :exec
+-- Records that the user just made an authenticated request (see ActivityTracker,
+-- which throttles this to once per minute per user, and the admin overview's
+-- online_users, which reads it).
+UPDATE users SET last_seen_at = now()
+WHERE id = $1;
+
 -- name: SearchUsersByUsername :many
 -- Partial, case-insensitive username search, to invite people to a playgroup without
 -- knowing their UUID (see internal/playgroups). Deliberately does NOT search by email
