@@ -34,13 +34,22 @@ const tiles = computed(() => {
       <p class="mt-2 text-sm" style="color: var(--text-muted);">{{ $t('admin.overview.subtitle') }}</p>
     </section>
 
-    <NuxtLink
-      to="/admin/users"
-      class="inline-flex w-fit items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.04]"
-      style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
-    >
-      {{ $t('admin.overview.manageUsers') }}
-    </NuxtLink>
+    <div class="flex flex-wrap gap-3">
+      <NuxtLink
+        to="/admin/users"
+        class="inline-flex w-fit items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold text-[#0a0714] shadow-[0_6px_20px_rgba(139,92,246,0.35)] transition-transform hover:scale-[1.04]"
+        style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+      >
+        {{ $t('admin.overview.manageUsers') }}
+      </NuxtLink>
+      <NuxtLink
+        to="/admin/games"
+        class="inline-flex w-fit items-center gap-2 rounded-full border px-5 py-2.5 text-[13px] font-semibold transition-colors hover:border-[var(--accent-link)]"
+        style="border-color: var(--input-border); color: var(--text);"
+      >
+        {{ $t('admin.overview.manageGames') }}
+      </NuxtLink>
+    </div>
 
     <p v-if="loadError" class="text-sm" style="color: var(--lose);">{{ $t('admin.overview.loadError') }}</p>
 

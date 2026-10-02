@@ -25,6 +25,44 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-02 — Admins can delete unfinished games.** Requested by the user: games
+that get opened and never closed pile up, and there was no way to remove them.
+`GET /admin/games` lists `pending`/`active` games oldest first (with group and
+players, optional `status` filter) and `DELETE /admin/games/{id}` deletes one with
+its seats, actions and commander damage in one transaction, row-locked against a
+concurrent `FinishGame`. Finished games are refused (409): their statistics are
+already applied and `RecalculateForGame` has no inverse. Web page `/admin/games`
+with a status filter and a confirm dialog. Live clients get a new `game_deleted`
+WebSocket event. See [ADR-0018](../decisions/0018-admin-role-and-user-moderation.md)'s
+third addendum. Verified with the full backend suite under `-race` against
+`postgres:18-alpine` (sqlc 1.27.0 regenerated, `golangci-lint` clean on the touched
+packages), `npm run lint`/`typecheck`/`build`, `check-architecture.sh`, and by
+driving the real app: curl against the API (200/400/403/404/409 cases), Playwright
+through the web page (list, filter, delete, reload), and a WebSocket client
+receiving `game_deleted`. That last check also found a pre-existing gap: the
+server-side close of a room (also used by `game_finished`) only takes effect at
+the 60 s read deadline, because closing a hijacked fasthttp connection is a no-op
+until the handler returns. The event itself arrives immediately. Not fixed here.
+
+**2026-10-02 — Deleting a playgroup.** A group created by mistake could not be
+removed. `DELETE /playgroups/{id}` now does it, with two rules agreed with the user:
+**only the creator**, and **only while the group has no games** (any status), so it
+undoes a mistake without ever erasing anyone's history or statistics. Playgroups had
+no record of their creator, so migration 00022 adds `playgroups.created_by` (`ON
+DELETE SET NULL`) and backfills it from the earliest member by `joined_at` —
+`CreatePlaygroup` has always inserted the creator as the first member. A group with
+no creator (no members at backfill, or the creator's account gone) simply can't be
+deleted. Renaming and inviting stay open to every member, as before. The "no games"
+rule isn't pre-checked: `games.playgroup_id` has no cascade, so the delete fails on
+`games_playgroup_id_fkey`, the transaction rolls back and the service answers 409 —
+the same FK-as-guard approach as `tournaments.DeleteTournament`, and race-free.
+Non-creator members get 403 (they can already see the group); non-members keep the
+module's usual 404. Web only for now: the button shows only when the delete would
+succeed; Android is a follow-up item in TASKS.md. Verified: full backend suite under
+`-race` on `postgres:18-alpine`, the backfill on seeded pre-00022 data, migration
+up/down/up, `golangci-lint`, web `lint`/`typecheck`/`build`, the web i18n check,
+Spectral and `dbml2sql`.
+
 **2026-10-02 — Admin "online users" from `users.last_seen_at`.** The overview's
 online count used "has an unexpired refresh token", which with a 30-day
 `REFRESH_TOKEN_TTL` meant "logged in during the last month". It now counts users

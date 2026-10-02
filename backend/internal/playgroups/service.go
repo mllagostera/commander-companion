@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -24,7 +25,18 @@ var (
 	ErrInvalidUserID = common.InvalidInput("invalid user_id")
 	// ErrAlreadyMember indicates that the user already belongs to the group.
 	ErrAlreadyMember = common.Conflict("user is already a member")
+	// ErrNotPlaygroupCreator indicates that a member other than the creator tried to
+	// delete the group. 403 rather than 404: the caller is a member and can already see it.
+	ErrNotPlaygroupCreator = common.Forbidden("only the playgroup's creator can delete it")
+	// ErrPlaygroupHasGames indicates an attempt to delete a group that already has
+	// games: deleting is only for undoing a group created by mistake, never for
+	// erasing the members' history.
+	ErrPlaygroupHasGames = common.Conflict("only a playgroup without games can be deleted")
 )
+
+// gamesPlaygroupFK is the FK from games onto playgroups (Postgres' default name for
+// the unnamed constraint in 00001_initial_schema.sql).
+const gamesPlaygroupFK = "games_playgroup_id_fkey"
 
 // Service defines the business logic of the playgroups module.
 type Service interface {
@@ -36,6 +48,8 @@ type Service interface {
 	// so as not to change ListPlaygroups' response shape for existing clients.
 	ListPlaygroupsPage(ctx context.Context, page common.PageRequest, userID string) (*PlaygroupListResponse, error)
 	AddMember(ctx context.Context, playgroupID, requesterID string, req AddMemberRequest) (*PlaygroupMemberResponse, error)
+	// DeletePlaygroup removes a group with no games. Only its creator can do it.
+	DeletePlaygroup(ctx context.Context, playgroupID, requesterID string) error
 	// UpdatePlaygroup renames a group. Only an existing member can do it.
 	UpdatePlaygroup(
 		ctx context.Context, playgroupID, requesterID string, req UpdatePlaygroupRequest,
@@ -50,11 +64,12 @@ type Service interface {
 
 type service struct {
 	repo *Queries
+	pool *pgxpool.Pool
 }
 
 // NewService creates a new playgroups service.
 func NewService(db *pgxpool.Pool) Service {
-	return &service{repo: New(db)}
+	return &service{repo: New(db), pool: db}
 }
 
 // CreatePlaygroup creates a new playgroup and adds the creator as its first member.
@@ -71,7 +86,7 @@ func (s *service) CreatePlaygroup(
 		return nil, common.ErrInvalidUser
 	}
 
-	playgroup, err := s.repo.CreatePlaygroup(ctx, name)
+	playgroup, err := s.repo.CreatePlaygroup(ctx, CreatePlaygroupParams{Name: name, CreatedBy: uid})
 	if err != nil {
 		return nil, fmt.Errorf("creating playgroup: %w", err)
 	}
@@ -254,6 +269,47 @@ func (s *service) UpdatePlaygroup(
 	return toPlaygroupResponse(&updated, members), nil
 }
 
+// DeletePlaygroup removes a playgroup and its member rows. Meant to undo a group
+// created by mistake, so two gates: only the creator (other members get
+// ErrNotPlaygroupCreator, non-members the usual ErrPlaygroupNotFound), and only
+// while the group has no games, in any status. The games rule isn't checked up
+// front: the games FK rejects the delete and the transaction rolls back, which
+// also covers a game created between a check and the delete.
+func (s *service) DeletePlaygroup(ctx context.Context, playgroupID, requesterID string) error {
+	playgroup, err := s.getMemberPlaygroup(ctx, requesterID, playgroupID)
+	if err != nil {
+		return err
+	}
+	// getMemberPlaygroup already parsed requesterID, so this can't fail here.
+	uid, _ := common.ParseUUID(requesterID)
+	if !playgroup.CreatedBy.Valid || playgroup.CreatedBy != uid {
+		return ErrNotPlaygroupCreator
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.repo.WithTx(tx)
+
+	if err := q.DeletePlaygroupMembers(ctx, playgroup.ID); err != nil {
+		return fmt.Errorf("deleting playgroup members: %w", err)
+	}
+	if err := q.DeletePlaygroup(ctx, playgroup.ID); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.ConstraintName == gamesPlaygroupFK {
+			return ErrPlaygroupHasGames
+		}
+		return fmt.Errorf("deleting playgroup: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing playgroup deletion: %w", err)
+	}
+	return nil
+}
+
 // IsMember confirms whether userID belongs to playgroupID. Malformed IDs are treated
 // as "not a member" instead of propagating a parse error: the caller (games,
 // for a proxy-join) has already validated its own IDs before getting here.
@@ -347,6 +403,10 @@ func (s *service) getMemberPlaygroup(ctx context.Context, userID, id string) (*P
 
 func toPlaygroupResponse(p *Playgroup, members []ListPlaygroupMembersRow) *PlaygroupResponse {
 	res := &PlaygroupResponse{ID: p.ID.String(), Name: p.Name}
+	if p.CreatedBy.Valid {
+		createdBy := p.CreatedBy.String()
+		res.CreatedBy = &createdBy
+	}
 	if members != nil {
 		res.Members = make([]PlaygroupMemberResponse, 0, len(members))
 		for i := range members {

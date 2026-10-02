@@ -12,9 +12,12 @@ type UpdatePlaygroupRequest struct {
 
 // PlaygroupResponse is the DTO of a playgroup sent to the client.
 type PlaygroupResponse struct {
-	ID      string                    `json:"id"`
-	Name    string                    `json:"name"`
-	Members []PlaygroupMemberResponse `json:"members,omitempty"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// CreatedBy is the creator's user ID, the only one allowed to delete the group.
+	// Null for a group whose creator's account no longer exists.
+	CreatedBy *string                   `json:"created_by"`
+	Members   []PlaygroupMemberResponse `json:"members,omitempty"`
 }
 
 // PlaygroupListResponse is a page of the authenticated user's playgroups (see

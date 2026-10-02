@@ -11,6 +11,53 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearGameCurrentTurn = `-- name: ClearGameCurrentTurn :exec
+UPDATE games SET current_turn_player_id = NULL WHERE id = $1
+`
+
+// games.current_turn_player_id points back at game_players (00008_current_turn.sql),
+// so it has to be cleared before the seats can be deleted.
+func (q *Queries) ClearGameCurrentTurn(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, clearGameCurrentTurn, id)
+	return err
+}
+
+const deleteGame = `-- name: DeleteGame :exec
+DELETE FROM games WHERE id = $1
+`
+
+func (q *Queries) DeleteGame(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGame, id)
+	return err
+}
+
+const deleteGameActions = `-- name: DeleteGameActions :exec
+DELETE FROM game_actions WHERE game_id = $1
+`
+
+func (q *Queries) DeleteGameActions(ctx context.Context, gameID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGameActions, gameID)
+	return err
+}
+
+const deleteGameCommanderDamage = `-- name: DeleteGameCommanderDamage :exec
+DELETE FROM commander_damage WHERE game_id = $1
+`
+
+func (q *Queries) DeleteGameCommanderDamage(ctx context.Context, gameID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGameCommanderDamage, gameID)
+	return err
+}
+
+const deleteGamePlayers = `-- name: DeleteGamePlayers :exec
+DELETE FROM game_players WHERE game_id = $1
+`
+
+func (q *Queries) DeleteGamePlayers(ctx context.Context, gameID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGamePlayers, gameID)
+	return err
+}
+
 const getAdminOverviewStats = `-- name: GetAdminOverviewStats :one
 SELECT
   (SELECT count(*) FROM users) AS total_users,
@@ -161,6 +208,116 @@ func (q *Queries) GetUserDetail(ctx context.Context, id pgtype.UUID) (GetUserDet
 	return i, err
 }
 
+const listPlayersForGames = `-- name: ListPlayersForGames :many
+SELECT gp.game_id, u.id AS user_id, u.username
+FROM game_players gp
+JOIN users u ON u.id = gp.user_id
+WHERE gp.game_id = ANY($1::uuid[])
+ORDER BY u.username
+`
+
+type ListPlayersForGamesRow struct {
+	GameID   pgtype.UUID `json:"game_id"`
+	UserID   pgtype.UUID `json:"user_id"`
+	Username string      `json:"username"`
+}
+
+// Every seat across a page of games in one round trip, with the username so the
+// admin can tell who left the game open.
+func (q *Queries) ListPlayersForGames(ctx context.Context, gameIds []pgtype.UUID) ([]ListPlayersForGamesRow, error) {
+	rows, err := q.db.Query(ctx, listPlayersForGames, gameIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPlayersForGamesRow
+	for rows.Next() {
+		var i ListPlayersForGamesRow
+		if err := rows.Scan(&i.GameID, &i.UserID, &i.Username); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnfinishedGamesPage = `-- name: ListUnfinishedGamesPage :many
+SELECT
+  g.id,
+  g.status,
+  g.created_at,
+  g.started_at,
+  g.playgroup_id,
+  p.name AS playgroup_name
+FROM games g
+LEFT JOIN playgroups p ON p.id = g.playgroup_id
+WHERE g.status IN ('pending', 'active')
+  AND ($1::text IS NULL OR g.status = $1::text)
+  AND (
+    $2::timestamp IS NULL
+    OR (g.created_at, g.id) > ($2::timestamp, $3::uuid)
+  )
+ORDER BY g.created_at ASC, g.id ASC
+LIMIT $4
+`
+
+type ListUnfinishedGamesPageParams struct {
+	Status          pgtype.Text      `json:"status"`
+	CursorCreatedAt pgtype.Timestamp `json:"cursor_created_at"`
+	CursorID        pgtype.UUID      `json:"cursor_id"`
+	PageLimit       int32            `json:"page_limit"`
+}
+
+type ListUnfinishedGamesPageRow struct {
+	ID            pgtype.UUID      `json:"id"`
+	Status        string           `json:"status"`
+	CreatedAt     pgtype.Timestamp `json:"created_at"`
+	StartedAt     pgtype.Timestamp `json:"started_at"`
+	PlaygroupID   pgtype.UUID      `json:"playgroup_id"`
+	PlaygroupName pgtype.Text      `json:"playgroup_name"`
+}
+
+// Games that were opened but never finished ('pending' or 'active'), for the
+// admin games screen, so abandoned ones can be found and deleted. Oldest first:
+// the longer a game has been open, the more likely it was abandoned. Keyset
+// pagination over (created_at, id) ASC — same cursor scheme as ListUsersPage,
+// with the comparison flipped for the ascending order. An optional status
+// narrows the list to one of the two unfinished states.
+func (q *Queries) ListUnfinishedGamesPage(ctx context.Context, arg ListUnfinishedGamesPageParams) ([]ListUnfinishedGamesPageRow, error) {
+	rows, err := q.db.Query(ctx, listUnfinishedGamesPage,
+		arg.Status,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUnfinishedGamesPageRow
+	for rows.Next() {
+		var i ListUnfinishedGamesPageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.PlaygroupID,
+			&i.PlaygroupName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsersPage = `-- name: ListUsersPage :many
 SELECT id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at FROM users
 WHERE (
@@ -225,6 +382,21 @@ func (q *Queries) ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockGameStatus = `-- name: LockGameStatus :one
+SELECT status FROM games WHERE id = $1 FOR UPDATE
+`
+
+// Locks the game row for the rest of DeleteUnfinishedGame's transaction. A
+// concurrent FinishGame (UPDATE ... AND status = 'active') or a new seat/action
+// (whose FK check takes a KEY SHARE lock on this row) waits behind it, so the
+// status checked here can't change before the delete commits.
+func (q *Queries) LockGameStatus(ctx context.Context, id pgtype.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, lockGameStatus, id)
+	var status string
+	err := row.Scan(&status)
+	return status, err
 }
 
 const updateUserActiveStatus = `-- name: UpdateUserActiveStatus :one

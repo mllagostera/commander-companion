@@ -22,6 +22,10 @@ const (
 	// heads-up for the client to reconcile via REST (see ADR-0005, "REST remains the
 	// source of truth").
 	EventGameFinished = "game_finished"
+	// EventGameDeleted notifies that an admin deleted the game (only ever an
+	// unfinished one, see admin.Service.DeleteUnfinishedGame). No payload; the
+	// connection is closed right after, and the game no longer exists over REST.
+	EventGameDeleted = "game_deleted"
 	// EventError is used only during the authentication handshake.
 	EventError = "error"
 )

@@ -67,3 +67,28 @@ type DailyActivityPoint struct {
 	GamesStarted int64  `json:"games_started"`
 	ActiveUsers  int64  `json:"active_users"`
 }
+
+// GamePlayerResponse is one seat of a game in the admin games listing.
+type GamePlayerResponse struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+}
+
+// UnfinishedGameResponse is one row of the admin listing of games that were
+// opened but never finished (see Service.ListUnfinishedGames).
+type UnfinishedGameResponse struct {
+	ID        string     `json:"id"`
+	Status    string     `json:"status"`
+	CreatedAt time.Time  `json:"created_at"`
+	StartedAt *time.Time `json:"started_at"`
+	// PlaygroupID/PlaygroupName are null for a game that isn't tied to a playgroup.
+	PlaygroupID   *string              `json:"playgroup_id"`
+	PlaygroupName *string              `json:"playgroup_name"`
+	Players       []GamePlayerResponse `json:"players"`
+}
+
+// UnfinishedGameListResponse is a page of unfinished games, same shape as UserListResponse.
+type UnfinishedGameListResponse struct {
+	Items      []UnfinishedGameResponse `json:"items"`
+	NextCursor *string                  `json:"next_cursor"`
+}

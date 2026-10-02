@@ -31,6 +31,8 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Patch("/users/:id/status", h.UpdateUserStatus)
 	router.Get("/stats/overview", h.GetOverviewStats)
 	router.Get("/stats/activity", h.GetDailyActivity)
+	router.Get("/games", h.ListUnfinishedGames)
+	router.Delete("/games/:id", h.DeleteUnfinishedGame)
 }
 
 // ListUsers returns a paginated, optionally search-filtered list of users.
@@ -99,4 +101,27 @@ func (h *Handler) GetDailyActivity(c *fiber.Ctx) error {
 		return common.MapError(err)
 	}
 	return c.JSON(res)
+}
+
+// ListUnfinishedGames returns a page of games that were opened but never finished,
+// oldest first, optionally narrowed by `status` (pending or active).
+func (h *Handler) ListUnfinishedGames(c *fiber.Ctx) error {
+	page, err := common.ParsePageRequest(c)
+	if err != nil {
+		return common.MapError(err)
+	}
+
+	res, err := h.svc.ListUnfinishedGames(c.Context(), page, c.Query("status"))
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
+}
+
+// DeleteUnfinishedGame deletes a pending or active game.
+func (h *Handler) DeleteUnfinishedGame(c *fiber.Ctx) error {
+	if err := h.svc.DeleteUnfinishedGame(c.Context(), c.Params("id")); err != nil {
+		return common.MapError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }

@@ -12,7 +12,13 @@ import (
 
 type Querier interface {
 	AddPlaygroupMember(ctx context.Context, arg AddPlaygroupMemberParams) (PlaygroupMember, error)
-	CreatePlaygroup(ctx context.Context, name string) (Playgroup, error)
+	CreatePlaygroup(ctx context.Context, arg CreatePlaygroupParams) (Playgroup, error)
+	// No ON DELETE CASCADE from games (see 00001_initial_schema.sql): a group that
+	// has any game, in any status, makes this fail with games_playgroup_id_fkey,
+	// which is exactly the "only an empty group can be deleted" rule (see
+	// Service.DeletePlaygroup).
+	DeletePlaygroup(ctx context.Context, id pgtype.UUID) error
+	DeletePlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) error
 	GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, error)
 	GetPlaygroupMember(ctx context.Context, arg GetPlaygroupMemberParams) (PlaygroupMember, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
