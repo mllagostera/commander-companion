@@ -29,6 +29,11 @@ export function usePlaygroups() {
     })
   }
 
+  /** Creator-only, and only while the group has no games: undoes a group created by mistake. */
+  function deletePlaygroup(id: string) {
+    return apiFetch<null>(`/playgroups/${id}`, { method: 'DELETE' })
+  }
+
   /** userId must be the UUID of an already existing user; the inviter must already be a member. */
   function addMember(playgroupId: string, userId: string) {
     return apiFetch<PlaygroupMember>(`/playgroups/${playgroupId}/members`, {
@@ -37,7 +42,7 @@ export function usePlaygroups() {
     })
   }
 
-  return { listPlaygroups, createPlaygroup, getPlaygroup, updatePlaygroup, addMember }
+  return { listPlaygroups, createPlaygroup, getPlaygroup, updatePlaygroup, deletePlaygroup, addMember }
 }
 
 export function createPlaygroupError(err: unknown): string {
@@ -89,5 +94,20 @@ export function addMemberError(err: unknown): string {
       return t('errors.playgroups.addMember.alreadyMember')
     default:
       return apiErrorMessage(err, t('errors.playgroups.addMember.generic'))
+  }
+}
+
+/** See ErrNotPlaygroupCreator (403), ErrPlaygroupNotFound (404) and ErrPlaygroupHasGames (409) in internal/playgroups/service.go. */
+export function deletePlaygroupError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  switch (apiErrorStatus(err)) {
+    case 403:
+      return t('errors.playgroups.delete.notCreator')
+    case 404:
+      return t('errors.playgroups.delete.notFoundOrNotMember')
+    case 409:
+      return t('errors.playgroups.delete.hasGames')
+    default:
+      return apiErrorMessage(err, t('errors.playgroups.delete.generic'))
   }
 }

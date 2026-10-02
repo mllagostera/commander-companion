@@ -68,6 +68,11 @@ Table playgroups {
   name varchar [not null]
   created_at timestamp [default: `now()`]
   updated_at timestamp
+  created_by uuid [ref: > users.id, note: 'Creator, the only one allowed to delete the group (and only while it has no games). ON DELETE SET NULL. Backfilled from the earliest member by joined_at. Migration 00022_playgroups_created_by.sql']
+
+  indexes {
+    created_by [name: 'playgroups_created_by_idx', note: 'FK index. Migration 00022_playgroups_created_by.sql']
+  }
 }
 
 Table playgroup_members {

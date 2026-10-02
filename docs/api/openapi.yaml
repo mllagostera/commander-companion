@@ -457,6 +457,14 @@ components:
           format: uuid
         name:
           type: string
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: >-
+            The user who created the playgroup, the only one who can delete
+            it. Null when that account no longer exists, or for a group that
+            had no members when the column was backfilled.
         members:
           type: array
           items:
@@ -1876,8 +1884,8 @@ Disallow: /
     patch:
       summary: Rename the playgroup (only an existing member can edit it)
       description: >-
-        Only the name changes, and any member can change it -- there is no
-        owner role beyond having created the playgroup. As in GET, one the
+        Only the name changes, and any member can change it -- the creator's
+        only extra right is DELETE. As in GET, one the
         caller is not a member of is indistinguishable from one that does
         not exist.
       operationId: renamePlaygroup
@@ -1911,6 +1919,44 @@ Disallow: /
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Does not exist, or the authenticated user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete the playgroup (creator-only, only without games)
+      operationId: deletePlaygroup
+      tags:
+        - Playgroups
+      description: >-
+        Removes the playgroup and its member rows. Meant to undo a group
+        created by mistake: only its creator (`created_by`) can do it, and
+        only while it has no games in any status, so no one's game history
+        or statistics are ever erased.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Playgroup deleted
+        '403':
+          description: The authenticated user is a member but not the creator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Does not exist, or the authenticated user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The playgroup already has games
           content:
             application/json:
               schema:

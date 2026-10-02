@@ -22,6 +22,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/playgroups", h.CreatePlaygroup)
 	router.Get("/playgroups/:id", h.GetPlaygroup)
 	router.Patch("/playgroups/:id", h.UpdatePlaygroup)
+	router.Delete("/playgroups/:id", h.DeletePlaygroup)
 	router.Post("/playgroups/:id/members", h.AddMember)
 	router.Get("/playgroups/:id/members/:userId/decks", h.ListMemberDecks)
 }
@@ -92,6 +93,15 @@ func (h *Handler) UpdatePlaygroup(c *fiber.Ctx) error {
 		return common.MapError(err)
 	}
 	return c.JSON(res)
+}
+
+// DeletePlaygroup removes the given playgroup (creator only, and only without games).
+func (h *Handler) DeletePlaygroup(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	if err := h.svc.DeletePlaygroup(c.Context(), c.Params("id"), userID); err != nil {
+		return common.MapError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 // AddMember adds a member to the given playgroup.

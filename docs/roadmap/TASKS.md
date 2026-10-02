@@ -88,6 +88,8 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `GET /users/search?q=`: username partial + exact-email match, no email leak of others, rate-limited
 - [x] `PATCH /playgroups/{id}` rename; `GET /playgroups/{id}/members/{userId}/decks`
 - [x] `GET /users/username-available?username=`: public, rate-limited, exact case-sensitive match — used by the web/Android registration forms to validate before submitting (2026-08-05)
+- [x] `DELETE /playgroups/{id}` (2026-10-02): creator-only (new `playgroups.created_by`, migration 00022, backfilled from the earliest member) and only while the group has no games in any status (409 otherwise, enforced by the games FK inside the transaction). Web: "Delete group" button + confirmation on the group page, shown only when it would succeed. See [DECISIONS-LOG.md](DECISIONS-LOG.md)
+- [ ] Delete playgroup on Android (backend and web done 2026-10-02; `created_by` already in the response)
 
 ### Statistics — real recalculation and queries
 - [x] `games/service.go: FinishGame` triggers `statistics.RecalculateForGame(gameID)`

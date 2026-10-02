@@ -379,7 +379,11 @@
         "emptyTitle": "No games in this group yet",
         "emptyBody": "Play one and it shows up here, along with everyone’s win rate."
       },
-      "formerMember": "Former member"
+      "formerMember": "Former member",
+      "delete": "Delete group",
+      "deleting": "Deleting…",
+      "deleteConfirmTitle": "Delete “{name}”?",
+      "deleteConfirmBody": "All its members will be removed. This can't be undone."
     }
   },
   "friends": {
@@ -475,6 +479,7 @@
     "moxfieldLinked": "Moxfield account linked",
     "groupCreated": "Group created",
     "groupRenamed": "Group renamed",
+    "groupDeleted": "Group deleted",
     "deckImported": "Deck imported",
     "memberAdded": "{username} added to the group",
     "tournamentCreated": "Tournament created",
@@ -547,6 +552,12 @@
         "userNotFound": "There's no user with that ID.",
         "alreadyMember": "That user is already a member of the group.",
         "generic": "Couldn't add the user."
+      },
+      "delete": {
+        "notCreator": "Only the person who created the group can delete it.",
+        "notFoundOrNotMember": "The group doesn't exist or you're not a member.",
+        "hasGames": "This group already has games and can't be deleted.",
+        "generic": "Couldn't delete the group."
       }
     },
     "games": {
