@@ -136,7 +136,7 @@ func (q *Queries) GetDashboardBestDeckForUser(ctx context.Context, userID pgtype
 }
 
 const getDeckByID = `-- name: GetDeckByID :one
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks WHERE id = $1 LIMIT 1
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden FROM decks WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error) {
@@ -151,6 +151,10 @@ func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ImageUrl,
+		&i.Bracket,
+		&i.ColorIdentity,
+		&i.BracketOverridden,
+		&i.ColorIdentityOverridden,
 	)
 	return i, err
 }
@@ -224,6 +228,105 @@ func (q *Queries) GetUserTurnTimeStats(ctx context.Context, userID pgtype.UUID) 
 	var i GetUserTurnTimeStatsRow
 	err := row.Scan(&i.TimedTurns, &i.LongestTurnMs, &i.AverageTurnMs)
 	return i, err
+}
+
+const listBreakdownByBracket = `-- name: ListBreakdownByBracket :many
+SELECT
+  gp.deck_bracket AS bracket,
+  COUNT(*)::int AS games_played,
+  COUNT(winner.id)::int AS games_won
+FROM game_players gp
+JOIN games g ON g.id = gp.game_id
+LEFT JOIN (
+  SELECT id, game_id
+  FROM (
+    SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count
+    FROM game_players
+    WHERE NOT is_eliminated
+  ) alive
+  WHERE alive_count = 1
+) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
+WHERE gp.user_id = $1 AND g.status = 'finished'
+GROUP BY gp.deck_bracket
+ORDER BY games_played DESC, gp.deck_bracket NULLS LAST
+`
+
+type ListBreakdownByBracketRow struct {
+	Bracket     pgtype.Int2 `json:"bracket"`
+	GamesPlayed int32       `json:"games_played"`
+	GamesWon    int32       `json:"games_won"`
+}
+
+// The user's finished games grouped by their own seat's deck bracket as it
+// was when played (NULL = unknown then). Same winner rule as
+// ListPlaygroupMemberGameStats.
+func (q *Queries) ListBreakdownByBracket(ctx context.Context, userID pgtype.UUID) ([]ListBreakdownByBracketRow, error) {
+	rows, err := q.db.Query(ctx, listBreakdownByBracket, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBreakdownByBracketRow
+	for rows.Next() {
+		var i ListBreakdownByBracketRow
+		if err := rows.Scan(&i.Bracket, &i.GamesPlayed, &i.GamesWon); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBreakdownByColorIdentity = `-- name: ListBreakdownByColorIdentity :many
+SELECT
+  gp.deck_color_identity AS color_identity,
+  COUNT(*)::int AS games_played,
+  COUNT(winner.id)::int AS games_won
+FROM game_players gp
+JOIN games g ON g.id = gp.game_id
+LEFT JOIN (
+  SELECT id, game_id
+  FROM (
+    SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count
+    FROM game_players
+    WHERE NOT is_eliminated
+  ) alive
+  WHERE alive_count = 1
+) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
+WHERE gp.user_id = $1 AND g.status = 'finished'
+GROUP BY gp.deck_color_identity
+ORDER BY games_played DESC, gp.deck_color_identity NULLS LAST
+`
+
+type ListBreakdownByColorIdentityRow struct {
+	ColorIdentity []string `json:"color_identity"`
+	GamesPlayed   int32    `json:"games_played"`
+	GamesWon      int32    `json:"games_won"`
+}
+
+// Same as ListBreakdownByBracket, grouped by the seat's deck color identity
+// (stored in WUBRG order, so equal identities group together).
+func (q *Queries) ListBreakdownByColorIdentity(ctx context.Context, userID pgtype.UUID) ([]ListBreakdownByColorIdentityRow, error) {
+	rows, err := q.db.Query(ctx, listBreakdownByColorIdentity, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBreakdownByColorIdentityRow
+	for rows.Next() {
+		var i ListBreakdownByColorIdentityRow
+		if err := rows.Scan(&i.ColorIdentity, &i.GamesPlayed, &i.GamesWon); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDashboardDecksForUser = `-- name: ListDashboardDecksForUser :many
@@ -439,17 +542,30 @@ WHERE games.status = 'finished'
   AND EXISTS (
     SELECT 1 FROM game_players gp
     WHERE gp.game_id = games.id AND gp.user_id = $1::uuid
+      AND ($2::smallint[] IS NULL OR gp.deck_bracket = ANY($2::smallint[]))
+      AND (
+        $3::text[] IS NULL
+        OR CASE $4::text
+          WHEN 'includes' THEN gp.deck_color_identity @> $3::text[]
+          WHEN 'within' THEN gp.deck_color_identity <@ $3::text[]
+          ELSE gp.deck_color_identity @> $3::text[]
+            AND gp.deck_color_identity <@ $3::text[]
+        END
+      )
   )
   AND (
-    $2::timestamp IS NULL
-    OR (games.created_at, games.id) < ($2::timestamp, $3::uuid)
+    $5::timestamp IS NULL
+    OR (games.created_at, games.id) < ($5::timestamp, $6::uuid)
   )
 ORDER BY games.created_at DESC, games.id DESC
-LIMIT $4
+LIMIT $7
 `
 
 type ListFinishedGamesPageParams struct {
 	UserID          pgtype.UUID      `json:"user_id"`
+	Brackets        []int16          `json:"brackets"`
+	Colors          []string         `json:"colors"`
+	ColorMode       string           `json:"color_mode"`
 	CursorCreatedAt pgtype.Timestamp `json:"cursor_created_at"`
 	CursorID        pgtype.UUID      `json:"cursor_id"`
 	PageLimit       int32            `json:"page_limit"`
@@ -469,9 +585,16 @@ type ListFinishedGamesPageRow struct {
 // owned here because GET /statistics/games needs the denormalized
 // player/deck/username data GET /games deliberately doesn't carry (that one is
 // shared with the dashboard/join-game flow, kept lean on purpose).
+//
+// brackets/colors keep only games where the user's own seat matched, by the
+// deck snapshot taken when the seat was added (NULL = no filter, same
+// semantics as decks.ListDecksPage).
 func (q *Queries) ListFinishedGamesPage(ctx context.Context, arg ListFinishedGamesPageParams) ([]ListFinishedGamesPageRow, error) {
 	rows, err := q.db.Query(ctx, listFinishedGamesPage,
 		arg.UserID,
+		arg.Brackets,
+		arg.Colors,
+		arg.ColorMode,
 		arg.CursorCreatedAt,
 		arg.CursorID,
 		arg.PageLimit,
@@ -604,7 +727,7 @@ func (q *Queries) ListGameActionsForGame(ctx context.Context, gameID pgtype.UUID
 }
 
 const listGamePlayersForGame = `-- name: ListGamePlayersForGame :many
-SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by FROM game_players WHERE game_id = $1
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity FROM game_players WHERE game_id = $1
 `
 
 func (q *Queries) ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error) {
@@ -627,6 +750,8 @@ func (q *Queries) ListGamePlayersForGame(ctx context.Context, gameID pgtype.UUID
 			&i.ExperienceCounters,
 			&i.IsEliminated,
 			&i.AddedBy,
+			&i.DeckBracket,
+			&i.DeckColorIdentity,
 		); err != nil {
 			return nil, err
 		}
@@ -704,6 +829,7 @@ const listPlayersForGames = `-- name: ListPlayersForGames :many
 SELECT
   gp.game_id, gp.user_id, u.username, gp.deck_id, d.name AS deck_name,
   d.commander AS deck_commander, d.image_url AS deck_image_url,
+  gp.deck_bracket, gp.deck_color_identity,
   (winner.id IS NOT NULL)::boolean AS won
 FROM game_players gp
 JOIN users u ON u.id = gp.user_id
@@ -721,14 +847,16 @@ WHERE gp.game_id = ANY($1::uuid[])
 `
 
 type ListPlayersForGamesRow struct {
-	GameID        pgtype.UUID `json:"game_id"`
-	UserID        pgtype.UUID `json:"user_id"`
-	Username      string      `json:"username"`
-	DeckID        pgtype.UUID `json:"deck_id"`
-	DeckName      string      `json:"deck_name"`
-	DeckCommander string      `json:"deck_commander"`
-	DeckImageUrl  pgtype.Text `json:"deck_image_url"`
-	Won           bool        `json:"won"`
+	GameID            pgtype.UUID `json:"game_id"`
+	UserID            pgtype.UUID `json:"user_id"`
+	Username          string      `json:"username"`
+	DeckID            pgtype.UUID `json:"deck_id"`
+	DeckName          string      `json:"deck_name"`
+	DeckCommander     string      `json:"deck_commander"`
+	DeckImageUrl      pgtype.Text `json:"deck_image_url"`
+	DeckBracket       pgtype.Int2 `json:"deck_bracket"`
+	DeckColorIdentity []string    `json:"deck_color_identity"`
+	Won               bool        `json:"won"`
 }
 
 // Batched fetch of every seat across a page of games (see ListFinishedGamesPage),
@@ -754,6 +882,8 @@ func (q *Queries) ListPlayersForGames(ctx context.Context, gameIds []pgtype.UUID
 			&i.DeckName,
 			&i.DeckCommander,
 			&i.DeckImageUrl,
+			&i.DeckBracket,
+			&i.DeckColorIdentity,
 			&i.Won,
 		); err != nil {
 			return nil, err

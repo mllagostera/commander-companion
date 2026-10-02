@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -128,6 +129,63 @@ func TestGetDeck_ImageURL_TwoFacedCard_UsesFrontFaceID(t *testing.T) {
 	if deck.ImageURL != want {
 		t.Fatalf("ImageURL = %q, want %q (should use the front face id with the \"card-face-\" prefix, not main.id)",
 			deck.ImageURL, want)
+	}
+}
+
+// getDeckFrom serves body as Moxfield's deck response and returns what GetDeck parsed.
+func getDeckFrom(t *testing.T, body string) *Deck {
+	t.Helper()
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	})
+	deck, err := client.GetDeck(context.Background(), "abc123")
+	if err != nil {
+		t.Fatalf("GetDeck() unexpected error = %v", err)
+	}
+	return deck
+}
+
+func TestGetDeck_BracketAndColorIdentity(t *testing.T) {
+	deck := getDeckFrom(t, `{
+		"name": "Test Deck", "publicId": "abc123",
+		"boards": {"commanders": {"cards": {"1": {"card": {"id": "c", "name": "Jace"}}}}},
+		"bracket": 3, "autoBracket": 2, "ignoreBrackets": false,
+		"colorIdentity": ["R", "w", "U", "B"]
+	}`)
+	if deck.Bracket == nil || *deck.Bracket != 3 {
+		t.Fatalf("Bracket = %v, want 3 (the declared one wins over autoBracket)", deck.Bracket)
+	}
+	if got := strings.Join(deck.ColorIdentity, ""); got != "WUBR" {
+		t.Fatalf("ColorIdentity = %q, want WUBR (WUBRG order, uppercased)", got)
+	}
+}
+
+func TestGetDeck_BracketFallsBackToAutoBracket(t *testing.T) {
+	deck := getDeckFrom(t, `{
+		"name": "Test Deck", "publicId": "abc123",
+		"boards": {"commanders": {"cards": {"1": {"card": {"id": "c", "name": "Jace"}}}}},
+		"bracket": 0, "autoBracket": 4, "colorIdentity": []
+	}`)
+	if deck.Bracket == nil || *deck.Bracket != 4 {
+		t.Fatalf("Bracket = %v, want 4 (autoBracket)", deck.Bracket)
+	}
+	if deck.ColorIdentity == nil || len(deck.ColorIdentity) != 0 {
+		t.Fatalf("ColorIdentity = %#v, want empty non-nil (colorless)", deck.ColorIdentity)
+	}
+}
+
+func TestGetDeck_IgnoreBracketsAndMissingColors_AreUnknown(t *testing.T) {
+	deck := getDeckFrom(t, `{
+		"name": "Test Deck", "publicId": "abc123",
+		"boards": {"commanders": {"cards": {"1": {"card": {"id": "c", "name": "Jace"}}}}},
+		"bracket": 2, "autoBracket": 2, "ignoreBrackets": true
+	}`)
+	if deck.Bracket != nil {
+		t.Fatalf("Bracket = %v, want nil (author opted out of brackets)", *deck.Bracket)
+	}
+	if deck.ColorIdentity != nil {
+		t.Fatalf("ColorIdentity = %#v, want nil (field missing = unknown, not colorless)", deck.ColorIdentity)
 	}
 }
 

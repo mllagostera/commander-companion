@@ -54,8 +54,15 @@ WHERE id = $1 AND status = 'active'
 RETURNING *;
 
 -- name: AddGamePlayer :one
-INSERT INTO game_players (game_id, user_id, deck_id, added_by)
-VALUES ($1, $2, $3, $4)
+-- Also snapshots the deck's bracket and color identity onto the seat, so
+-- statistics and history filter by what was played even after the deck
+-- changes (NULL with no deck, or while the deck's are unknown).
+INSERT INTO game_players (game_id, user_id, deck_id, added_by, deck_bracket, deck_color_identity)
+VALUES (
+  $1, $2, $3, $4,
+  (SELECT d.bracket FROM decks d WHERE d.id = $3),
+  (SELECT d.color_identity FROM decks d WHERE d.id = $3)
+)
 RETURNING *;
 
 -- name: RemoveGamePlayer :exec

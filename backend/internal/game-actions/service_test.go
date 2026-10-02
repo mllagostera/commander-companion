@@ -149,11 +149,11 @@ func setupActiveGame(t *testing.T, pool *pgxpool.Pool) activeGame {
 	user1 := mustRegisterUser(t, usersSvc, "p1-"+t.Name())
 	user2 := mustRegisterUser(t, usersSvc, "p2-"+t.Name())
 
-	deck1, err := decksSvc.CreateDeck(ctx, user1.ID, decks.CreateDeckRequest{Name: "D1", Commander: "C1"})
+	deck1, err := decksSvc.CreateDeck(ctx, user1.ID, &decks.CreateDeckRequest{Name: "D1", Commander: "C1"})
 	if err != nil {
 		t.Fatalf("creando deck 1: %v", err)
 	}
-	deck2, err := decksSvc.CreateDeck(ctx, user2.ID, decks.CreateDeckRequest{Name: "D2", Commander: "C2"})
+	deck2, err := decksSvc.CreateDeck(ctx, user2.ID, &decks.CreateDeckRequest{Name: "D2", Commander: "C2"})
 	if err != nil {
 		t.Fatalf("creando deck 2: %v", err)
 	}
@@ -211,7 +211,7 @@ func setupActiveGameWithPlayers(t *testing.T, pool *pgxpool.Pool, n int) (
 	for i := 0; i < n; i++ {
 		suffix := fmt.Sprintf("%s-%d", t.Name(), i)
 		user := mustRegisterUser(t, usersSvc, "u-"+suffix)
-		deck, err := decksSvc.CreateDeck(ctx, user.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
+		deck, err := decksSvc.CreateDeck(ctx, user.ID, &decks.CreateDeckRequest{Name: "D", Commander: "C"})
 		if err != nil {
 			t.Fatalf("creando deck %d: %v", i, err)
 		}
@@ -254,11 +254,11 @@ func setupProxyJoinedGame(t *testing.T, pool *pgxpool.Pool) proxyJoinedGame {
 	scorekeeper := mustRegisterUser(t, usersSvc, "scorekeeper-"+t.Name())
 	teammate := mustRegisterUser(t, usersSvc, "teammate-"+t.Name())
 
-	teammateDeck, err := decksSvc.CreateDeck(ctx, teammate.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
+	teammateDeck, err := decksSvc.CreateDeck(ctx, teammate.ID, &decks.CreateDeckRequest{Name: "D", Commander: "C"})
 	if err != nil {
 		t.Fatalf("creando deck del teammate: %v", err)
 	}
-	scorekeeperDeck, err := decksSvc.CreateDeck(ctx, scorekeeper.ID, decks.CreateDeckRequest{Name: "D2", Commander: "C2"})
+	scorekeeperDeck, err := decksSvc.CreateDeck(ctx, scorekeeper.ID, &decks.CreateDeckRequest{Name: "D2", Commander: "C2"})
 	if err != nil {
 		t.Fatalf("creando deck del scorekeeper: %v", err)
 	}
@@ -758,7 +758,7 @@ func TestRecordAction_GameNotActive_ReturnsConflict(t *testing.T) {
 	actionsSvc := newActionsSvc(pool)
 
 	user := mustRegisterUser(t, usersSvc, "pending-actor")
-	deck, err := decksSvc.CreateDeck(ctx, user.ID, decks.CreateDeckRequest{Name: "D", Commander: "C"})
+	deck, err := decksSvc.CreateDeck(ctx, user.ID, &decks.CreateDeckRequest{Name: "D", Commander: "C"})
 	if err != nil {
 		t.Fatalf("creando deck: %v", err)
 	}

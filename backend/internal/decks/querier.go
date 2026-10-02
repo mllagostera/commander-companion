@@ -11,6 +11,11 @@ import (
 )
 
 type Querier interface {
+	// Fills the deck's bracket and color identity into its past seats that
+	// recorded none (they were unknown when the game was played), so those games
+	// count under them once they become known. A seat that already has a value
+	// keeps it: that's what was actually played.
+	BackfillSeatDeckTraits(ctx context.Context, arg BackfillSeatDeckTraitsParams) error
 	CreateDeck(ctx context.Context, arg CreateDeckParams) (Deck, error)
 	DeleteDeck(ctx context.Context, id pgtype.UUID) error
 	GetDeck(ctx context.Context, id pgtype.UUID) (Deck, error)
@@ -21,10 +26,20 @@ type Querier interface {
 	// Keyset pagination over (created_at, id) DESC. With cursor_created_at NULL
 	// it returns the first page; with a cursor, the rows strictly after it in
 	// list order. See internal/common/pagination.go.
+	//
+	// brackets/colors narrow the list (NULL = no filter, see
+	// common.DeckTraitFilter); a deck whose value is unknown never matches.
+	// "exact" is containment both ways, so it doesn't depend on letter order.
 	ListDecksPage(ctx context.Context, arg ListDecksPageParams) ([]Deck, error)
-	// Re-syncs name, commander, and image for an already-imported deck with what
-	// Moxfield returns today (see internal/sync). updated_at marks the last successful sync.
+	// Re-syncs name, commander, image, bracket and color identity for an
+	// already-imported deck with what Moxfield returns today (see internal/sync).
+	// A bracket/color identity set by hand (the *_overridden flags) is kept.
+	// updated_at marks the last successful sync.
 	UpdateDeckFromMoxfield(ctx context.Context, arg UpdateDeckFromMoxfieldParams) (Deck, error)
+	// Writes a deck's bracket and color identity with their override flags as
+	// decks.Service.UpdateDeck resolved them. Doesn't touch updated_at: that one
+	// means "last Moxfield sync".
+	UpdateDeckTraits(ctx context.Context, arg UpdateDeckTraitsParams) (Deck, error)
 }
 
 var _ Querier = (*Queries)(nil)

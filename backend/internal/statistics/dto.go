@@ -1,5 +1,7 @@
 package statistics
 
+import "encoding/json"
+
 // UserStatsResponse is the DTO for a user's global statistics.
 type UserStatsResponse struct {
 	UserID               string `json:"user_id"`
@@ -100,11 +102,49 @@ type FinishedGamePlayerResponse struct {
 	DeckName      string  `json:"deck_name"`
 	DeckCommander string  `json:"deck_commander"`
 	DeckImageURL  *string `json:"deck_image_url,omitempty"`
-	Won           bool    `json:"won"`
+	// DeckBracket/DeckColorIdentity are the deck as it was when this seat sat
+	// down; null when unknown then.
+	DeckBracket       *int     `json:"deck_bracket"`
+	DeckColorIdentity []string `json:"deck_color_identity"`
+	Won               bool     `json:"won"`
 	// LongestTurnMs/AverageTurnMs are this seat's own timed turns in the game;
 	// both are omitted when none of its turns was timed.
 	LongestTurnMs *int64 `json:"longest_turn_ms,omitempty"`
 	AverageTurnMs *int64 `json:"average_turn_ms,omitempty"`
+}
+
+// Values of GET /statistics/breakdown's `group_by`.
+const (
+	GroupByBracket       = "bracket"
+	GroupByColorIdentity = "color_identity"
+)
+
+// BreakdownResponse is GET /statistics/breakdown: the user's finished
+// games grouped by their own deck's bracket or color identity.
+type BreakdownResponse struct {
+	GroupBy string          `json:"group_by"`
+	Items   []BreakdownItem `json:"items"`
+}
+
+// BreakdownItem is one group. GroupBy picks which key is serialized
+// (see MarshalJSON); a nil key there is the group of games where it was unknown.
+type BreakdownItem struct {
+	GroupBy       string
+	Bracket       *int
+	ColorIdentity []string
+	GamesPlayed   int32
+	GamesWon      int32
+}
+
+// MarshalJSON writes only the key matching GroupBy, as null for the unknown group.
+func (i BreakdownItem) MarshalJSON() ([]byte, error) {
+	out := map[string]any{"games_played": i.GamesPlayed, "games_won": i.GamesWon}
+	if i.GroupBy == GroupByColorIdentity {
+		out["color_identity"] = i.ColorIdentity
+	} else {
+		out["bracket"] = i.Bracket
+	}
+	return json.Marshal(out)
 }
 
 // DashboardResponse is everything the web dashboard renders, in one payload.

@@ -67,7 +67,9 @@ var ErrJobNotFound = common.NotFound("resync job not found")
 // decks (to find the ones with moxfield_id) and resynchronize a specific one
 // (same real logic already used by POST /sync/moxfield).
 type DeckLister interface {
-	ListDecks(ctx context.Context, userID string, page common.PageRequest) (*decks.DeckListResponse, error)
+	ListDecks(
+		ctx context.Context, userID string, page common.PageRequest, filter common.DeckTraitFilter,
+	) (*decks.DeckListResponse, error)
 	ResyncFromMoxfield(ctx context.Context, userID, moxfieldID string) (*decks.MoxfieldSyncState, error)
 }
 
@@ -124,11 +126,14 @@ func (s *service) resolveDeckList(ctx context.Context, userID string) ([]string,
 	var moxfieldIDs []string
 	cursor := ""
 	for {
-		page, err := s.decks.ListDecks(ctx, userID, common.PageRequest{Cursor: cursor, Limit: listPageSize})
+		page, err := s.decks.ListDecks(
+			ctx, userID, common.PageRequest{Cursor: cursor, Limit: listPageSize}, common.DeckTraitFilter{},
+		)
 		if err != nil {
 			return nil, fmt.Errorf("listing decks: %w", err)
 		}
-		for _, d := range page.Items {
+		for i := range page.Items {
+			d := &page.Items[i]
 			if d.MoxfieldID != "" {
 				moxfieldIDs = append(moxfieldIDs, d.MoxfieldID)
 			}

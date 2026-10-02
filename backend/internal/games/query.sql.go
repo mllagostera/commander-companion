@@ -12,9 +12,13 @@ import (
 )
 
 const addGamePlayer = `-- name: AddGamePlayer :one
-INSERT INTO game_players (game_id, user_id, deck_id, added_by)
-VALUES ($1, $2, $3, $4)
-RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by
+INSERT INTO game_players (game_id, user_id, deck_id, added_by, deck_bracket, deck_color_identity)
+VALUES (
+  $1, $2, $3, $4,
+  (SELECT d.bracket FROM decks d WHERE d.id = $3),
+  (SELECT d.color_identity FROM decks d WHERE d.id = $3)
+)
+RETURNING id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity
 `
 
 type AddGamePlayerParams struct {
@@ -24,6 +28,9 @@ type AddGamePlayerParams struct {
 	AddedBy pgtype.UUID `json:"added_by"`
 }
 
+// Also snapshots the deck's bracket and color identity onto the seat, so
+// statistics and history filter by what was played even after the deck
+// changes (NULL with no deck, or while the deck's are unknown).
 func (q *Queries) AddGamePlayer(ctx context.Context, arg AddGamePlayerParams) (GamePlayer, error) {
 	row := q.db.QueryRow(ctx, addGamePlayer,
 		arg.GameID,
@@ -43,6 +50,8 @@ func (q *Queries) AddGamePlayer(ctx context.Context, arg AddGamePlayerParams) (G
 		&i.ExperienceCounters,
 		&i.IsEliminated,
 		&i.AddedBy,
+		&i.DeckBracket,
+		&i.DeckColorIdentity,
 	)
 	return i, err
 }
@@ -105,7 +114,7 @@ func (q *Queries) FinishGame(ctx context.Context, id pgtype.UUID) (Game, error) 
 }
 
 const getDeckByID = `-- name: GetDeckByID :one
-SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url FROM decks WHERE id = $1 LIMIT 1
+SELECT id, user_id, name, commander, moxfield_id, created_at, updated_at, image_url, bracket, color_identity, bracket_overridden, color_identity_overridden FROM decks WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error) {
@@ -120,6 +129,10 @@ func (q *Queries) GetDeckByID(ctx context.Context, id pgtype.UUID) (Deck, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ImageUrl,
+		&i.Bracket,
+		&i.ColorIdentity,
+		&i.BracketOverridden,
+		&i.ColorIdentityOverridden,
 	)
 	return i, err
 }
@@ -144,7 +157,7 @@ func (q *Queries) GetGame(ctx context.Context, id pgtype.UUID) (Game, error) {
 }
 
 const listGamePlayers = `-- name: ListGamePlayers :many
-SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by FROM game_players WHERE game_id = $1
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity FROM game_players WHERE game_id = $1
 `
 
 func (q *Queries) ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]GamePlayer, error) {
@@ -167,6 +180,8 @@ func (q *Queries) ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]Ga
 			&i.ExperienceCounters,
 			&i.IsEliminated,
 			&i.AddedBy,
+			&i.DeckBracket,
+			&i.DeckColorIdentity,
 		); err != nil {
 			return nil, err
 		}
@@ -179,7 +194,7 @@ func (q *Queries) ListGamePlayers(ctx context.Context, gameID pgtype.UUID) ([]Ga
 }
 
 const listGamePlayersForGames = `-- name: ListGamePlayersForGames :many
-SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by FROM game_players WHERE game_id = ANY($1::uuid[])
+SELECT id, game_id, user_id, deck_id, life_total, poison_counters, energy_counters, experience_counters, is_eliminated, added_by, deck_bracket, deck_color_identity FROM game_players WHERE game_id = ANY($1::uuid[])
 `
 
 // Every seat across a whole list of games in one round trip, for callers that
@@ -205,6 +220,8 @@ func (q *Queries) ListGamePlayersForGames(ctx context.Context, gameIds []pgtype.
 			&i.ExperienceCounters,
 			&i.IsEliminated,
 			&i.AddedBy,
+			&i.DeckBracket,
+			&i.DeckColorIdentity,
 		); err != nil {
 			return nil, err
 		}

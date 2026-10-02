@@ -137,6 +137,10 @@ GROUP BY pg.id, pg.name;
 -- owned here because GET /statistics/games needs the denormalized
 -- player/deck/username data GET /games deliberately doesn't carry (that one is
 -- shared with the dashboard/join-game flow, kept lean on purpose).
+--
+-- brackets/colors keep only games where the user's own seat matched, by the
+-- deck snapshot taken when the seat was added (NULL = no filter, same
+-- semantics as decks.ListDecksPage).
 SELECT
   games.id, games.playgroup_id, games.started_at, games.finished_at, games.created_at,
   pg.name AS playgroup_name
@@ -146,6 +150,16 @@ WHERE games.status = 'finished'
   AND EXISTS (
     SELECT 1 FROM game_players gp
     WHERE gp.game_id = games.id AND gp.user_id = sqlc.arg('user_id')::uuid
+      AND (sqlc.narg('brackets')::smallint[] IS NULL OR gp.deck_bracket = ANY(sqlc.narg('brackets')::smallint[]))
+      AND (
+        sqlc.narg('colors')::text[] IS NULL
+        OR CASE sqlc.arg('color_mode')::text
+          WHEN 'includes' THEN gp.deck_color_identity @> sqlc.narg('colors')::text[]
+          WHEN 'within' THEN gp.deck_color_identity <@ sqlc.narg('colors')::text[]
+          ELSE gp.deck_color_identity @> sqlc.narg('colors')::text[]
+            AND gp.deck_color_identity <@ sqlc.narg('colors')::text[]
+        END
+      )
   )
   AND (
     sqlc.narg('cursor_created_at')::timestamp IS NULL
@@ -303,6 +317,7 @@ SELECT
 SELECT
   gp.game_id, gp.user_id, u.username, gp.deck_id, d.name AS deck_name,
   d.commander AS deck_commander, d.image_url AS deck_image_url,
+  gp.deck_bracket, gp.deck_color_identity,
   (winner.id IS NOT NULL)::boolean AS won
 FROM game_players gp
 JOIN users u ON u.id = gp.user_id
@@ -355,3 +370,48 @@ WHERE ga.game_id = ANY(sqlc.arg('game_ids')::uuid[])
   AND ga.undone_at IS NULL
   AND ga.payload->>'duration_ms' IS NOT NULL
 GROUP BY ga.game_id, gp.user_id, u.username;
+
+-- name: ListBreakdownByBracket :many
+-- The user's finished games grouped by their own seat's deck bracket as it
+-- was when played (NULL = unknown then). Same winner rule as
+-- ListPlaygroupMemberGameStats.
+SELECT
+  gp.deck_bracket AS bracket,
+  COUNT(*)::int AS games_played,
+  COUNT(winner.id)::int AS games_won
+FROM game_players gp
+JOIN games g ON g.id = gp.game_id
+LEFT JOIN (
+  SELECT id, game_id
+  FROM (
+    SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count
+    FROM game_players
+    WHERE NOT is_eliminated
+  ) alive
+  WHERE alive_count = 1
+) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
+WHERE gp.user_id = $1 AND g.status = 'finished'
+GROUP BY gp.deck_bracket
+ORDER BY games_played DESC, gp.deck_bracket NULLS LAST;
+
+-- name: ListBreakdownByColorIdentity :many
+-- Same as ListBreakdownByBracket, grouped by the seat's deck color identity
+-- (stored in WUBRG order, so equal identities group together).
+SELECT
+  gp.deck_color_identity AS color_identity,
+  COUNT(*)::int AS games_played,
+  COUNT(winner.id)::int AS games_won
+FROM game_players gp
+JOIN games g ON g.id = gp.game_id
+LEFT JOIN (
+  SELECT id, game_id
+  FROM (
+    SELECT id, game_id, COUNT(*) OVER (PARTITION BY game_id) AS alive_count
+    FROM game_players
+    WHERE NOT is_eliminated
+  ) alive
+  WHERE alive_count = 1
+) winner ON winner.game_id = gp.game_id AND winner.id = gp.id
+WHERE gp.user_id = $1 AND g.status = 'finished'
+GROUP BY gp.deck_color_identity
+ORDER BY games_played DESC, gp.deck_color_identity NULLS LAST;

@@ -36,6 +36,13 @@ type Querier interface {
 	// excluded); a TurnEnd without it -- sent by older clients -- simply doesn't count.
 	// Computed live, like ListOpponentStats: there's no summary column for it.
 	GetUserTurnTimeStats(ctx context.Context, userID pgtype.UUID) (GetUserTurnTimeStatsRow, error)
+	// The user's finished games grouped by their own seat's deck bracket as it
+	// was when played (NULL = unknown then). Same winner rule as
+	// ListPlaygroupMemberGameStats.
+	ListBreakdownByBracket(ctx context.Context, userID pgtype.UUID) ([]ListBreakdownByBracketRow, error)
+	// Same as ListBreakdownByBracket, grouped by the seat's deck color identity
+	// (stored in WUBRG order, so equal identities group together).
+	ListBreakdownByColorIdentity(ctx context.Context, userID pgtype.UUID) ([]ListBreakdownByColorIdentityRow, error)
 	// The decks the dashboard's "your decks" strip shows: most played first, capped
 	// at the handful that fit. Same decks LEFT JOIN summary shape as
 	// ListDeckStatisticsForUser (a deck never played has no summary row), but
@@ -61,6 +68,10 @@ type Querier interface {
 	// owned here because GET /statistics/games needs the denormalized
 	// player/deck/username data GET /games deliberately doesn't carry (that one is
 	// shared with the dashboard/join-game flow, kept lean on purpose).
+	//
+	// brackets/colors keep only games where the user's own seat matched, by the
+	// deck snapshot taken when the seat was added (NULL = no filter, same
+	// semantics as decks.ListDecksPage).
 	ListFinishedGamesPage(ctx context.Context, arg ListFinishedGamesPageParams) ([]ListFinishedGamesPageRow, error)
 	// For each game in game_ids: how many turns were played (every TurnStart belongs to
 	// one player's turn, so the count across the whole game is the turn count) and the

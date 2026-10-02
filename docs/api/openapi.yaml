@@ -37,6 +37,45 @@ components:
         minimum: 1
         maximum: 100
         default: 20
+    BracketFilterParam:
+      in: query
+      name: bracket
+      required: false
+      description: >-
+        Keep only decks (or seats) in any of these Commander brackets, as a
+        comma-separated list (`bracket=2,3`). Decks whose bracket is unknown
+        never match.
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: integer
+          minimum: 1
+          maximum: 5
+    ColorsFilterParam:
+      in: query
+      name: colors
+      required: false
+      description: >-
+        Color identity to filter by, as WUBRG letters in any order and case
+        (`colors=wu`), or `C` for colorless. How it matches is `color_mode`.
+        Decks whose color identity is unknown never match.
+      schema:
+        type: string
+        pattern: '^([Cc]|[WUBRGwubrg]{1,5})$'
+    ColorModeParam:
+      in: query
+      name: color_mode
+      required: false
+      description: >-
+        How `colors` matches a color identity: `exact` (the same colors),
+        `includes` (at least these colors) or `within` (no colors outside
+        these; a colorless deck is within any). Ignored without `colors`.
+      schema:
+        type: string
+        enum: [exact, includes, within]
+        default: exact
   schemas:
     User:
       type: object
@@ -214,6 +253,55 @@ components:
           description: >-
             Art crop of the deck's main card (usually the commander), taken
             from Moxfield during import/resync.
+        bracket:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+          description: >-
+            Commander bracket (Wizards' 1-5 power-level scale). Taken from
+            Moxfield on import/resync (null when the author opted out of
+            brackets there) unless set by hand. Null means unknown.
+        color_identity:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum: [W, U, B, R, G]
+          description: >-
+            Color identity in WUBRG order; an empty array is colorless, null
+            is unknown. Taken from Moxfield on import/resync unless set by hand.
+        bracket_overridden:
+          type: boolean
+          description: True when `bracket` was set by hand; Moxfield resyncs then leave it alone.
+        color_identity_overridden:
+          type: boolean
+          description: True when `color_identity` was set by hand; Moxfield resyncs then leave it alone.
+    UpdateDeckRequest:
+      type: object
+      description: >-
+        Every field is optional and only the ones present are applied. Setting
+        `bracket` or `color_identity` (null clears it to unknown) marks it as
+        overridden, so Moxfield resyncs stop touching it. `reset_bracket` /
+        `reset_color_identity` drop that override and take Moxfield's value
+        again right away; they only apply to a deck imported from Moxfield and
+        cannot be combined with setting the same field.
+      properties:
+        bracket:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        color_identity:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum: [W, U, B, R, G]
+        reset_bracket:
+          type: boolean
+        reset_color_identity:
+          type: boolean
     DeckListResponse:
       type: object
       required: [items, next_cursor]
@@ -240,6 +328,18 @@ components:
           type: string
         image_url:
           type: string
+        bracket:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        color_identity:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum: [W, U, B, R, G]
+          description: Any order and repeated letters are accepted; stored in WUBRG order.
     SyncRequest:
       type: object
       required: [moxfield_id]
@@ -680,6 +780,17 @@ components:
         deck_image_url:
           type: string
           nullable: true
+        deck_bracket:
+          type: integer
+          nullable: true
+          description: The deck's bracket when this seat sat down (null if unknown then).
+        deck_color_identity:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum: [W, U, B, R, G]
+          description: The deck's color identity when this seat sat down (null if unknown then).
         won:
           type: boolean
         longest_turn_ms:
@@ -692,6 +803,37 @@ components:
           format: int64
           nullable: true
           description: The average of this seat's timed turns in the game (ms); omitted if none was timed.
+    StatisticsBreakdownResponse:
+      type: object
+      required: [group_by, items]
+      properties:
+        group_by:
+          type: string
+          enum: [bracket, color_identity]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatisticsBreakdownItem'
+    StatisticsBreakdownItem:
+      type: object
+      required: [games_played, games_won]
+      description: >-
+        Only the key matching group_by is present; null there groups the
+        games where it was unknown.
+      properties:
+        bracket:
+          type: integer
+          nullable: true
+        color_identity:
+          type: array
+          nullable: true
+          items:
+            type: string
+            enum: [W, U, B, R, G]
+        games_played:
+          type: integer
+        games_won:
+          type: integer
     DashboardResponse:
       type: object
       description: >-
@@ -2109,10 +2251,14 @@ Disallow: /
       description: >-
         Returns a page of the authenticated user's decks, from most recent to
         oldest. Pagination is cursor-based (keyset over created_at + id):
-        follow `next_cursor` until it comes back null.
+        follow `next_cursor` until it comes back null. `bracket` and `colors`
+        narrow the list; keep passing the same filters with the cursor.
       parameters:
         - $ref: '#/components/parameters/CursorParam'
         - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/BracketFilterParam'
+        - $ref: '#/components/parameters/ColorsFilterParam'
+        - $ref: '#/components/parameters/ColorModeParam'
       responses:
         '200':
           description: Page of the authenticated user's decks
@@ -2121,7 +2267,7 @@ Disallow: /
               schema:
                 $ref: '#/components/schemas/DeckListResponse'
         '400':
-          description: Invalid cursor or limit
+          description: Invalid cursor, limit, bracket, colors or color_mode
           content:
             application/json:
               schema:
@@ -2151,7 +2297,9 @@ Disallow: /
               schema:
                 $ref: '#/components/schemas/Deck'
         '400':
-          description: name or commander missing or blank (both are trimmed before validating)
+          description: >-
+            name or commander missing or blank (both are trimmed before
+            validating), or an invalid bracket or color identity
           content:
             application/json:
               schema:
@@ -2225,6 +2373,57 @@ Disallow: /
                 $ref: '#/components/schemas/Deck'
         '404':
           description: Does not exist, or does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update a deck's bracket and color identity
+      description: >-
+        Sets or resets the deck's bracket and color identity (see
+        UpdateDeckRequest). Same ownership rule as the GET. A value that
+        becomes known is also filled into the deck's past seats that recorded
+        none, so games played before it was known count under it; seats that
+        already have a value keep it.
+      operationId: updateDeck
+      tags:
+        - Decks
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeckRequest'
+      responses:
+        '200':
+          description: Deck after the update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deck'
+        '400':
+          description: >-
+            Invalid bracket or color identity, a reset on a deck not imported
+            from Moxfield, or a field both set and reset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Does not exist, or does not belong to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: A reset needed Moxfield and it is unavailable; nothing was changed
           content:
             application/json:
               schema:
@@ -2821,9 +3020,14 @@ Disallow: /
         Unlike GET /games (kept lean for the dashboard/join-game flow), each
         entry is enriched with every seat's username and deck name/commander/
         image, resolved server-side in one batched round trip per page.
+        `bracket` and `colors` keep only games where the authenticated
+        user's own deck matched, as it was when the game was played.
       parameters:
         - $ref: '#/components/parameters/CursorParam'
         - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/BracketFilterParam'
+        - $ref: '#/components/parameters/ColorsFilterParam'
+        - $ref: '#/components/parameters/ColorModeParam'
       responses:
         '200':
           description: A page of finished games, most recent first
@@ -2831,6 +3035,44 @@ Disallow: /
             application/json:
               schema:
                 $ref: '#/components/schemas/FinishedGameListResponse'
+        '400':
+          description: Invalid cursor, limit, bracket, colors or color_mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /statistics/breakdown:
+    get:
+      summary: Games and wins of the authenticated user by bracket or color identity
+      operationId: getStatisticsBreakdown
+      tags:
+        - Statistics
+      description: >-
+        Groups the authenticated user's finished games by their own deck's
+        bracket or color identity as it was when each game was played. Games
+        where it was unknown are grouped under a null key. Groups with no
+        games are omitted.
+      parameters:
+        - in: query
+          name: group_by
+          required: true
+          schema:
+            type: string
+            enum: [bracket, color_identity]
+      responses:
+        '200':
+          description: One row per group, most played first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatisticsBreakdownResponse'
+        '400':
+          description: Missing or invalid group_by
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /statistics/dashboard:
     get:

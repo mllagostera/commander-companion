@@ -22,7 +22,24 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/decks", h.CreateDeck)
 	router.Post("/decks/import/moxfield", h.ImportMoxfield)
 	router.Get("/decks/:id", h.GetDeck)
+	router.Patch("/decks/:id", h.UpdateDeck)
 	router.Delete("/decks/:id", h.DeleteDeck)
+}
+
+// UpdateDeck sets or resets the bracket and color identity of a deck belonging
+// to the authenticated user.
+func (h *Handler) UpdateDeck(c *fiber.Ctx) error {
+	var req UpdateDeckRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.UpdateDeck(c.Context(), userID, c.Params("id"), req)
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
 }
 
 // CreateDeck handles the manual creation of a deck.
@@ -33,7 +50,7 @@ func (h *Handler) CreateDeck(c *fiber.Ctx) error {
 	}
 
 	userID, _ := c.Locals(common.UserIDKey).(string)
-	res, err := h.svc.CreateDeck(c.Context(), userID, req)
+	res, err := h.svc.CreateDeck(c.Context(), userID, &req)
 	if err != nil {
 		return common.MapError(err)
 	}
@@ -56,15 +73,20 @@ func (h *Handler) ImportMoxfield(c *fiber.Ctx) error {
 }
 
 // ListDecks returns a page of the authenticated user's decks. Accepts the
-// `cursor` and `limit` query params (see internal/common/pagination.go).
+// `cursor` and `limit` query params (see internal/common/pagination.go), and
+// the `bracket`, `colors` and `color_mode` filters (common.ParseDeckTraitFilter).
 func (h *Handler) ListDecks(c *fiber.Ctx) error {
 	page, err := common.ParsePageRequest(c)
 	if err != nil {
 		return common.MapError(err)
 	}
+	filter, err := common.ParseDeckTraitFilter(c)
+	if err != nil {
+		return common.MapError(err)
+	}
 
 	userID, _ := c.Locals(common.UserIDKey).(string)
-	res, err := h.svc.ListDecks(c.Context(), userID, page)
+	res, err := h.svc.ListDecks(c.Context(), userID, page, filter)
 	if err != nil {
 		return common.MapError(err)
 	}

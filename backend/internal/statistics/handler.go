@@ -25,6 +25,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Get("/statistics/playgroups", h.ListPlaygroupGameCounts)
 	router.Get("/statistics/opponents", h.ListOpponentStats)
 	router.Get("/statistics/games", h.ListFinishedGames)
+	router.Get("/statistics/breakdown", h.GetBreakdown)
 	router.Get("/statistics/dashboard", h.GetDashboard)
 }
 
@@ -103,15 +104,31 @@ func (h *Handler) ListOpponentStats(c *fiber.Ctx) error {
 
 // ListFinishedGames returns a page of the authenticated user's finished-games
 // history, enriched with each seat's username/deck. Accepts the `cursor` and
-// `limit` query params (see internal/common/pagination.go).
+// `limit` query params (see internal/common/pagination.go), and the `bracket`,
+// `colors` and `color_mode` filters (common.ParseDeckTraitFilter).
 func (h *Handler) ListFinishedGames(c *fiber.Ctx) error {
 	page, err := common.ParsePageRequest(c)
 	if err != nil {
 		return common.MapError(err)
 	}
+	filter, err := common.ParseDeckTraitFilter(c)
+	if err != nil {
+		return common.MapError(err)
+	}
 
 	userID, _ := c.Locals(common.UserIDKey).(string)
-	res, err := h.svc.ListFinishedGames(c.Context(), page, userID)
+	res, err := h.svc.ListFinishedGames(c.Context(), page, userID, filter)
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
+}
+
+// GetBreakdown returns the authenticated user's finished games grouped by
+// bracket or color identity (`group_by` query param).
+func (h *Handler) GetBreakdown(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.GetBreakdown(c.Context(), userID, c.Query("group_by"))
 	if err != nil {
 		return common.MapError(err)
 	}

@@ -73,7 +73,13 @@ type Service interface {
 	// ListFinishedGames returns a page of the user's finished-games history,
 	// enriched with each seat's username/deck (unlike games.ListGames, which is
 	// intentionally lean).
-	ListFinishedGames(ctx context.Context, page common.PageRequest, userID string) (*FinishedGameListResponse, error)
+	// filter keeps only games where the user's own deck matched, as it was then.
+	ListFinishedGames(
+		ctx context.Context, page common.PageRequest, userID string, filter common.DeckTraitFilter,
+	) (*FinishedGameListResponse, error)
+	// GetBreakdown groups the user's finished games by their own deck's bracket
+	// or color identity (groupBy is GroupByBracket or GroupByColorIdentity).
+	GetBreakdown(ctx context.Context, userID, groupBy string) (*BreakdownResponse, error)
 	// GetDashboard returns everything the web dashboard renders in one payload,
 	// in a fixed number of queries regardless of how many decks, groups or games
 	// the account has (see DashboardResponse).
@@ -285,14 +291,14 @@ func (s *service) ListPlaygroupGameCounts(ctx context.Context, userID string) ([
 // carries every seat's username and deck name/commander/image, resolved here
 // in one batched round trip (ListPlayersForGames) instead of per-game.
 func (s *service) ListFinishedGames(
-	ctx context.Context, page common.PageRequest, userID string,
+	ctx context.Context, page common.PageRequest, userID string, filter common.DeckTraitFilter,
 ) (*FinishedGameListResponse, error) {
 	uid, err := common.ParseUUID(userID)
 	if err != nil {
 		return nil, common.ErrInvalidUser
 	}
 
-	rows, nextCursor, err := s.fetchFinishedGamesPage(ctx, page, uid)
+	rows, nextCursor, err := s.fetchFinishedGamesPage(ctx, page, uid, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -309,9 +315,15 @@ func (s *service) ListFinishedGames(
 // works out whether there's a next one -- same "limit+1" trick as
 // games.ListGames, avoiding a separate COUNT(*).
 func (s *service) fetchFinishedGamesPage(
-	ctx context.Context, page common.PageRequest, uid pgtype.UUID,
+	ctx context.Context, page common.PageRequest, uid pgtype.UUID, filter common.DeckTraitFilter,
 ) ([]ListFinishedGamesPageRow, *string, error) {
-	params := ListFinishedGamesPageParams{UserID: uid, PageLimit: page.Limit + 1}
+	params := ListFinishedGamesPageParams{
+		UserID:    uid,
+		PageLimit: page.Limit + 1,
+		Brackets:  filter.Brackets,
+		Colors:    filter.Colors,
+		ColorMode: filter.ColorMode,
+	}
 	if page.Cursor != "" {
 		cursorCreatedAt, cursorID, cursorErr := decodeCursor(page.Cursor)
 		if cursorErr != nil {
@@ -478,6 +490,12 @@ func toFinishedGameResponse(g *ListFinishedGamesPageRow, players []ListPlayersFo
 			DeckName:      p.DeckName,
 			DeckCommander: p.DeckCommander,
 			Won:           p.Won,
+
+			DeckColorIdentity: p.DeckColorIdentity,
+		}
+		if p.DeckBracket.Valid {
+			bracket := int(p.DeckBracket.Int16)
+			player.DeckBracket = &bracket
 		}
 		if p.DeckImageUrl.Valid {
 			url := p.DeckImageUrl.String
@@ -486,6 +504,51 @@ func toFinishedGameResponse(g *ListFinishedGamesPageRow, players []ListPlayersFo
 		res.Players = append(res.Players, player)
 	}
 	return res
+}
+
+// ErrInvalidGroupBy indicates a GET /statistics/breakdown `group_by` other than bracket or color_identity.
+var ErrInvalidGroupBy = common.InvalidInput("group_by must be bracket or color_identity")
+
+// GetBreakdown groups the user's finished games by their own deck's bracket or
+// color identity, using the snapshot taken when each seat was added.
+func (s *service) GetBreakdown(ctx context.Context, userID, groupBy string) (*BreakdownResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+
+	res := &BreakdownResponse{GroupBy: groupBy, Items: []BreakdownItem{}}
+	switch groupBy {
+	case GroupByBracket:
+		rows, listErr := s.repo.ListBreakdownByBracket(ctx, uid)
+		if listErr != nil {
+			return nil, fmt.Errorf("listing breakdown by bracket: %w", listErr)
+		}
+		for _, row := range rows {
+			item := BreakdownItem{GroupBy: groupBy, GamesPlayed: row.GamesPlayed, GamesWon: row.GamesWon}
+			if row.Bracket.Valid {
+				bracket := int(row.Bracket.Int16)
+				item.Bracket = &bracket
+			}
+			res.Items = append(res.Items, item)
+		}
+	case GroupByColorIdentity:
+		rows, listErr := s.repo.ListBreakdownByColorIdentity(ctx, uid)
+		if listErr != nil {
+			return nil, fmt.Errorf("listing breakdown by color identity: %w", listErr)
+		}
+		for _, row := range rows {
+			res.Items = append(res.Items, BreakdownItem{
+				GroupBy:       groupBy,
+				ColorIdentity: row.ColorIdentity,
+				GamesPlayed:   row.GamesPlayed,
+				GamesWon:      row.GamesWon,
+			})
+		}
+	default:
+		return nil, ErrInvalidGroupBy
+	}
+	return res, nil
 }
 
 // RecalculateForGame walks the players and actions of an already-finished

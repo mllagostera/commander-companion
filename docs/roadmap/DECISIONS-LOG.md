@@ -2311,3 +2311,34 @@ Verified on the 1080x2160 AVD against the `tc-capture` stack: every step, deck c
 freeing a seat, and the preselection on a second game; `./gradlew lintDebug
 testDebugUnitTest` green. Not done from the brainstorm: a progress ring on ▶ and an undo
 for freeing a seat. The Play Store "seat picker" screenshot predates this change.
+
+### Stage 8 — Deck bracket and color identity, backend (built 2026-10-02)
+
+The repo owner wanted to filter by Commander bracket and color identity in the deck
+list, statistics, game history and the pregame deck picker, with values editable on
+every deck and the "update" buttons pulling them from Moxfield. Design and rejected
+alternatives are in [ADR-0021](../decisions/0021-deck-bracket-and-color-identity.md);
+this entry records how it was checked.
+
+Looking at a real deck (`d-OgAbCzo3aerV4i_-Xi6Q`, "Multiverse Reforged") showed
+Moxfield's response carries `bracket`, `autoBracket`, `ignoreBrackets` and
+`colorIdentity` at the top level, next to fields we still ignore (card lists with
+prices and legalities, tokens, authors, view/like counts). Only the two the owner
+asked for are stored; the rest were left out on purpose (about 700 KB per deck,
+prices go stale fast, and the API is unofficial).
+
+This PR covers the API and data model only (migration `00023`, `openapi.yaml`,
+`schema.dbml`); web and Android follow as separate PRs. `CreateDeck` now takes its
+request by pointer because the bigger struct tripped `gocritic`'s `hugeParam`.
+
+Verified in Docker (no Go toolchain on this machine): `sqlc/sqlc:1.27.0` regenerated
+the queries, the migration ran up/down/up with goose v3.28.0 against a throwaway
+`postgres:18-alpine`, `go test -p 1 ./...` passed for every package (12 new tests:
+Moxfield parsing, import/create/resync/PATCH rules, list filters, history filters on
+the seat snapshot both when seated and backfilled, breakdown), and
+`golangci-lint v2.12.2` reports 0 issues. End to end against the real Moxfield from
+the `tc-capture` stack: importing that deck stored bracket 2 and `WUBR`;
+`bracket=2&colors=wubr` found it and `colors=g&color_mode=includes` didn't; a bracket
+set by hand to 3 survived `POST /sync/moxfield`; `reset_bracket` brought back 2; an
+out-of-range filter answered 400.
+

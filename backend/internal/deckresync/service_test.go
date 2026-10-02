@@ -42,7 +42,7 @@ type fakeDeckLister struct {
 }
 
 func (f *fakeDeckLister) ListDecks(
-	_ context.Context, _ string, _ common.PageRequest,
+	_ context.Context, _ string, _ common.PageRequest, _ common.DeckTraitFilter,
 ) (*decks.DeckListResponse, error) {
 	return &decks.DeckListResponse{Items: f.items}, nil
 }

@@ -11,6 +11,9 @@ import (
 )
 
 type Querier interface {
+	// Also snapshots the deck's bracket and color identity onto the seat, so
+	// statistics and history filter by what was played even after the deck
+	// changes (NULL with no deck, or while the deck's are unknown).
 	AddGamePlayer(ctx context.Context, arg AddGamePlayerParams) (GamePlayer, error)
 	CreateGame(ctx context.Context, arg CreateGameParams) (Game, error)
 	// The "AND status = 'active'" guard is load-bearing, not decorative: without
