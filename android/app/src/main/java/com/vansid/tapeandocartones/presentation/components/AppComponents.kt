@@ -260,7 +260,8 @@ fun SelectableChip(
  * card with just the name.
  *
  * [width]/[height] default to a comfortable size; pass smaller values (e.g. in a cramped
- * pregame seat tile) to fit tighter layouts — same visual, just scaled down.
+ * pregame seat tile) to fit tighter layouts — same visual, just scaled down. [nameMaxLines] lets a
+ * small card wrap the name instead of truncating it to a single line.
  */
 @Composable
 fun DeckArtChip(
@@ -270,7 +271,8 @@ fun DeckArtChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     width: Dp = 108.dp,
-    height: Dp = 72.dp
+    height: Dp = 72.dp,
+    nameMaxLines: Int = 1
 ) {
     val shape = RoundedCornerShape(14.dp)
     val background = when {
@@ -303,7 +305,8 @@ fun DeckArtChip(
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 10.sp,
-                maxLines = 1,
+                lineHeight = 11.sp,
+                maxLines = nameMaxLines,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
