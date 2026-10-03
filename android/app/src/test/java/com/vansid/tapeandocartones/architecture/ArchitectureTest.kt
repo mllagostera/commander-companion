@@ -186,6 +186,7 @@ class ArchitectureTest {
         val AUTH_SCREENS = setOf(
             "LoginViewModel",
             "RegisterViewModel",
+            "ForgotPasswordViewModel",
             "SettingsViewModel",
         )
     }

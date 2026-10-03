@@ -63,8 +63,8 @@ a migration, a page or a screen, is in
     `StatisticsRepository`, `FriendsRepository`) that `Data` implements. Most
     `ViewModel`s (game, history, join-game, player setup, statistics, friends)
     depend on this layer, not on `Data` directly. The deliberate exception is
-    the whole auth surface — `LoginViewModel`, `RegisterViewModel` and
-    `SettingsViewModel` inject `AuthApi`/`CommanderApi`/`SessionManager`
+    the whole auth surface — `LoginViewModel`, `RegisterViewModel`,
+    `ForgotPasswordViewModel` and `SettingsViewModel` inject `AuthApi`/`CommanderApi`/`SessionManager`
     straight from `Data` — see `docs/roadmap/TASKS.md`, Stage 4, which records
     that as intentional rather than pending.
 

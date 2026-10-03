@@ -67,6 +67,7 @@ internal fun LoginError.message(): String = when (this) {
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onNavigateToRegister: () -> Unit,
+    onNavigateToForgotPassword: (email: String) -> Unit,
     viewModel: LoginViewModel = hiltViewModel()
 ) {
     var email by remember { mutableStateOf("") }
@@ -121,6 +122,19 @@ fun LoginScreen(
                         onValueChange = { password = it },
                         enabled = !uiState.isLoading,
                         visualTransformation = PasswordVisualTransformation()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // The typed email travels along so the next screen doesn't ask for it again.
+                    Text(
+                        text = stringResource(R.string.login_forgot_password),
+                        fontSize = 12.sp,
+                        color = AccentSoft,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .clickable(enabled = !uiState.isLoading) {
+                                onNavigateToForgotPassword(email.trim())
+                            }
                     )
 
                     uiState.error?.let { error ->

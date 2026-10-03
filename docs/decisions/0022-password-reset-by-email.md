@@ -109,9 +109,11 @@ shouldn't need another env var to work. The reference HTML lives in
   `RESEND_API_KEY` stays send-only.
 - Without `RESEND_API_KEY` (local, Docker Compose), the reset link is printed
   to the backend log by the console mailer.
-- Android has no "forgot your password?" yet. The reset itself happens on the
-  web page (the link points there), so adding it to Android only needs a screen
-  that calls `/auth/forgot-password`.
+- Android only covers the first step: the login screen links to
+  `ForgotPasswordScreen`, which calls `/auth/forgot-password`. The new password is
+  chosen on the web page the email links to; opening that link in the app instead
+  would need Android App Links (a verified `assetlinks.json` on the web domain),
+  which isn't worth it for a once-in-a-while flow.
 - Reset tokens are never cleaned up, same as verification tokens. At this scale
   the table stays tiny. A periodic purge of expired rows is the follow-up if it
   ever matters.

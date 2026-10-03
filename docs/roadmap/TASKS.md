@@ -73,7 +73,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Web: "Forgot your password?" link on `login.vue`, `forgot-password.vue`, `reset-password.vue`, es/en/ca
 - [x] Email HTML per locale versioned in `docs/decisions/0022-password-reset-template.{es,en,ca}.html`
 - [x] Resend Templates `password-reset-es`, `-en`, `-ca` created and published (2026-10-03, with a full-access key kept out of the backend, whose key stays send-only)
-- [ ] Android: "Forgot your password?" entry on the login screen (the reset itself happens on the web page)
+- [x] Android: "Forgot your password?" link on the login screen → `ForgotPasswordScreen` (`POST /auth/forgot-password`, es/en/ca); the reset itself happens on the web page the email links to
 
 ### Games / game-actions — game engine
 - [x] `games` wired to real `Queries`: create/get/list/join/leave/start/finish

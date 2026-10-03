@@ -17,6 +17,14 @@
     <string name="login_verification_resend">Reenvia el correu de verificació</string>
     <string name="login_verification_resending">Reenviant…</string>
     <string name="login_verification_check_inbox">Fet, revisa la teva safata d\'entrada.</string>
+    <string name="login_forgot_password">Has oblidat la contrasenya?</string>
+    <string name="forgot_password_title">Has oblidat la contrasenya?</string>
+    <string name="forgot_password_intro">Escriu el correu del teu compte i t\'enviarem un enllaç per triar una contrasenya nova.</string>
+    <string name="forgot_password_submit">Envia l\'enllaç</string>
+    <string name="forgot_password_back_to_login">Torna a iniciar sessió</string>
+    <string name="forgot_password_sent_title">Revisa el teu correu</string>
+    <string name="forgot_password_sent_intro">Si hi ha un compte associat a </string>
+    <string name="forgot_password_sent_outro">rebràs un enllaç per restablir la contrasenya. Caduca d\'aquí a 1 hora.</string>
 
     <!-- Register -->
     <string name="register_title">Crea el compte</string>
@@ -267,6 +275,9 @@
     <string name="error_login_google_backend">No s\'ha pogut iniciar la sessió amb Google (error %1$d)</string>
     <string name="error_login_google_no_account">No hi ha cap compte de Google configurat en aquest dispositiu</string>
     <string name="error_login_google_unknown">No s\'ha pogut iniciar la sessió amb Google</string>
+    <string name="error_forgot_password_empty_email">Escriu el teu correu</string>
+    <string name="error_forgot_password_too_many_requests">Massa intents. Espera un minut i torna-ho a provar.</string>
+    <string name="error_forgot_password_unknown">No s\'ha pogut enviar l\'enllaç (error %1$d)</string>
 
     <!-- Registration errors -->
     <string name="error_register_empty_fields">Omple tots els camps</string>

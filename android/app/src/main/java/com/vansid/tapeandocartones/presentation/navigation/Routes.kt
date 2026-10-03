@@ -8,6 +8,10 @@ object LoginRoute
 @Serializable
 object RegisterRoute
 
+/** [email] prefills the field with whatever was typed on the login screen. */
+@Serializable
+data class ForgotPasswordRoute(val email: String = "")
+
 @Serializable
 object DashboardRoute
 

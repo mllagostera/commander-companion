@@ -1,5 +1,6 @@
 package com.vansid.tapeandocartones.data.remote.api
 
+import com.vansid.tapeandocartones.data.remote.dto.ForgotPasswordRequest
 import com.vansid.tapeandocartones.data.remote.dto.GoogleLoginRequest
 import com.vansid.tapeandocartones.data.remote.dto.LoginRequest
 import com.vansid.tapeandocartones.data.remote.dto.LogoutRequest
@@ -44,6 +45,14 @@ interface AuthApi {
      */
     @POST("api/v1/auth/resend-verification")
     suspend fun resendVerification(@Body request: ResendVerificationRequest)
+
+    /**
+     * Emails a password reset link. Always 204, whether or not the email has an account (the
+     * backend doesn't reveal it), so success only means "accepted". The link opens the web
+     * client's `/reset-password` page, which is where the new password is chosen (ADR-0022).
+     */
+    @POST("api/v1/auth/forgot-password")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest)
 
     @POST("api/v1/auth/google")
     suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): TokenResponse

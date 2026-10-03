@@ -226,8 +226,8 @@ res/
 Dependency direction: `presentation → domain → data`. ViewModels depend on
 `domain/` interfaces, which Hilt binds to `data/repository/*Impl` in
 `core/di/RepositoryModule.kt`. The deliberate exception is
-the whole auth surface — `LoginViewModel`, `RegisterViewModel` and
-`SettingsViewModel` inject `AuthApi`/`CommanderApi`/`SessionManager` directly
+the whole auth surface — `LoginViewModel`, `RegisterViewModel`,
+`ForgotPasswordViewModel` and `SettingsViewModel` inject `AuthApi`/`CommanderApi`/`SessionManager` directly
 (see TASKS.md Stage 4).
 
 Naming is strict and mechanical: a feature folder under `screens/` contains
