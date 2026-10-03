@@ -27,15 +27,23 @@ func newUsersSvc(t *testing.T) (users.Service, *pgxpool.Pool) {
 	return svc, pool
 }
 
-// fakeMailer records the last verification link (and its locale) sent to each email, so
-// VerifyEmail/ResendVerification can be exercised without depending on real Resend.
+// fakeMailer records the last verification and password reset links (and their locale)
+// sent to each email, so VerifyEmail/ResendVerification/ResetPassword can be exercised
+// without depending on real Resend.
 type fakeMailer struct {
-	verifyURLByEmail map[string]string
-	localeByEmail    map[string]string
+	verifyURLByEmail   map[string]string
+	localeByEmail      map[string]string
+	resetURLByEmail    map[string]string
+	resetLocaleByEmail map[string]string
 }
 
 func newFakeMailer() *fakeMailer {
-	return &fakeMailer{verifyURLByEmail: make(map[string]string), localeByEmail: make(map[string]string)}
+	return &fakeMailer{
+		verifyURLByEmail:   make(map[string]string),
+		localeByEmail:      make(map[string]string),
+		resetURLByEmail:    make(map[string]string),
+		resetLocaleByEmail: make(map[string]string),
+	}
 }
 
 func (m *fakeMailer) SendVerificationEmail(_ context.Context, to, _, verifyURL, locale string) error {
@@ -44,7 +52,13 @@ func (m *fakeMailer) SendVerificationEmail(_ context.Context, to, _, verifyURL, 
 	return nil
 }
 
-// tokenFor extracts the token from the last link sent to that email.
+func (m *fakeMailer) SendPasswordResetEmail(_ context.Context, to, _, resetURL, locale string) error {
+	m.resetURLByEmail[to] = resetURL
+	m.resetLocaleByEmail[to] = locale
+	return nil
+}
+
+// tokenFor extracts the token from the last verification link sent to that email.
 func (m *fakeMailer) tokenFor(t *testing.T, email string) string {
 	t.Helper()
 	verifyURL, ok := m.verifyURLByEmail[email]
@@ -54,6 +68,20 @@ func (m *fakeMailer) tokenFor(t *testing.T, email string) string {
 	_, token, found := strings.Cut(verifyURL, "token=")
 	if !found {
 		t.Fatalf("verifyURL sin token: %q", verifyURL)
+	}
+	return token
+}
+
+// resetTokenFor extracts the token from the last password reset link sent to that email.
+func (m *fakeMailer) resetTokenFor(t *testing.T, email string) string {
+	t.Helper()
+	resetURL, ok := m.resetURLByEmail[email]
+	if !ok {
+		t.Fatalf("no password reset email was sent to %s", email)
+	}
+	_, token, found := strings.Cut(resetURL, "token=")
+	if !found {
+		t.Fatalf("resetURL without token: %q", resetURL)
 	}
 	return token
 }

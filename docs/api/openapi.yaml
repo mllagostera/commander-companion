@@ -197,6 +197,29 @@ components:
             Client UI language; picks the language of the verification email.
             Region suffixes (en-US) are accepted; anything else or omitted
             falls back to es.
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        locale:
+          type: string
+          enum: [es, en, ca]
+          description: >-
+            Client UI language; picks the language of the reset email. Same
+            normalization as ResendVerificationRequest.locale.
+    ResetPasswordRequest:
+      type: object
+      required: [token, new_password]
+      properties:
+        token:
+          type: string
+          description: Reset token received by email (query param `token` from the link).
+        new_password:
+          type: string
+          minLength: 8
     GoogleLoginRequest:
       type: object
       required: [id_token]
@@ -1698,6 +1721,75 @@ Disallow: /
       responses:
         '204':
           description: Request accepted (does not imply a new email was sent)
+        '429':
+          description: Too many authentication requests from this IP (rate limit per IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/forgot-password:
+    post:
+      summary: Request a password reset email
+      operationId: forgotPassword
+      tags:
+        - Auth
+      description: >-
+        Emails a single-use reset link (valid 1 hour) if the email belongs to
+        an active account, Google-only accounts included (redeeming it adds a
+        password). Always responds 204, whether or not the email exists (same
+        anti-enumeration criteria as /auth/resend-verification). See ADR-0022.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '204':
+          description: Request accepted (does not imply an email was sent)
+        '400':
+          description: Missing email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many authentication requests from this IP (rate limit per IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/reset-password:
+    post:
+      summary: Set a new password using the reset token sent by email
+      description: >-
+        Consumes the token sent by POST /auth/forgot-password. In one
+        transaction it sets the new password, marks the email verified,
+        invalidates every other pending reset link of the account and revokes
+        all its refresh tokens (signs it out everywhere). It does not log in.
+        Invalid, already used and expired tokens all answer 400 with the same
+        message; a too-short password also answers 400 (with a different
+        message) without consuming the token.
+      operationId: resetPassword
+      tags:
+        - Auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Password changed
+        '400':
+          description: Invalid, already used, or expired token; or password shorter than 8 characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: Too many authentication requests from this IP (rate limit per IP)
           content:

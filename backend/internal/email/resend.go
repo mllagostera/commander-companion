@@ -1,9 +1,10 @@
-// Package email sends the transactional account verification mail via Resend.
+// Package email sends the transactional account mails (verification, password reset)
+// via Resend.
 //
 // The content (subject, copy, layout) lives in Resend Templates, not here: there's one
-// Template per supported locale (see NormalizeLocale), and this package only references
-// it by alias and passes it the variables (USERNAME, VERIFY_URL). The verification link
-// is rendered in the template as plain text (not as a button/href) because Resend's REST
+// Template per mail and supported locale (see NormalizeLocale), and this package only
+// references it by alias and passes it the variables (USERNAME plus VERIFY_URL or
+// RESET_URL). The links are rendered in the templates as plain text (not as a button/href) because Resend's REST
 // API breaks URLs that go inside an href attribute when they come from a template
 // variable (see the open issue at https://github.com/resend/react-email/issues/3247).
 package email
@@ -30,7 +31,7 @@ const httpTimeout = 10 * time.Second
 const DefaultLocale = "es"
 
 // NormalizeLocale maps whatever the client sent ("ca", "en-US", "es_ES", "") to one of
-// the locales with a verification Template in Resend — the same ones the web and Android
+// the locales with Templates in Resend — the same ones the web and Android
 // clients ship — falling back to DefaultLocale.
 func NormalizeLocale(locale string) string {
 	lang, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(locale)), "-")
@@ -54,27 +55,33 @@ type Config struct {
 	// VerifyEmailTemplateID is the base alias of the verification Templates: the one
 	// actually sent is "<VerifyEmailTemplateID>-<locale>" (e.g. account-confirmation-ca).
 	VerifyEmailTemplateID string
+	// PasswordResetTemplateID is the base alias of the password reset Templates, same
+	// "<base>-<locale>" scheme (e.g. password-reset-en). See ADR-0022.
+	PasswordResetTemplateID string
 }
 
-// Sender is what the rest of the backend needs to send the account verification
-// mail. locale is the client's language as sent (see NormalizeLocale).
+// Sender is what the rest of the backend needs to send the account mails. locale is the
+// client's language as sent (see NormalizeLocale).
 type Sender interface {
 	SendVerificationEmail(ctx context.Context, to, username, verifyURL, locale string) error
+	SendPasswordResetEmail(ctx context.Context, to, username, resetURL, locale string) error
 }
 
 // NewResendClient builds the mail-sending client. If cfg.APIKey is empty
 // (no Resend account configured) it returns a "console" mailer that logs the
 // verification link instead of sending it, so local development doesn't depend on
-// having a Resend account (see docker-compose.yml).
+// having a Resend account (see docker-compose.yml). The same goes for the password reset
+// link.
 func NewResendClient(cfg Config) Sender {
 	if cfg.APIKey == "" {
 		return &consoleClient{}
 	}
 	return &resendClient{
-		apiKey:                cfg.APIKey,
-		from:                  cfg.FromAddress,
-		verifyEmailTemplateID: cfg.VerifyEmailTemplateID,
-		httpClient:            &http.Client{Timeout: httpTimeout},
+		apiKey:                  cfg.APIKey,
+		from:                    cfg.FromAddress,
+		verifyEmailTemplateID:   cfg.VerifyEmailTemplateID,
+		passwordResetTemplateID: cfg.PasswordResetTemplateID,
+		httpClient:              &http.Client{Timeout: httpTimeout},
 	}
 }
 
@@ -87,11 +94,18 @@ func (c *consoleClient) SendVerificationEmail(_ context.Context, to, username, v
 	return nil
 }
 
+// SendPasswordResetEmail logs the reset link instead of sending it (see NewResendClient).
+func (c *consoleClient) SendPasswordResetEmail(_ context.Context, to, username, resetURL, locale string) error {
+	log.Printf("[email console] password reset for %s (%s, %s): %s", username, to, NormalizeLocale(locale), resetURL)
+	return nil
+}
+
 type resendClient struct {
-	apiKey                string
-	from                  string
-	verifyEmailTemplateID string
-	httpClient            *http.Client
+	apiKey                  string
+	from                    string
+	verifyEmailTemplateID   string
+	passwordResetTemplateID string
+	httpClient              *http.Client
 }
 
 type resendTemplate struct {
@@ -108,15 +122,31 @@ type resendSendRequest struct {
 // SendVerificationEmail sends the mail via the Resend Template for the locale (see
 // Config.VerifyEmailTemplateID).
 func (c *resendClient) SendVerificationEmail(ctx context.Context, to, username, verifyURL, locale string) error {
+	return c.sendTemplate(ctx, to, c.verifyEmailTemplateID, locale, map[string]string{
+		"USERNAME":   username,
+		"VERIFY_URL": verifyURL,
+	})
+}
+
+// SendPasswordResetEmail sends the mail via the Resend Template for the locale (see
+// Config.PasswordResetTemplateID).
+func (c *resendClient) SendPasswordResetEmail(ctx context.Context, to, username, resetURL, locale string) error {
+	return c.sendTemplate(ctx, to, c.passwordResetTemplateID, locale, map[string]string{
+		"USERNAME":  username,
+		"RESET_URL": resetURL,
+	})
+}
+
+// sendTemplate sends the "<baseAlias>-<locale>" Template to a single recipient.
+func (c *resendClient) sendTemplate(
+	ctx context.Context, to, baseAlias, locale string, variables map[string]string,
+) error {
 	payload, err := json.Marshal(resendSendRequest{
 		From: c.from,
 		To:   []string{to},
 		Template: resendTemplate{
-			ID: c.verifyEmailTemplateID + "-" + NormalizeLocale(locale),
-			Variables: map[string]string{
-				"USERNAME":   username,
-				"VERIFY_URL": verifyURL,
-			},
+			ID:        baseAlias + "-" + NormalizeLocale(locale),
+			Variables: variables,
 		},
 	})
 	if err != nil {

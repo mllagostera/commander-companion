@@ -122,6 +122,15 @@ type MoxfieldImportJob struct {
 	FinishedAt       pgtype.Timestamp `json:"finished_at"`
 }
 
+type PasswordResetToken struct {
+	ID        pgtype.UUID      `json:"id"`
+	UserID    pgtype.UUID      `json:"user_id"`
+	TokenHash string           `json:"token_hash"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UsedAt    pgtype.Timestamp `json:"used_at"`
+}
+
 type Playgroup struct {
 	ID        pgtype.UUID      `json:"id"`
 	Name      string           `json:"name"`

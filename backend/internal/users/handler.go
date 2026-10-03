@@ -26,6 +26,8 @@ func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {
 	router.Post("/auth/register", rateLimit, h.Register)
 	router.Post("/auth/verify-email", rateLimit, h.VerifyEmail)
 	router.Post("/auth/resend-verification", rateLimit, h.ResendVerification)
+	router.Post("/auth/forgot-password", rateLimit, h.ForgotPassword)
+	router.Post("/auth/reset-password", rateLimit, h.ResetPassword)
 	router.Get("/users/username-available", rateLimit, h.CheckUsernameAvailable)
 }
 
@@ -114,6 +116,40 @@ func (h *Handler) ResendVerification(c *fiber.Ctx) error {
 	}
 
 	if err := h.svc.ResendVerification(c.Context(), req.Email, req.Locale); err != nil {
+		return common.MapError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ForgotPassword emails a password reset link if applicable. It always responds 204
+// (see users.Service.RequestPasswordReset: it doesn't reveal whether the email exists).
+func (h *Handler) ForgotPassword(c *fiber.Ctx) error {
+	var req ForgotPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+	if req.Email == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "email is required")
+	}
+
+	if err := h.svc.RequestPasswordReset(c.Context(), req.Email, req.Locale); err != nil {
+		return common.MapError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ResetPassword sets a new password from the token sent by mail. POST with the token in
+// the body for the same reason as VerifyEmail: it never ends up in a logged query string.
+func (h *Handler) ResetPassword(c *fiber.Ctx) error {
+	var req ResetPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+	}
+	if req.Token == "" || req.NewPassword == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "token and new_password are required")
+	}
+
+	if err := h.svc.ResetPassword(c.Context(), req.Token, req.NewPassword); err != nil {
 		return common.MapError(err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

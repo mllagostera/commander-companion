@@ -77,6 +77,40 @@ UPDATE users SET email_verified = true
 WHERE id = $1
 RETURNING *;
 
+-- name: CreatePasswordResetToken :one
+INSERT INTO password_reset_tokens (
+  user_id, token_hash, expires_at
+) VALUES (
+  $1, $2, $3
+)
+RETURNING *;
+
+-- name: LockPasswordResetTokenByHash :one
+-- FOR UPDATE: ResetPassword runs inside a transaction, so two requests racing with
+-- the same link can't both see it unused and both change the password.
+SELECT * FROM password_reset_tokens
+WHERE token_hash = $1 LIMIT 1
+FOR UPDATE;
+
+-- name: MarkPasswordResetTokensUsedForUser :exec
+-- Burns every outstanding reset link of the user, not just the one being redeemed: once
+-- the password has changed, an older email sitting in the inbox must stop working too.
+UPDATE password_reset_tokens SET used_at = now()
+WHERE user_id = $1 AND used_at IS NULL;
+
+-- name: ResetPasswordHash :one
+-- email_verified is forced to true: redeeming a link sent to that address proves the
+-- user owns it, same reasoning as LinkGoogleID.
+UPDATE users SET password_hash = $2, email_verified = true
+WHERE id = $1
+RETURNING *;
+
+-- name: RevokeUserRefreshTokens :exec
+-- Same statement as auth's RevokeAllRefreshTokensForUser: a password reset signs the
+-- account out everywhere, in case whoever had the old password still holds a session.
+UPDATE refresh_tokens SET revoked_at = now()
+WHERE user_id = $1 AND revoked_at IS NULL;
+
 -- name: UsernameExists :one
 SELECT EXISTS(SELECT 1 FROM users WHERE username = $1) AS exists;
 

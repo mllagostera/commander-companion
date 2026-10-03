@@ -14,7 +14,8 @@ services:
       # REQUIRE_EMAIL_VERIFICATION not set: default false (alpha phase, see
       # ADR-0012) — registration leaves the account verified from the start and doesn't send a mail.
       # RESEND_API_KEY/EMAIL_FROM/RESEND_VERIFY_EMAIL_TEMPLATE_ID not set: the verification
-      # link is logged to the console instead of being sent (see internal/email).
+      # and password reset links are logged to the console instead of being sent (see
+      # internal/email).
     depends_on:
       db:
         condition: service_healthy
