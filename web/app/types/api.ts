@@ -172,6 +172,11 @@ export interface IncomingFriendRequest {
   created_at: string
 }
 
+/** `GET /friends/requests/count`: pending requests addressed to the authenticated user. */
+export interface FriendRequestCount {
+  incoming: number
+}
+
 /** A pending request sent by the authenticated user (`GET /friends/requests?direction=outgoing`). */
 export interface OutgoingFriendRequest {
   id: string

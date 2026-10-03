@@ -1,4 +1,10 @@
-import type { Friend, FriendRequestResult, IncomingFriendRequest, OutgoingFriendRequest } from '~/types/api'
+import type {
+  Friend,
+  FriendRequestCount,
+  FriendRequestResult,
+  IncomingFriendRequest,
+  OutgoingFriendRequest,
+} from '~/types/api'
 
 export function useFriends() {
   const { apiFetch } = useApi()
@@ -17,6 +23,11 @@ export function useFriends() {
 
   function listIncomingRequests() {
     return apiFetch<IncomingFriendRequest[]>('/friends/requests', { query: { direction: 'incoming' } })
+  }
+
+  /** Just the number of pending incoming requests, for the nav badge (see useFriendRequestCount). */
+  function countIncomingRequests() {
+    return apiFetch<FriendRequestCount>('/friends/requests/count')
   }
 
   function listOutgoingRequests() {
@@ -49,6 +60,7 @@ export function useFriends() {
   return {
     sendFriendRequest,
     listIncomingRequests,
+    countIncomingRequests,
     listOutgoingRequests,
     acceptFriendRequest,
     rejectFriendRequest,

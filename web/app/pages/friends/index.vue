@@ -22,6 +22,13 @@ const { data: incoming, refresh: refreshIncoming } = await useAsyncData(
   () => listIncomingRequests(),
   { default: () => [] },
 )
+// The list is the source of truth on this page: answering a request updates the nav
+// badge right away instead of waiting for its next check.
+const { count: incomingCount } = useFriendRequestCount()
+watch(incoming, (list) => {
+  incomingCount.value = list.length
+}, { immediate: true })
+
 const { data: outgoing, refresh: refreshOutgoing } = await useAsyncData(
   'friends-outgoing',
   () => listOutgoingRequests(),

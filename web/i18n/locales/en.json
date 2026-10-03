@@ -20,6 +20,7 @@
     "language": "Language",
     "tournaments": "Tournaments",
     "friends": "Friends",
+    "pendingFriendRequests": "{count} pending friend request | {count} pending friend requests",
     "userMenu": "User menu",
     "admin": "Admin"
   },
