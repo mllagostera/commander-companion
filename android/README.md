@@ -43,6 +43,13 @@ name (the deployed backend on Render), so it can be installed straight on a
 phone. Local builds are unaffected. Without the secret, CI builds the local
 default and flags it with a warning.
 
+That APK is also signed with a fixed debug key: the `ANDROID_DEBUG_KEYSTORE_BASE64`
+secret holds the repo owner's `~/.android/debug.keystore` (base64), restored on the
+runner before the build. So CI and local debug builds share one signature (they
+install over each other) and one SHA-1 to register in the Google Cloud Android
+OAuth client. Without it every run would mint its own random key. To rotate it:
+`base64 -w0 ~/.android/debug.keystore | gh secret set ANDROID_DEBUG_KEYSTORE_BASE64`.
+
 ### Google Sign-In
 
 `GOOGLE_WEB_CLIENT_ID` is currently a placeholder (`app/build.gradle.kts`) —
