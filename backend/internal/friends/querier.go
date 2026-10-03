@@ -11,6 +11,9 @@ import (
 )
 
 type Querier interface {
+	// Same filter as ListIncomingFriendRequests, so the clients' badge always matches the
+	// length of the list it leads to. Served by friend_requests_addressee_id_idx.
+	CountIncomingFriendRequests(ctx context.Context, addresseeID pgtype.UUID) (int64, error)
 	CreateFriendRequest(ctx context.Context, arg CreateFriendRequestParams) (FriendRequest, error)
 	// Removes an accepted friendship between user_a and user_b, regardless of direction.
 	DeleteFriendship(ctx context.Context, arg DeleteFriendshipParams) error

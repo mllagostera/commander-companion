@@ -47,3 +47,9 @@ type FriendResponse struct {
 	Username     string    `json:"username"`
 	FriendsSince time.Time `json:"friends_since"`
 }
+
+// FriendRequestCountResponse is the payload of GET /friends/requests/count.
+type FriendRequestCountResponse struct {
+	// Incoming is the number of pending requests addressed to the caller.
+	Incoming int64 `json:"incoming"`
+}
