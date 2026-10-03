@@ -110,6 +110,27 @@ export function useAuth() {
     })
   }
 
+  /** Emails a reset link if the address has an account; never says whether it does. */
+  async function requestPasswordReset(email: string) {
+    await nitroFetch('/api/auth/forgot-password', {
+      method: 'POST',
+      body: { email, locale: currentLocale() },
+    })
+  }
+
+  /**
+   * Sets a new password from the emailed token. The backend signs the account out
+   * everywhere, and the Nitro route drops this browser's cookies, so the local session
+   * goes too.
+   */
+  async function resetPassword(token: string, newPassword: string) {
+    await nitroFetch('/api/auth/reset-password', {
+      method: 'POST',
+      body: { token, new_password: newPassword },
+    })
+    resetSession()
+  }
+
   async function loginWithGoogle(idToken: string) {
     return applySession(
       await nitroFetch<SessionResponse>('/api/auth/google', {
@@ -149,6 +170,8 @@ export function useAuth() {
     checkUsernameAvailable,
     verifyEmail,
     resendVerification,
+    requestPasswordReset,
+    resetPassword,
     loginWithGoogle,
     logout,
     fetchSession,
@@ -239,4 +262,25 @@ export function verifyEmailError(err: unknown): string {
   const { t } = useNuxtApp().$i18n
   if (apiErrorStatus(err) === 400) return t('verifyEmail.invalidOrExpired')
   return commonAuthError(err) ?? t('verifyEmail.verifyFailed')
+}
+
+export function forgotPasswordError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  return commonAuthError(err) ?? t('forgotPassword.errors.requestFailed')
+}
+
+/**
+ * True when a reset failed because the link is dead (ErrInvalidPasswordResetToken: unknown,
+ * used or expired token). It shares 400 with ErrPasswordTooShort; only the backend message
+ * tells them apart.
+ */
+export function isInvalidResetTokenError(err: unknown): boolean {
+  return apiErrorStatus(err) === 400 && apiErrorMessage(err, '').toLowerCase().includes('token')
+}
+
+export function resetPasswordError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  if (isInvalidResetTokenError(err)) return t('resetPassword.errors.invalidOrExpired')
+  if (apiErrorStatus(err) === 400) return t('resetPassword.errors.passwordTooShort')
+  return commonAuthError(err) ?? t('resetPassword.errors.resetFailed')
 }

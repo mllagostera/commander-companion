@@ -28,6 +28,7 @@
     "emailLabel": "Correu",
     "emailPlaceholder": "el.teu\\@correu.com",
     "passwordLabel": "Contrasenya",
+    "forgotPassword": "Has oblidat la contrasenya?",
     "submit": "Inicia sessió",
     "submitting": "Entrant…",
     "divider": "o",
@@ -109,6 +110,51 @@
       "loginLink": "iniciar sessió"
     },
     "invalidOrExpired": "L'enllaç de verificació no és vàlid o ha caducat."
+  },
+  "forgotPassword": {
+    "title": "Has oblidat la contrasenya?",
+    "intro": "Escriu el correu del teu compte i t'enviarem un enllaç per triar una contrasenya nova.",
+    "emailLabel": "Correu",
+    "submit": "Envia l'enllaç",
+    "submitting": "Enviant…",
+    "backToLogin": "Torna a iniciar sessió",
+    "sent": {
+      "title": "Revisa el teu correu",
+      "bodyIntro": "Si hi ha un compte associat a",
+      "bodyOutro": ", rebràs un enllaç per restablir la contrasenya. Caduca d'aquí a 1 hora."
+    },
+    "errors": {
+      "requestFailed": "No s'ha pogut enviar l'enllaç. Torna-ho a provar."
+    },
+    "meta": {
+      "title": "Recupera la contrasenya · TapeandoCartones"
+    }
+  },
+  "resetPassword": {
+    "title": "Tria una contrasenya nova",
+    "intro": "En desar-la es tancarà la sessió a tots els teus dispositius.",
+    "passwordLabel": "Contrasenya nova",
+    "passwordConfirmLabel": "Repeteix la contrasenya nova",
+    "submit": "Desa la contrasenya",
+    "submitting": "Desant…",
+    "success": {
+      "title": "Contrasenya canviada",
+      "body": "Ja pots iniciar sessió amb la teva contrasenya nova.",
+      "goToLogin": "Ves a iniciar sessió"
+    },
+    "invalidLink": {
+      "title": "Enllaç no vàlid",
+      "requestNew": "Demana un enllaç nou"
+    },
+    "errors": {
+      "invalidOrExpired": "L'enllaç per restablir la contrasenya no és vàlid, ja s'ha fet servir o ha caducat.",
+      "passwordTooShort": "La contrasenya ha de tenir almenys 8 caràcters.",
+      "passwordMismatch": "Les contrasenyes no coincideixen.",
+      "resetFailed": "No s'ha pogut canviar la contrasenya."
+    },
+    "meta": {
+      "title": "Restableix la contrasenya · TapeandoCartones"
+    }
   },
   "dashboard": {
     "greeting": "Hola, {username}",

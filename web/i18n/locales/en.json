@@ -28,6 +28,7 @@
     "emailLabel": "Email",
     "emailPlaceholder": "you\\@email.com",
     "passwordLabel": "Password",
+    "forgotPassword": "Forgot your password?",
     "submit": "Log in",
     "submitting": "Logging in…",
     "divider": "or",
@@ -109,6 +110,51 @@
       "loginLink": "login"
     },
     "invalidOrExpired": "The verification link is invalid or has expired."
+  },
+  "forgotPassword": {
+    "title": "Forgot your password?",
+    "intro": "Enter your account's email and we'll send you a link to choose a new password.",
+    "emailLabel": "Email",
+    "submit": "Send link",
+    "submitting": "Sending…",
+    "backToLogin": "Back to login",
+    "sent": {
+      "title": "Check your email",
+      "bodyIntro": "If there's an account for",
+      "bodyOutro": ", you'll get a link to reset your password. It expires in 1 hour."
+    },
+    "errors": {
+      "requestFailed": "Couldn't send the link. Please try again."
+    },
+    "meta": {
+      "title": "Recover password · TapeandoCartones"
+    }
+  },
+  "resetPassword": {
+    "title": "Choose a new password",
+    "intro": "Saving it will sign you out on all your devices.",
+    "passwordLabel": "New password",
+    "passwordConfirmLabel": "Repeat new password",
+    "submit": "Save password",
+    "submitting": "Saving…",
+    "success": {
+      "title": "Password changed",
+      "body": "You can now log in with your new password.",
+      "goToLogin": "Go to login"
+    },
+    "invalidLink": {
+      "title": "Invalid link",
+      "requestNew": "Request a new link"
+    },
+    "errors": {
+      "invalidOrExpired": "The password reset link is invalid, has already been used or has expired.",
+      "passwordTooShort": "The password must be at least 8 characters long.",
+      "passwordMismatch": "The passwords don't match.",
+      "resetFailed": "Couldn't change the password."
+    },
+    "meta": {
+      "title": "Reset password · TapeandoCartones"
+    }
   },
   "dashboard": {
     "greeting": "Hi, {username}",
