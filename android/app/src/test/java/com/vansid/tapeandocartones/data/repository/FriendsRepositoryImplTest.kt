@@ -1,6 +1,7 @@
 package com.vansid.tapeandocartones.data.repository
 
 import com.vansid.tapeandocartones.core.util.ApiError
+import com.vansid.tapeandocartones.domain.model.FriendRequestCount
 import com.vansid.tapeandocartones.domain.model.FriendRequestResult
 import com.vansid.tapeandocartones.testing.FakeCommanderApi
 import com.vansid.tapeandocartones.testing.friendDto
@@ -36,6 +37,21 @@ class FriendsRepositoryImplTest {
         api.onListFriends = { throw IOException("sin red") }
 
         assertTrue(repository.listFriends().exceptionOrNull() is ApiError.Network)
+    }
+
+    @Test
+    fun `countIncomingRequests unwraps the count`() = runTest {
+        api.onCountIncomingFriendRequests = { FriendRequestCount(incoming = 3) }
+
+        assertEquals(3, repository.countIncomingRequests().getOrThrow())
+        assertEquals(listOf("countIncomingFriendRequests"), api.calls)
+    }
+
+    @Test
+    fun `countIncomingRequests propagates a network error`() = runTest {
+        api.onCountIncomingFriendRequests = { throw IOException("offline") }
+
+        assertTrue(repository.countIncomingRequests().exceptionOrNull() is ApiError.Network)
     }
 
     @Test

@@ -22,6 +22,9 @@ interface FriendsRepository {
 
     suspend fun listOutgoingRequests(): Result<List<OutgoingFriendRequest>>
 
+    /** How many pending requests this user has to answer, without fetching the list. */
+    suspend fun countIncomingRequests(): Result<Int>
+
     /**
      * Sends a request to [userId], whether it came from a username search or
      * from a scanned QR — both entry points end here.

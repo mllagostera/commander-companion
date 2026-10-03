@@ -22,6 +22,7 @@ import com.vansid.tapeandocartones.domain.model.DeckStats
 import com.vansid.tapeandocartones.domain.model.FinishedGame
 import com.vansid.tapeandocartones.domain.model.FinishedGamePlayer
 import com.vansid.tapeandocartones.domain.model.Friend
+import com.vansid.tapeandocartones.domain.model.FriendRequestCount
 import com.vansid.tapeandocartones.domain.model.FriendRequestResult
 import com.vansid.tapeandocartones.domain.model.Game
 import com.vansid.tapeandocartones.domain.model.GameAction
@@ -249,6 +250,7 @@ class FakeCommanderApi : CommanderApi {
     var onListFriends: suspend () -> List<Friend> = { emptyList() }
     var onListIncomingFriendRequests: suspend () -> List<IncomingFriendRequest> = { emptyList() }
     var onListOutgoingFriendRequests: suspend () -> List<OutgoingFriendRequest> = { emptyList() }
+    var onCountIncomingFriendRequests: suspend () -> FriendRequestCount = { FriendRequestCount(incoming = 0) }
     var onSendFriendRequest: suspend (SendFriendRequestRequest) -> FriendRequestResult = { request ->
         friendRequestDto(addresseeId = request.addresseeId)
     }
@@ -406,6 +408,11 @@ class FakeCommanderApi : CommanderApi {
     override suspend fun listIncomingFriendRequests(direction: String): List<IncomingFriendRequest> {
         calls += "listIncomingFriendRequests"
         return onListIncomingFriendRequests()
+    }
+
+    override suspend fun countIncomingFriendRequests(): FriendRequestCount {
+        calls += "countIncomingFriendRequests"
+        return onCountIncomingFriendRequests()
     }
 
     override suspend fun listOutgoingFriendRequests(direction: String): List<OutgoingFriendRequest> {
