@@ -515,13 +515,26 @@ const filteredDecks = computed(() => {
     />
 
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div v-for="deck in filteredDecks" :key="deck.id" class="relative">
-        <DeckArt :deck="deck" aspect-ratio="21/9" rounded="rounded-[var(--radius-lg)]" image-position="right" />
+      <!--
+        21/9 is the card's minimum shape, not a fixed height: a 21/9 spacer and the
+        content share the same grid cell, so the card is as tall as whichever is
+        taller. On a narrow phone (or a two-column tablet) the traits row and the
+        buttons don't fit the 21/9 box, and the card grows instead of spilling the
+        buttons out of it. The art and the gradient sit behind, absolutely positioned.
+      -->
+      <div
+        v-for="deck in filteredDecks"
+        :key="deck.id"
+        class="relative grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[var(--radius-lg)] border"
+        style="border-color: var(--card-border);"
+      >
+        <DeckArt :deck="deck" fill rounded="rounded-[var(--radius-lg)]" image-position="right" />
         <div
-          class="pointer-events-none absolute inset-0 rounded-[var(--radius-lg)]"
+          class="pointer-events-none absolute inset-0"
           style="background: linear-gradient(90deg, rgba(10,7,20,0.94) 0%, rgba(10,7,20,0.82) 38%, rgba(10,7,20,0.25) 68%, rgba(10,7,20,0) 92%);"
         />
-        <div class="absolute inset-y-0 left-0 flex w-[68%] flex-col justify-between p-4 sm:w-[58%]">
+        <div aria-hidden="true" class="[grid-area:1/1]" style="aspect-ratio: 21/9;" />
+        <div class="relative flex w-[68%] flex-col justify-between gap-3 p-4 [grid-area:1/1] sm:w-[58%]">
           <div class="pointer-events-none">
             <p class="font-semibold text-white">{{ deck.name }}</p>
             <p class="mt-1 text-xs text-white/70">{{ deck.commander }}</p>
