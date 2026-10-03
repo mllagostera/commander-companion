@@ -222,6 +222,10 @@
 
     <!-- friends -->
     <string name="dashboard_friends">Friends</string>
+    <plurals name="dashboard_pending_friend_requests">
+        <item quantity="one">%1$d pending friend request</item>
+        <item quantity="other">%1$d pending friend requests</item>
+    </plurals>
     <string name="friends_title">Friends</string>
     <string name="friends_subtitle">Add someone by username, or by scanning their profile code.</string>
     <string name="friends_empty">No friends or requests yet. Search for someone by username to get started.</string>

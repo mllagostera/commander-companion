@@ -3,16 +3,30 @@ const { user, logout } = useAuth()
 const { theme, toggleTheme } = useTheme()
 const { t, locale, locales, setLocale } = useI18n()
 
+const { count: pendingFriendRequests, watchForChanges } = useFriendRequestCount()
+watchForChanges()
+// Client-only: the server renders this header before the page below it has set the count
+// (pages/friends does, from its own list), so showing it during SSR would hydrate against
+// a different value. Until mount it reads as zero on both sides.
+const isMounted = ref(false)
+onMounted(() => {
+  isMounted.value = true
+})
+const friendRequestCount = computed(() => (isMounted.value ? pendingFriendRequests.value : 0))
+/** Badges cap at 9+: past that the exact number doesn't change what the user does. */
+const friendRequestBadge = computed(() => (friendRequestCount.value > 9 ? '9+' : String(friendRequestCount.value)))
+
 const availableLocales = computed(() => locales.value as { code: string, name?: string }[])
 
 const links = computed(() => {
-  const items = [
+  /** badge: shows the pending friend requests count next to the label. */
+  const items: { to: string, label: string, badge?: boolean }[] = [
     { to: '/', label: t('nav.home') },
     { to: '/decks', label: t('nav.decks') },
     { to: '/statistics', label: t('nav.statistics') },
     { to: '/playgroups', label: t('nav.playgroups') },
     { to: '/tournaments', label: t('nav.tournaments') },
-    { to: '/friends', label: t('nav.friends') },
+    { to: '/friends', label: t('nav.friends'), badge: true },
   ]
   if (user.value?.is_admin) items.push({ to: '/admin', label: t('nav.admin') })
   return items
@@ -80,10 +94,19 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
             v-for="link in links"
             :key="link.to"
             :to="link.to"
-            class="transition-colors"
+            class="inline-flex items-center gap-1.5 transition-colors"
             :style="{ color: isActive(link.to) ? 'var(--accent-link)' : 'var(--text-muted)' }"
+            :aria-label="link.badge && friendRequestCount > 0
+              ? `${link.label}, ${$t('nav.pendingFriendRequests', friendRequestCount)}`
+              : undefined"
           >
             {{ link.label }}
+            <span
+              v-if="link.badge && friendRequestCount > 0"
+              aria-hidden="true"
+              class="min-w-[18px] rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px] text-[#0a0714]"
+              style="background: linear-gradient(135deg, #8b5cf6, #a855f7);"
+            >{{ friendRequestBadge }}</span>
           </NuxtLink>
         </nav>
 
@@ -96,9 +119,19 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
             @click="toggleUserMenu"
           >
             <span
-              class="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-[#0a0714]"
+              class="relative flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-[#0a0714]"
               style="background: linear-gradient(135deg, #8b5cf6, #a855f7);"
-            >{{ userInitial }}</span>
+            >
+              {{ userInitial }}
+              <!-- Mobile only: there the nav links live inside this menu, so the dot says "open me". -->
+              <span
+                v-if="friendRequestCount > 0"
+                class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 sm:hidden"
+                style="background: var(--lose); border-color: var(--header-bg);"
+              >
+                <span class="sr-only">{{ $t('nav.pendingFriendRequests', friendRequestCount) }}</span>
+              </span>
+            </span>
             <span class="hidden text-sm sm:inline" style="color: var(--text);">{{ user?.username ?? '…' }}</span>
             <span
               aria-hidden="true"
@@ -118,11 +151,20 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
                   v-for="link in links"
                   :key="link.to"
                   :to="link.to"
-                  class="rounded-[var(--radius-sm)] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
+                  class="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] px-2.5 py-[9px] text-left text-[13px] transition-colors hover:bg-[var(--card-bg)]"
                   :style="{ color: isActive(link.to) ? 'var(--accent-link)' : 'var(--text)' }"
+                  :aria-label="link.badge && friendRequestCount > 0
+                    ? `${link.label}, ${$t('nav.pendingFriendRequests', friendRequestCount)}`
+                    : undefined"
                   @click="closeUserMenu"
                 >
                   {{ link.label }}
+                  <span
+                    v-if="link.badge && friendRequestCount > 0"
+                    aria-hidden="true"
+                    class="min-w-[18px] rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px] text-[#0a0714]"
+                    style="background: linear-gradient(135deg, #8b5cf6, #a855f7);"
+                  >{{ friendRequestBadge }}</span>
                 </NuxtLink>
               </nav>
               <div class="flex items-center justify-between px-2.5 py-2">

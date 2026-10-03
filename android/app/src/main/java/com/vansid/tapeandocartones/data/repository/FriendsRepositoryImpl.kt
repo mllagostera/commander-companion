@@ -27,6 +27,9 @@ class FriendsRepositoryImpl @Inject constructor(
     override suspend fun listOutgoingRequests(): Result<List<OutgoingFriendRequest>> =
         apiCall { api.listOutgoingFriendRequests() }
 
+    override suspend fun countIncomingRequests(): Result<Int> =
+        apiCall { api.countIncomingFriendRequests().incoming }
+
     override suspend fun sendRequest(userId: String): Result<FriendRequestResult> =
         apiCall { api.sendFriendRequest(SendFriendRequestRequest(addresseeId = userId)) }
 

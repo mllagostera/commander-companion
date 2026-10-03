@@ -98,6 +98,8 @@ dependencies {
     // works with a plain ComponentActivity since AppCompat 1.6.0 — no need for AppCompatActivity.
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // LifecycleResumeEffect: the dashboard re-checks pending friend requests on every resume.
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)

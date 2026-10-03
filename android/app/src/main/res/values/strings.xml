@@ -225,6 +225,11 @@
 
     <!-- friends -->
     <string name="dashboard_friends">Amigos</string>
+    <plurals name="dashboard_pending_friend_requests">
+        <item quantity="one">%1$d solicitud de amistad pendiente</item>
+        <item quantity="many">%1$d solicitudes de amistad pendientes</item>
+        <item quantity="other">%1$d solicitudes de amistad pendientes</item>
+    </plurals>
     <string name="friends_title">Amigos</string>
     <string name="friends_subtitle">Añade a alguien por su nombre de usuario o escaneando su código de perfil.</string>
     <string name="friends_empty">Todavía no tienes amigos ni solicitudes. Busca a alguien por su nombre de usuario para empezar.</string>

@@ -13,6 +13,7 @@ import com.vansid.tapeandocartones.domain.model.Deck
 import com.vansid.tapeandocartones.domain.model.DeckStats
 import com.vansid.tapeandocartones.domain.model.FinishedGame
 import com.vansid.tapeandocartones.domain.model.Friend
+import com.vansid.tapeandocartones.domain.model.FriendRequestCount
 import com.vansid.tapeandocartones.domain.model.FriendRequestResult
 import com.vansid.tapeandocartones.domain.model.Game
 import com.vansid.tapeandocartones.domain.model.GameAction
@@ -215,6 +216,10 @@ interface CommanderApi {
     suspend fun listIncomingFriendRequests(
         @Query("direction") direction: String = "incoming"
     ): List<IncomingFriendRequest>
+
+    /** Just the number of pending incoming requests, for the dashboard badge. */
+    @GET("api/v1/friends/requests/count")
+    suspend fun countIncomingFriendRequests(): FriendRequestCount
 
     @GET("api/v1/friends/requests")
     suspend fun listOutgoingFriendRequests(

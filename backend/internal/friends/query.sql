@@ -40,6 +40,12 @@ JOIN users u ON u.id = fr.requester_id
 WHERE fr.addressee_id = $1 AND fr.status = 'pending'
 ORDER BY fr.created_at DESC;
 
+-- name: CountIncomingFriendRequests :one
+-- Same filter as ListIncomingFriendRequests, so the clients' badge always matches the
+-- length of the list it leads to. Served by friend_requests_addressee_id_idx.
+SELECT count(*) FROM friend_requests
+WHERE addressee_id = $1 AND status = 'pending';
+
 -- name: ListOutgoingFriendRequests :many
 -- Pending requests sent by user_id, with the addressee's username.
 SELECT fr.id, fr.requester_id, fr.addressee_id, fr.status, fr.created_at, fr.responded_at,

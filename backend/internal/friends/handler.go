@@ -20,6 +20,7 @@ func NewHandler(svc Service) *Handler {
 func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Post("/friends/requests", h.SendFriendRequest)
 	router.Get("/friends/requests", h.ListRequests)
+	router.Get("/friends/requests/count", h.CountIncomingRequests)
 	router.Post("/friends/requests/:id/accept", h.AcceptFriendRequest)
 	router.Post("/friends/requests/:id/reject", h.RejectFriendRequest)
 	router.Delete("/friends/requests/:id", h.CancelFriendRequest)
@@ -57,6 +58,18 @@ func (h *Handler) ListRequests(c *fiber.Ctx) error {
 	}
 
 	res, err := h.svc.ListIncomingRequests(c.Context(), userID)
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
+}
+
+// CountIncomingRequests returns how many pending requests the authenticated user has
+// to answer (the badge on the clients' friends entry point).
+func (h *Handler) CountIncomingRequests(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+
+	res, err := h.svc.CountIncomingRequests(c.Context(), userID)
 	if err != nil {
 		return common.MapError(err)
 	}

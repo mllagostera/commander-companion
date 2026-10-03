@@ -1237,6 +1237,14 @@ components:
         created_at:
           type: string
           format: date-time
+    FriendRequestCount:
+      type: object
+      required: [incoming]
+      properties:
+        incoming:
+          type: integer
+          minimum: 0
+          description: Pending requests addressed to the authenticated user.
     IncomingFriendRequest:
       type: object
       properties:
@@ -3839,6 +3847,24 @@ Disallow: /
                   oneOf:
                     - $ref: '#/components/schemas/IncomingFriendRequest'
                     - $ref: '#/components/schemas/OutgoingFriendRequest'
+  /friends/requests/count:
+    get:
+      summary: Count the authenticated user's pending incoming friend requests
+      description: >-
+        The same set GET /friends/requests?direction=incoming returns, as a
+        number. The clients poll it for the badge on their friends entry
+        point (on navigation, on resume, and every couple of minutes while
+        the web tab is visible), so it avoids fetching the whole list.
+      operationId: countIncomingFriendRequests
+      tags:
+        - Friends
+      responses:
+        '200':
+          description: Number of pending incoming requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendRequestCount'
   /friends/requests/{id}/accept:
     post:
       summary: Accept a pending friend request (only its addressee may accept it)

@@ -20,6 +20,7 @@
     "language": "Idioma",
     "tournaments": "Tornejos",
     "friends": "Amics",
+    "pendingFriendRequests": "{count} sol·licitud d'amistat pendent | {count} sol·licituds d'amistat pendents",
     "userMenu": "Menú d'usuari",
     "admin": "Admin"
   },

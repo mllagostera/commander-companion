@@ -25,6 +25,30 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-03 — Badge for pending friend requests.** Requested by the user: sending
+a friend request notified nobody, so the addressee only found out by opening the
+friends screen. Three options were weighed: an in-app badge, an email, and push
+notifications. The badge was chosen as the first step: it needs no new
+infrastructure and covers anyone who opens the app. An email is the next step if
+people turn out to rarely do that, but it's an unsolicited message and needs an
+opt-out setting, an unsubscribe link and a cap. Push (Firebase + Web Push: device
+tokens, a service worker, permission prompts) only pays off once there are two or
+three kinds of events to announce, so it would be built once as a general system.
+
+What was built: `GET /friends/requests/count` (same filter as the incoming list,
+served by `friend_requests_addressee_id_idx`), and a badge capped at "9+" on both
+clients. On the web it sits on the nav link and in the mobile menu, with a dot on
+the avatar on mobile. It's rendered only after mount: the layout's SSR runs before
+the friends page sets the count from its own list, so rendering it on the server
+would hydrate against a different value. On Android it's on the dashboard, re-checked
+by `LifecycleResumeEffect` (`lifecycle-runtime-compose` is now declared explicitly
+instead of coming in through navigation-compose). Verified with the friends backend
+tests against `postgres:18-alpine`, `golangci-lint`, web `eslint` + `nuxt typecheck`,
+all 218 Android unit tests + `lintDebug`, both i18n checks, and headless Chrome
+against a local stack: badge at 2, its accessible label read out in full, down to 1
+right after accepting one request without a reload, no hydration warnings, and the
+mobile dot and menu count.
+
 **2026-10-03 — Password reset by email.** Requested by the user, after checking
 that someone who forgot their password had no way back in (no link on login, no
 endpoint, no admin action). Built on the email verification pieces

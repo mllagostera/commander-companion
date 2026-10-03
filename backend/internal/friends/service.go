@@ -50,6 +50,10 @@ type Service interface {
 		ctx context.Context, requesterID string, req SendFriendRequestRequest,
 	) (*FriendRequestResponse, error)
 	ListIncomingRequests(ctx context.Context, userID string) ([]IncomingFriendRequestResponse, error)
+	// CountIncomingRequests returns how many pending requests userID has to answer —
+	// what the clients show as a badge on the friends entry point, polled cheaply
+	// instead of fetching the whole list.
+	CountIncomingRequests(ctx context.Context, userID string) (*FriendRequestCountResponse, error)
 	ListOutgoingRequests(ctx context.Context, userID string) ([]OutgoingFriendRequestResponse, error)
 	// AcceptFriendRequest accepts requestID. Only its addressee may accept it.
 	AcceptFriendRequest(ctx context.Context, userID, requestID string) (*FriendResponse, error)
@@ -184,6 +188,20 @@ func (s *service) ListIncomingRequests(ctx context.Context, userID string) ([]In
 		})
 	}
 	return result, nil
+}
+
+// CountIncomingRequests see Service.CountIncomingRequests.
+func (s *service) CountIncomingRequests(ctx context.Context, userID string) (*FriendRequestCountResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+
+	count, err := s.repo.CountIncomingFriendRequests(ctx, uid)
+	if err != nil {
+		return nil, fmt.Errorf("counting incoming friend requests: %w", err)
+	}
+	return &FriendRequestCountResponse{Incoming: count}, nil
 }
 
 // ListOutgoingRequests returns userID's pending outgoing requests.

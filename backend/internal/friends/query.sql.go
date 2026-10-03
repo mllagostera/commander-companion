@@ -11,6 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countIncomingFriendRequests = `-- name: CountIncomingFriendRequests :one
+SELECT count(*) FROM friend_requests
+WHERE addressee_id = $1 AND status = 'pending'
+`
+
+// Same filter as ListIncomingFriendRequests, so the clients' badge always matches the
+// length of the list it leads to. Served by friend_requests_addressee_id_idx.
+func (q *Queries) CountIncomingFriendRequests(ctx context.Context, addresseeID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countIncomingFriendRequests, addresseeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createFriendRequest = `-- name: CreateFriendRequest :one
 INSERT INTO friend_requests (requester_id, addressee_id)
 VALUES ($1, $2)

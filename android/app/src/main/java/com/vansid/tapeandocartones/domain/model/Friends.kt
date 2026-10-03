@@ -78,3 +78,9 @@ data class UserSearchResult(
     val id: String,
     val username: String
 )
+
+/** `GET /friends/requests/count`: pending requests addressed to the signed-in user. */
+@Serializable
+data class FriendRequestCount(
+    val incoming: Int
+)
