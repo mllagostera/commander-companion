@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.vansid.tapeandocartones.presentation.screens.dashboard.DashboardScreen
+import com.vansid.tapeandocartones.presentation.screens.forgotpassword.ForgotPasswordScreen
 import com.vansid.tapeandocartones.presentation.screens.friends.FriendsScreen
 import com.vansid.tapeandocartones.presentation.screens.game.GameTrackerScreen
 import com.vansid.tapeandocartones.presentation.screens.history.HistoryScreen
@@ -41,7 +42,14 @@ fun AppNavigation(
                 onLoginSuccess = {
                     navController.navigate(DashboardRoute) { popUpTo(LoginRoute) { inclusive = true } }
                 },
-                onNavigateToRegister = { navController.navigate(RegisterRoute) }
+                onNavigateToRegister = { navController.navigate(RegisterRoute) },
+                onNavigateToForgotPassword = { email -> navController.navigate(ForgotPasswordRoute(email)) }
+            )
+        }
+        composable<ForgotPasswordRoute> { entry ->
+            ForgotPasswordScreen(
+                initialEmail = entry.toRoute<ForgotPasswordRoute>().email,
+                onNavigateToLogin = { navController.popBackStack(LoginRoute, inclusive = false) }
             )
         }
         composable<RegisterRoute> {

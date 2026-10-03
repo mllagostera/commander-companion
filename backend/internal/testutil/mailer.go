@@ -25,6 +25,11 @@ func (noopMailer) SendVerificationEmail(context.Context, string, string, string,
 	return nil
 }
 
+// SendPasswordResetEmail does nothing (see noopMailer).
+func (noopMailer) SendPasswordResetEmail(context.Context, string, string, string, string) error {
+	return nil
+}
+
 // NewUsersService instantiates users.Service with a no-op mailer and email
 // verification required (unlike the production default — see ADR-0012 —, here
 // requireEmailVerification is deliberately left true: this way registration still

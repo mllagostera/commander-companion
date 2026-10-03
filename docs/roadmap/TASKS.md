@@ -66,6 +66,15 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Resend domain `tapeandocartones.es` verified, sender `no-reply@tapeandocartones.es`, templates published (2026-10-01)
 - [ ] **Exit alpha: turn on `REQUIRE_EMAIL_VERIFICATION=true`** on Render — domain and templates are ready; flip the flag once the per-locale templates are deployed
 
+### Auth — password reset
+- [x] ADR: reset link by email, 1h single-use token, signs out everywhere — [ADR-0022](../decisions/0022-password-reset-by-email.md)
+- [x] Migration `00024_password_reset_tokens.sql`
+- [x] `POST /auth/forgot-password` (never reveals whether the email exists) and `POST /auth/reset-password` (transactional: new hash, email verified, other reset links burned, refresh tokens revoked)
+- [x] Web: "Forgot your password?" link on `login.vue`, `forgot-password.vue`, `reset-password.vue`, es/en/ca
+- [x] Email HTML per locale versioned in `docs/decisions/0022-password-reset-template.{es,en,ca}.html`
+- [x] Resend Templates `password-reset-es`, `-en`, `-ca` created and published (2026-10-03, with a full-access key kept out of the backend, whose key stays send-only)
+- [x] Android: "Forgot your password?" link on the login screen → `ForgotPasswordScreen` (`POST /auth/forgot-password`, es/en/ca); the reset itself happens on the web page the email links to
+
 ### Games / game-actions — game engine
 - [x] `games` wired to real `Queries`: create/get/list/join/leave/start/finish
 - [x] `pending → active → finished` state machine enforced server-side (join/leave only pending, start needs ≥2 players, finish only active)

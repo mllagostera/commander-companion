@@ -25,6 +25,23 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-03 — Password reset by email.** Requested by the user, after checking
+that someone who forgot their password had no way back in (no link on login, no
+endpoint, no admin action). Built on the email verification pieces
+([ADR-0012](../decisions/0012-email-verification-resend.md)); the decisions are in
+[ADR-0022](../decisions/0022-password-reset-by-email.md): 1h single-use token,
+always-204 request endpoint, transactional reset that verifies the email, burns
+the other pending links and revokes every refresh token, Google-only accounts
+allowed to add a password, no auto-login. The emails are one Resend Template per
+locale (`password-reset-{es,en,ca}`, base alias overridable with
+`RESEND_PASSWORD_RESET_TEMPLATE_ID`), HTML versioned next to the ADR, created and
+published in Resend the same day with a full-access key that never reaches the
+backend (its `RESEND_API_KEY` stays send-only). Verified with the full backend suite under `-race`
+against `postgres:18-alpine`, sqlc 1.27.0 regenerated, `golangci-lint` clean, web
+`eslint` + `nuxt typecheck` clean, and an end-to-end pass through the Nitro BFF
+(console mailer link → reset → old refresh token 401, old password 401, new
+password 200, link reuse 400; pages rendered in es/en/ca).
+
 **2026-10-02 — Admins can delete unfinished games.** Requested by the user: games
 that get opened and never closed pile up, and there was no way to remove them.
 `GET /admin/games` lists `pending`/`active` games oldest first (with group and

@@ -49,7 +49,7 @@ backend/
 │   ├── common/          # cross-cutting: errors, context keys, DB, health,
 │   │                    #   migrations, pagination, tokens, uuid
 │   ├── config/          # env loading and validation (config.Load)
-│   ├── email/           # Resend client (logs the link to console without an API key)
+│   ├── email/           # Resend client: verification + password reset (logs the link to console without an API key)
 │   ├── moxfield/        # external Moxfield HTTP client (+ retry)
 │   ├── notify/          # Slack webhook: a message per new signup (no-op without a URL)
 │   ├── websocket/       # hub, clients, broadcaster, envelope — live game sync
@@ -138,7 +138,7 @@ web/
 ├── nuxt.config.ts        # modules, i18n locales, runtimeConfig, inlineStyles
 ├── server/               # Nitro (BFF) — the ONLY thing that talks to the Go API
 │   ├── api/
-│   │   ├── auth/*.post.ts        # login, register, google, logout, verify-email…
+│   │   ├── auth/*.post.ts        # login, register, google, logout, verify-email, forgot/reset-password…
 │   │   │                         #   the only handlers that touch session cookies
 │   │   ├── backend/[...path].ts  # authenticated catch-all proxy to the Go API
 │   │   └── scryfall/             # server-side calls to third-party APIs
@@ -226,8 +226,8 @@ res/
 Dependency direction: `presentation → domain → data`. ViewModels depend on
 `domain/` interfaces, which Hilt binds to `data/repository/*Impl` in
 `core/di/RepositoryModule.kt`. The deliberate exception is
-the whole auth surface — `LoginViewModel`, `RegisterViewModel` and
-`SettingsViewModel` inject `AuthApi`/`CommanderApi`/`SessionManager` directly
+the whole auth surface — `LoginViewModel`, `RegisterViewModel`,
+`ForgotPasswordViewModel` and `SettingsViewModel` inject `AuthApi`/`CommanderApi`/`SessionManager` directly
 (see TASKS.md Stage 4).
 
 Naming is strict and mechanical: a feature folder under `screens/` contains

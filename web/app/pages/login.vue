@@ -173,6 +173,14 @@ onMounted(() => {
             style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
           >
         </label>
+        <!-- The typed email travels along so the next page doesn't ask for it again. -->
+        <NuxtLink
+          :to="{ path: '/forgot-password', query: email ? { email } : {} }"
+          class="-mt-1 self-end text-xs"
+          style="color: var(--accent-link);"
+        >
+          {{ $t('login.forgotPassword') }}
+        </NuxtLink>
 
         <p v-if="errorMessage" class="text-sm" style="color: var(--lose);">{{ errorMessage }}</p>
 

@@ -33,7 +33,10 @@ const (
 	defaultRefreshTokenTTL = 30 * 24 * time.Hour
 	defaultPort            = "8080"
 	defaultWebAppURL       = "http://localhost:3000"
-	defaultAppEnv          = "development"
+	// defaultPasswordResetTemplateID is the base alias of the Resend password reset
+	// Templates (see passwordResetTemplateID).
+	defaultPasswordResetTemplateID = "password-reset"
+	defaultAppEnv                  = "development"
 
 	// AppEnvProduction is the APP_ENV value that turns on the fail-fast checks in
 	// loadAuthConfig/corsAllowedOrigins: with it set, starting up without an explicit
@@ -170,10 +173,21 @@ func webAppURL() string {
 // (see internal/email), so there's nothing to validate here.
 func loadEmailConfig() email.Config {
 	return email.Config{
-		APIKey:                os.Getenv("RESEND_API_KEY"),
-		FromAddress:           os.Getenv("EMAIL_FROM"),
-		VerifyEmailTemplateID: os.Getenv("RESEND_VERIFY_EMAIL_TEMPLATE_ID"),
+		APIKey:                  os.Getenv("RESEND_API_KEY"),
+		FromAddress:             os.Getenv("EMAIL_FROM"),
+		VerifyEmailTemplateID:   os.Getenv("RESEND_VERIFY_EMAIL_TEMPLATE_ID"),
+		PasswordResetTemplateID: passwordResetTemplateID(),
 	}
+}
+
+// passwordResetTemplateID defaults to the alias the reference templates are uploaded
+// under (docs/decisions/0022-password-reset-template.*.html), unlike the verification
+// one: the reset flow is always on, so it shouldn't depend on an extra env var to work.
+func passwordResetTemplateID() string {
+	if v := os.Getenv("RESEND_PASSWORD_RESET_TEMPLATE_ID"); v != "" {
+		return v
+	}
+	return defaultPasswordResetTemplateID
 }
 
 func loadAuthConfig(env string) (auth.Config, error) {

@@ -40,6 +40,19 @@ type ResendVerificationRequest struct {
 	Locale string `json:"locale,omitempty"`
 }
 
+// ForgotPasswordRequest is the payload of POST /auth/forgot-password.
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+	// Locale picks the language of the email, same as RegisterRequest.Locale.
+	Locale string `json:"locale,omitempty"`
+}
+
+// ResetPasswordRequest is the payload of POST /auth/reset-password.
+type ResetPasswordRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
 // UserResponse is the DTO sent to the client, without sensitive data (like the password hash).
 type UserResponse struct {
 	ID               string    `json:"id"`

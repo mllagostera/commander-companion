@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
+	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	// email_verified is explicit (not the column default): RegisterUser decides its
 	// value based on config.RequireEmailVerification (see ADR-0012). CreateUserWithGoogle
 	// deliberately doesn't touch it, so it uses the column default (true) — Google already
@@ -32,7 +33,19 @@ type Querier interface {
 	// that Google confirms this email before calling this query, so an email/password
 	// account that isn't verified yet also gets verified through this path.
 	LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (User, error)
+	// FOR UPDATE: ResetPassword runs inside a transaction, so two requests racing with
+	// the same link can't both see it unused and both change the password.
+	LockPasswordResetTokenByHash(ctx context.Context, tokenHash string) (PasswordResetToken, error)
 	MarkEmailVerificationTokenUsed(ctx context.Context, id pgtype.UUID) error
+	// Burns every outstanding reset link of the user, not just the one being redeemed: once
+	// the password has changed, an older email sitting in the inbox must stop working too.
+	MarkPasswordResetTokensUsedForUser(ctx context.Context, userID pgtype.UUID) error
+	// email_verified is forced to true: redeeming a link sent to that address proves the
+	// user owns it, same reasoning as LinkGoogleID.
+	ResetPasswordHash(ctx context.Context, arg ResetPasswordHashParams) (User, error)
+	// Same statement as auth's RevokeAllRefreshTokensForUser: a password reset signs the
+	// account out everywhere, in case whoever had the old password still holds a session.
+	RevokeUserRefreshTokens(ctx context.Context, userID pgtype.UUID) error
 	// Partial, case-insensitive username search, to invite people to a playgroup without
 	// knowing their UUID (see internal/playgroups). Deliberately does NOT search by email
 	// this way (partial): it would allow enumerating other people's email addresses by

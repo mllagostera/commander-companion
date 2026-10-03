@@ -46,6 +46,15 @@ Table email_verification_tokens {
   used_at timestamp [note: 'Set when the email is verified with this token (single use). Migration 00011_email_verification.sql']
 }
 
+Table password_reset_tokens {
+  id uuid [primary key]
+  user_id uuid [not null, ref: > users.id]
+  token_hash varchar [unique, not null, note: 'SHA-256 of the reset token; the plaintext token is never persisted']
+  expires_at timestamp [not null, note: '1 hour after issue (see ADR-0022)']
+  created_at timestamp [default: `now()`]
+  used_at timestamp [note: 'Set when the password is reset with this token, or with any other token of the same user (redeeming one burns them all). Migration 00024_password_reset_tokens.sql']
+}
+
 Table decks {
   id uuid [primary key]
   user_id uuid [ref: > users.id]

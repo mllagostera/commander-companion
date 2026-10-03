@@ -28,6 +28,7 @@
     "emailLabel": "Email",
     "emailPlaceholder": "tu\\@email.com",
     "passwordLabel": "Contraseña",
+    "forgotPassword": "¿Has olvidado tu contraseña?",
     "submit": "Iniciar sesión",
     "submitting": "Ingresando…",
     "divider": "o",
@@ -109,6 +110,51 @@
       "loginLink": "iniciar sesión"
     },
     "invalidOrExpired": "El enlace de verificación no es válido o ha caducado."
+  },
+  "forgotPassword": {
+    "title": "¿Has olvidado tu contraseña?",
+    "intro": "Escribe el email de tu cuenta y te mandaremos un enlace para elegir una contraseña nueva.",
+    "emailLabel": "Email",
+    "submit": "Enviar enlace",
+    "submitting": "Enviando…",
+    "backToLogin": "Volver a iniciar sesión",
+    "sent": {
+      "title": "Revisa tu email",
+      "bodyIntro": "Si hay una cuenta asociada a",
+      "bodyOutro": ", te llegará un enlace para restablecer la contraseña. Caduca en 1 hora."
+    },
+    "errors": {
+      "requestFailed": "No se pudo enviar el enlace. Inténtalo de nuevo."
+    },
+    "meta": {
+      "title": "Recuperar contraseña · TapeandoCartones"
+    }
+  },
+  "resetPassword": {
+    "title": "Elige una contraseña nueva",
+    "intro": "Al guardarla se cerrará la sesión en todos tus dispositivos.",
+    "passwordLabel": "Contraseña nueva",
+    "passwordConfirmLabel": "Repetir contraseña nueva",
+    "submit": "Guardar contraseña",
+    "submitting": "Guardando…",
+    "success": {
+      "title": "Contraseña cambiada",
+      "body": "Ya puedes iniciar sesión con tu contraseña nueva.",
+      "goToLogin": "Ir a iniciar sesión"
+    },
+    "invalidLink": {
+      "title": "Enlace no válido",
+      "requestNew": "Pedir un enlace nuevo"
+    },
+    "errors": {
+      "invalidOrExpired": "El enlace para restablecer la contraseña no es válido, ya se ha usado o ha caducado.",
+      "passwordTooShort": "La contraseña tiene que tener al menos 8 caracteres.",
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "resetFailed": "No se pudo cambiar la contraseña."
+    },
+    "meta": {
+      "title": "Restablecer contraseña · TapeandoCartones"
+    }
   },
   "dashboard": {
     "greeting": "Hola, {username}",

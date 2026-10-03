@@ -31,6 +31,9 @@ const (
 	// emailVerificationTokenTTL is how long a verification link sent by mail
 	// takes to expire before a resend has to be requested.
 	emailVerificationTokenTTL = 24 * time.Hour
+	// passwordResetTokenTTL is much shorter than the verification one: the link grants
+	// taking over the account, and the user asked for it moments ago (see ADR-0022).
+	passwordResetTokenTTL = time.Hour
 
 	// minSearchQueryLength avoids 1-character searches that would return half
 	// the user directory (and would make brute-force enumeration easier one
@@ -58,6 +61,9 @@ var (
 	// ErrInvalidVerificationToken indicates that the email verification token
 	// doesn't exist, was already used, or has expired.
 	ErrInvalidVerificationToken = common.InvalidInput("invalid or expired verification token")
+	// ErrInvalidPasswordResetToken indicates that the password reset token doesn't exist,
+	// was already used (or superseded by another reset), or has expired.
+	ErrInvalidPasswordResetToken = common.InvalidInput("invalid or expired password reset token")
 	// ErrUserAlreadyExists indicates that the username or email is already taken.
 	ErrUserAlreadyExists = common.Conflict("User already exists")
 	// ErrUsernameExhausted indicates that a unique username couldn't be generated for a Google account.
@@ -106,10 +112,11 @@ func normalizeEmail(raw string) (string, error) {
 // round as a wrong password and response time no longer tells which emails are registered.
 const timingEqualizerHash = "$2a$10$ipJSLcjhx3G930ziaBKR8Oj5aeo0MMOJlWwlEWYZwdoyN.V8HZetm"
 
-// Mailer is what users needs to send the account verification email
+// Mailer is what users needs to send the account mails (verification, password reset)
 // (allows mocking it in tests; see decks.MoxfieldClient for the same pattern).
 type Mailer interface {
 	SendVerificationEmail(ctx context.Context, to, username, verifyURL, locale string) error
+	SendPasswordResetEmail(ctx context.Context, to, username, resetURL, locale string) error
 }
 
 // SignupNotifier announces each new account (see internal/notify); in the alpha phase
@@ -137,6 +144,13 @@ type Service interface {
 	// it always "succeeds" from the caller's perspective (same anti-enumeration
 	// criteria as VerifyCredentials). locale picks the language of the email.
 	ResendVerification(ctx context.Context, email, locale string) error
+	// RequestPasswordReset emails a password reset link if the address belongs to an
+	// active account. Same anti-enumeration contract as ResendVerification: it always
+	// "succeeds" from the caller's perspective. locale picks the language of the email.
+	RequestPasswordReset(ctx context.Context, email, locale string) error
+	// ResetPassword sets a new password from a reset link's token, burns every pending
+	// reset link of the account and signs it out everywhere (see ADR-0022).
+	ResetPassword(ctx context.Context, token, newPassword string) error
 	// SearchUsers searches by username (contains, case-insensitive) or email (exact, see
 	// query.sql for why it's not partial). Excludes the requesterID itself and never
 	// exposes the email in the result (see UserSearchResult).
@@ -155,6 +169,7 @@ type Service interface {
 }
 
 type service struct {
+	pool                     *pgxpool.Pool
 	repo                     *Queries
 	mailer                   Mailer
 	notifier                 SignupNotifier
@@ -172,6 +187,7 @@ func NewService(
 	db *pgxpool.Pool, mailer Mailer, notifier SignupNotifier, webAppURL string, requireEmailVerification bool,
 ) Service {
 	return &service{
+		pool:                     db,
 		repo:                     New(db),
 		mailer:                   mailer,
 		notifier:                 notifier,
@@ -521,6 +537,115 @@ func (s *service) ResendVerification(ctx context.Context, email, locale string) 
 
 	if err := s.sendVerificationEmail(ctx, &user, locale); err != nil {
 		log.Printf("could not resend the verification email to %s: %v", user.Email, err)
+	}
+	return nil
+}
+
+// RequestPasswordReset sends a password reset link if applicable. Like
+// ResendVerification it never reveals anything to the caller: an unknown email or a
+// deactivated account (which couldn't log in after resetting anyway) does nothing.
+// Google-only accounts do get the link — redeeming it proves they own the mailbox, and
+// it's how they can add a password to log in without Google.
+func (s *service) RequestPasswordReset(ctx context.Context, email, locale string) error {
+	user, err := s.repo.GetUserByEmail(ctx, strings.TrimSpace(email))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("looking up user by email: %w", err)
+	}
+
+	if !user.IsActive {
+		return nil
+	}
+
+	plain, err := common.NewOpaqueToken(emailVerificationTokenBytes)
+	if err != nil {
+		return err
+	}
+
+	if _, err := s.repo.CreatePasswordResetToken(ctx, CreatePasswordResetTokenParams{
+		UserID:    user.ID,
+		TokenHash: common.HashToken(plain),
+		ExpiresAt: pgtype.Timestamp{Time: time.Now().Add(passwordResetTokenTTL), Valid: true},
+	}); err != nil {
+		return fmt.Errorf("storing password reset token: %w", err)
+	}
+
+	// Like ResendVerification, a failed send is only logged: answering with an error
+	// here would tell the caller that the email exists.
+	resetURL := s.webAppURL + "/reset-password?token=" + plain
+	if err := s.mailer.SendPasswordResetEmail(ctx, user.Email, user.Username, resetURL, locale); err != nil {
+		log.Printf("could not send the password reset email to %s: %v", user.Email, err)
+	}
+	return nil
+}
+
+// ResetPassword redeems a reset token: in a single transaction it sets the new password
+// (also marking the email verified, see ResetPasswordHash), burns every outstanding reset
+// token of the user and revokes all their refresh tokens. A nonexistent, used or expired
+// token returns the same error, as in VerifyEmail.
+func (s *service) ResetPassword(ctx context.Context, token, newPassword string) error {
+	if len(newPassword) < minPasswordLength {
+		return ErrPasswordTooShort
+	}
+
+	// Hashed before opening the transaction: bcrypt takes tens of milliseconds and there's
+	// no need to hold the token's row lock meanwhile.
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hashing new password: %w", err)
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.repo.WithTx(tx)
+
+	record, err := q.LockPasswordResetTokenByHash(ctx, common.HashToken(token))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrInvalidPasswordResetToken
+		}
+		return fmt.Errorf("looking up password reset token: %w", err)
+	}
+	if !passwordResetTokenUsable(&record) {
+		return ErrInvalidPasswordResetToken
+	}
+
+	if err := applyPasswordReset(ctx, q, record.UserID, hash); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing password reset: %w", err)
+	}
+	return nil
+}
+
+// passwordResetTokenUsable reports whether a reset token is neither used nor expired.
+func passwordResetTokenUsable(record *PasswordResetToken) bool {
+	return !record.UsedAt.Valid && record.ExpiresAt.Valid && record.ExpiresAt.Time.After(time.Now())
+}
+
+// applyPasswordReset is ResetPassword's writes, run on the transaction's queries once the
+// token has been validated.
+func applyPasswordReset(ctx context.Context, q *Queries, userID pgtype.UUID, hash []byte) error {
+	if _, err := q.ResetPasswordHash(ctx, ResetPasswordHashParams{
+		ID:           userID,
+		PasswordHash: pgtype.Text{String: string(hash), Valid: true},
+	}); err != nil {
+		return fmt.Errorf("updating password hash: %w", err)
+	}
+
+	if err := q.MarkPasswordResetTokensUsedForUser(ctx, userID); err != nil {
+		return fmt.Errorf("marking password reset tokens used: %w", err)
+	}
+
+	if err := q.RevokeUserRefreshTokens(ctx, userID); err != nil {
+		return fmt.Errorf("revoking refresh tokens: %w", err)
 	}
 	return nil
 }

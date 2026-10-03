@@ -1,11 +1,13 @@
 /** Only for visitors without a session: a logged-in user is sent to `/`. */
-const GUEST_ONLY_ROUTES = ['/login', '/register', '/verify-email']
+const GUEST_ONLY_ROUTES = ['/login', '/register', '/verify-email', '/forgot-password']
 
 /**
  * Reachable with or without a session. `/` renders the landing page for
  * anonymous visitors and the dashboard otherwise (see pages/index.vue).
+ * `/reset-password` isn't guest-only: a reset link opened in a browser that's still
+ * signed in has to work too (redeeming it signs that session out anyway).
  */
-const PUBLIC_ROUTES = ['/', ...GUEST_ONLY_ROUTES]
+const PUBLIC_ROUTES = ['/', '/reset-password', ...GUEST_ONLY_ROUTES]
 
 /**
  * Route gating. Relies on the `cc_session` marker cookie (not httpOnly, no

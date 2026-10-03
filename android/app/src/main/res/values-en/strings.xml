@@ -17,6 +17,14 @@
     <string name="login_verification_resend">Resend verification email</string>
     <string name="login_verification_resending">Resending…</string>
     <string name="login_verification_check_inbox">Done, check your inbox.</string>
+    <string name="login_forgot_password">Forgot your password?</string>
+    <string name="forgot_password_title">Forgot your password?</string>
+    <string name="forgot_password_intro">Enter your account\'s email and we\'ll send you a link to choose a new password.</string>
+    <string name="forgot_password_submit">Send link</string>
+    <string name="forgot_password_back_to_login">Back to login</string>
+    <string name="forgot_password_sent_title">Check your email</string>
+    <string name="forgot_password_sent_intro">If there\'s an account for </string>
+    <string name="forgot_password_sent_outro">you\'ll get a link to reset your password. It expires in 1 hour.</string>
 
     <!-- Register -->
     <string name="register_title">Create account</string>
@@ -267,6 +275,9 @@
     <string name="error_login_google_backend">Couldn\'t log in with Google (error %1$d)</string>
     <string name="error_login_google_no_account">There is no Google account set up on this device</string>
     <string name="error_login_google_unknown">Couldn\'t log in with Google</string>
+    <string name="error_forgot_password_empty_email">Enter your email</string>
+    <string name="error_forgot_password_too_many_requests">Too many attempts. Wait a minute and try again.</string>
+    <string name="error_forgot_password_unknown">Couldn\'t send the link (error %1$d)</string>
 
     <!-- Registration errors -->
     <string name="error_register_empty_fields">Fill in every field</string>

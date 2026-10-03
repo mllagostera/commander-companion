@@ -211,8 +211,9 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	// of the API), and here we only want to bound the endpoints without JWT.
 	authRateLimit := newAuthRateLimiter()
 
-	// emailClient sends the account verification email. Without RESEND_API_KEY
-	// (dev without a Resend account) it logs the link to the console instead of sending it (see internal/email).
+	// emailClient sends the account mails (verification, password reset). Without
+	// RESEND_API_KEY (dev without a Resend account) it logs the links to the console
+	// instead of sending them (see internal/email).
 	emailClient := email.NewResendClient(cfg.Email)
 	// signupNotifier posts a Slack message for every new account. Without
 	// SLACK_SIGNUP_WEBHOOK_URL it does nothing (see internal/notify).
@@ -221,7 +222,8 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 		db.Pool, emailClient, signupNotifier, cfg.WebAppURL, cfg.RequireEmailVerification,
 	)
 	usersHandler := users.NewHandler(usersService)
-	usersHandler.RegisterRoutes(api, authRateLimit) // POST /auth/register, verify-email, resend-verification
+	// POST /auth/register, verify-email, resend-verification, forgot-password, reset-password
+	usersHandler.RegisterRoutes(api, authRateLimit)
 
 	authService := auth.NewService(db.Pool, usersService, cfg.Auth)
 	authHandler := auth.NewHandler(authService)

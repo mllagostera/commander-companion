@@ -40,6 +40,35 @@ func (q *Queries) CreateEmailVerificationToken(ctx context.Context, arg CreateEm
 	return i, err
 }
 
+const createPasswordResetToken = `-- name: CreatePasswordResetToken :one
+INSERT INTO password_reset_tokens (
+  user_id, token_hash, expires_at
+) VALUES (
+  $1, $2, $3
+)
+RETURNING id, user_id, token_hash, expires_at, created_at, used_at
+`
+
+type CreatePasswordResetTokenParams struct {
+	UserID    pgtype.UUID      `json:"user_id"`
+	TokenHash string           `json:"token_hash"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+}
+
+func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error) {
+	row := q.db.QueryRow(ctx, createPasswordResetToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
+	var i PasswordResetToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UsedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
   username, email, password_hash, email_verified
@@ -270,6 +299,28 @@ func (q *Queries) LinkGoogleID(ctx context.Context, arg LinkGoogleIDParams) (Use
 	return i, err
 }
 
+const lockPasswordResetTokenByHash = `-- name: LockPasswordResetTokenByHash :one
+SELECT id, user_id, token_hash, expires_at, created_at, used_at FROM password_reset_tokens
+WHERE token_hash = $1 LIMIT 1
+FOR UPDATE
+`
+
+// FOR UPDATE: ResetPassword runs inside a transaction, so two requests racing with
+// the same link can't both see it unused and both change the password.
+func (q *Queries) LockPasswordResetTokenByHash(ctx context.Context, tokenHash string) (PasswordResetToken, error) {
+	row := q.db.QueryRow(ctx, lockPasswordResetTokenByHash, tokenHash)
+	var i PasswordResetToken
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UsedAt,
+	)
+	return i, err
+}
+
 const markEmailVerificationTokenUsed = `-- name: MarkEmailVerificationTokenUsed :exec
 UPDATE email_verification_tokens SET used_at = now()
 WHERE id = $1
@@ -277,6 +328,63 @@ WHERE id = $1
 
 func (q *Queries) MarkEmailVerificationTokenUsed(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, markEmailVerificationTokenUsed, id)
+	return err
+}
+
+const markPasswordResetTokensUsedForUser = `-- name: MarkPasswordResetTokensUsedForUser :exec
+UPDATE password_reset_tokens SET used_at = now()
+WHERE user_id = $1 AND used_at IS NULL
+`
+
+// Burns every outstanding reset link of the user, not just the one being redeemed: once
+// the password has changed, an older email sitting in the inbox must stop working too.
+func (q *Queries) MarkPasswordResetTokensUsedForUser(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markPasswordResetTokensUsedForUser, userID)
+	return err
+}
+
+const resetPasswordHash = `-- name: ResetPasswordHash :one
+UPDATE users SET password_hash = $2, email_verified = true
+WHERE id = $1
+RETURNING id, username, email, password_hash, created_at, updated_at, google_id, moxfield_username, email_verified, is_admin, is_active, last_seen_at
+`
+
+type ResetPasswordHashParams struct {
+	ID           pgtype.UUID `json:"id"`
+	PasswordHash pgtype.Text `json:"password_hash"`
+}
+
+// email_verified is forced to true: redeeming a link sent to that address proves the
+// user owns it, same reasoning as LinkGoogleID.
+func (q *Queries) ResetPasswordHash(ctx context.Context, arg ResetPasswordHashParams) (User, error) {
+	row := q.db.QueryRow(ctx, resetPasswordHash, arg.ID, arg.PasswordHash)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GoogleID,
+		&i.MoxfieldUsername,
+		&i.EmailVerified,
+		&i.IsAdmin,
+		&i.IsActive,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
+const revokeUserRefreshTokens = `-- name: RevokeUserRefreshTokens :exec
+UPDATE refresh_tokens SET revoked_at = now()
+WHERE user_id = $1 AND revoked_at IS NULL
+`
+
+// Same statement as auth's RevokeAllRefreshTokensForUser: a password reset signs the
+// account out everywhere, in case whoever had the old password still holds a session.
+func (q *Queries) RevokeUserRefreshTokens(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeUserRefreshTokens, userID)
 	return err
 }
 
