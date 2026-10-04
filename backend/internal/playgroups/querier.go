@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	AddPlaygroupMember(ctx context.Context, arg AddPlaygroupMemberParams) (PlaygroupMember, error)
+	CountPlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) (int64, error)
 	CreatePlaygroup(ctx context.Context, arg CreatePlaygroupParams) (Playgroup, error)
 	// No ON DELETE CASCADE from games (see 00001_initial_schema.sql): a group that
 	// has any game, in any status, makes this fail with games_playgroup_id_fkey,
@@ -20,6 +21,7 @@ type Querier interface {
 	DeletePlaygroup(ctx context.Context, id pgtype.UUID) error
 	DeletePlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) error
 	GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, error)
+	GetPlaygroupByInviteCode(ctx context.Context, inviteCode pgtype.Text) (Playgroup, error)
 	GetPlaygroupMember(ctx context.Context, arg GetPlaygroupMemberParams) (PlaygroupMember, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	// A user's decks, for the "which deck are they playing" picker when proxy-joining
@@ -34,6 +36,8 @@ type Querier interface {
 	// it returns the first page; with a cursor, the rows strictly after it in list
 	// order. See internal/common/pagination.go.
 	ListPlaygroupsForUserPage(ctx context.Context, arg ListPlaygroupsForUserPageParams) ([]Playgroup, error)
+	// Rotating and revoking are the same write: a new code, or NULL.
+	SetPlaygroupInviteCode(ctx context.Context, arg SetPlaygroupInviteCodeParams) (Playgroup, error)
 	UpdatePlaygroupName(ctx context.Context, arg UpdatePlaygroupNameParams) (Playgroup, error)
 }
 

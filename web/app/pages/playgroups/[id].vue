@@ -5,12 +5,13 @@ const route = useRoute()
 const playgroupId = route.params.id as string
 const { t, d } = useI18n()
 
-const { getPlaygroup, updatePlaygroup, deletePlaygroup, addMember } = usePlaygroups()
+const { getPlaygroup, updatePlaygroup, deletePlaygroup, addMember, rotateInvite, revokeInvite } = usePlaygroups()
 const { playgroupStats } = useStatistics()
 const { listPlaygroupGames } = useGames()
 const { searchUsers } = useUsers()
 const { showToast } = useToast()
 const { user: authUser } = useAuth()
+const siteUrl = useSiteUrl()
 
 const { data: playgroup, refresh, error: loadError } = await useAsyncData<Playgroup | null>(
   `playgroup-${playgroupId}`,
@@ -130,6 +131,57 @@ async function confirmDelete() {
     deleteError.value = deletePlaygroupError(err)
   } finally {
     isDeleting.value = false
+  }
+}
+
+// --------------------------------------------------------- invite link
+// One shareable link per group (see ADR-0023): anyone signed in who opens it
+// lands on pages/playgroups/join/[code].vue and can join. Any member can
+// create, replace or disable it -- the same rule as adding someone by hand.
+const inviteUrl = computed(() =>
+  playgroup.value?.invite_code ? playgroupInviteUrl(siteUrl, playgroup.value.invite_code) : '',
+)
+const isInviteBusy = ref(false)
+const inviteError = ref('')
+const inviteCopied = ref(false)
+
+async function handleRotateInvite() {
+  inviteError.value = ''
+  isInviteBusy.value = true
+  try {
+    await rotateInvite(playgroupId)
+    await refresh()
+  } catch (err) {
+    inviteError.value = playgroupInviteManageError(err)
+  } finally {
+    isInviteBusy.value = false
+  }
+}
+
+async function handleRevokeInvite() {
+  inviteError.value = ''
+  isInviteBusy.value = true
+  try {
+    await revokeInvite(playgroupId)
+    await refresh()
+    showToast(t('toast.inviteRevoked'))
+  } catch (err) {
+    inviteError.value = playgroupInviteManageError(err)
+  } finally {
+    isInviteBusy.value = false
+  }
+}
+
+async function copyInviteUrl() {
+  if (!inviteUrl.value) return
+  try {
+    await navigator.clipboard.writeText(inviteUrl.value)
+    inviteCopied.value = true
+    setTimeout(() => { inviteCopied.value = false }, 2000)
+  } catch {
+    // Clipboard denied (insecure context, permissions): the URL is still in
+    // a read-only input the user can select by hand.
+    inviteError.value = t('playgroups.detail.invite.copyFailed')
   }
 }
 
@@ -422,6 +474,70 @@ async function handleAddMember() {
           >
             {{ member.username }}
           </span>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="mb-1.5 text-[15px] font-medium">{{ $t('playgroups.detail.invite.heading') }}</h2>
+        <p class="mb-3.5 text-[13px]" style="color: var(--text-muted);">{{ $t('playgroups.detail.invite.body') }}</p>
+
+        <div
+          class="flex flex-col gap-3 rounded-[var(--radius-lg)] border p-4"
+          style="border-color: var(--card-border); background: var(--card-bg);"
+        >
+          <template v-if="inviteUrl">
+            <div class="flex flex-wrap gap-2.5">
+              <input
+                :value="inviteUrl"
+                type="text"
+                readonly
+                :aria-label="$t('playgroups.detail.invite.urlLabel')"
+                class="min-w-0 flex-1 basis-[240px] rounded-full border px-4 py-2 text-[13px] outline-none"
+                style="background: var(--input-bg); border-color: var(--input-border); color: var(--text);"
+                @focus="($event.target as HTMLInputElement).select()"
+              >
+              <button
+                type="button"
+                class="rounded-full px-5 py-2 text-[13px] font-semibold text-[#0a0714]"
+                style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+                @click="copyInviteUrl"
+              >
+                {{ inviteCopied ? $t('playgroups.detail.invite.copied') : $t('playgroups.detail.invite.copy') }}
+              </button>
+            </div>
+            <div class="flex flex-wrap gap-4">
+              <button
+                type="button"
+                :disabled="isInviteBusy"
+                class="text-[13px] disabled:opacity-50"
+                style="color: var(--accent-link);"
+                @click="handleRotateInvite"
+              >
+                {{ $t('playgroups.detail.invite.rotate') }}
+              </button>
+              <button
+                type="button"
+                :disabled="isInviteBusy"
+                class="text-[13px] disabled:opacity-50"
+                style="color: var(--lose);"
+                @click="handleRevokeInvite"
+              >
+                {{ $t('playgroups.detail.invite.revoke') }}
+              </button>
+            </div>
+            <p class="text-xs" style="color: var(--text-dim);">{{ $t('playgroups.detail.invite.rotateHint') }}</p>
+          </template>
+          <button
+            v-else
+            type="button"
+            :disabled="isInviteBusy"
+            class="self-start rounded-full px-5 py-2 text-[13px] font-semibold text-[#0a0714] disabled:opacity-50"
+            style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
+            @click="handleRotateInvite"
+          >
+            {{ isInviteBusy ? $t('playgroups.detail.invite.creating') : $t('playgroups.detail.invite.create') }}
+          </button>
+          <p v-if="inviteError" class="text-xs" style="color: var(--lose);" role="alert">{{ inviteError }}</p>
         </div>
       </section>
 

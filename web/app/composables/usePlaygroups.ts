@@ -1,4 +1,4 @@
-import type { Playgroup, PlaygroupMember } from '~/types/api'
+import type { Playgroup, PlaygroupInvite, PlaygroupInvitePreview, PlaygroupMember } from '~/types/api'
 
 export function usePlaygroups() {
   const { apiFetch } = useApi()
@@ -42,7 +42,35 @@ export function usePlaygroups() {
     })
   }
 
-  return { listPlaygroups, createPlaygroup, getPlaygroup, updatePlaygroup, deletePlaygroup, addMember }
+  /** Any member can do it. The previous code, if any, stops working at once. */
+  function rotateInvite(playgroupId: string) {
+    return apiFetch<PlaygroupInvite>(`/playgroups/${playgroupId}/invite`, { method: 'POST' })
+  }
+
+  /** Disables the invite link. Idempotent. */
+  function revokeInvite(playgroupId: string) {
+    return apiFetch<null>(`/playgroups/${playgroupId}/invite`, { method: 'DELETE' })
+  }
+
+  /** The group an invite code leads to, for the confirmation page. 404 if unknown or revoked. */
+  function previewInvite(code: string) {
+    return apiFetch<PlaygroupInvitePreview>(`/playgroup-invites/${encodeURIComponent(code)}`)
+  }
+
+  /** Joins the authenticated user to the group behind the code. 409 if already a member. */
+  function acceptInvite(code: string) {
+    return apiFetch<Playgroup>(`/playgroup-invites/${encodeURIComponent(code)}/accept`, { method: 'POST' })
+  }
+
+  return {
+    listPlaygroups, createPlaygroup, getPlaygroup, updatePlaygroup, deletePlaygroup, addMember,
+    rotateInvite, revokeInvite, previewInvite, acceptInvite,
+  }
+}
+
+/** Shareable URL of a playgroup invite, the page at pages/playgroups/join/[code].vue. */
+export function playgroupInviteUrl(siteUrl: string, code: string): string {
+  return `${siteUrl}/playgroups/join/${code}`
 }
 
 export function createPlaygroupError(err: unknown): string {
@@ -109,5 +137,29 @@ export function deletePlaygroupError(err: unknown): string {
       return t('errors.playgroups.delete.hasGames')
     default:
       return apiErrorMessage(err, t('errors.playgroups.delete.generic'))
+  }
+}
+
+/** Rotating or revoking: the only expected failure is 404 (not a member any more, or the group is gone). */
+export function playgroupInviteManageError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  switch (apiErrorStatus(err)) {
+    case 404:
+      return t('errors.playgroups.get.notFoundOrNotMember')
+    default:
+      return apiErrorMessage(err, t('errors.playgroups.invite.generic'))
+  }
+}
+
+/** See ErrInviteNotFound (404) and ErrAlreadyMember (409) in internal/playgroups/service.go. */
+export function playgroupInviteError(err: unknown): string {
+  const { t } = useNuxtApp().$i18n
+  switch (apiErrorStatus(err)) {
+    case 404:
+      return t('errors.playgroups.invite.notFound')
+    case 409:
+      return t('errors.playgroups.invite.alreadyMember')
+    default:
+      return apiErrorMessage(err, t('errors.playgroups.invite.generic'))
   }
 }

@@ -445,7 +445,28 @@
       "delete": "Eliminar grup",
       "deleting": "S'està eliminant…",
       "deleteConfirmTitle": "Vols eliminar «{name}»?",
-      "deleteConfirmBody": "Se'n trauran tots els membres. Aquesta acció no es pot desfer."
+      "deleteConfirmBody": "Se'n trauran tots els membres. Aquesta acció no es pot desfer.",
+      "invite": {
+        "heading": "Enllaç d'invitació",
+        "body": "Qui tingui aquest enllaç i un compte pot unir-se al grup. Comparteix-lo només amb la teva taula.",
+        "create": "Crear enllaç d'invitació",
+        "creating": "Creant…",
+        "urlLabel": "Enllaç d'invitació",
+        "copy": "Copiar",
+        "copied": "Copiat!",
+        "rotate": "Generar-ne un de nou",
+        "revoke": "Desactivar l'enllaç",
+        "rotateHint": "Generar-ne un de nou o desactivar-lo invalida l'enllaç actual a l'instant.",
+        "copyFailed": "No s'ha pogut copiar. Selecciona l'enllaç i copia'l a mà."
+      }
+    },
+    "join": {
+      "title": "Unir-se a un grup",
+      "body": "T'han convidat a aquest grup. En unir-t'hi veuràs les seves partides i estadístiques, i et podran afegir a les seves partides.",
+      "action": "Unir-me al grup",
+      "joining": "Unint-te…",
+      "alreadyMember": "Ja ets membre d'aquest grup.",
+      "goToGroup": "Anar al grup"
     }
   },
   "friends": {
@@ -553,7 +574,9 @@
     "friendRequestSent": "Sol·licitud d'amistat enviada a {username}",
     "friendAdded": "Ara tu i {username} sou amics",
     "deckCreated": "Deck creat",
-    "deckUpdated": "Deck actualitzat"
+    "deckUpdated": "Deck actualitzat",
+    "groupJoined": "T'has unit a {name}",
+    "inviteRevoked": "Enllaç d'invitació desactivat"
   },
   "gameStatus": {
     "pending": "Pendent",
@@ -621,6 +644,11 @@
         "notFoundOrNotMember": "El grup no existeix o no n'ets membre.",
         "hasGames": "Aquest grup ja té partides i no es pot eliminar.",
         "generic": "No s'ha pogut eliminar el grup."
+      },
+      "invite": {
+        "notFound": "Aquest enllaç d'invitació no és vàlid o ja no està actiu. Demana'n un de nou a algú del grup.",
+        "alreadyMember": "Ja ets membre d'aquest grup.",
+        "generic": "No s'ha pogut completar la invitació."
       }
     },
     "games": {

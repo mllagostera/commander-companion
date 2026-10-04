@@ -445,7 +445,28 @@
       "delete": "Delete group",
       "deleting": "Deleting…",
       "deleteConfirmTitle": "Delete “{name}”?",
-      "deleteConfirmBody": "All its members will be removed. This can't be undone."
+      "deleteConfirmBody": "All its members will be removed. This can't be undone.",
+      "invite": {
+        "heading": "Invite link",
+        "body": "Anyone with this link and an account can join the group. Only share it with your table.",
+        "create": "Create invite link",
+        "creating": "Creating…",
+        "urlLabel": "Invite link",
+        "copy": "Copy",
+        "copied": "Copied!",
+        "rotate": "Generate a new one",
+        "revoke": "Disable link",
+        "rotateHint": "Generating a new one or disabling it invalidates the current link immediately.",
+        "copyFailed": "Couldn't copy. Select the link and copy it by hand."
+      }
+    },
+    "join": {
+      "title": "Join a group",
+      "body": "You've been invited to this group. Once you join you'll see its games and statistics, and members can add you to their games.",
+      "action": "Join group",
+      "joining": "Joining…",
+      "alreadyMember": "You're already a member of this group.",
+      "goToGroup": "Go to group"
     }
   },
   "friends": {
@@ -553,7 +574,9 @@
     "friendRequestSent": "Friend request sent to {username}",
     "friendAdded": "You and {username} are now friends",
     "deckCreated": "Deck created",
-    "deckUpdated": "Deck updated"
+    "deckUpdated": "Deck updated",
+    "groupJoined": "You joined {name}",
+    "inviteRevoked": "Invite link disabled"
   },
   "gameStatus": {
     "pending": "Pending",
@@ -621,6 +644,11 @@
         "notFoundOrNotMember": "The group doesn't exist or you're not a member.",
         "hasGames": "This group already has games and can't be deleted.",
         "generic": "Couldn't delete the group."
+      },
+      "invite": {
+        "notFound": "This invite link is invalid or no longer active. Ask someone in the group for a new one.",
+        "alreadyMember": "You're already a member of this group.",
+        "generic": "Couldn't complete the invite."
       }
     },
     "games": {

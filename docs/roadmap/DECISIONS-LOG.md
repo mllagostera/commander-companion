@@ -25,6 +25,29 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-04 — Playgroup invite links.** Requested by the user: a public URL to
+join a group, invitation-style, from the web. Built as one rotatable code per
+group (`playgroups.invite_code`, migration 00025) rather than an invites table;
+the reasoning and the rejected alternatives (table with expiry/max uses, hashed
+codes, sessionless preview, creator-only management) are in
+[ADR-0023](../decisions/0023-playgroup-invite-links.md). `AcceptInvite` has no
+membership pre-check: the `(playgroup_id, user_id)` primary key is the rule, and
+a unique violation maps to 409, which also covers two tabs accepting at once.
+
+Verified: 7 integration tests in `internal/playgroups` (rotate exposes the code
+to members only, preview before/after joining, code reusable by several users,
+rotated and revoked codes 404, malformed codes 404 without a query, 409 for an
+existing member); full backend suite, `golangci-lint`, eslint, `vue-tsc` and
+`nuxt build` green; and the whole flow driven in Chromium against a local API —
+create link, open it signed out, land on `/login?redirect=…`, sign in, join, end
+on the group page with two members, then disable the link and see the invalid
+state. Gotcha hit while testing: running the full backend suite in the
+background while re-running one package against the same `commander_test` DB
+made both flake (each `Truncate` wipes the other's rows) — run them serially.
+
+Open follow-ups, listed in TASKS.md: Android (App Link + share button) and
+keeping the invite through registration + email verification.
+
 **2026-10-03 — Badge for pending friend requests.** Requested by the user: sending
 a friend request notified nobody, so the addressee only found out by opening the
 friends screen. Three options were weighed: an in-app badge, an email, and push

@@ -11,7 +11,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - Keep each line short (status + what + a pointer to the file/module). Put narrative, rationale, and verification detail in DECISIONS-LOG.md instead, dated, under the matching stage — don't let it accumulate here again.
 - Update the "Last reviewed" date every time the real state of the code is audited, and add the corresponding entry to DECISIONS-LOG.md.
 
-**Last reviewed:** 2026-09-06 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
+**Last reviewed:** 2026-10-04 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
 
 ---
 
@@ -99,6 +99,9 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] `GET /users/username-available?username=`: public, rate-limited, exact case-sensitive match — used by the web/Android registration forms to validate before submitting (2026-08-05)
 - [x] `DELETE /playgroups/{id}` (2026-10-02): creator-only (new `playgroups.created_by`, migration 00022, backfilled from the earliest member) and only while the group has no games in any status (409 otherwise, enforced by the games FK inside the transaction). Web: "Delete group" button + confirmation on the group page, shown only when it would succeed. See [DECISIONS-LOG.md](DECISIONS-LOG.md)
 - [ ] Delete playgroup on Android (backend and web done 2026-10-02; `created_by` already in the response)
+- [x] Invite links (2026-10-04): one rotatable `playgroups.invite_code` per group (migration 00025), any member creates/regenerates/disables it; `GET /playgroup-invites/{code}` preview + `POST …/accept`. Web: link section on the group page + `pages/playgroups/join/[code].vue` (login detour keeps the code). See [ADR-0023](../decisions/0023-playgroup-invite-links.md)
+- [ ] Invite links on Android (App Link for `/playgroups/join/*` + share button; today the link opens in the browser)
+- [ ] Keep the invite through registration + email verification (today a brand-new user must reopen the link after verifying, see ADR-0023)
 
 ### Statistics — real recalculation and queries
 - [x] `games/service.go: FinishGame` triggers `statistics.RecalculateForGame(gameID)`

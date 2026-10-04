@@ -532,3 +532,171 @@ func TestDeletePlaygroup_WithGames_ReturnsConflictAndKeepsGroup(t *testing.T) {
 		t.Fatalf("members after a rejected delete = %d, want 1 (the transaction must roll back)", len(got.Members))
 	}
 }
+
+func mustRotateInvite(t *testing.T, svc playgroups.Service, playgroupID, userID string) string {
+	t.Helper()
+	res, err := svc.RotateInvite(context.Background(), playgroupID, userID)
+	if err != nil {
+		t.Fatalf("RotateInvite() error = %v, want nil", err)
+	}
+	return res.InviteCode
+}
+
+func TestRotateInvite_ExposesCodeToMembers(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "invite-rotate@example.com")
+	group := mustCreatePlaygroup(t, svc, owner.ID, "Invite group")
+	if group.InviteCode != nil {
+		t.Fatalf("new group InviteCode = %q, want nil", *group.InviteCode)
+	}
+
+	code := mustRotateInvite(t, svc, group.ID, owner.ID)
+	if len(code) != 22 {
+		t.Fatalf("invite code %q has length %d, want 22", code, len(code))
+	}
+
+	got, err := svc.GetPlaygroup(context.Background(), owner.ID, group.ID)
+	if err != nil {
+		t.Fatalf("GetPlaygroup() error = %v", err)
+	}
+	if got.InviteCode == nil || *got.InviteCode != code {
+		t.Fatalf("GetPlaygroup() InviteCode = %v, want %q", got.InviteCode, code)
+	}
+}
+
+func TestRotateInvite_NotAMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "invite-owner@example.com")
+	outsider := createTestUser(t, pool, "invite-outsider@example.com")
+	group := mustCreatePlaygroup(t, svc, owner.ID, "Invite group")
+
+	_, err := svc.RotateInvite(context.Background(), group.ID, outsider.ID)
+	if got := asFiberError(t, err).Code; got != fiber.StatusNotFound {
+		t.Fatalf("RotateInvite() by a non-member status = %d, want 404", got)
+	}
+}
+
+func TestPreviewInvite_DescribesGroupBeforeAndAfterJoining(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "invite-preview-owner@example.com")
+	guest := createTestUser(t, pool, "invite-preview-guest@example.com")
+	group := mustCreatePlaygroup(t, svc, owner.ID, "Invite group")
+	code := mustRotateInvite(t, svc, group.ID, owner.ID)
+
+	preview, err := svc.PreviewInvite(context.Background(), code, guest.ID)
+	if err != nil {
+		t.Fatalf("PreviewInvite() error = %v", err)
+	}
+	if preview.PlaygroupID != group.ID || preview.Name != "Invite group" || preview.MemberCount != 1 || preview.IsMember {
+		t.Fatalf("PreviewInvite() = %+v, want the group with 1 member and is_member false", preview)
+	}
+
+	if _, err = svc.AcceptInvite(context.Background(), code, guest.ID); err != nil {
+		t.Fatalf("AcceptInvite() error = %v", err)
+	}
+
+	preview, err = svc.PreviewInvite(context.Background(), code, guest.ID)
+	if err != nil {
+		t.Fatalf("PreviewInvite() after joining error = %v", err)
+	}
+	if !preview.IsMember || preview.MemberCount != 2 {
+		t.Fatalf("PreviewInvite() after joining = %+v, want is_member true and 2 members", preview)
+	}
+}
+
+// One link for the whole group: accepting it doesn't consume it.
+func TestAcceptInvite_CodeStaysValidForEveryone(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "invite-reuse-owner@example.com")
+	group := mustCreatePlaygroup(t, svc, owner.ID, "Invite group")
+	code := mustRotateInvite(t, svc, group.ID, owner.ID)
+
+	for _, email := range []string{"invite-reuse-a@example.com", "invite-reuse-b@example.com"} {
+		guest := createTestUser(t, pool, email)
+		if _, err := svc.AcceptInvite(context.Background(), code, guest.ID); err != nil {
+			t.Fatalf("AcceptInvite() by %s error = %v, want nil", email, err)
+		}
+	}
+
+	got, err := svc.GetPlaygroup(context.Background(), owner.ID, group.ID)
+	if err != nil {
+		t.Fatalf("GetPlaygroup() error = %v", err)
+	}
+	if len(got.Members) != 3 {
+		t.Fatalf("GetPlaygroup() members = %+v, want 3", got.Members)
+	}
+}
+
+func TestAcceptInvite_AlreadyMember_ReturnsConflict(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "invite-dup@example.com")
+	group := mustCreatePlaygroup(t, svc, owner.ID, "Invite group")
+	code := mustRotateInvite(t, svc, group.ID, owner.ID)
+
+	_, err := svc.AcceptInvite(context.Background(), code, owner.ID)
+	if got := asFiberError(t, err).Code; got != fiber.StatusConflict {
+		t.Fatalf("AcceptInvite() by a member status = %d, want 409", got)
+	}
+}
+
+func TestInvite_RotatedAndRevokedCodesStopWorking(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	owner := createTestUser(t, pool, "invite-revoke-owner@example.com")
+	guest := createTestUser(t, pool, "invite-revoke-guest@example.com")
+	group := mustCreatePlaygroup(t, svc, owner.ID, "Invite group")
+
+	oldCode := mustRotateInvite(t, svc, group.ID, owner.ID)
+	newCode := mustRotateInvite(t, svc, group.ID, owner.ID)
+	if oldCode == newCode {
+		t.Fatalf("RotateInvite() returned the same code twice: %q", oldCode)
+	}
+	_, err := svc.AcceptInvite(context.Background(), oldCode, guest.ID)
+	if got := asFiberError(t, err).Code; got != fiber.StatusNotFound {
+		t.Fatalf("AcceptInvite() with a rotated-out code status = %d, want 404", got)
+	}
+
+	if revokeErr := svc.RevokeInvite(context.Background(), group.ID, owner.ID); revokeErr != nil {
+		t.Fatalf("RevokeInvite() error = %v", revokeErr)
+	}
+	_, err = svc.PreviewInvite(context.Background(), newCode, guest.ID)
+	if got := asFiberError(t, err).Code; got != fiber.StatusNotFound {
+		t.Fatalf("PreviewInvite() with a revoked code status = %d, want 404", got)
+	}
+	// Idempotent: revoking again is fine.
+	if err := svc.RevokeInvite(context.Background(), group.ID, owner.ID); err != nil {
+		t.Fatalf("second RevokeInvite() error = %v, want nil", err)
+	}
+}
+
+func TestPreviewInvite_MalformedCode_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncatePlaygroupsTables(t, pool)
+
+	svc := playgroups.NewService(pool)
+	user := createTestUser(t, pool, "invite-malformed@example.com")
+
+	for _, code := range []string{"", "short", "this-is-not-base64-!!!", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
+		_, err := svc.PreviewInvite(context.Background(), code, user.ID)
+		if got := asFiberError(t, err).Code; got != fiber.StatusNotFound {
+			t.Fatalf("PreviewInvite(%q) status = %d, want 404", code, got)
+		}
+	}
+}

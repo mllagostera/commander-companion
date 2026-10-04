@@ -29,10 +29,21 @@ func (q *Queries) AddPlaygroupMember(ctx context.Context, arg AddPlaygroupMember
 	return i, err
 }
 
+const countPlaygroupMembers = `-- name: CountPlaygroupMembers :one
+SELECT count(*) FROM playgroup_members WHERE playgroup_id = $1
+`
+
+func (q *Queries) CountPlaygroupMembers(ctx context.Context, playgroupID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countPlaygroupMembers, playgroupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createPlaygroup = `-- name: CreatePlaygroup :one
 INSERT INTO playgroups (name, created_by)
 VALUES ($1, $2)
-RETURNING id, name, created_at, updated_at, created_by
+RETURNING id, name, created_at, updated_at, created_by, invite_code
 `
 
 type CreatePlaygroupParams struct {
@@ -49,6 +60,7 @@ func (q *Queries) CreatePlaygroup(ctx context.Context, arg CreatePlaygroupParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CreatedBy,
+		&i.InviteCode,
 	)
 	return i, err
 }
@@ -76,7 +88,7 @@ func (q *Queries) DeletePlaygroupMembers(ctx context.Context, playgroupID pgtype
 }
 
 const getPlaygroup = `-- name: GetPlaygroup :one
-SELECT id, name, created_at, updated_at, created_by FROM playgroups WHERE id = $1 LIMIT 1
+SELECT id, name, created_at, updated_at, created_by, invite_code FROM playgroups WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, error) {
@@ -88,6 +100,25 @@ func (q *Queries) GetPlaygroup(ctx context.Context, id pgtype.UUID) (Playgroup, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CreatedBy,
+		&i.InviteCode,
+	)
+	return i, err
+}
+
+const getPlaygroupByInviteCode = `-- name: GetPlaygroupByInviteCode :one
+SELECT id, name, created_at, updated_at, created_by, invite_code FROM playgroups WHERE invite_code = $1 LIMIT 1
+`
+
+func (q *Queries) GetPlaygroupByInviteCode(ctx context.Context, inviteCode pgtype.Text) (Playgroup, error) {
+	row := q.db.QueryRow(ctx, getPlaygroupByInviteCode, inviteCode)
+	var i Playgroup
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.InviteCode,
 	)
 	return i, err
 }
@@ -212,7 +243,7 @@ func (q *Queries) ListPlaygroupMembers(ctx context.Context, playgroupID pgtype.U
 }
 
 const listPlaygroups = `-- name: ListPlaygroups :many
-SELECT id, name, created_at, updated_at, created_by FROM playgroups ORDER BY created_at DESC
+SELECT id, name, created_at, updated_at, created_by, invite_code FROM playgroups ORDER BY created_at DESC
 `
 
 func (q *Queries) ListPlaygroups(ctx context.Context) ([]Playgroup, error) {
@@ -230,6 +261,7 @@ func (q *Queries) ListPlaygroups(ctx context.Context) ([]Playgroup, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CreatedBy,
+			&i.InviteCode,
 		); err != nil {
 			return nil, err
 		}
@@ -242,7 +274,7 @@ func (q *Queries) ListPlaygroups(ctx context.Context) ([]Playgroup, error) {
 }
 
 const listPlaygroupsForUser = `-- name: ListPlaygroupsForUser :many
-SELECT p.id, p.name, p.created_at, p.updated_at, p.created_by FROM playgroups p
+SELECT p.id, p.name, p.created_at, p.updated_at, p.created_by, p.invite_code FROM playgroups p
 JOIN playgroup_members pm ON pm.playgroup_id = p.id
 WHERE pm.user_id = $1
 ORDER BY p.created_at DESC
@@ -263,6 +295,7 @@ func (q *Queries) ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CreatedBy,
+			&i.InviteCode,
 		); err != nil {
 			return nil, err
 		}
@@ -275,7 +308,7 @@ func (q *Queries) ListPlaygroupsForUser(ctx context.Context, userID pgtype.UUID)
 }
 
 const listPlaygroupsForUserPage = `-- name: ListPlaygroupsForUserPage :many
-SELECT p.id, p.name, p.created_at, p.updated_at, p.created_by FROM playgroups p
+SELECT p.id, p.name, p.created_at, p.updated_at, p.created_by, p.invite_code FROM playgroups p
 JOIN playgroup_members pm ON pm.playgroup_id = p.id
 WHERE pm.user_id = $1::uuid
   AND (
@@ -317,6 +350,7 @@ func (q *Queries) ListPlaygroupsForUserPage(ctx context.Context, arg ListPlaygro
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CreatedBy,
+			&i.InviteCode,
 		); err != nil {
 			return nil, err
 		}
@@ -328,10 +362,36 @@ func (q *Queries) ListPlaygroupsForUserPage(ctx context.Context, arg ListPlaygro
 	return items, nil
 }
 
+const setPlaygroupInviteCode = `-- name: SetPlaygroupInviteCode :one
+UPDATE playgroups SET invite_code = $2
+WHERE id = $1
+RETURNING id, name, created_at, updated_at, created_by, invite_code
+`
+
+type SetPlaygroupInviteCodeParams struct {
+	ID         pgtype.UUID `json:"id"`
+	InviteCode pgtype.Text `json:"invite_code"`
+}
+
+// Rotating and revoking are the same write: a new code, or NULL.
+func (q *Queries) SetPlaygroupInviteCode(ctx context.Context, arg SetPlaygroupInviteCodeParams) (Playgroup, error) {
+	row := q.db.QueryRow(ctx, setPlaygroupInviteCode, arg.ID, arg.InviteCode)
+	var i Playgroup
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.InviteCode,
+	)
+	return i, err
+}
+
 const updatePlaygroupName = `-- name: UpdatePlaygroupName :one
 UPDATE playgroups SET name = $2
 WHERE id = $1
-RETURNING id, name, created_at, updated_at, created_by
+RETURNING id, name, created_at, updated_at, created_by, invite_code
 `
 
 type UpdatePlaygroupNameParams struct {
@@ -348,6 +408,7 @@ func (q *Queries) UpdatePlaygroupName(ctx context.Context, arg UpdatePlaygroupNa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CreatedBy,
+		&i.InviteCode,
 	)
 	return i, err
 }

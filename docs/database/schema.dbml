@@ -82,6 +82,7 @@ Table playgroups {
   created_at timestamp [default: `now()`]
   updated_at timestamp
   created_by uuid [ref: > users.id, note: 'Creator, the only one allowed to delete the group (and only while it has no games). ON DELETE SET NULL. Backfilled from the earliest member by joined_at. Migration 00022_playgroups_created_by.sql']
+  invite_code varchar [unique, note: 'Current shareable invite code (128 random bits, base64url). NULL = no active invite link. Rotated or revoked by any member; stored in plain text because members must be able to see it again (see ADR-0023). Migration 00025_playgroups_invite_code.sql']
 
   indexes {
     created_by [name: 'playgroups_created_by_idx', note: 'FK index. Migration 00022_playgroups_created_by.sql']

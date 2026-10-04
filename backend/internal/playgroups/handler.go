@@ -25,6 +25,10 @@ func (h *Handler) RegisterRoutes(router fiber.Router) {
 	router.Delete("/playgroups/:id", h.DeletePlaygroup)
 	router.Post("/playgroups/:id/members", h.AddMember)
 	router.Get("/playgroups/:id/members/:userId/decks", h.ListMemberDecks)
+	router.Post("/playgroups/:id/invite", h.RotateInvite)
+	router.Delete("/playgroups/:id/invite", h.RevokeInvite)
+	router.Get("/playgroup-invites/:code", h.PreviewInvite)
+	router.Post("/playgroup-invites/:code/accept", h.AcceptInvite)
 }
 
 // CreatePlaygroup handles the creation of a new playgroup.
@@ -129,4 +133,43 @@ func (h *Handler) ListMemberDecks(c *fiber.Ctx) error {
 		return common.MapError(err)
 	}
 	return c.JSON(res)
+}
+
+// RotateInvite creates (or replaces) the group's invite code.
+func (h *Handler) RotateInvite(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.RotateInvite(c.Context(), c.Params("id"), userID)
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(res)
+}
+
+// RevokeInvite disables the group's invite link.
+func (h *Handler) RevokeInvite(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	if err := h.svc.RevokeInvite(c.Context(), c.Params("id"), userID); err != nil {
+		return common.MapError(err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// PreviewInvite describes the group an invite code leads to.
+func (h *Handler) PreviewInvite(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.PreviewInvite(c.Context(), c.Params("code"), userID)
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.JSON(res)
+}
+
+// AcceptInvite joins the authenticated user to the group behind an invite code.
+func (h *Handler) AcceptInvite(c *fiber.Ctx) error {
+	userID, _ := c.Locals(common.UserIDKey).(string)
+	res, err := h.svc.AcceptInvite(c.Context(), c.Params("code"), userID)
+	if err != nil {
+		return common.MapError(err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(res)
 }

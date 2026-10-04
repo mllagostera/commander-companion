@@ -588,6 +588,15 @@ components:
             The user who created the playgroup, the only one who can delete
             it. Null when that account no longer exists, or for a group that
             had no members when the column was backfilled.
+        invite_code:
+          type: string
+          nullable: true
+          description: >-
+            The group's current invite code, null when no invite link is
+            active. Only ever sent to members (every endpoint returning a
+            Playgroup is membership-scoped). Clients build the shareable URL
+            from it; anyone signed in who has it can join via POST
+            /playgroup-invites/{code}/accept. See ADR-0023.
         members:
           type: array
           items:
@@ -621,6 +630,29 @@ components:
           format: uuid
         username:
           type: string
+    PlaygroupInvite:
+      type: object
+      required: [invite_code]
+      properties:
+        invite_code:
+          type: string
+          description: >-
+            Opaque, URL-safe code (22 characters, 128 random bits). Replaces
+            any previous code of the group.
+    PlaygroupInvitePreview:
+      type: object
+      required: [playgroup_id, name, member_count, is_member]
+      properties:
+        playgroup_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        member_count:
+          type: integer
+        is_member:
+          type: boolean
+          description: Whether the authenticated user already belongs to the group.
     CreatePlaygroupRequest:
       type: object
       required: [name]
@@ -2295,6 +2327,128 @@ Disallow: /
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: The user is already a member of the playgroup
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /playgroups/{id}/invite:
+    post:
+      summary: Create or rotate the playgroup's invite code
+      operationId: rotatePlaygroupInvite
+      tags:
+        - Playgroups
+      description: >-
+        Generates a new invite code and makes it the group's only valid one:
+        the previous code, if any, stops working immediately. Any member can
+        do it (same rule as adding a member by hand). The code does not
+        expire and has no use limit; rotating or revoking it is how a leaked
+        link is shut. See ADR-0023.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: New invite code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaygroupInvite'
+        '404':
+          description: Does not exist, or the authenticated user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Revoke the playgroup's invite code
+      operationId: revokePlaygroupInvite
+      tags:
+        - Playgroups
+      description: >-
+        Disables the invite link: the current code stops working and no new
+        one is created. Idempotent (204 even if there was no code). Any
+        member can do it.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Invite code revoked
+        '404':
+          description: Does not exist, or the authenticated user is not a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /playgroup-invites/{code}:
+    get:
+      summary: Preview the playgroup an invite code leads to
+      operationId: getPlaygroupInvite
+      tags:
+        - Playgroups
+      description: >-
+        Lets the invite page show which group the user is about to join
+        before they confirm. Requires a session, like every other playgroup
+        endpoint; only the group's name and size are revealed, never its
+        roster. An unknown, malformed or revoked code is 404.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The group the code belongs to
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaygroupInvitePreview'
+        '404':
+          description: Unknown or revoked invite code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /playgroup-invites/{code}/accept:
+    post:
+      summary: Join a playgroup through its invite code
+      operationId: acceptPlaygroupInvite
+      tags:
+        - Playgroups
+      description: >-
+        Adds the authenticated user to the group the code belongs to. The
+        code stays valid afterwards (one link for the whole group). Returns
+        the group as any member sees it.
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Joined; the playgroup detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Playgroup'
+        '404':
+          description: Unknown or revoked invite code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The authenticated user is already a member of the playgroup
           content:
             application/json:
               schema:
