@@ -194,6 +194,7 @@ for a new module), add it to this list too in the same change.
 - [0020 — `GET /health` reports which build is answering](docs/decisions/0020-build-provenance-in-health.md)
 - [0021 — Deck bracket and color identity, overridable and snapshotted per seat](docs/decisions/0021-deck-bracket-and-color-identity.md)
 - [0022 — Password reset by email](docs/decisions/0022-password-reset-by-email.md)
+- [0023 — Playgroup invite links](docs/decisions/0023-playgroup-invite-links.md)
 
 **READMEs per module:**
 

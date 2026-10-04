@@ -67,3 +67,15 @@ SELECT * FROM users WHERE id = $1 LIMIT 1;
 -- a fellow group member (see ADR-0013). Authorization (does the caller share a
 -- playgroup with this user?) is done by the service, not this query.
 SELECT * FROM decks WHERE user_id = $1 ORDER BY created_at DESC;
+
+-- name: SetPlaygroupInviteCode :one
+-- Rotating and revoking are the same write: a new code, or NULL.
+UPDATE playgroups SET invite_code = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: GetPlaygroupByInviteCode :one
+SELECT * FROM playgroups WHERE invite_code = $1 LIMIT 1;
+
+-- name: CountPlaygroupMembers :one
+SELECT count(*) FROM playgroup_members WHERE playgroup_id = $1;

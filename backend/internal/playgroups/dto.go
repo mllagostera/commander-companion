@@ -16,8 +16,25 @@ type PlaygroupResponse struct {
 	Name string `json:"name"`
 	// CreatedBy is the creator's user ID, the only one allowed to delete the group.
 	// Null for a group whose creator's account no longer exists.
-	CreatedBy *string                   `json:"created_by"`
-	Members   []PlaygroupMemberResponse `json:"members,omitempty"`
+	CreatedBy *string `json:"created_by"`
+	// InviteCode is the group's active invite code, null without one. Every
+	// endpoint returning this DTO is membership-scoped, so only members see it.
+	InviteCode *string                   `json:"invite_code"`
+	Members    []PlaygroupMemberResponse `json:"members,omitempty"`
+}
+
+// PlaygroupInviteResponse is the newly generated invite code of a playgroup.
+type PlaygroupInviteResponse struct {
+	InviteCode string `json:"invite_code"`
+}
+
+// PlaygroupInvitePreviewResponse is what an invite code reveals before joining:
+// the group's name and size, never its roster.
+type PlaygroupInvitePreviewResponse struct {
+	PlaygroupID string `json:"playgroup_id"`
+	Name        string `json:"name"`
+	MemberCount int64  `json:"member_count"`
+	IsMember    bool   `json:"is_member"`
 }
 
 // PlaygroupListResponse is a page of the authenticated user's playgroups (see

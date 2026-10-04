@@ -132,11 +132,12 @@ type PasswordResetToken struct {
 }
 
 type Playgroup struct {
-	ID        pgtype.UUID      `json:"id"`
-	Name      string           `json:"name"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
-	CreatedBy pgtype.UUID      `json:"created_by"`
+	ID         pgtype.UUID      `json:"id"`
+	Name       string           `json:"name"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
+	CreatedBy  pgtype.UUID      `json:"created_by"`
+	InviteCode pgtype.Text      `json:"invite_code"`
 }
 
 type PlaygroupMember struct {

@@ -2,6 +2,8 @@ package playgroups
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -32,7 +34,21 @@ var (
 	// games: deleting is only for undoing a group created by mistake, never for
 	// erasing the members' history.
 	ErrPlaygroupHasGames = common.Conflict("only a playgroup without games can be deleted")
+	// ErrInviteNotFound indicates an unknown, malformed or revoked invite code. One
+	// error for all three, so a code can't be probed for "existed once".
+	ErrInviteNotFound = common.NotFound("invite not found")
 )
+
+// inviteCodeBytes is the entropy of an invite code: 128 bits, so guessing one is
+// not a practical way into a group even without rate limiting. Base64url
+// without padding turns it into inviteCodeLength URL-safe characters.
+const (
+	inviteCodeBytes  = 16
+	inviteCodeLength = 22
+)
+
+// pgUniqueViolation is Postgres' SQLSTATE for a unique/primary key violation.
+const pgUniqueViolation = "23505"
 
 // gamesPlaygroupFK is the FK from games onto playgroups (Postgres' default name for
 // the unnamed constraint in 00001_initial_schema.sql).
@@ -60,6 +76,16 @@ type Service interface {
 	// ListMemberDecks returns memberUserID's decks, if requesterID is also a
 	// member of playgroupID (see ADR-0013).
 	ListMemberDecks(ctx context.Context, playgroupID, requesterID, memberUserID string) ([]DeckResponse, error)
+	// RotateInvite gives the group a new invite code, invalidating the previous
+	// one. Any member can do it (see ADR-0023).
+	RotateInvite(ctx context.Context, playgroupID, requesterID string) (*PlaygroupInviteResponse, error)
+	// RevokeInvite disables the group's invite link. Any member can do it.
+	RevokeInvite(ctx context.Context, playgroupID, requesterID string) error
+	// PreviewInvite describes the group an invite code leads to, for the
+	// confirmation page shown before joining.
+	PreviewInvite(ctx context.Context, code, userID string) (*PlaygroupInvitePreviewResponse, error)
+	// AcceptInvite adds userID to the group the invite code belongs to.
+	AcceptInvite(ctx context.Context, code, userID string) (*PlaygroupResponse, error)
 }
 
 type service struct {
@@ -370,6 +396,131 @@ func (s *service) ListMemberDecks(
 	return result, nil
 }
 
+// RotateInvite replaces the group's invite code with a fresh one. There is a
+// single code per group, so rotating is also how a leaked link is shut while
+// keeping an active one.
+func (s *service) RotateInvite(
+	ctx context.Context, playgroupID, requesterID string,
+) (*PlaygroupInviteResponse, error) {
+	playgroup, err := s.getMemberPlaygroup(ctx, requesterID, playgroupID)
+	if err != nil {
+		return nil, err
+	}
+
+	code, err := newInviteCode()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.repo.SetPlaygroupInviteCode(ctx, SetPlaygroupInviteCodeParams{
+		ID: playgroup.ID, InviteCode: pgtype.Text{String: code, Valid: true},
+	}); err != nil {
+		return nil, fmt.Errorf("setting invite code: %w", err)
+	}
+	return &PlaygroupInviteResponse{InviteCode: code}, nil
+}
+
+// RevokeInvite clears the group's invite code. Idempotent: revoking a group
+// with no code is not an error.
+func (s *service) RevokeInvite(ctx context.Context, playgroupID, requesterID string) error {
+	playgroup, err := s.getMemberPlaygroup(ctx, requesterID, playgroupID)
+	if err != nil {
+		return err
+	}
+	if _, err := s.repo.SetPlaygroupInviteCode(ctx, SetPlaygroupInviteCodeParams{ID: playgroup.ID}); err != nil {
+		return fmt.Errorf("revoking invite code: %w", err)
+	}
+	return nil
+}
+
+// PreviewInvite returns the name and size of the group behind an invite code,
+// never its roster: whoever holds the code is invited to join, not yet a member.
+func (s *service) PreviewInvite(
+	ctx context.Context, code, userID string,
+) (*PlaygroupInvitePreviewResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+	playgroup, err := s.getInvitePlaygroup(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+
+	count, err := s.repo.CountPlaygroupMembers(ctx, playgroup.ID)
+	if err != nil {
+		return nil, fmt.Errorf("counting playgroup members: %w", err)
+	}
+	isMember, err := s.IsMember(ctx, playgroup.ID.String(), uid.String())
+	if err != nil {
+		return nil, err
+	}
+	return &PlaygroupInvitePreviewResponse{
+		PlaygroupID: playgroup.ID.String(),
+		Name:        playgroup.Name,
+		MemberCount: count,
+		IsMember:    isMember,
+	}, nil
+}
+
+// AcceptInvite joins userID to the group behind the code. The code stays valid:
+// one link serves the whole group, the way a group chat invite does.
+func (s *service) AcceptInvite(ctx context.Context, code, userID string) (*PlaygroupResponse, error) {
+	uid, err := common.ParseUUID(userID)
+	if err != nil {
+		return nil, common.ErrInvalidUser
+	}
+	playgroup, err := s.getInvitePlaygroup(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+
+	// No membership pre-check: the (playgroup_id, user_id) primary key is the
+	// rule, and it also covers two tabs accepting at the same time.
+	if _, addErr := s.repo.AddPlaygroupMember(
+		ctx, AddPlaygroupMemberParams{PlaygroupID: playgroup.ID, UserID: uid},
+	); addErr != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(addErr, &pgErr) && pgErr.Code == pgUniqueViolation {
+			return nil, ErrAlreadyMember
+		}
+		return nil, fmt.Errorf("joining playgroup by invite: %w", addErr)
+	}
+
+	members, err := s.repo.ListPlaygroupMembers(ctx, playgroup.ID)
+	if err != nil {
+		return nil, fmt.Errorf("listing playgroup members: %w", err)
+	}
+	return toPlaygroupResponse(playgroup, members), nil
+}
+
+// getInvitePlaygroup resolves the group an invite code belongs to. A code that
+// can't be one of ours is rejected before touching the database.
+func (s *service) getInvitePlaygroup(ctx context.Context, code string) (*Playgroup, error) {
+	if len(code) != inviteCodeLength {
+		return nil, ErrInviteNotFound
+	}
+	if _, err := base64.RawURLEncoding.DecodeString(code); err != nil {
+		return nil, ErrInviteNotFound
+	}
+
+	playgroup, err := s.repo.GetPlaygroupByInviteCode(ctx, pgtype.Text{String: code, Valid: true})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrInviteNotFound
+		}
+		return nil, fmt.Errorf("looking up invite code: %w", err)
+	}
+	return &playgroup, nil
+}
+
+func newInviteCode() (string, error) {
+	buf := make([]byte, inviteCodeBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generating invite code: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
 // getMemberPlaygroup resolves a group by ID only if the given user is a member; it doesn't
 // distinguish "the group doesn't exist" from "you're not a member", so as not to reveal other users' groups.
 func (s *service) getMemberPlaygroup(ctx context.Context, userID, id string) (*Playgroup, error) {
@@ -406,6 +557,10 @@ func toPlaygroupResponse(p *Playgroup, members []ListPlaygroupMembersRow) *Playg
 	if p.CreatedBy.Valid {
 		createdBy := p.CreatedBy.String()
 		res.CreatedBy = &createdBy
+	}
+	if p.InviteCode.Valid {
+		inviteCode := p.InviteCode.String
+		res.InviteCode = &inviteCode
 	}
 	if members != nil {
 		res.Members = make([]PlaygroupMemberResponse, 0, len(members))

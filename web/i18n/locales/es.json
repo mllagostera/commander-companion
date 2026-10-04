@@ -445,7 +445,28 @@
       "delete": "Eliminar grupo",
       "deleting": "Eliminando…",
       "deleteConfirmTitle": "¿Eliminar «{name}»?",
-      "deleteConfirmBody": "Se quitará a todos sus miembros. Esta acción no se puede deshacer."
+      "deleteConfirmBody": "Se quitará a todos sus miembros. Esta acción no se puede deshacer.",
+      "invite": {
+        "heading": "Enlace de invitación",
+        "body": "Quien tenga este enlace y una cuenta puede unirse al grupo. Compártelo solo con tu mesa.",
+        "create": "Crear enlace de invitación",
+        "creating": "Creando…",
+        "urlLabel": "Enlace de invitación",
+        "copy": "Copiar",
+        "copied": "¡Copiado!",
+        "rotate": "Generar uno nuevo",
+        "revoke": "Desactivar enlace",
+        "rotateHint": "Generar uno nuevo o desactivarlo invalida el enlace actual al instante.",
+        "copyFailed": "No se pudo copiar. Selecciona el enlace y cópialo a mano."
+      }
+    },
+    "join": {
+      "title": "Unirse a un grupo",
+      "body": "Te han invitado a este grupo. Al unirte verás sus partidas y estadísticas, y podrán añadirte a sus partidas.",
+      "action": "Unirme al grupo",
+      "joining": "Uniéndote…",
+      "alreadyMember": "Ya eres miembro de este grupo.",
+      "goToGroup": "Ir al grupo"
     }
   },
   "friends": {
@@ -553,7 +574,9 @@
     "friendRequestSent": "Solicitud de amistad enviada a {username}",
     "friendAdded": "Ahora tú y {username} son amigos",
     "deckCreated": "Deck creado",
-    "deckUpdated": "Deck actualizado"
+    "deckUpdated": "Deck actualizado",
+    "groupJoined": "Te has unido a {name}",
+    "inviteRevoked": "Enlace de invitación desactivado"
   },
   "gameStatus": {
     "pending": "Pendiente",
@@ -621,6 +644,11 @@
         "notFoundOrNotMember": "El grupo no existe o no eres miembro.",
         "hasGames": "Este grupo ya tiene partidas y no se puede eliminar.",
         "generic": "No se pudo eliminar el grupo."
+      },
+      "invite": {
+        "notFound": "Este enlace de invitación no es válido o ya no está activo. Pide uno nuevo a alguien del grupo.",
+        "alreadyMember": "Ya eres miembro de este grupo.",
+        "generic": "No se pudo completar la invitación."
       }
     },
     "games": {

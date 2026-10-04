@@ -132,7 +132,22 @@ export interface Playgroup {
   name: string
   /** The creator's user id, the only one who can delete the group. Null if that account no longer exists. */
   created_by: string | null
+  /** Active invite code (see ADR-0023), null when the group has no invite link. Only members receive it. */
+  invite_code: string | null
   members?: PlaygroupMember[]
+}
+
+/** `POST /playgroups/{id}/invite`: the group's new invite code, replacing any previous one. */
+export interface PlaygroupInvite {
+  invite_code: string
+}
+
+/** `GET /playgroup-invites/{code}`: what an invite reveals before joining — never the roster. */
+export interface PlaygroupInvitePreview {
+  playgroup_id: string
+  name: string
+  member_count: number
+  is_member: boolean
 }
 
 export interface PlaygroupMember {
