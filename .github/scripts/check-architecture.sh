@@ -27,7 +27,8 @@
 #   this script                        - everything that is not an import: SQL
 #                                        inside a string, a URL in the web
 #                                        client, routes vs the OpenAPI file,
-#                                        markdown links, a date in TASKS.md.
+#                                        markdown links, a date in TASKS.md,
+#                                        RLS on every migrated table.
 #                                        Plus one import rule no tool can state:
 #                                        a slice reaching into ANOTHER slice's
 #                                        sqlc Queries, because Service and
@@ -230,7 +231,31 @@ for f in $(find docs -name '*.md' 2>/dev/null | sort); do
 done
 
 # ---------------------------------------------------------------------------
-# 7. TASKS.md's review date tracks the code. WARNING, on purpose.
+# 7. Every table a migration creates has RLS enabled in a migration.
+#    Supabase exposes the public schema through PostgREST with full grants for
+#    anon/authenticated, so a table without RLS is readable AND writable with
+#    the publishable key. The backend owns the tables and is unaffected by
+#    deny-all RLS. Forgotten twice (00013 -> 00014, 00024 -> 00026), the second
+#    time on password_reset_tokens, where it meant account takeover.
+# ---------------------------------------------------------------------------
+section "Every table has RLS enabled"
+
+if [ -d backend/migrations ]; then
+  # SQL comments stripped first, so prose about a table doesn't count.
+  sed 's/--.*$//' backend/migrations/*.sql > "$tmp/migrations.sql"
+  grep -oiE 'create table (if not exists )?[a-z_]+' "$tmp/migrations.sql" \
+    | awk '{print tolower($NF)}' | sort -u > "$tmp/tables"
+  grep -oiE 'alter table [a-z_]+ enable row level security' "$tmp/migrations.sql" \
+    | awk '{print tolower($3)}' | sort -u > "$tmp/rls_tables"
+  comm -23 "$tmp/tables" "$tmp/rls_tables" > "$tmp/no_rls"
+  while IFS= read -r t; do
+    [ -n "$t" ] && report_fail "table $t is created without RLS" \
+      "add 'ALTER TABLE $t ENABLE ROW LEVEL SECURITY;' to the migration that creates it (deny-all, no policies)"
+  done < "$tmp/no_rls"
+fi
+
+# ---------------------------------------------------------------------------
+# 8. TASKS.md's review date tracks the code. WARNING, on purpose.
 #    Blocking this would just teach an agent to bump the date without auditing
 #    anything, which is worse than the drift it would hide.
 # ---------------------------------------------------------------------------

@@ -25,6 +25,29 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-06 — `password_reset_tokens` had no RLS.** Reported by the user
+("one of the Supabase tables isn't protected"); confirmed by the Supabase
+security advisor (`rls_disabled_in_public`, level ERROR). Migration 00024
+created the table without `ENABLE ROW LEVEL SECURITY`, the same slip 00014
+fixed for `deck_resync_jobs`. Worse than a read leak: anon/authenticated
+held INSERT/UPDATE/DELETE grants, so anyone with the publishable key could
+insert a row with a token hash of their own for any `user_id`, or null
+`used_at` on a spent token, and reset that user's password. Rows read
+through PostgREST only expose SHA-256 hashes, so the write path was the
+real risk. At the time of the audit the table held one row (used); the
+edge logs (24h window, the most the API allows) showed no `/rest/v1/`
+traffic at all. Older traffic could not be checked.
+Fix: migration 00026 enables deny-all RLS on it. Auditing the repo turned up
+a second problem: RLS on the 13 tables from 00001-00012 (and on
+`goose_db_version`) was only ever enabled by hand in the Supabase
+dashboard, never in a migration, so any database built from the repo
+(local, CI, a new Supabase project) started with every table open. 00026
+backfills them (idempotent; its Down is a deliberate no-op). The rule moved
+from prose into `check-architecture.sh` (section 7): a `CREATE TABLE`
+without a matching `ENABLE ROW LEVEL SECURITY` in some migration fails CI.
+Verified: goose up/down/up on a clean Postgres 16 leaves no public table
+without RLS; the check flags the 14 tables when 00026 is removed.
+
 **2026-10-04 — Playgroup invite links.** Requested by the user: a public URL to
 join a group, invitation-style, from the web. Built as one rotatable code per
 group (`playgroups.invite_code`, migration 00025) rather than an invites table;

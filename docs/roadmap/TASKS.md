@@ -11,7 +11,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - Keep each line short (status + what + a pointer to the file/module). Put narrative, rationale, and verification detail in DECISIONS-LOG.md instead, dated, under the matching stage — don't let it accumulate here again.
 - Update the "Last reviewed" date every time the real state of the code is audited, and add the corresponding entry to DECISIONS-LOG.md.
 
-**Last reviewed:** 2026-10-04 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
+**Last reviewed:** 2026-10-06 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
 
 ---
 
@@ -69,6 +69,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 ### Auth — password reset
 - [x] ADR: reset link by email, 1h single-use token, signs out everywhere — [ADR-0022](../decisions/0022-password-reset-by-email.md)
 - [x] Migration `00024_password_reset_tokens.sql`
+- [x] RLS on `password_reset_tokens` (missing since 00024: writable with the anon key, i.e. account takeover) + backfill of the dashboard-only RLS on the 00001-00012 tables, migration `00026`; `check-architecture.sh` now fails on a table created without RLS — see [DECISIONS-LOG.md](DECISIONS-LOG.md) 2026-10-06
 - [x] `POST /auth/forgot-password` (never reveals whether the email exists) and `POST /auth/reset-password` (transactional: new hash, email verified, other reset links burned, refresh tokens revoked)
 - [x] Web: "Forgot your password?" link on `login.vue`, `forgot-password.vue`, `reset-password.vue`, es/en/ca
 - [x] Email HTML per locale versioned in `docs/decisions/0022-password-reset-template.{es,en,ca}.html`
