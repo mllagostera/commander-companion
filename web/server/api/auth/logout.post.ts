@@ -9,6 +9,7 @@ export default defineEventHandler(async (event) => {
     try {
       await $fetch('/auth/logout', {
         baseURL: backendBase(event),
+        headers: clientIPHeaders(event),
         method: 'POST',
         body: { refresh_token: refreshToken },
       })

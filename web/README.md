@@ -105,6 +105,10 @@ Notes on `docker-compose.yml`'s environment variables:
   `http://api:8080/api/v1`, the internal hostname of the `api` service on the
   Compose network. Without this separate variable, server-side rendering would try to
   resolve `localhost:8080` inside the `web` container itself and fail.
+- `NUXT_BFF_SHARED_SECRET` / the API's `BFF_SHARED_SECRET`: the same dev-only
+  value on both services, so the API keys its rate limits by the browser's IP
+  instead of the `web` container's (see
+  [ADR-0024](../docs/decisions/0024-client-ip-for-rate-limits.md)).
 
 ## Structure
 

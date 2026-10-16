@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -144,5 +145,43 @@ func TestLoad_SentryTracesSampleRate_InvalidValues_ReturnError(t *testing.T) {
 				t.Fatalf("Load() error = nil, want an error for SENTRY_TRACES_SAMPLE_RATE=%q", raw)
 			}
 		})
+	}
+}
+
+func TestLoad_ClientIP_DisabledByDefault(t *testing.T) {
+	clearProductionSecrets(t)
+	t.Setenv("BFF_SHARED_SECRET", "")
+	t.Setenv("CLIENT_IP_HEADER", "")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if cfg.ClientIP.BFFSharedSecret != "" || cfg.ClientIP.TrustedHeader != "" {
+		t.Fatalf("ClientIP = %+v, want the zero value (trust only the TCP peer)", cfg.ClientIP)
+	}
+}
+
+func TestLoad_ClientIP_ReadFromEnvironment(t *testing.T) {
+	clearProductionSecrets(t)
+	const secret = "0123456789abcdef0123456789abcdef"
+	t.Setenv("BFF_SHARED_SECRET", secret)
+	t.Setenv("CLIENT_IP_HEADER", "True-Client-IP")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if cfg.ClientIP.BFFSharedSecret != secret || cfg.ClientIP.TrustedHeader != "True-Client-IP" {
+		t.Fatalf("ClientIP = %+v, want both settings read from the environment", cfg.ClientIP)
+	}
+}
+
+func TestLoad_ClientIP_ShortBFFSecret_ReturnsError(t *testing.T) {
+	clearProductionSecrets(t)
+	t.Setenv("BFF_SHARED_SECRET", "too-short")
+
+	if _, err := config.Load(); !errors.Is(err, config.ErrBFFSecretTooShort) {
+		t.Fatalf("Load() error = %v, want ErrBFFSecretTooShort", err)
 	}
 }

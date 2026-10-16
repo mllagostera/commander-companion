@@ -37,19 +37,27 @@ import (
 )
 
 const (
-	// Rate limit for the public auth endpoints. 20 req/min per IP leaves
-	// plenty of slack for a human mistyping their password or for the
-	// automatic refresh of several devices behind the same NAT, but cuts
-	// credential stuffing short.
-	authRateLimitMax    = 20
-	authRateLimitWindow = time.Minute
+	// rateLimitWindow is the fixed window every rate limit below counts over.
+	rateLimitWindow = time.Minute
+
+	// Rate limit for the public endpoints that take a credential or create an
+	// account (login, google, register, verify-email, password reset, ...).
+	// 20 req/min per client IP leaves plenty of slack for a human mistyping
+	// their password, but cuts credential stuffing short.
+	credentialsRateLimitMax = 20
+
+	// Rate limit for POST /auth/refresh, in its own bucket so that clients
+	// renewing their session (automatically, several devices behind one NAT)
+	// can't use up the login budget, nor the other way round. It is looser
+	// because guessing a refresh token is not a realistic attack (256 random
+	// bits, see auth.newRefreshTokenPlain): the limit only bounds load.
+	refreshRateLimitMax = 60
 
 	// Rate limit for GET /users/search. It's authenticated (unlike the auth
 	// endpoints above), but it does an exact-email lookup — without a bound, an
 	// account could be used to check an arbitrary list of addresses at whatever
 	// rate the client wants (see the 2026-08-01 security audit, docs/roadmap/TASKS.md).
-	searchRateLimitMax    = 20
-	searchRateLimitWindow = time.Minute
+	searchRateLimitMax = 20
 
 	migrationsDir = "migrations"
 )
@@ -112,6 +120,9 @@ func run() error {
 	// Middlewares
 	app.Use(logger.New())
 	app.Use(recover.New())
+	// Before Sentry: it strips the BFF secret header, which must never end up
+	// in a Sentry event's request headers.
+	app.Use(common.ResolveClientIP(cfg.ClientIP))
 	if sentryEnabled {
 		useSentry(app)
 	}
@@ -166,36 +177,24 @@ func reapStaleBackgroundJobs(ctx context.Context, pool *pgxpool.Pool) error {
 	return nil
 }
 
-// newAuthRateLimiter builds the per-IP rate limiting middleware for the
-// public auth endpoints. The counter lives in the process's memory: enough
-// for a single instance (the current deployment, see docker-compose.yml);
-// with several replicas it would need to move to a shared Storage (Redis).
+// newRateLimiter builds a per-client-IP rate limiting middleware. Each call
+// owns its own counters, so two limiters never share a budget.
 //
-// Note: the IP comes from fiber.Ctx.IP(), which behind a proxy/ingress
-// returns the proxy's IP unless ProxyHeader is configured in fiber.Config.
-// When deploying behind one, it must be set or the limit would be global.
-func newAuthRateLimiter() fiber.Handler {
+// The key is common.ClientIP, not fiber.Ctx.IP(): behind the web BFF or an edge
+// proxy the TCP peer is the same address for every user, which would turn a
+// per-client limit into a global one (see ADR-0024). The counters live in the
+// process's memory: enough for a single instance (the current deployment);
+// with several replicas they would need a shared Storage (Redis).
+func newRateLimiter(maxRequests int, message string) fiber.Handler {
 	return limiter.New(limiter.Config{
-		Max:        authRateLimitMax,
-		Expiration: authRateLimitWindow,
+		Max:          maxRequests,
+		Expiration:   rateLimitWindow,
+		KeyGenerator: common.ClientIP,
 		LimitReached: func(_ *fiber.Ctx) error {
 			// Returning the error (instead of writing the response here) makes it
 			// go through common.ErrorHandler, so a 429 has the same body as
 			// any other API error.
-			return fiber.NewError(fiber.StatusTooManyRequests, "too many authentication requests, try again later")
-		},
-	})
-}
-
-// newSearchRateLimiter builds the per-IP rate limiting middleware for
-// GET /users/search (see the constant doc above). Same in-process-memory /
-// ProxyHeader caveats as newAuthRateLimiter.
-func newSearchRateLimiter() fiber.Handler {
-	return limiter.New(limiter.Config{
-		Max:        searchRateLimitMax,
-		Expiration: searchRateLimitWindow,
-		LimitReached: func(_ *fiber.Ctx) error {
-			return fiber.NewError(fiber.StatusTooManyRequests, "too many search requests, try again later")
+			return fiber.NewError(fiber.StatusTooManyRequests, message)
 		},
 	})
 }
@@ -205,11 +204,14 @@ func newSearchRateLimiter() fiber.Handler {
 func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	api := app.Group("/api/v1")
 
-	// The rate limit is passed to each public auth endpoint instead of being
+	// The rate limits are passed to each public auth endpoint instead of being
 	// mounted as group middleware: in Fiber, a Group with middleware applies
 	// to everything that shares the prefix (including /auth/me and the rest
 	// of the API), and here we only want to bound the endpoints without JWT.
-	authRateLimit := newAuthRateLimiter()
+	credentialsRateLimit := newRateLimiter(credentialsRateLimitMax,
+		"too many authentication requests, try again later")
+	refreshRateLimit := newRateLimiter(refreshRateLimitMax,
+		"too many session refresh requests, try again later")
 
 	// emailClient sends the account mails (verification, password reset). Without
 	// RESEND_API_KEY (dev without a Resend account) it logs the links to the console
@@ -223,11 +225,11 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	)
 	usersHandler := users.NewHandler(usersService)
 	// POST /auth/register, verify-email, resend-verification, forgot-password, reset-password
-	usersHandler.RegisterRoutes(api, authRateLimit)
+	usersHandler.RegisterRoutes(api, credentialsRateLimit)
 
 	authService := auth.NewService(db.Pool, usersService, cfg.Auth)
 	authHandler := auth.NewHandler(authService)
-	authHandler.RegisterPublicRoutes(api, authRateLimit) // login, google, refresh, logout
+	authHandler.RegisterPublicRoutes(api, credentialsRateLimit, refreshRateLimit) // login, google, refresh, logout
 
 	// The activity tracker runs on every authenticated request (after RequireAuth,
 	// which gives it the user ID) to keep users.last_seen_at fresh for the admin
@@ -236,7 +238,8 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	protected := api.Group("", auth.RequireAuth(cfg.Auth.JWTSecret), activityTracker.Middleware())
 	authHandler.RegisterProtectedRoutes(protected) // GET /auth/me
 	// GET /users/search, PATCH /users/:id, POST /users/:id/password.
-	usersHandler.RegisterProtectedRoutes(protected, newSearchRateLimiter())
+	usersHandler.RegisterProtectedRoutes(protected, newRateLimiter(searchRateLimitMax,
+		"too many search requests, try again later"))
 
 	moxfieldClient := moxfield.NewClient()
 	decksService := decks.NewService(db.Pool, moxfieldClient)

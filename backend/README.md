@@ -70,6 +70,11 @@ Transaction pooler, because this backend uses prepared statements via pgx),
 `CORS_ALLOWED_ORIGINS`, and `WEB_APP_URL` (the frontend's domain on Vercel). See
 [`.env.example`](.env.example) for the rest.
 
+For the per-IP rate limits to count each user rather than the platform's proxies
+(see [ADR-0024](../docs/decisions/0024-client-ip-for-rate-limits.md)), also set
+`BFF_SHARED_SECRET` (same value as the web's `NUXT_BFF_SHARED_SECRET` on Vercel)
+and, once the header has been verified, `CLIENT_IP_HEADER`.
+
 ### Knowing which build is live
 
 `GET /health` reports the git SHA the running binary was built from, on both

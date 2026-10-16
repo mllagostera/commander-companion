@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
   try {
     const data = await $fetch<TokenResponse>('/auth/google', {
       baseURL: backendBase(event),
+      headers: clientIPHeaders(event),
       method: 'POST',
       body: { id_token: body.id_token },
     })

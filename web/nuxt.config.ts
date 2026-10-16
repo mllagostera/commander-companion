@@ -81,6 +81,11 @@ export default defineNuxtConfig({
     // same public value (the "npm run dev" without Docker case, where both processes
     // are on localhost).
     apiBase: process.env.NUXT_API_BASE || process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8080/api/v1',
+    // Shared secret with the Go API's BFF_SHARED_SECRET (same value). With it,
+    // every call to the API carries the browser's IP so the API's per-IP rate
+    // limits count each user separately; without it, every web user shares the
+    // BFF's bucket. Server-only: never under `public` (see ADR-0024).
+    bffSharedSecret: process.env.NUXT_BFF_SHARED_SECRET || '',
     public: {
       // API URL for calls made from the browser (with /api/v1 at
       // the end). See backend/.env.example.

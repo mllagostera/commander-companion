@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
   try {
     await $fetch<AuthUser>('/auth/register', {
       baseURL: backendBase(event),
+      headers: clientIPHeaders(event),
       method: 'POST',
       body: {
         username: body.username,

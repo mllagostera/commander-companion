@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/usuario/commander-companion-backend/internal/auth"
+	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/email"
 )
 
@@ -26,6 +27,10 @@ var (
 	// ErrSampleRateOutOfRange is returned by Load when SENTRY_TRACES_SAMPLE_RATE
 	// isn't a fraction between 0 and 1.
 	ErrSampleRateOutOfRange = errors.New("sample rate out of range")
+	// ErrBFFSecretTooShort is returned by Load when BFF_SHARED_SECRET is set but
+	// shorter than minBFFSecretLen: it is all that stops anyone from choosing
+	// their own rate-limit bucket, so a guessable value is refused at startup.
+	ErrBFFSecretTooShort = errors.New("BFF_SHARED_SECRET is too short")
 )
 
 const (
@@ -37,6 +42,9 @@ const (
 	// Templates (see passwordResetTemplateID).
 	defaultPasswordResetTemplateID = "password-reset"
 	defaultAppEnv                  = "development"
+	// minBFFSecretLen is the shortest BFF_SHARED_SECRET accepted: 32 characters,
+	// e.g. `openssl rand -hex 16`.
+	minBFFSecretLen = 32
 
 	// AppEnvProduction is the APP_ENV value that turns on the fail-fast checks in
 	// loadAuthConfig/corsAllowedOrigins: with it set, starting up without an explicit
@@ -82,8 +90,11 @@ type Config struct {
 	// SlackSignupWebhookURL is the Slack incoming webhook that gets a message for
 	// every new account. Empty (the default) disables those notifications.
 	SlackSignupWebhookURL string
-	Auth                  auth.Config
-	Email                 email.Config
+	// ClientIP says which headers identify the caller's IP for the rate limits
+	// (BFF_SHARED_SECRET, CLIENT_IP_HEADER; see ADR-0024).
+	ClientIP common.ClientIPConfig
+	Auth     auth.Config
+	Email    email.Config
 }
 
 // Load reads the full configuration from environment variables, with the
@@ -106,6 +117,11 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	clientIP, err := loadClientIPConfig()
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		AppEnv:                   env,
 		DBURL:                    dbURL(),
@@ -117,6 +133,7 @@ func Load() (Config, error) {
 		SentryDSN:                os.Getenv("SENTRY_DSN"),
 		SentryTracesSampleRate:   tracesSampleRate,
 		SlackSignupWebhookURL:    os.Getenv("SLACK_SIGNUP_WEBHOOK_URL"),
+		ClientIP:                 clientIP,
 		Auth:                     authCfg,
 		Email:                    loadEmailConfig(),
 	}, nil
@@ -166,6 +183,22 @@ func webAppURL() string {
 		return v
 	}
 	return defaultWebAppURL
+}
+
+// loadClientIPConfig reads which request data may identify the caller's IP.
+// Both settings are optional: without them every request is keyed by its TCP
+// peer, which is correct when nothing sits in front of the API (docker compose)
+// and merely coarse otherwise — never a reason to refuse to start.
+func loadClientIPConfig() (common.ClientIPConfig, error) {
+	secret := os.Getenv("BFF_SHARED_SECRET")
+	if secret != "" && len(secret) < minBFFSecretLen {
+		return common.ClientIPConfig{}, fmt.Errorf("%w: need at least %d characters, got %d",
+			ErrBFFSecretTooShort, minBFFSecretLen, len(secret))
+	}
+	return common.ClientIPConfig{
+		BFFSharedSecret: secret,
+		TrustedHeader:   os.Getenv("CLIENT_IP_HEADER"),
+	}, nil
 }
 
 // loadEmailConfig reads the Resend configuration. If RESEND_API_KEY is empty (dev
