@@ -586,9 +586,10 @@
   "errors": {
     "auth": {
       "noActiveSession": "There's no active session.",
-      "tooManyRequests": "Too many attempts. Wait a minute and try again.",
+      "tooManyRequests": "Too many attempts. Wait a few minutes and try again.",
       "unreachable": "Couldn't reach the server. Try again in a few seconds."
     },
+    "moxfieldRateLimited": "Too many Moxfield requests in a row. Wait a few minutes and try again.",
     "moxfieldImport": {
       "notFound": "There's no public Moxfield deck with that ID. Check the URL and that the deck isn't private.",
       "alreadyImported": "You already have that deck imported.",

@@ -17,8 +17,10 @@ func NewHandler(svc Service) *Handler {
 }
 
 // RegisterRoutes registers all the endpoints of the moxfieldimport module.
-func (h *Handler) RegisterRoutes(router fiber.Router) {
-	router.Post("/moxfield-import", h.StartImport)
+// bulkRateLimit bounds how many jobs a user starts; it is shared with
+// POST /decks/resync-all (see cmd/api/ratelimit.go).
+func (h *Handler) RegisterRoutes(router fiber.Router, bulkRateLimit fiber.Handler) {
+	router.Post("/moxfield-import", bulkRateLimit, h.StartImport)
 	router.Get("/moxfield-import", h.GetLatestJobStatus)
 	router.Get("/moxfield-import/:jobId", h.GetJobStatus)
 }

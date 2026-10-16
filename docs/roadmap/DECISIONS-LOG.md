@@ -25,6 +25,35 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-16 — Per-account and per-user rate limits.** Items 2 and 4 of the
+security review earlier the same day. Failed logins are limited per account (10
+per 15 minutes, keyed by the submitted email whether or not it exists), and the
+Moxfield endpoints per user (one-deck import + sync share 20 per 10 minutes;
+bulk import + resync-all share 5 started jobs per hour). Decision and the
+lockout trade-off in [ADR-0025](../decisions/0025-per-account-and-per-user-rate-limits.md).
+The rate-limit code moved out of `main.go` into `cmd/api/ratelimit.go`.
+
+Gotcha worth remembering: the first version used Fiber's
+`SkipSuccessfulRequests`/`SkipFailedRequests`, and the new tests failed. Those
+options read the response status right after the handler returns, before
+`common.ErrorHandler` turns a returned error into a response — and every
+handler here returns its errors — so a failed login read as a 200 and was never
+counted. Shipped as written, the per-account limit would have done nothing.
+Replaced with `outcomeLimiter`, which reads the status via `common.MapError`;
+the tests were checked to fail again with Fiber's options put back.
+
+Verified: `cmd/api` tests with the production limits (10 failures from 10
+different IPs block the 11th from a fresh one, with `Retry-After`; the right
+password is refused while throttled; case/whitespace variants share a bucket;
+successes are free; bodies without a usable email fall back to the IP; the
+Moxfield budgets are per user and shared across their two routes; a `409`
+refusal costs nothing), golangci-lint, eslint, `vue-tsc`, both i18n checks,
+Spectral. Android's change (`LoginError.TooManyAttempts` + test) couldn't be
+compiled here (no SDK); its CI run on the PR is the check.
+
+Found along the way, left open in TASKS.md: `forgot-password` and
+`resend-verification` are limited only per IP, so a given inbox can be flooded.
+
 **2026-10-16 — API hardening: dependency scan, server timeouts, WebSocket cap.**
 Asked by the user after reviewing what the 2026-08-01 audit left uncovered.
 Three gaps closed in one PR:

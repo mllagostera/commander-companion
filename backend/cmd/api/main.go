@@ -12,7 +12,6 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,28 +38,6 @@ import (
 )
 
 const (
-	// rateLimitWindow is the fixed window every rate limit below counts over.
-	rateLimitWindow = time.Minute
-
-	// Rate limit for the public endpoints that take a credential or create an
-	// account (login, google, register, verify-email, password reset, ...).
-	// 20 req/min per client IP leaves plenty of slack for a human mistyping
-	// their password, but cuts credential stuffing short.
-	credentialsRateLimitMax = 20
-
-	// Rate limit for POST /auth/refresh, in its own bucket so that clients
-	// renewing their session (automatically, several devices behind one NAT)
-	// can't use up the login budget, nor the other way round. It is looser
-	// because guessing a refresh token is not a realistic attack (256 random
-	// bits, see auth.newRefreshTokenPlain): the limit only bounds load.
-	refreshRateLimitMax = 60
-
-	// Rate limit for GET /users/search. It's authenticated (unlike the auth
-	// endpoints above), but it does an exact-email lookup — without a bound, an
-	// account could be used to check an arbitrary list of addresses at whatever
-	// rate the client wants (see the 2026-08-01 security audit, docs/roadmap/TASKS.md).
-	searchRateLimitMax = 20
-
 	migrationsDir = "migrations"
 )
 
@@ -233,41 +210,15 @@ func newRequestLogger(out io.Writer) fiber.Handler {
 	})
 }
 
-// newRateLimiter builds a per-client-IP rate limiting middleware. Each call
-// owns its own counters, so two limiters never share a budget.
-//
-// The key is common.ClientIP, not fiber.Ctx.IP(): behind the web BFF or an edge
-// proxy the TCP peer is the same address for every user, which would turn a
-// per-client limit into a global one (see ADR-0024). The counters live in the
-// process's memory: enough for a single instance (the current deployment);
-// with several replicas they would need a shared Storage (Redis).
-func newRateLimiter(maxRequests int, message string) fiber.Handler {
-	return limiter.New(limiter.Config{
-		Max:          maxRequests,
-		Expiration:   rateLimitWindow,
-		KeyGenerator: common.ClientIP,
-		LimitReached: func(_ *fiber.Ctx) error {
-			// Returning the error (instead of writing the response here) makes it
-			// go through common.ErrorHandler, so a 429 has the same body as
-			// any other API error.
-			return fiber.NewError(fiber.StatusTooManyRequests, message)
-		},
-	})
-}
-
 // registerModules instantiates repositories, services, and handlers, and
 // registers the routes of every module under /api/v1 (public and JWT-protected).
 func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	api := app.Group("/api/v1")
 
-	// The rate limits are passed to each public auth endpoint instead of being
-	// mounted as group middleware: in Fiber, a Group with middleware applies
-	// to everything that shares the prefix (including /auth/me and the rest
-	// of the API), and here we only want to bound the endpoints without JWT.
-	credentialsRateLimit := newRateLimiter(credentialsRateLimitMax,
-		"too many authentication requests, try again later")
-	refreshRateLimit := newRateLimiter(refreshRateLimitMax,
-		"too many session refresh requests, try again later")
+	// The rate limits are passed to each endpoint instead of being mounted as
+	// group middleware: in Fiber, a Group with middleware applies to everything
+	// that shares the prefix, and each limit bounds specific routes only.
+	limits := newAPIRateLimits()
 
 	// emailClient sends the account mails (verification, password reset). Without
 	// RESEND_API_KEY (dev without a Resend account) it logs the links to the console
@@ -281,11 +232,16 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	)
 	usersHandler := users.NewHandler(usersService)
 	// POST /auth/register, verify-email, resend-verification, forgot-password, reset-password
-	usersHandler.RegisterRoutes(api, credentialsRateLimit)
+	usersHandler.RegisterRoutes(api, limits.credentials)
 
 	authService := auth.NewService(db.Pool, usersService, cfg.Auth)
 	authHandler := auth.NewHandler(authService)
-	authHandler.RegisterPublicRoutes(api, credentialsRateLimit, refreshRateLimit) // login, google, refresh, logout
+	// login, google, refresh, logout
+	authHandler.RegisterPublicRoutes(api, auth.PublicRateLimits{
+		Credentials: limits.credentials,
+		FailedLogin: limits.failedLogin,
+		Refresh:     limits.refresh,
+	})
 
 	// The activity tracker runs on every authenticated request (after RequireAuth,
 	// which gives it the user ID) to keep users.last_seen_at fresh for the admin
@@ -294,12 +250,11 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	protected := api.Group("", auth.RequireAuth(cfg.Auth.JWTSecret), activityTracker.Middleware())
 	authHandler.RegisterProtectedRoutes(protected) // GET /auth/me
 	// GET /users/search, PATCH /users/:id, POST /users/:id/password.
-	usersHandler.RegisterProtectedRoutes(protected, newRateLimiter(searchRateLimitMax,
-		"too many search requests, try again later"))
+	usersHandler.RegisterProtectedRoutes(protected, limits.search)
 
 	moxfieldClient := moxfield.NewClient()
 	decksService := decks.NewService(db.Pool, moxfieldClient)
-	decks.NewHandler(decksService).RegisterRoutes(protected)
+	decks.NewHandler(decksService).RegisterRoutes(protected, limits.moxfieldDeck)
 
 	playgroupsService := playgroups.NewService(db.Pool)
 	playgroups.NewHandler(playgroupsService).RegisterRoutes(protected)
@@ -326,17 +281,17 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	// sync doesn't talk to the DB or to Moxfield on its own: it delegates to
 	// decks, which owns the table and the client (see internal/sync/service.go).
 	syncService := sync.NewService(decksService)
-	sync.NewHandler(syncService).RegisterRoutes(protected)
+	sync.NewHandler(syncService).RegisterRoutes(protected, limits.moxfieldDeck)
 
 	// moxfieldimport: bulk background import of a Moxfield username's public
 	// decks (see internal/moxfieldimport).
 	moxfieldImportService := moxfieldimport.NewService(db.Pool, usersService, decksService, moxfieldClient)
-	moxfieldimport.NewHandler(moxfieldImportService).RegisterRoutes(protected)
+	moxfieldimport.NewHandler(moxfieldImportService).RegisterRoutes(protected, limits.moxfieldBulk)
 
 	// deckresync: resynchronizes in the background ALL decks already imported
 	// with moxfield_id (unlike moxfieldimport, which brings in new decks by username).
 	deckResyncService := deckresync.NewService(db.Pool, decksService)
-	deckresync.NewHandler(deckResyncService).RegisterRoutes(protected)
+	deckresync.NewHandler(deckResyncService).RegisterRoutes(protected, limits.moxfieldBulk)
 
 	// tournaments: standalone Swiss-format Commander tournaments (see
 	// internal/tournaments and ADR-0016), not tied to a playgroup.

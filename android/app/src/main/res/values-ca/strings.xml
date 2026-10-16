@@ -273,6 +273,7 @@
     <string name="error_login_bad_credentials">Correu o contrasenya incorrectes</string>
     <string name="error_login_email_not_confirmed">Encara no has confirmat el teu correu. Revisa la teva safata d\'entrada.</string>
     <string name="error_login_account_deactivated">Aquest compte s\'ha desactivat</string>
+    <string name="error_login_too_many_attempts">Massa intents. Espera uns minuts i torna-ho a provar.</string>
     <string name="error_login_resend_failed">No s\'ha pogut reenviar el correu de verificació</string>
     <string name="error_login_unknown">No s\'ha pogut iniciar la sessió (error %1$d)</string>
     <string name="error_login_google_rejected">Google ha rebutjat el compte (correu no verificat o testimoni no vàlid)</string>

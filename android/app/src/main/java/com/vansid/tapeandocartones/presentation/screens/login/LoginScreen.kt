@@ -54,6 +54,7 @@ internal fun LoginError.message(): String = when (this) {
     LoginError.BadCredentials -> stringResource(R.string.error_login_bad_credentials)
     LoginError.EmailNotConfirmed -> stringResource(R.string.error_login_email_not_confirmed)
     LoginError.AccountDeactivated -> stringResource(R.string.error_login_account_deactivated)
+    LoginError.TooManyAttempts -> stringResource(R.string.error_login_too_many_attempts)
     LoginError.ResendFailed -> stringResource(R.string.error_login_resend_failed)
     is LoginError.Unknown -> stringResource(R.string.error_login_unknown, code)
     LoginError.GoogleRejected -> stringResource(R.string.error_login_google_rejected)

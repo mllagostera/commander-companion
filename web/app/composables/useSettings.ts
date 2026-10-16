@@ -112,7 +112,8 @@ export function updateUsernameError(err: unknown): string {
 /**
  * Translates POST /moxfield-import errors. Listing decks on Moxfield and
  * importing them both happen in the background (internal/moxfieldimport):
- * this call itself can only fail synchronously on 400/409 (a Moxfield
+ * this call itself can only fail synchronously on 400/409, or 429 once the
+ * user has started too many bulk jobs (shared with resync-all, ADR-0025) (a Moxfield
  * failure surfaces later, on the job's own 'failed' status/error_message,
  * see importJob.error_message in settings.vue).
  */
@@ -123,6 +124,8 @@ export function startMoxfieldImportError(err: unknown): string {
       return t('errors.startMoxfieldImport.needUsername')
     case 409:
       return t('errors.startMoxfieldImport.inProgress')
+    case 429:
+      return t('errors.moxfieldRateLimited')
     default:
       return apiErrorMessage(err, t('errors.startMoxfieldImport.generic'))
   }

@@ -16,11 +16,13 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// RegisterRoutes registers all endpoints of the decks module.
-func (h *Handler) RegisterRoutes(router fiber.Router) {
+// RegisterRoutes registers all endpoints of the decks module. moxfieldRateLimit
+// bounds the Moxfield import per user; it is shared with POST /sync/moxfield,
+// since both cost the same call to Moxfield (see cmd/api/ratelimit.go).
+func (h *Handler) RegisterRoutes(router fiber.Router, moxfieldRateLimit fiber.Handler) {
 	router.Get("/decks", h.ListDecks)
 	router.Post("/decks", h.CreateDeck)
-	router.Post("/decks/import/moxfield", h.ImportMoxfield)
+	router.Post("/decks/import/moxfield", moxfieldRateLimit, h.ImportMoxfield)
 	router.Get("/decks/:id", h.GetDeck)
 	router.Patch("/decks/:id", h.UpdateDeck)
 	router.Delete("/decks/:id", h.DeleteDeck)
