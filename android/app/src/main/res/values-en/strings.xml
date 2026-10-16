@@ -281,7 +281,7 @@
     <string name="error_login_google_no_account">There is no Google account set up on this device</string>
     <string name="error_login_google_unknown">Couldn\'t log in with Google</string>
     <string name="error_forgot_password_empty_email">Enter your email</string>
-    <string name="error_forgot_password_too_many_requests">Too many attempts. Wait a minute and try again.</string>
+    <string name="error_forgot_password_too_many_requests">Too many attempts. Wait a few minutes and try again.</string>
     <string name="error_forgot_password_unknown">Couldn\'t send the link (error %1$d)</string>
 
     <!-- Registration errors -->

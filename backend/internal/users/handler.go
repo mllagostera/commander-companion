@@ -18,17 +18,29 @@ func NewHandler(svc Service) *Handler {
 	}
 }
 
-// RegisterRoutes registers the public endpoints of the users/auth module. rateLimit is
-// the same per-client-IP credentials budget as login and google (see
-// auth.Handler.RegisterPublicRoutes): register is public and does a bcrypt hash per
-// request, so it also needs to be bounded.
-func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {
-	router.Post("/auth/register", rateLimit, h.Register)
-	router.Post("/auth/verify-email", rateLimit, h.VerifyEmail)
-	router.Post("/auth/resend-verification", rateLimit, h.ResendVerification)
-	router.Post("/auth/forgot-password", rateLimit, h.ForgotPassword)
-	router.Post("/auth/reset-password", rateLimit, h.ResetPassword)
-	router.Get("/users/username-available", rateLimit, h.CheckUsernameAvailable)
+// PublicRateLimits are the rate-limiting middlewares for the public endpoints of
+// this module, built in cmd/api/ratelimit.go so that budgets can be shared with
+// other modules' routes.
+type PublicRateLimits struct {
+	// Credentials is the per-client-IP budget shared with login and google (see
+	// auth.Handler.RegisterPublicRoutes). Every public endpoint here is behind
+	// it: register does a bcrypt hash per request, the rest take a token or send
+	// an email.
+	Credentials fiber.Handler
+	// AccountEmail is the per-address budget for the two endpoints that send an
+	// email to the address in the request (ADR-0025). It runs after Credentials,
+	// so a request the IP limit already refused doesn't count against the address.
+	AccountEmail fiber.Handler
+}
+
+// RegisterRoutes registers the public endpoints of the users/auth module.
+func (h *Handler) RegisterRoutes(router fiber.Router, limits PublicRateLimits) {
+	router.Post("/auth/register", limits.Credentials, h.Register)
+	router.Post("/auth/verify-email", limits.Credentials, h.VerifyEmail)
+	router.Post("/auth/resend-verification", limits.Credentials, limits.AccountEmail, h.ResendVerification)
+	router.Post("/auth/forgot-password", limits.Credentials, limits.AccountEmail, h.ForgotPassword)
+	router.Post("/auth/reset-password", limits.Credentials, h.ResetPassword)
+	router.Get("/users/username-available", limits.Credentials, h.CheckUsernameAvailable)
 }
 
 // RegisterProtectedRoutes registers the user endpoints that require a session.
