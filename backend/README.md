@@ -74,6 +74,12 @@ For the per-IP rate limits to count each user rather than the platform's proxies
 (see [ADR-0024](../docs/decisions/0024-client-ip-for-rate-limits.md)), also set
 `BFF_SHARED_SECRET` (same value as the web's `NUXT_BFF_SHARED_SECRET` on Vercel)
 and, once the header has been verified, `CLIENT_IP_HEADER`.
+The startup log says whether both reached the process, without the secret:
+`Client IP for rate limits: BFF secret set, trusted client IP header: none (TCP peer).`
+
+Set the service's **Health Check Path** to `/health`, so a deploy that starts
+but can't reach the database never replaces a working one. Render then probes it
+every few seconds (not configurable), so the request logger leaves `/health` out.
 
 ### Knowing which build is live
 
