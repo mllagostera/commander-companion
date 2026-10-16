@@ -6,13 +6,16 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.vansid.tapeandocartones.core.util.SingleFlight
+import com.vansid.tapeandocartones.data.local.dao.DeckDao
 import com.vansid.tapeandocartones.data.remote.api.AuthApi
 import com.vansid.tapeandocartones.data.remote.dto.LogoutRequest
 import com.vansid.tapeandocartones.data.remote.dto.RefreshRequest
 import com.vansid.tapeandocartones.data.remote.dto.TokenResponse
+import com.vansid.tapeandocartones.domain.repository.LastDeckRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,7 +39,9 @@ private val Context.sessionDataStore by preferencesDataStore(name = "session")
 class SessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val authApi: AuthApi,
-    private val googleAuthClient: GoogleAuthClient
+    private val googleAuthClient: GoogleAuthClient,
+    private val deckDao: DeckDao,
+    private val lastDeckRepository: LastDeckRepository
 ) {
 
     private object Keys {
@@ -83,14 +88,26 @@ class SessionManager @Inject constructor(
     private suspend fun currentRefreshToken(): String? =
         context.sessionDataStore.data.first()[Keys.REFRESH_TOKEN]
 
+    /**
+     * Ends the session on this device: the tokens, plus whatever was cached on the account's
+     * behalf. The deck cache is the offline fallback of `DeckRepositoryImpl.listDecks()` and
+     * isn't keyed by user, so the next account to sign in here would otherwise be shown the
+     * previous one's decks whenever the network failed. Both are rebuilt from the backend or
+     * from play. The local game history (Room's `games`) is deliberately kept: it exists
+     * nowhere else, and clearing it would lose it for good.
+     */
     private suspend fun clearSession() {
         context.sessionDataStore.edit { it.clear() }
+        deckDao.clear()
+        lastDeckRepository.forgetAll()
     }
 
     /**
      * Called synchronously (via `runBlocking`) from [AuthAuthenticator] on OkHttp's thread
-     * when an authenticated request returns 401. Rotates the refresh token; forces logout on
-     * failure.
+     * when an authenticated request returns 401. Rotates the refresh token. Forces logout only
+     * when the backend rejects the refresh token ([isRefreshRejected]); any other failure (no
+     * network, a timeout, a 5xx) returns null and keeps the session, so the next request tries
+     * again.
      *
      * Concurrent callers (several requests 401ing at once, e.g. a batch of parallel calls after
      * the access token expired) are collapsed into a single real refresh via [refreshSingleFlight]:
@@ -105,8 +122,10 @@ class SessionManager @Inject constructor(
             val response = authApi.refresh(RefreshRequest(refreshToken))
             saveSession(response)
             response.accessToken
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            forceLogout()
+            if (isRefreshRejected(e)) forceLogout()
             null
         }
     }
@@ -125,7 +144,7 @@ class SessionManager @Inject constructor(
         googleAuthClient.clearCredentialState(context)
     }
 
-    /** Logout forced by a failed refresh (stolen/expired/revoked token). Doesn't hit the backend. */
+    /** Logout forced by a rejected refresh (stolen/expired/revoked token). Doesn't hit the backend. */
     private suspend fun forceLogout() {
         clearSession()
         googleAuthClient.clearCredentialState(context)

@@ -59,7 +59,14 @@ data class FriendsUiState(
     /** Ids with an action in flight, so only that row shows as busy. */
     val busyIds: Set<String> = emptySet(),
     val actionError: FriendsError? = null,
-    val lastOutcome: SendOutcome? = null
+    val lastOutcome: SendOutcome? = null,
+
+    /**
+     * User id read from a profile QR, waiting for the user to confirm before
+     * anything is sent. There's no public "who is this id" endpoint (by design,
+     * see `web/app/pages/friends/add/[id].vue`), so the card can't show a name.
+     */
+    val scannedUserId: String? = null
 ) {
     val isEmpty: Boolean
         get() = friends.isEmpty() && incoming.isEmpty() && outgoing.isEmpty()
@@ -166,15 +173,32 @@ class FriendsViewModel @Inject constructor(
      * our codes" path is covered without a camera: a scanner pointed at the
      * world reads Wi-Fi codes, product barcodes and unrelated URLs, and none of
      * them should reach the backend.
+     *
+     * A valid code is only held in [FriendsUiState.scannedUserId], not sent:
+     * a QR is whatever someone put in front of the camera, and if its owner
+     * had already sent this user a request, sending one back auto-accepts the
+     * friendship. The web client's landing page waits for a click for the
+     * same reason.
      */
     fun onScanned(raw: String?) {
         val userId = parseScannedFriendCode(raw)
         if (userId == null) {
-            _uiState.update { it.copy(actionError = FriendsError.INVALID_CODE, lastOutcome = null) }
+            _uiState.update {
+                it.copy(actionError = FriendsError.INVALID_CODE, lastOutcome = null, scannedUserId = null)
+            }
             return
         }
+        _uiState.update { it.copy(scannedUserId = userId, actionError = null, lastOutcome = null) }
+    }
+
+    /** Sends the request to the profile held by [onScanned]. */
+    fun confirmScanned() {
+        val userId = _uiState.value.scannedUserId ?: return
+        _uiState.update { it.copy(scannedUserId = null) }
         sendRequest(userId)
     }
+
+    fun dismissScanned() = _uiState.update { it.copy(scannedUserId = null) }
 
     /** [userId] comes from a search result or from a scanned QR — same call either way. */
     fun sendRequest(userId: String) {

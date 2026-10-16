@@ -19,7 +19,9 @@ android {
         applicationId = "com.vansid.tapeandocartones"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        // CI passes its run number (-PVERSION_CODE=...), so every APK it archives installs over
+        // any older one; local builds stay at 1.
+        versionCode = (project.findProperty("VERSION_CODE") as String?)?.toInt() ?: 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -56,6 +58,15 @@ android {
 
     buildTypes {
         release {
+            // Signed with the debug key on purpose, for as long as the app is installed by hand
+            // (the APK Android CI archives) rather than from Google Play: CI restores the shared
+            // debug.keystore, so the release APK has the same signature as the debug APKs testers
+            // already have (it installs over them, keeping their local data) and the same SHA-1
+            // the Google Cloud OAuth client is registered with. Google Play rejects debug-signed
+            // uploads, so moving there means a real upload key and a new OAuth SHA-1.
+            // What a release build buys over debug is not the signature: it is not debuggable,
+            // refuses cleartext and logs no HTTP bodies.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

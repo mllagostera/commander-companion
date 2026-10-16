@@ -41,5 +41,9 @@ class LastDeckRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun forgetAll() {
+        context.lastDeckDataStore.edit { it.clear() }
+    }
+
     private fun key(playgroupId: String, userId: String) = stringPreferencesKey("$playgroupId/$userId")
 }

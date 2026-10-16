@@ -234,6 +234,8 @@
     <string name="friends_section_outgoing">Requests sent</string>
     <string name="friends_section_list">Your friends</string>
     <string name="friends_scan">Scan a code</string>
+    <string name="friends_scanned_title">Scanned profile</string>
+    <string name="friends_scanned_note">Nothing is sent until you tap Add.</string>
     <string name="friends_search_label">Search by username</string>
     <string name="friends_searching">Searching…</string>
     <string name="friends_no_results">No user matches that search.</string>

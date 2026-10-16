@@ -198,6 +198,7 @@ for a new module), add it to this list too in the same change.
 - [0023 — Playgroup invite links](docs/decisions/0023-playgroup-invite-links.md)
 - [0024 — Client IP for rate limits: BFF secret and opt-in proxy header](docs/decisions/0024-client-ip-for-rate-limits.md)
 - [0025 — Failed logins limited per account, Moxfield calls per user](docs/decisions/0025-per-account-and-per-user-rate-limits.md)
+- [0026 — Sideloaded Android release builds signed with the debug key](docs/decisions/0026-sign-sideloaded-release-with-debug-key.md)
 
 **READMEs per module:**
 

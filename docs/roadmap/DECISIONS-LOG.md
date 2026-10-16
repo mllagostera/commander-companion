@@ -25,6 +25,44 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-16 — Android security review and fixes.** Asked by the user ("haz
+una revisión de seguridad de la app", narrowed to Android only). Read-only
+review first, then the fixes the user approved:
+
+- *The installed APK was a debug build.* CI archived `assembleDebug` built
+  against Render, so testers ran a debuggable app (`run-as` reads the session
+  DataStore), with cleartext allowed and `HttpLoggingInterceptor.Level.BODY`
+  writing passwords and token pairs to logcat. Now CI archives
+  `assembleRelease` (`app-release-apk`). The user chose to keep signing with the
+  shared debug key until the app goes to Google Play, so it installs over the
+  existing debug APKs without losing their Room-only game history — see
+  [ADR-0026](../decisions/0026-sign-sideloaded-release-with-debug-key.md).
+  `versionCode` is the CI run number (it was fixed at 1); the job fails on a
+  non-`https://` `API_BASE_URL` instead of silently shipping 10.0.2.2.
+- *Local data across accounts.* The deck cache's offline fallback
+  (`DeckDao.getAll()`, not keyed by user) survived logout, so the next account
+  on the device saw the previous one's decks whenever the network failed.
+  `SessionManager.clearSession` now also clears it and `last_decks`. The local
+  game history has the same problem but was **kept on purpose** at the user's
+  call: it exists only in Room, and wiping it on logout would lose it. Open in
+  TASKS.md; scoping it needs an owner column and a real migration.
+- *Logout on any refresh failure.* `refreshAccessToken` forced a logout on any
+  exception, so a dropped connection mid-game threw away a valid session
+  (without revoking it server-side). It now logs out only on 401/403
+  (`isRefreshRejected`, unit-tested).
+- *Device-to-device transfer.* `allowBackup="false"` doesn't stop Android 12+
+  D2D transfers; `data_extraction_rules.xml` now excludes `root`, `file` and
+  `database` from both cloud backup and device transfer.
+- *QR scan sent the request straight away.* A scanned profile is now held until
+  the user taps Add, same as the web landing page — and, like the web, without a
+  name, since there's deliberately no public id → username endpoint.
+
+Left as findings, not fixed: tokens stored unencrypted in DataStore (the
+sandbox suffices once the build isn't debuggable), no certificate pinning
+(deliberately — Render/Vercel rotate certificates), `targetSdk` 34, R8 off.
+No Android SDK in this environment: nothing was compiled or run here, CI is the
+check, and the friends screen change has no screenshot.
+
 **2026-10-16 — Per-account and per-user rate limits.** Items 2 and 4 of the
 security review earlier the same day. Failed logins are limited per account (10
 per 15 minutes, keyed by the submitted email whether or not it exists), and the
