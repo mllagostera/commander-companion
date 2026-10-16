@@ -27,6 +27,14 @@ updates:
       - dependency-name: "typescript"
         update-types:
           - "version-update:semver-major"
+      # h3 is declared only for `import type { H3Event } from 'h3'` (server/, useNitroFetch).
+      # At runtime Nuxt 4 serves through Nitro 2, which bundles its own h3 1.x,
+      # so bumping ours to 2.x types our handlers against an API that never runs
+      # and typecheck fails (TS2345: two incompatible H3Event types). Remove once
+      # Nuxt ships on Nitro 3 / h3 2 (see PR #144, closed for this reason).
+      - dependency-name: "h3"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "gradle"
     directory: "/android"
