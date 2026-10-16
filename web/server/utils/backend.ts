@@ -55,21 +55,26 @@ export function backendBase(event: H3Event): string {
 }
 
 /**
+ * The browser's IP. It comes from `x-forwarded-for` only on Vercel, which
+ * overwrites that header on every request; anywhere else (docker compose,
+ * `npm run dev`) a browser could set it to anything, so the socket address is
+ * used instead.
+ */
+export function browserIP(event: H3Event): string | undefined {
+  return getRequestIP(event, { xForwardedFor: !!process.env.VERCEL })
+}
+
+/**
  * Headers that tell the Go API which browser this call is made on behalf of, so
  * its per-IP rate limits count each user instead of lumping every web user
  * under the BFF's own address (see ADR-0024). Empty when NUXT_BFF_SHARED_SECRET
  * isn't set: the API would ignore the IP without the secret anyway.
- *
- * The browser's IP comes from `x-forwarded-for` only on Vercel, which
- * overwrites that header on every request; anywhere else (docker compose,
- * `npm run dev`) a browser could set it to anything, so the socket address is
- * used instead.
  */
 export function clientIPHeaders(event: H3Event): Record<string, string> {
   const secret = useRuntimeConfig(event).bffSharedSecret
   if (!secret) return {}
 
-  const ip = getRequestIP(event, { xForwardedFor: !!process.env.VERCEL })
+  const ip = browserIP(event)
   if (!ip) return {}
 
   return { 'X-BFF-Secret': secret, 'X-BFF-Client-IP': ip }

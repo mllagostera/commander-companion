@@ -42,25 +42,70 @@ export function shouldApplyStrictHeaders(): boolean {
   return !import.meta.dev
 }
 
-const INLINE_SCRIPT_RE = /<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/gi
+declare module 'h3' {
+  interface H3EventContext {
+    /**
+     * Bodies of the inline scripts found in the app-rendered part of this
+     * response's HTML (see collectUntrustedInlineScripts). Set by the
+     * `render:html` hook in server/plugins/security-headers.ts.
+     */
+    untrustedInlineScripts?: Set<string>
+  }
+}
+
+const INLINE_SCRIPT_RE = /<script(?![^>]*\ssrc=)([^>]*)>([\s\S]*?)<\/script>/gi
+const SCRIPT_TYPE_RE = /\stype\s*=\s*["']?([^"'\s>]+)/i
 
 /**
- * Hashes every inline <script> (no src=) actually present in the rendered
- * HTML, so script-src can allow exactly those instead of 'unsafe-inline'.
- * Nuxt always renders at least one inline script (the runtime-config payload,
- * `window.__NUXT__=...` — there's no external file to allowlist it by URL
- * instead), and some pages also get a `type="importmap"` one from Vite that
- * isn't reachable through Nuxt's own `render:html` hook, which is why this
- * hashes the final composed body instead of trying to tag individual
- * fragments as they're assembled. A hash computed from this response's own
- * body still won't match anything an attacker injects (reflected/stored
- * XSS), unlike 'unsafe-inline', which allows any inline script indiscriminately.
+ * Script types the browser executes, i.e. the ones script-src governs.
+ * `importmap` is included: it is checked against script-src too. Data blocks
+ * (`application/json` for the Nuxt payload, `application/ld+json` for SEO) are
+ * never executed, so they need no hash.
  */
-export function inlineScriptHashes(html: string): string[] {
-  const hashes = new Set<string>()
+const EXECUTABLE_SCRIPT_TYPES = new Set(['', 'text/javascript', 'module', 'importmap'])
+
+function inlineScripts(html: string): { type: string, content: string }[] {
+  const scripts: { type: string, content: string }[] = []
   for (const match of html.matchAll(INLINE_SCRIPT_RE)) {
-    const content = match[1]
+    const content = match[2]
     if (!content) continue
+    const type = (match[1]?.match(SCRIPT_TYPE_RE)?.[1] ?? '').toLowerCase()
+    scripts.push({ type, content })
+  }
+  return scripts
+}
+
+/**
+ * Bodies of every inline script inside the chunks Vue rendered for the app
+ * (the `#__nuxt` root, teleports). Nuxt itself never puts an inline script
+ * there — its own (the runtime-config one, the importmap) live in <head> and
+ * after the app root — so anything found here can only come from rendered
+ * content, i.e. an HTML injection, and must not be allowed. A `useHead()`
+ * script with `tagPosition: 'bodyOpen'` lands in that region as well and would
+ * be blocked: keep inline scripts in the head or at bodyClose.
+ */
+export function collectUntrustedInlineScripts(appChunks: string[]): Set<string> {
+  return new Set(inlineScripts(appChunks.join('')).map(s => s.content))
+}
+
+/**
+ * Hashes the executable inline <script>s (no src=) in the rendered HTML, so
+ * script-src can allow exactly those instead of 'unsafe-inline'. Nuxt always
+ * renders at least one (the runtime-config script, `window.__NUXT__=...` —
+ * there's no external file to allowlist it by URL instead), and Vite adds a
+ * `type="importmap"` one that isn't reachable through Nuxt's own `render:html`
+ * hook, which is why the final composed body is hashed.
+ *
+ * Hashing the whole body blindly would also allow a script an attacker managed
+ * to inject into the rendered page (stored/reflected XSS) — its hash would be
+ * computed from the same response. `untrusted` is what prevents that: scripts
+ * found in the app-rendered region (collectUntrustedInlineScripts) are left
+ * out, so they stay blocked.
+ */
+export function inlineScriptHashes(html: string, untrusted: Set<string> = new Set()): string[] {
+  const hashes = new Set<string>()
+  for (const { type, content } of inlineScripts(html)) {
+    if (!EXECUTABLE_SCRIPT_TYPES.has(type) || untrusted.has(content)) continue
     hashes.add(`'sha256-${createHash('sha256').update(content, 'utf8').digest('base64')}'`)
   }
   return [...hashes]
@@ -105,7 +150,7 @@ export function applySecurityHeaders(event: H3Event, body: string) {
   setResponseHeader(event, 'X-Frame-Options', 'DENY')
   setResponseHeader(event, 'Referrer-Policy', 'strict-origin-when-cross-origin')
   setResponseHeader(event, 'Content-Security-Policy', buildCsp(
-    inlineScriptHashes(body),
+    inlineScriptHashes(body, event.context.untrustedInlineScripts),
     isHttps,
     sentryIngestOrigin(useRuntimeConfig(event).public.sentryDsn),
   ))
