@@ -2,7 +2,28 @@ openapi: 3.1.0
 info:
   title: TapeandoCartones API
   version: 0.1.0
-  description: API for the TapeandoCartones application.
+  description: |-
+    API for the TapeandoCartones application.
+
+    ## Rate limits
+
+    Some endpoints are rate limited per client IP, in fixed one-minute windows.
+    Each limit is its own budget: using one up never affects another.
+
+    | Budget | Requests/min | Endpoints |
+    |---|---|---|
+    | Credentials | 20 | `POST /auth/login`, `/auth/google`, `/auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/forgot-password`, `/auth/reset-password`, `GET /users/username-available` |
+    | Session refresh | 60 | `POST /auth/refresh` |
+    | User search | 20 | `GET /users/search` |
+
+    Exceeding a limit returns `429` with the usual `ErrorResponse` body.
+
+    The client IP is the TCP peer address unless the deployment configures
+    otherwise (see ADR-0024): the web client's BFF identifies the browser it
+    calls on behalf of with the `X-BFF-Secret` and `X-BFF-Client-IP` headers,
+    which the API honors only when the secret matches its `BFF_SHARED_SECRET`
+    and strips from every request. They are an internal contract between the
+    API and the BFF, not something other clients send.
   contact:
     name: TapeandoCartones
     url: https://github.com/mllagostera/commander-companion
@@ -1956,7 +1977,7 @@ Disallow: /
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
-          description: Too many authentication requests from this IP (rate limit per IP)
+          description: Too many session refresh requests from this IP (refresh budget, separate from login)
           content:
             application/json:
               schema:

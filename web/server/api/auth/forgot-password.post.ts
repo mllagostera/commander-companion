@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
   try {
     await $fetch('/auth/forgot-password', {
       baseURL: backendBase(event),
+      headers: clientIPHeaders(event),
       method: 'POST',
       body: { email: body.email, locale: body.locale },
     })

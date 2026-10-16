@@ -17,14 +17,17 @@ func NewHandler(svc Service) *Handler {
 }
 
 // RegisterPublicRoutes registers the auth endpoints that don't require a valid access
-// token. rateLimit applies only to the ones that issue tokens (login, google,
-// refresh): they're the only ones without a JWT in front and the most expensive to
-// process (bcrypt, verifying the id_token against Google), so they're the natural
-// target for brute force. Logout is left unlimited: it's idempotent, cheap, and doesn't leak information.
-func (h *Handler) RegisterPublicRoutes(router fiber.Router, rateLimit fiber.Handler) {
-	router.Post("/auth/login", rateLimit, h.Login)
-	router.Post("/auth/google", rateLimit, h.GoogleLogin)
-	router.Post("/auth/refresh", rateLimit, h.Refresh)
+// token. The rate limits apply only to the ones that issue tokens: they're the only
+// ones without a JWT in front and the most expensive to process (bcrypt, verifying the
+// id_token against Google), so they're the natural target for brute force.
+// credentialsRateLimit covers login and google; refreshRateLimit is a separate, looser
+// budget for refresh, so automatic session renewal never locks a user out of logging
+// in (see cmd/api/main.go). Logout is left unlimited: it's idempotent, cheap, and
+// doesn't leak information.
+func (h *Handler) RegisterPublicRoutes(router fiber.Router, credentialsRateLimit, refreshRateLimit fiber.Handler) {
+	router.Post("/auth/login", credentialsRateLimit, h.Login)
+	router.Post("/auth/google", credentialsRateLimit, h.GoogleLogin)
+	router.Post("/auth/refresh", refreshRateLimit, h.Refresh)
 	router.Post("/auth/logout", h.Logout)
 }
 

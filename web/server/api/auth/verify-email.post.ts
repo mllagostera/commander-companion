@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
   try {
     await $fetch('/auth/verify-email', {
       baseURL: backendBase(event),
+      headers: clientIPHeaders(event),
       method: 'POST',
       body: { token: body.token },
     })

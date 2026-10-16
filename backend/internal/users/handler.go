@@ -19,7 +19,7 @@ func NewHandler(svc Service) *Handler {
 }
 
 // RegisterRoutes registers the public endpoints of the users/auth module. rateLimit is
-// the same per-IP middleware that protects the other public auth endpoints (see
+// the same per-client-IP credentials budget as login and google (see
 // auth.Handler.RegisterPublicRoutes): register is public and does a bcrypt hash per
 // request, so it also needs to be bounded.
 func (h *Handler) RegisterRoutes(router fiber.Router, rateLimit fiber.Handler) {

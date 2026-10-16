@@ -25,6 +25,30 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-16 — Rate limits keyed by the real client IP.** Asked by the user
+("¿la API tiene rate limit?"). The answer surfaced that the per-IP limits were
+per-BFF in practice: every web request reaches the API from Nitro, so all web
+users shared 20 requests/min for login, register and refresh — and refresh
+alone, fired automatically by Nitro, could spend it. Fixed with a shared secret
+that lets Nitro vouch for the browser's IP, an opt-in `CLIENT_IP_HEADER` for the
+edge proxy, and separate credentials/refresh budgets
+([ADR-0024](../decisions/0024-client-ip-for-rate-limits.md)). The first plan,
+Fiber's `TrustedProxies`, was dropped on finding the web runs on Vercel, whose
+functions have no fixed egress IPs.
+
+Verified: table tests for `ResolveClientIP` (secret right/wrong/missing,
+precedence, lists rejected, IPv4-mapped canonicalized, headers stripped before
+the handler); two limiter tests in `cmd/api` (refresh exhausted doesn't block
+login; two browsers behind the same BFF get separate buckets); `config` tests for
+the env vars; `golangci-lint`, eslint, `vue-tsc`, `nuxt build`, Spectral. And the
+built Nitro server against a fake API logging the headers it receives: with the
+secret it forwards the socket IP, on `VERCEL=1` it forwards `x-forwarded-for`,
+without the secret it sends nothing.
+
+Left open (TASKS.md, Stage "Infra"): setting the secret on Render/Vercel, and
+finding out which header Render overwrites — not verified, so `CLIENT_IP_HEADER`
+ships unset and the Android app still shares one bucket on Render.
+
 **2026-10-04 — Playgroup invite links.** Requested by the user: a public URL to
 join a group, invitation-style, from the web. Built as one rotatable code per
 group (`playgroups.invite_code`, migration 00025) rather than an invites table;

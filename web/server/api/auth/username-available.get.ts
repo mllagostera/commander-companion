@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
   try {
     return await $fetch<{ available: boolean }>('/users/username-available', {
       baseURL: backendBase(event),
+      headers: clientIPHeaders(event),
       query: { username },
     })
   } catch (err) {

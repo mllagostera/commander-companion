@@ -19,6 +19,7 @@ export default defineEventHandler(async (event) => {
   try {
     const data = await $fetch<TokenResponse>('/auth/login', {
       baseURL: backendBase(event),
+      headers: clientIPHeaders(event),
       method: 'POST',
       body: { email: body.email, password: body.password },
     })
