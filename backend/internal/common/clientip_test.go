@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -147,6 +148,36 @@ func TestResolveClientIP(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("client IP = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestClientIPConfig_StringNeverRevealsTheSecret(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  common.ClientIPConfig
+		want string
+	}{
+		{
+			name: "nothing configured",
+			want: "BFF secret unset (web users share the BFF's bucket), trusted client IP header: none (TCP peer)",
+		},
+		{
+			name: "both configured",
+			cfg:  common.ClientIPConfig{BFFSharedSecret: testBFFSecret, TrustedHeader: trustedHeader},
+			want: "BFF secret set, trusted client IP header: " + trustedHeader,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.cfg.String()
+			if got != tc.want {
+				t.Errorf("String() = %q, want %q", got, tc.want)
+			}
+			if strings.Contains(got, testBFFSecret) {
+				t.Errorf("String() leaks the secret: %q", got)
 			}
 		})
 	}

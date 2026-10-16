@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -78,6 +80,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Client IP for rate limits: %s.", cfg.ClientIP)
 
 	sentryEnabled, err := initSentry(&cfg)
 	if err != nil {
@@ -118,7 +121,7 @@ func run() error {
 	})
 
 	// Middlewares
-	app.Use(logger.New())
+	app.Use(newRequestLogger(os.Stdout))
 	app.Use(recover.New())
 	// Before Sentry: it strips the BFF secret header, which must never end up
 	// in a Sentry event's request headers.
@@ -175,6 +178,19 @@ func reapStaleBackgroundJobs(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	return nil
+}
+
+// newRequestLogger logs every request except the health check, which Render
+// probes every few seconds (the interval isn't configurable): left in, it
+// would be most of the log. A failing health check still shows up, as a
+// Render alert and a restart.
+func newRequestLogger(out io.Writer) fiber.Handler {
+	return logger.New(logger.Config{
+		Output: out,
+		Next: func(c *fiber.Ctx) bool {
+			return c.Path() == common.HealthPath
+		},
+	})
 }
 
 // newRateLimiter builds a per-client-IP rate limiting middleware. Each call

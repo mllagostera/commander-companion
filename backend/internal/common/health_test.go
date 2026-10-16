@@ -67,7 +67,7 @@ func TestRegisterHealthRoute_DBReachable(t *testing.T) {
 	app := fiber.New()
 	common.RegisterHealthRoute(app, db, testBuildInfo())
 
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, common.HealthPath, http.NoBody)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
@@ -93,7 +93,7 @@ func TestRegisterHealthRoute_DBUnreachable(t *testing.T) {
 	app := fiber.New()
 	common.RegisterHealthRoute(app, db, testBuildInfo())
 
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, common.HealthPath, http.NoBody)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)

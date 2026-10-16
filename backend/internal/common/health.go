@@ -11,6 +11,14 @@ import (
 // considering the health check itself stuck (e.g. exhausted pool).
 const healthCheckTimeout = 2 * time.Second
 
+// HealthPath is where RegisterHealthRoute serves the health check. Exported so
+// the request logger can leave it out: Render probes it every few seconds,
+// which would otherwise bury every real request in the logs. The route itself
+// is registered with the literal, which is what check-architecture.sh matches
+// against openapi.yaml; health_test.go requests HealthPath, so the two can't
+// drift apart unnoticed.
+const HealthPath = "/health"
+
 // BuildInfo is what GET /health reports about the running process itself, as
 // opposed to its dependencies: which source revision it was built from and
 // since when it has been up. Resolving Commit is config's job (see
