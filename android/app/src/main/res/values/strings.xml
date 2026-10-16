@@ -285,7 +285,7 @@
     <string name="error_login_google_no_account">No hay ninguna cuenta de Google configurada en este dispositivo</string>
     <string name="error_login_google_unknown">No se pudo iniciar sesión con Google</string>
     <string name="error_forgot_password_empty_email">Escribe tu email</string>
-    <string name="error_forgot_password_too_many_requests">Demasiados intentos. Espera un minuto y vuelve a probar.</string>
+    <string name="error_forgot_password_too_many_requests">Demasiados intentos. Espera unos minutos y vuelve a probar.</string>
     <string name="error_forgot_password_unknown">No se pudo enviar el enlace (error %1$d)</string>
 
     <!-- Registration errors -->

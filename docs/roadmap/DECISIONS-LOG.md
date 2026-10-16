@@ -25,6 +25,21 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-16 — Emails limited per address; Go patch aligned with production.**
+Two items left open by the previous entries. (1) `forgot-password` and
+`resend-verification` now share 3 emails per 15 minutes per submitted address
+(addendum to [ADR-0025](../decisions/0025-per-account-and-per-user-rate-limits.md)),
+reusing the failed-login key; Android's resend now shows the "too many
+attempts" message on a `429` instead of "couldn't resend", and its
+forgot-password text says "a few minutes" like the web. (2) `go.mod`'s `go`
+directive went from `1.26.0` to `1.26.9`, so backend CI tests with the patch
+production runs. Verified rather than assumed: the digest Render's last build
+pulled for `golang:1.26-alpine` is Docker Hub's `1.26.9-alpine`, and the
+image's Dockerfile sets `GOTOOLCHAIN=local` — so a directive above the image's
+patch would fail the Render build instead of downloading Go. Written down in
+`backend/README.md` § Go version. golangci-lint (built with 1.26.0) only
+compares the minor version, so it still lints the module.
+
 **2026-10-16 — Per-account and per-user rate limits.** Items 2 and 4 of the
 security review earlier the same day. Failed logins are limited per account (10
 per 15 minutes, keyed by the submitted email whether or not it exists), and the

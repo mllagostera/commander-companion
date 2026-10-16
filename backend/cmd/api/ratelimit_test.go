@@ -187,7 +187,7 @@ func TestFailedLoginLimit_SuccessfulLoginsAreFree(t *testing.T) {
 	}
 }
 
-func TestLoginAccountKey_FallsBackToTheClientIP(t *testing.T) {
+func TestEmailKey_FallsBackToTheClientIP(t *testing.T) {
 	tooLong := strings.Repeat("a", maxEmailKeyLength) + "@example.com"
 	for name, body := range map[string]string{
 		"no body":          "",
@@ -201,7 +201,7 @@ func TestLoginAccountKey_FallsBackToTheClientIP(t *testing.T) {
 			app := fiber.New()
 			var key string
 			app.Post("/", func(c *fiber.Ctx) error {
-				key = loginAccountKey(c)
+				key = emailKey(c)
 				return nil
 			})
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(body))
@@ -329,5 +329,41 @@ func TestOutcomeLimiter_CountsDomainErrorsByTheirStatus(t *testing.T) {
 	}
 	if got := status(t, app, testRequest{path: "/login"}); got != http.StatusTooManyRequests {
 		t.Fatalf("second attempt: status = %d, want 429 (the 401 was counted)", got)
+	}
+}
+
+// --- Emails per address --------------------------------------------------------
+
+func emailRequest(path, email string) testRequest {
+	return testRequest{path: path, body: `{"email":"` + email + `","locale":"es"}`}
+}
+
+func TestAccountEmailLimit_IsPerAddressAndSharedByResetAndResend(t *testing.T) {
+	limits := newAPIRateLimits()
+	app := newTestApp()
+	// Both endpoints answer 204 whether or not the account exists, and every
+	// request counts, successes included.
+	app.Post("/auth/forgot-password", limits.accountEmail, noContent)
+	app.Post("/auth/resend-verification", limits.accountEmail, noContent)
+
+	for i := range accountEmailRateLimitMax {
+		path := "/auth/forgot-password"
+		if i%2 == 1 {
+			path = "/auth/resend-verification"
+		}
+		if got := status(t, app, emailRequest(path, "Inbox@Example.com")); got != http.StatusNoContent {
+			t.Fatalf("email %d: status = %d, want 204", i+1, got)
+		}
+	}
+
+	code, header := send(t, app, emailRequest("/auth/resend-verification", " inbox@example.com"))
+	if code != http.StatusTooManyRequests {
+		t.Fatalf("email past the shared budget, same address in another case: status = %d, want 429", code)
+	}
+	if header.Get(fiber.HeaderRetryAfter) == "" {
+		t.Error("429 without a Retry-After header")
+	}
+	if got := status(t, app, emailRequest("/auth/forgot-password", "other@example.com")); got != http.StatusNoContent {
+		t.Fatalf("another address: status = %d, want 204 (own bucket)", got)
 	}
 }

@@ -87,3 +87,19 @@ for these `429`s instead of a generic error or the backend's English text.
 - The Moxfield limits are a guess at legitimate use (a few imports or syncs in a
   sitting, an occasional bulk job). If real users hit them, raise them;
   `Retry-After` tells clients when to retry.
+
+## Addendum (2026-10-16): emails per address
+
+`POST /auth/forgot-password` and `POST /auth/resend-verification` were limited
+only per IP (20 a minute), so anyone with a few IPs could make the API mail a
+given address over and over: flooding that inbox and spending the Resend quota.
+They now share a third per-address budget, **3 per 15 minutes**, keyed by the
+submitted email exactly like the failed-login one (same `emailKey`), after the
+per-IP limit.
+
+Unlike failed logins, **every request counts**: both endpoints answer `204`
+whether or not the account exists (on purpose, so they reveal nothing), which
+leaves no failure to tell apart. The same targeted-lockout caveat applies on a
+smaller scale: someone who knows an address can use up its 3 emails, delaying a
+real reset by up to 15 minutes. Accepted for the same reason as above.
+

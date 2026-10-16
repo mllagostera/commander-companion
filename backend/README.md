@@ -81,6 +81,18 @@ Set the service's **Health Check Path** to `/health`, so a deploy that starts
 but can't reach the database never replaces a working one. Render then probes it
 every few seconds (not configurable), so the request logger leaves `/health` out.
 
+### Go version
+
+`go.mod`'s `go` directive is the exact toolchain CI builds and tests with
+(`setup-go` reads it), while production builds with `backend/Dockerfile`'s
+floating `golang:1.26-alpine`, i.e. the latest 1.26 patch. Keep the directive at
+the patch that image currently ships, and **never above it**: official Go images
+set `GOTOOLCHAIN=local`, so a directive newer than the image's Go fails the
+Render build instead of downloading the toolchain. To check what the image ships,
+look up the `1.26.x-alpine` tag whose digest matches `1.26-alpine` on Docker Hub
+(the Render build log prints the digest it pulled). The security scan uses the
+latest patch on purpose (see `.github/workflows/security-ci.yml`).
+
 ### Knowing which build is live
 
 `GET /health` reports the git SHA the running binary was built from, on both
