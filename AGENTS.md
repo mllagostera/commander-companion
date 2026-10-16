@@ -391,7 +391,8 @@ what stays here is only what needs judgement.
   `.cmd` stay CRLF on purpose.
 - Dependabot runs weekly on gomod/npm/gradle/github-actions, **major updates
   only** (minor/patch are ignored deliberately). `typescript` majors are pinned
-  back until `vue-tsc` supports TS 7.
+  back until `vue-tsc` supports TS 7; `h3` majors until Nuxt runs on Nitro 3 /
+  h3 2 (our `h3` is only the `H3Event` type and must match Nitro's).
 
 ---
 
