@@ -38,6 +38,22 @@ type ClientIPConfig struct {
 	TrustedHeader string
 }
 
+// String summarizes the configuration for the startup log without revealing
+// the secret: whether one is set, and which header (if any) is trusted. It is
+// the only way to tell from the logs that BFF_SHARED_SECRET reached the
+// process, since the API starts the same with or without it.
+func (cfg ClientIPConfig) String() string {
+	bff := "unset (web users share the BFF's bucket)"
+	if cfg.BFFSharedSecret != "" {
+		bff = "set"
+	}
+	header := cfg.TrustedHeader
+	if header == "" {
+		header = "none (TCP peer)"
+	}
+	return "BFF secret " + bff + ", trusted client IP header: " + header
+}
+
 // ResolveClientIP returns the middleware that works out the caller's IP once
 // per request, for ClientIP to read. It must be mounted before anything that
 // records request headers (Sentry), because it removes the BFF secret header.
