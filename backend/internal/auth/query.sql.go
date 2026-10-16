@@ -14,7 +14,7 @@ import (
 const createRefreshToken = `-- name: CreateRefreshToken :one
 INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
 VALUES ($1, $2, $3)
-RETURNING id, user_id, token_hash, expires_at, created_at, revoked_at
+RETURNING id, user_id, token_hash, expires_at, created_at, revoked_at, replaced_by
 `
 
 type CreateRefreshTokenParams struct {
@@ -33,12 +33,13 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.ReplacedBy,
 	)
 	return i, err
 }
 
 const getRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
-SELECT id, user_id, token_hash, expires_at, created_at, revoked_at FROM refresh_tokens
+SELECT id, user_id, token_hash, expires_at, created_at, revoked_at, replaced_by FROM refresh_tokens
 WHERE token_hash = $1 LIMIT 1
 `
 
@@ -52,8 +53,35 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.ReplacedBy,
 	)
 	return i, err
+}
+
+const hasActiveSuccessorWithinGrace = `-- name: HasActiveSuccessorWithinGrace :one
+SELECT EXISTS (
+  SELECT 1 FROM refresh_tokens parent
+  JOIN refresh_tokens successor ON successor.id = parent.replaced_by
+  WHERE parent.id = $1
+    AND parent.revoked_at > now() - make_interval(secs => $2::float8)
+    AND successor.revoked_at IS NULL
+) AS within_grace
+`
+
+type HasActiveSuccessorWithinGraceParams struct {
+	ID           pgtype.UUID `json:"id"`
+	GraceSeconds float64     `json:"grace_seconds"`
+}
+
+// Whether a rotated token is being presented again within the reuse grace window
+// (seconds, $2) while the token it was rotated into is still active — the shape of
+// two concurrent refreshes by one client, not of a replayed stolen token. Compared
+// in SQL so revoked_at (set with now()) and the window share one clock. See ADR-0027.
+func (q *Queries) HasActiveSuccessorWithinGrace(ctx context.Context, arg HasActiveSuccessorWithinGraceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasActiveSuccessorWithinGrace, arg.ID, arg.GraceSeconds)
+	var within_grace bool
+	err := row.Scan(&within_grace)
+	return within_grace, err
 }
 
 const revokeAllRefreshTokensForUser = `-- name: RevokeAllRefreshTokensForUser :exec
@@ -66,16 +94,6 @@ func (q *Queries) RevokeAllRefreshTokensForUser(ctx context.Context, userID pgty
 	return err
 }
 
-const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
-UPDATE refresh_tokens SET revoked_at = now()
-WHERE id = $1
-`
-
-func (q *Queries) RevokeRefreshToken(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, revokeRefreshToken, id)
-	return err
-}
-
 const revokeRefreshTokenByHash = `-- name: RevokeRefreshTokenByHash :exec
 UPDATE refresh_tokens SET revoked_at = now()
 WHERE token_hash = $1
@@ -84,4 +102,24 @@ WHERE token_hash = $1
 func (q *Queries) RevokeRefreshTokenByHash(ctx context.Context, tokenHash string) error {
 	_, err := q.db.Exec(ctx, revokeRefreshTokenByHash, tokenHash)
 	return err
+}
+
+const rotateRefreshToken = `-- name: RotateRefreshToken :execrows
+UPDATE refresh_tokens SET revoked_at = now(), replaced_by = $2
+WHERE id = $1 AND revoked_at IS NULL
+`
+
+type RotateRefreshTokenParams struct {
+	ID         pgtype.UUID `json:"id"`
+	ReplacedBy pgtype.UUID `json:"replaced_by"`
+}
+
+// Conditional on the token still being active: when two refreshes with the same
+// token race, only the first one records its successor (0 rows for the other).
+func (q *Queries) RotateRefreshToken(ctx context.Context, arg RotateRefreshTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rotateRefreshToken, arg.ID, arg.ReplacedBy)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
