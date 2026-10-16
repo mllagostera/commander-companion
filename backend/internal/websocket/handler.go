@@ -28,6 +28,14 @@ const authMessageTimeout = 10 * time.Second
 
 const authMessageType = "auth"
 
+// maxIncomingMessageBytes caps every message a client can send. The only one the
+// server reads is the auth message (a type tag plus an access token, a few hundred
+// bytes); anything else is read and discarded (see Client.readLoop). Without a cap,
+// ReadMessage buffers a message of any size in memory, so one connection could make
+// the process allocate whatever it was sent. Exceeding it fails the read, which
+// closes the connection.
+const maxIncomingMessageBytes = 4 << 10
+
 // authMessage is the only message the server expects to receive from a client: the
 // first one, and always in this format (see ADR-0005, authentication section).
 type authMessage struct {
@@ -60,6 +68,8 @@ func RegisterRoutes(router fiber.Router, hub *Hub, jwtSecret []byte, membership 
 // authentication, authorization, registration in the Hub, and
 // reading/writing until it disconnects.
 func handleConnection(hub *Hub, jwtSecret []byte, membership MembershipChecker, gameID string, conn *fiberws.Conn) {
+	conn.SetReadLimit(maxIncomingMessageBytes)
+
 	userID, ok := authenticate(conn, jwtSecret, gameID)
 	if !ok {
 		_ = conn.Close()

@@ -22,7 +22,7 @@ commander-companion/
 ├── .gitattributes         # line endings (LF everywhere, CRLF for .bat/.cmd)
 ├── .githooks/pre-push     # runs the CI checks locally, in Docker
 ├── .github/
-│   ├── workflows/         # backend-ci, android-ci, web-ci, docs-ci, labeler
+│   ├── workflows/         # backend-ci, android-ci, web-ci, docs-ci, architecture-ci, security-ci (PRs only), labeler
 │   ├── scripts/           # check-i18n-{web,android}.mjs, check-dbml-matches-migrations.sh
 │   ├── labeler.yml        # PR labels by changed path
 │   └── dependabot.yml     # weekly, majors only

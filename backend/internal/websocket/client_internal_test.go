@@ -129,3 +129,43 @@ func TestClient_ReadLoop_StaysAliveWhileClientRespondsToPings(t *testing.T) {
 	default:
 	}
 }
+
+// denyAll is a MembershipChecker that must never be reached in these tests: a
+// connection that fails authentication returns before authorization.
+type denyAll struct{}
+
+func (denyAll) CanAccessGame(context.Context, string, string) (bool, error) { return false, nil }
+
+// TestHandleConnection_OversizedAuthMessage_IsRejected checks the read limit
+// handleConnection sets before authenticating: a first message larger than
+// maxIncomingMessageBytes must be refused while it is being read, which the
+// library signals with close code 1009 (message too big). Without the limit the
+// whole message would be buffered and only then rejected as malformed, with
+// rejectAuth's 1008 — so the close code tells the two apart.
+func TestHandleConnection_OversizedAuthMessage_IsRejected(t *testing.T) {
+	url := startHeartbeatTestServer(t, func(conn *fiberws.Conn) {
+		handleConnection(NewHub(), []byte("test-secret"), denyAll{}, "game", conn)
+	})
+	client := dialHeartbeatTestClient(t, url)
+
+	oversized := make([]byte, maxIncomingMessageBytes+1)
+	for i := range oversized {
+		oversized[i] = 'a'
+	}
+	if err := client.WriteMessage(realws.TextMessage, oversized); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// Read until the close frame, which surfaces as a *CloseError.
+	_ = client.SetReadDeadline(time.Now().Add(authMessageTimeout / 2))
+	for {
+		_, _, err := client.ReadMessage()
+		if err == nil {
+			continue
+		}
+		if !realws.IsCloseError(err, realws.CloseMessageTooBig) {
+			t.Fatalf("expected a message-too-big close (1009), got %v", err)
+		}
+		return
+	}
+}

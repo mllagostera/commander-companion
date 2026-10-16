@@ -25,6 +25,36 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-16 — API hardening: dependency scan, server timeouts, WebSocket cap.**
+Asked by the user after reviewing what the 2026-08-01 audit left uncovered.
+Three gaps closed in one PR:
+
+- *Dependency scan.* `gosec` only reads our own code and Dependabot ignores
+  minor/patch bumps, which is where security fixes usually land. New
+  `security-ci.yml`, **PR-only** at the user's request: Render deploys `main`
+  once the commit's checks pass, so a scan on push would let an advisory
+  against untouched code hold up every deploy. The first `npm audit` found 15
+  high/critical advisories in production dependencies, all transitive via
+  Nuxt. `npm audit fix` (run with npm 11, the version CI's Node 24 ships, so
+  the lockfile isn't rewritten in another format) cleared the critical ones
+  (`simple-git`, via `@nuxt/devtools`) and `source-map-js`; `braces` and
+  `node-forge` have no patched release at all. Checked that neither is in
+  `.output/server` after a build, then allowlisted both by GHSA id in
+  `web/audit-ci.jsonc` with the reason. Bare `npm audit` has no allowlist,
+  hence `audit-ci`. `govulncheck` couldn't run in this sandbox (its DB host is
+  blocked), so its first real result will be the PR's CI run.
+- *Server timeouts.* `fiber.Config` had none, so a client trickling headers
+  held a connection forever. Read/Write 10 s, Idle 75 s. Read in fasthttp's
+  source before choosing: it clears deadlines before handing a connection to
+  the WebSocket upgrade, and starts `WriteTimeout` only after the handler
+  returns — so neither games' WebSockets nor a slow Moxfield import are cut.
+  Both claims are tests now (`cmd/api/servertimeouts_test.go`).
+- *WebSocket cap.* `ReadMessage` buffered a message of any size. Clients only
+  ever send the auth message, so 4 KiB, set before auth. The test tells the
+  limit apart from the auth check by close code: 1009 with the cap, 1008
+  (malformed auth) without it — a first version expected 1008 and passed
+  with the cap removed, which is how that was noticed.
+
 **2026-10-16 — Rate limits keyed by the real client IP.** Asked by the user
 ("¿la API tiene rate limit?"). The answer surfaced that the per-IP limits were
 per-BFF in practice: every web request reaches the API from Nitro, so all web
