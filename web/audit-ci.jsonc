@@ -1,0 +1,24 @@
+// Config for the `npm audit` job in .github/workflows/security-ci.yml (audit-ci).
+// Fails on high/critical advisories in production dependencies, except those
+// allowlisted below.
+//
+// The allowlist is a ratchet (see AGENTS.md §7): each entry names an advisory
+// that has no patched release yet AND does not reach the deployed server bundle
+// (checked: neither package is in .output/server after `npm run build`). Remove
+// an entry as soon as a fix ships; never add one to turn the job green without
+// writing down both facts.
+{
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "high": true,
+  "skip-dev": true,
+  "allowlist": [
+    // braces <=3.0.3 (latest), ReDoS-style stack exhaustion on deeply nested
+    // glob patterns. Reached via micromatch/fast-glob/chokidar at build time;
+    // the patterns come from our own config, never from a request.
+    "GHSA-vfj7-8cjw-p6xm",
+    // node-forge <=1.4.0 (latest), lax RSA PKCS#1 v1.5 signature verification.
+    // Pulled in by listhen, the dev server, to mint local HTTPS certificates;
+    // nothing verifies signatures with it and it isn't part of the build output.
+    "GHSA-86w9-cpqp-85rv"
+  ]
+}

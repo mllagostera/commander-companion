@@ -115,10 +115,7 @@ func run() error {
 	}
 
 	// 2. Initialize Fiber
-	app := fiber.New(fiber.Config{
-		ErrorHandler: common.ErrorHandler,
-		AppName:      "TapeandoCartones API v0.1",
-	})
+	app := fiber.New(serverConfig(defaultServerTimeouts()))
 
 	// Middlewares
 	app.Use(newRequestLogger(os.Stdout))
@@ -178,6 +175,49 @@ func reapStaleBackgroundJobs(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	return nil
+}
+
+// serverTimeouts bound how long a connection may hold the server without making
+// progress. Without them fasthttp waits forever, so a client that opens a
+// connection and trickles its headers (slowloris) keeps a goroutine and a
+// socket busy indefinitely.
+type serverTimeouts struct {
+	// Read bounds reading one whole request, headers and body. Request bodies
+	// here are small JSON documents.
+	Read time.Duration
+	// Write bounds writing the response. fasthttp starts it after the handler
+	// returns, so a slow handler (a Moxfield import) is not affected.
+	Write time.Duration
+	// Idle bounds how long a keep-alive connection may wait for its next
+	// request. Kept above the 60 s idle timeout common in load balancers, so
+	// the proxy in front closes an idle connection before the server does and
+	// never reuses one the server already dropped. Render doesn't document its
+	// own value; 60 s is an assumption.
+	Idle time.Duration
+}
+
+const (
+	serverReadTimeout  = 10 * time.Second
+	serverWriteTimeout = 10 * time.Second
+	serverIdleTimeout  = 75 * time.Second
+)
+
+func defaultServerTimeouts() serverTimeouts {
+	return serverTimeouts{Read: serverReadTimeout, Write: serverWriteTimeout, Idle: serverIdleTimeout}
+}
+
+// serverConfig is the Fiber configuration of the API. WebSocket connections are
+// not cut by these timeouts: fasthttp clears the connection's deadlines before
+// handing it to the upgrade handler, and the websocket package manages its own
+// (auth timeout, pong wait) from there.
+func serverConfig(timeouts serverTimeouts) fiber.Config {
+	return fiber.Config{
+		ErrorHandler: common.ErrorHandler,
+		AppName:      "TapeandoCartones API v0.1",
+		ReadTimeout:  timeouts.Read,
+		WriteTimeout: timeouts.Write,
+		IdleTimeout:  timeouts.Idle,
+	}
 }
 
 // newRequestLogger logs every request except the health check, which Render

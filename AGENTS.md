@@ -277,6 +277,12 @@ protection settings in the same pass.**
 - **`architecture-ci.yml`** — runs `.github/scripts/check-architecture.sh`: the
   layering and contract invariants, plus the README-hub rule. No path filter —
   the invariants are cross-cutting and the script is seconds of greps.
+- **`security-ci.yml`** — **pull requests only**: `govulncheck` on the Go
+  dependencies and `npm audit` (via `audit-ci`) on the web's production
+  dependencies, each skipped when its area isn't touched. Not on push, so a
+  fresh advisory never blocks Render's deploy of `main`. Unfixable,
+  build-time-only advisories are allowlisted in `web/audit-ci.jsonc` — a ratchet:
+  remove an entry once its fix ships.
 - **`labeler.yml`** — labels PRs by changed path (backend/web/android/docs).
 
 **The i18n checks** (`.github/scripts/check-i18n-{web,android}.mjs`) exist

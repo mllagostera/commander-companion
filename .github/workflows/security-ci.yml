@@ -1,0 +1,87 @@
+name: Security CI
+
+# Known-vulnerability scan of the dependencies: govulncheck for the Go backend,
+# npm audit (through audit-ci, for its allowlist) for the web client.
+#
+# Pull requests only, on purpose. Render deploys main once the checks on the
+# pushed commit pass, and a scan on push would hold every deploy hostage to an
+# advisory published that morning against a dependency nobody touched. On a PR
+# a new advisory blocks the change that can fix it instead. The cost: an
+# advisory published against unchanged code surfaces at the next PR touching
+# that area, not the day it appears.
+on:
+  pull_request:
+
+concurrency:
+  group: security-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Same shape as the other pipelines: always reports, so the scans below can
+  # skip on PRs that don't touch their area (a docs-only PR shouldn't fail on
+  # an advisory in Go or npm code it didn't change).
+  changes:
+    name: Detect changes for the security scans
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      web: ${{ steps.filter.outputs.web }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            backend:
+              - 'backend/**'
+              - '!backend/**/*.md'
+            web:
+              - 'web/**'
+              - '!web/**/*.md'
+            workflow:
+              - '.github/workflows/security-ci.yml'
+
+  govulncheck:
+    name: govulncheck (Go dependencies)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflow == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      # The latest 1.26 patch, not go.mod's exact `go 1.26.0`: govulncheck judges
+      # the standard library by the toolchain it runs on, and the deployed binary
+      # is built by backend/Dockerfile's floating `golang:1.26-alpine`, i.e. the
+      # latest patch. Scanning with go-version-file would report every stdlib
+      # advisory already fixed in the toolchain production actually uses.
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          check-latest: true
+      # Reports only vulnerabilities in code the binary actually calls, so a
+      # failure here is reachable from the API, not just present in go.sum.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  npm-audit:
+    name: npm audit (web production dependencies)
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.workflow == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      # Reads package-lock.json, so no install is needed. High and critical
+      # advisories fail the job, except the ones allowlisted (with the reason)
+      # in web/audit-ci.jsonc.
+      - name: audit-ci
+        run: npx --yes audit-ci@7.1.0 --config audit-ci.jsonc
