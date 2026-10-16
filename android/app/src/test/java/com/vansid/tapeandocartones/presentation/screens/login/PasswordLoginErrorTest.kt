@@ -32,6 +32,14 @@ class PasswordLoginErrorTest {
     }
 
     @Test
+    fun `429 is too many attempts, whether per IP or per account`() {
+        assertEquals(
+            LoginError.TooManyAttempts,
+            passwordLoginError(429, """{"code":429,"message":"too many failed login attempts for this account, try again later"}""")
+        )
+    }
+
+    @Test
     fun `any other status keeps its code`() {
         assertEquals(LoginError.Unknown(500), passwordLoginError(500, null))
     }

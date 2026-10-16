@@ -117,8 +117,9 @@ export function createDeckError(err: unknown): string {
 /**
  * Translates Moxfield import errors into something actionable.
  * The backend responds 404 if there's no public deck with that ID, 400 if the
- * URL is invalid or the deck has no commander (not Commander format), and 409
- * if the user already imported this same Moxfield deck.
+ * URL is invalid or the deck has no commander (not Commander format), 409
+ * if the user already imported this same Moxfield deck, and 429 when the user
+ * used up their Moxfield budget (shared with sync, see ADR-0025).
  */
 export function moxfieldImportError(err: unknown): string {
   const { t } = useNuxtApp().$i18n
@@ -127,6 +128,8 @@ export function moxfieldImportError(err: unknown): string {
       return t('errors.moxfieldImport.notFound')
     case 409:
       return t('errors.moxfieldImport.alreadyImported')
+    case 429:
+      return t('errors.moxfieldRateLimited')
     case 400:
       // The '' is a sentinel to test apiErrorMessage(...).includes('commander')
       // against the backend's raw English text — it's not a visible message, it's not translated.
@@ -146,9 +149,22 @@ export function resyncAllDecksError(err: unknown): string {
       return t('errors.resyncAllDecks.noneEligible')
     case 409:
       return t('errors.resyncAllDecks.inProgress')
+    case 429:
+      return t('errors.moxfieldRateLimited')
     default:
       return apiErrorMessage(err, t('errors.resyncAllDecks.generic'))
   }
+}
+
+/**
+ * Translates POST /sync/moxfield errors. Only the rate limit gets its own
+ * message; anything else keeps the backend's text, as the deck list did
+ * before (its failures are specific to the deck being synced).
+ */
+export function syncFromMoxfieldError(err: unknown, fallback: string): string {
+  const { t } = useNuxtApp().$i18n
+  if (apiErrorStatus(err) === 429) return t('errors.moxfieldRateLimited')
+  return apiErrorMessage(err, fallback)
 }
 
 /** Translates PATCH /decks/{id} errors; 503 is a reset that needed Moxfield while it was down. */

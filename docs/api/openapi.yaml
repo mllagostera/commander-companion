@@ -7,16 +7,27 @@ info:
 
     ## Rate limits
 
-    Some endpoints are rate limited per client IP, in fixed one-minute windows.
-    Each limit is its own budget: using one up never affects another.
+    Some endpoints are rate limited, in fixed windows. Each limit is its own
+    budget: using one up never affects another. Endpoints listed together in a
+    row share that row's budget.
 
-    | Budget | Requests/min | Endpoints |
-    |---|---|---|
-    | Credentials | 20 | `POST /auth/login`, `/auth/google`, `/auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/forgot-password`, `/auth/reset-password`, `GET /users/username-available` |
-    | Session refresh | 60 | `POST /auth/refresh` |
-    | User search | 20 | `GET /users/search` |
+    | Budget | Keyed by | Limit | Endpoints |
+    |---|---|---|---|
+    | Credentials | client IP | 20 / min | `POST /auth/login`, `/auth/google`, `/auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/forgot-password`, `/auth/reset-password`, `GET /users/username-available` |
+    | Failed logins | account (the submitted email) | 10 failures / 15 min | `POST /auth/login` |
+    | Session refresh | client IP | 60 / min | `POST /auth/refresh` |
+    | User search | client IP | 20 / min | `GET /users/search` |
+    | Moxfield, one deck | user | 20 / 10 min | `POST /decks/import/moxfield`, `POST /sync/moxfield` |
+    | Moxfield, bulk jobs | user | 5 started / hour | `POST /moxfield-import`, `POST /decks/resync-all` |
 
-    Exceeding a limit returns `429` with the usual `ErrorResponse` body.
+    Exceeding a limit returns `429` with the usual `ErrorResponse` body and a
+    `Retry-After` header (seconds until the window resets).
+
+    The failed-logins budget only counts attempts that fail (any 4xx), so a
+    user who logs in normally never spends it. It is keyed by the email as
+    submitted, whether or not an account exists, so it says nothing about which
+    emails are registered. The Moxfield bulk budget only counts jobs actually
+    started: a `400`/`409` refusal costs nothing (see ADR-0025).
 
     The client IP is the TCP peer address unless the deployment configures
     otherwise (see ADR-0024): the web client's BFF identifies the browser it
@@ -1896,7 +1907,10 @@ Disallow: /
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
-          description: Too many authentication requests from this IP (rate limit per IP)
+          description: >-
+            Too many authentication requests from this IP, or too many failed
+            logins for this email (10 per 15 minutes, counted whether or not the
+            account exists). Retry-After says when to try again.
           content:
             application/json:
               schema:
@@ -2619,6 +2633,12 @@ Disallow: /
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: The authenticated user already has a deck imported from this Moxfield ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many Moxfield deck requests for this user (shared with POST /sync/moxfield)
           content:
             application/json:
               schema:
@@ -3422,6 +3442,12 @@ Disallow: /
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many Moxfield deck requests for this user (shared with POST /decks/import/moxfield)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /sync/status:
     get:
       summary: Get a deck's sync status
@@ -3487,6 +3513,12 @@ Disallow: /
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: There is already a pending/in_progress import for this user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many Moxfield bulk jobs started by this user (shared with POST /decks/resync-all)
           content:
             application/json:
               schema:
@@ -3576,6 +3608,12 @@ Disallow: /
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+        '429':
+          description: Too many Moxfield bulk jobs started by this user (shared with POST /moxfield-import)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /decks/resync-all/{jobId}:
     get:
       summary: Check the progress of a bulk deck resync job

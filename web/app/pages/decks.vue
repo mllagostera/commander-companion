@@ -259,7 +259,7 @@ async function handleSync(deck: Deck) {
     syncState[deck.id] = {
       loading: false,
       isError: true,
-      message: apiErrorMessage(err, t('decks.errors.syncFailed')),
+      message: syncFromMoxfieldError(err, t('decks.errors.syncFailed')),
     }
   }
 }

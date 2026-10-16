@@ -17,8 +17,10 @@ func NewHandler(svc Service) *Handler {
 }
 
 // RegisterRoutes registers all the endpoints of the deckresync module.
-func (h *Handler) RegisterRoutes(router fiber.Router) {
-	router.Post("/decks/resync-all", h.StartResyncAll)
+// bulkRateLimit bounds how many jobs a user starts; it is shared with
+// POST /moxfield-import (see cmd/api/ratelimit.go).
+func (h *Handler) RegisterRoutes(router fiber.Router, bulkRateLimit fiber.Handler) {
+	router.Post("/decks/resync-all", bulkRateLimit, h.StartResyncAll)
 	router.Get("/decks/resync-all/:jobId", h.GetJobStatus)
 }
 

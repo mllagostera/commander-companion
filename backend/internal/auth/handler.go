@@ -16,18 +16,30 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
+// PublicRateLimits are the rate-limiting middlewares for the public auth
+// endpoints, built in cmd/api/ratelimit.go so that budgets can be shared with
+// other modules' routes.
+type PublicRateLimits struct {
+	// Credentials is the per-IP budget for login and google.
+	Credentials fiber.Handler
+	// FailedLogin is the per-account budget of failed logins (ADR-0025). It
+	// runs after Credentials, so a request the IP limit already refused doesn't
+	// count against the account.
+	FailedLogin fiber.Handler
+	// Refresh is refresh's own, looser per-IP budget, so automatic session
+	// renewal never locks a user out of logging in.
+	Refresh fiber.Handler
+}
+
 // RegisterPublicRoutes registers the auth endpoints that don't require a valid access
 // token. The rate limits apply only to the ones that issue tokens: they're the only
 // ones without a JWT in front and the most expensive to process (bcrypt, verifying the
-// id_token against Google), so they're the natural target for brute force.
-// credentialsRateLimit covers login and google; refreshRateLimit is a separate, looser
-// budget for refresh, so automatic session renewal never locks a user out of logging
-// in (see cmd/api/main.go). Logout is left unlimited: it's idempotent, cheap, and
-// doesn't leak information.
-func (h *Handler) RegisterPublicRoutes(router fiber.Router, credentialsRateLimit, refreshRateLimit fiber.Handler) {
-	router.Post("/auth/login", credentialsRateLimit, h.Login)
-	router.Post("/auth/google", credentialsRateLimit, h.GoogleLogin)
-	router.Post("/auth/refresh", refreshRateLimit, h.Refresh)
+// id_token against Google), so they're the natural target for brute force. Logout is
+// left unlimited: it's idempotent, cheap, and doesn't leak information.
+func (h *Handler) RegisterPublicRoutes(router fiber.Router, limits PublicRateLimits) {
+	router.Post("/auth/login", limits.Credentials, limits.FailedLogin, h.Login)
+	router.Post("/auth/google", limits.Credentials, h.GoogleLogin)
+	router.Post("/auth/refresh", limits.Refresh, h.Refresh)
 	router.Post("/auth/logout", h.Logout)
 }
 

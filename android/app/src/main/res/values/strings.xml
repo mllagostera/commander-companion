@@ -276,6 +276,7 @@
     <string name="error_login_bad_credentials">Email o contraseña incorrectos</string>
     <string name="error_login_email_not_confirmed">Todavía no has confirmado tu email. Revisa tu bandeja de entrada.</string>
     <string name="error_login_account_deactivated">Esta cuenta ha sido desactivada</string>
+    <string name="error_login_too_many_attempts">Demasiados intentos. Espera unos minutos y vuelve a probar.</string>
     <string name="error_login_resend_failed">No se pudo reenviar el email de verificación</string>
     <string name="error_login_unknown">No se pudo iniciar sesión (error %1$d)</string>
     <string name="error_login_google_rejected">Google rechazó la cuenta (email no verificado o token no válido)</string>

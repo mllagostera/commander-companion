@@ -33,6 +33,8 @@ sealed interface LoginError {
     data object BadCredentials : LoginError
     data object EmailNotConfirmed : LoginError
     data object AccountDeactivated : LoginError
+    /** 429: too many attempts from this IP, or too many failures for this account (ADR-0025). */
+    data object TooManyAttempts : LoginError
     data object ResendFailed : LoginError
     data class Unknown(val code: Int) : LoginError
     data object GoogleRejected : LoginError
@@ -65,6 +67,7 @@ internal fun passwordLoginError(code: Int, errorBody: String?): LoginError = whe
     } else {
         LoginError.EmailNotConfirmed
     }
+    429 -> LoginError.TooManyAttempts
     else -> LoginError.Unknown(code)
 }
 

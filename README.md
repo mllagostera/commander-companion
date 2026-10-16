@@ -197,6 +197,7 @@ for a new module), add it to this list too in the same change.
 - [0022 — Password reset by email](docs/decisions/0022-password-reset-by-email.md)
 - [0023 — Playgroup invite links](docs/decisions/0023-playgroup-invite-links.md)
 - [0024 — Client IP for rate limits: BFF secret and opt-in proxy header](docs/decisions/0024-client-ip-for-rate-limits.md)
+- [0025 — Failed logins limited per account, Moxfield calls per user](docs/decisions/0025-per-account-and-per-user-rate-limits.md)
 
 **READMEs per module:**
 

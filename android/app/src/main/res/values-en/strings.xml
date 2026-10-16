@@ -272,6 +272,7 @@
     <string name="error_login_bad_credentials">Wrong email or password</string>
     <string name="error_login_email_not_confirmed">You haven\'t confirmed your email yet. Check your inbox.</string>
     <string name="error_login_account_deactivated">This account has been deactivated</string>
+    <string name="error_login_too_many_attempts">Too many attempts. Wait a few minutes and try again.</string>
     <string name="error_login_resend_failed">Couldn\'t resend the verification email</string>
     <string name="error_login_unknown">Couldn\'t log in (error %1$d)</string>
     <string name="error_login_google_rejected">Google rejected the account (email not verified, or invalid token)</string>
