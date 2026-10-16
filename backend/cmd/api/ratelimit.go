@@ -31,6 +31,14 @@ const (
 	failedLoginRateLimitMax    = 10
 	failedLoginRateLimitWindow = 15 * time.Minute
 
+	// Emails sent to one address (password reset, verification resend), keyed
+	// by the submitted email. The per-IP limit lets anyone with a few IPs make
+	// the API mail a given inbox over and over (and burn the Resend quota).
+	// Every request counts: both endpoints answer the same whether or not the
+	// account exists, so a "failure" can't be told apart anyway.
+	accountEmailRateLimitMax    = 3
+	accountEmailRateLimitWindow = 15 * time.Minute
+
 	// POST /auth/refresh, in its own bucket so automatic session renewal (several
 	// devices behind one NAT) can't use up the login budget, nor the other way
 	// round. Looser because guessing a refresh token is not a realistic attack
@@ -205,11 +213,12 @@ func clientIPKey(c *fiber.Ctx) string {
 	return "ip:" + common.ClientIP(c)
 }
 
-// loginAccountKey keys a login attempt by the email it targets, trimmed and
-// lowercased, whether or not that account exists. A body without a usable
+// emailKey keys a request by the email in its JSON body (a login attempt, a
+// reset or verification email), trimmed and lowercased, whether or not that
+// account exists. A body without a usable
 // email falls back to the client IP: the request fails validation anyway, and
 // an arbitrary string must not mint an unbounded number of counters.
-func loginAccountKey(c *fiber.Ctx) string {
+func emailKey(c *fiber.Ctx) string {
 	var body struct {
 		Email string `json:"email"`
 	}
@@ -237,6 +246,7 @@ func userKey(c *fiber.Ctx) string {
 type apiRateLimits struct {
 	credentials  fiber.Handler
 	failedLogin  fiber.Handler
+	accountEmail fiber.Handler
 	refresh      fiber.Handler
 	search       fiber.Handler
 	moxfieldDeck fiber.Handler
@@ -250,9 +260,13 @@ func newAPIRateLimits() apiRateLimits {
 			message: "too many authentication requests, try again later",
 		}),
 		failedLogin: newRateLimiter(rateLimit{
-			max: failedLoginRateLimitMax, window: failedLoginRateLimitWindow, key: loginAccountKey,
+			max: failedLoginRateLimitMax, window: failedLoginRateLimitWindow, key: emailKey,
 			onlyFailures: true,
 			message:      "too many failed login attempts for this account, try again later",
+		}),
+		accountEmail: newRateLimiter(rateLimit{
+			max: accountEmailRateLimitMax, window: accountEmailRateLimitWindow, key: emailKey,
+			message: "too many emails requested for this address, try again later",
 		}),
 		refresh: newRateLimiter(rateLimit{
 			max: refreshRateLimitMax, window: refreshRateLimitWindow, key: clientIPKey,
