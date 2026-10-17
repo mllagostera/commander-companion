@@ -132,6 +132,40 @@ func TestGetDeck_ImageURL_TwoFacedCard_UsesFrontFaceID(t *testing.T) {
 	}
 }
 
+// With a Scryfall id, the art comes from Scryfall's CDN, which allows
+// hotlinking, and "front" covers two-faced cards without the face-id dance.
+func TestGetDeck_ImageURL_PrefersScryfallID(t *testing.T) {
+	deck := getDeckFrom(t, `{
+		"name": "Test Deck",
+		"publicId": "abc123",
+		"boards": {"commanders": {"cards": {"1": {"card": {"id": "combined-id", "name": "Front // Back"}}}}},
+		"main": {
+			"id": "combined-id",
+			"name": "Front // Back",
+			"scryfall_id": "D0D33D52-3d28-4635-b985-51e126289259",
+			"card_faces": [{"id": "front-face-id", "name": "Front"}]
+		}
+	}`)
+	want := "https://cards.scryfall.io/art_crop/front/d/0/d0d33d52-3d28-4635-b985-51e126289259.jpg"
+	if deck.ImageURL != want {
+		t.Fatalf("ImageURL = %q, want %q", deck.ImageURL, want)
+	}
+}
+
+// Anything that isn't a UUID never reaches the URL path: Moxfield's CDN is used instead.
+func TestGetDeck_ImageURL_MalformedScryfallID_FallsBackToMoxfield(t *testing.T) {
+	deck := getDeckFrom(t, `{
+		"name": "Test Deck",
+		"publicId": "abc123",
+		"boards": {"commanders": {"cards": {"1": {"card": {"id": "card-1", "name": "Atraxa"}}}}},
+		"main": {"id": "card-1", "name": "Atraxa", "scryfall_id": "../../evil"}
+	}`)
+	want := "https://assets.moxfield.net/cards/card-card-1-art_crop.jpg"
+	if deck.ImageURL != want {
+		t.Fatalf("ImageURL = %q, want %q", deck.ImageURL, want)
+	}
+}
+
 // getDeckFrom serves body as Moxfield's deck response and returns what GetDeck parsed.
 func getDeckFrom(t *testing.T, body string) *Deck {
 	t.Helper()

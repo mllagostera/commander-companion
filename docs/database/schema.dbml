@@ -62,7 +62,7 @@ Table decks {
   name varchar [not null]
   commander varchar [not null]
   moxfield_id varchar
-  image_url varchar [note: 'Commander art crop (Moxfield), migration 00006_deck_image_url.sql']
+  image_url varchar [note: 'Commander art crop (Scryfall CDN, Moxfield CDN as fallback; ADR-0029), migration 00006_deck_image_url.sql']
   bracket smallint [null, note: 'Commander bracket 1-5. From Moxfield (`bracket`, NULL when the author ignores brackets) or set by hand. NULL = unknown. Migration 00023_deck_bracket_color_identity.sql']
   color_identity "text[]" [null, note: 'Letters in WUBRG order; {} = colorless, NULL = unknown. From Moxfield (`colorIdentity`) or set by hand. Migration 00023']
   bracket_overridden boolean [not null, default: false, note: 'Set by hand: Moxfield resyncs leave bracket alone. Migration 00023']

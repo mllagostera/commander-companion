@@ -40,8 +40,14 @@ const (
 	// Moxfield is behind Cloudflare and blocks clients without a
 	// User-Agent that looks like a real browser.
 	userAgent = "Mozilla/5.0 (compatible; CommanderCompanion/1.0; +https://github.com/mllagostera/commander-companion)"
-	// imageURLTemplate builds the art crop of the deck's "main" card (the same
-	// one Moxfield uses as its own og:image), from that card's short id.
+	// scryfallArtURLTemplate builds the art crop of the deck's "main" card from
+	// its Scryfall id, on Scryfall's image CDN: the preferred source (see
+	// ADR-0029), since Scryfall explicitly allows hotlinking its images. The
+	// two path segments are the first two characters of the id, and "front"
+	// picks the front face of a two-faced card. Arguments: id[0], id[1], id.
+	scryfallArtURLTemplate = "https://cards.scryfall.io/art_crop/front/%c/%c/%s.jpg"
+	// imageURLTemplate is the fallback when Moxfield reports no Scryfall id:
+	// the same art crop on Moxfield's own CDN, from the card's short id.
 	imageURLTemplate = "https://assets.moxfield.net/cards/card-%s-art_crop.jpg"
 	// imageURLFaceTemplate is the equivalent for the id of an individual FACE of a
 	// two-faced card (transform/MDFC). Careful: "card-{faceId}" (without "face-") also
@@ -104,7 +110,8 @@ type deckResponse struct {
 	PublicID string     `json:"publicId"`
 	Boards   deckBoards `json:"boards"`
 	// Main is the card Moxfield highlights as the deck's cover (usually the
-	// commander); its Id is what builds the art crop URL shown as og:image.
+	// commander); its Scryfall id (or, failing that, its Moxfield id) builds
+	// the art crop URL, see mainImageURL.
 	Main *cardInfo `json:"main"`
 	// Bracket is the one the author declared, AutoBracket the one Moxfield
 	// computes; they match unless the author picked one by hand. 0 = none.
@@ -131,6 +138,9 @@ type boardCard struct {
 type cardInfo struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	// ScryfallID is the card's Scryfall UUID; it builds the preferred art
+	// URL (see mainImageURL).
+	ScryfallID string `json:"scryfall_id"`
 	// CardFaces is present only on two-faced cards (transform/modal DFC).
 	// Moxfield doesn't cache any art crop asset under the card's combined id
 	// (main.id) for these: only under each individual face's id.
@@ -269,7 +279,11 @@ func mainImageURL(main *cardInfo) string {
 	if main == nil {
 		return ""
 	}
-	// Two-faced card: the art crop lives under the face's id (usually the
+	if isUUID(main.ScryfallID) {
+		id := strings.ToLower(main.ScryfallID)
+		return fmt.Sprintf(scryfallArtURLTemplate, id[0], id[1], id)
+	}
+	// Fallback to Moxfield's CDN. Two-faced card: the art crop lives under the face's id (usually the
 	// front) with the "card-face-" prefix, never under the combined id that Moxfield
 	// reports as main.id nor under the plain "card-" prefix (that short face id
 	// collides with the full-card id namespace, serving the image of
@@ -281,6 +295,27 @@ func mainImageURL(main *cardInfo) string {
 		return ""
 	}
 	return fmt.Sprintf(imageURLTemplate, main.ID)
+}
+
+// isUUID reports whether s is a canonical 8-4-4-4-12 hex UUID -- the only
+// shape a Scryfall id takes, checked so nothing else ends up in the URL path.
+func isUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, r := range s {
+		switch i {
+		case 8, 13, 18, 23:
+			if r != '-' {
+				return false
+			}
+		default:
+			if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func commanderNames(cards map[string]boardCard) string {

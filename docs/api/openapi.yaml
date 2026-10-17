@@ -309,8 +309,11 @@ components:
           type: string
           nullable: true
           description: >-
-            Art crop of the deck's main card (usually the commander), taken
-            from Moxfield during import/resync.
+            Art crop of the deck's main card (usually the commander), set
+            during import/resync. Points at Scryfall's image CDN
+            (cards.scryfall.io) from the card's Scryfall id, falling back to
+            Moxfield's (assets.moxfield.net) when Moxfield reports none; decks
+            imported before ADR-0029 keep the Moxfield URL until resynced.
         bracket:
           type: integer
           minimum: 1

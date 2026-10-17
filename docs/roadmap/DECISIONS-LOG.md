@@ -2703,3 +2703,23 @@ Review fixes (same day, same PR):
   an apostrophe inside a single-quoted note. Reworded; the check now passes locally
   (151 columns on both sides).
 
+
+### Stage 8 — Deck art from Scryfall instead of Moxfield's CDN (2026-10-17)
+
+Reported on the web `/decks` grid: the first page of deck art loads, the pages
+appended by infinite scroll show empty tiles. Ruled out in code: `ListDecksPage`
+returns `image_url` on every page, `loadMore` appends items unchanged, and the
+CSP's `img-src` is the same for SSR and client-rendered images. A read-only
+query on production grouped every deck's `image_url` by "first page vs later
+pages": the same `assets.moxfield.net/cards/card-…-art_crop.jpg` shape on both
+sides, some cards even appearing on both. So the stored data is fine and the
+likeliest cause is Moxfield's CDN throttling a hotlinked burst — not confirmed,
+because this sandbox's proxy blocks the host.
+
+The owner asked to store Scryfall's art regardless, which removes the dependency
+on a CDN that never agreed to be hotlinked: see
+[ADR-0029](../decisions/0029-deck-art-from-scryfall.md). Verified with unit tests
+in `internal/moxfield/retry_internal_test.go` (Scryfall id preferred, malformed id
+falls back to Moxfield's CDN, the existing two-faced and single-faced fallback
+tests unchanged). Still to do: confirm against a real import that Moxfield's
+`main` carries `scryfall_id`, then run "resync all" so existing decks move over.
