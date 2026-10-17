@@ -9,9 +9,7 @@
  * Android app's Play Store set. scripts/screenshots/ regenerates all of them
  * (see its README); re-run it when the screens they show change noticeably.
  */
-const { t, locale, locales, setLocale, localeProperties } = useI18n()
-
-const availableLocales = computed(() => locales.value as { code: string, name?: string }[])
+const { t, localeProperties } = useI18n()
 
 // og:image must be absolute: link-preview crawlers (WhatsApp, Discord, X...)
 // don't resolve relative URLs. The image is public/og-image.png, 1200x630,
@@ -150,22 +148,7 @@ const showcase = computed(() => [
 
         <!-- Below sm the language switcher moves to the footer: the header only has
              room for the two account actions, and both must stay visible. -->
-        <div class="ml-auto hidden items-center gap-1 sm:flex" role="group" :aria-label="$t('nav.language')">
-          <button
-            v-for="l in availableLocales"
-            :key="l.code"
-            type="button"
-            :aria-pressed="l.code === locale"
-            :title="l.name"
-            class="rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase transition-colors"
-            :style="l.code === locale
-              ? { background: 'linear-gradient(135deg, #8b5cf6, #a855f7)', color: '#0a0714', borderColor: 'transparent' }
-              : { color: 'var(--text-muted)', borderColor: 'var(--input-border)' }"
-            @click="setLocale(l.code as 'es' | 'en' | 'ca')"
-          >
-            {{ l.code }}
-          </button>
-        </div>
+        <LocaleSwitcher class="ml-auto hidden sm:flex" />
 
         <!-- Outlined rather than a bare muted link: returning users scan the header
              for it, and next to the filled register pill plain text read as inert. -->
@@ -416,22 +399,7 @@ const showcase = computed(() => [
     </main>
 
     <footer class="relative z-[1] mx-auto flex max-w-[1080px] flex-col items-center justify-between gap-2 border-t px-4 py-8 text-xs sm:flex-row sm:px-6" style="border-color: var(--card-border); color: var(--text-dim);">
-      <div class="flex items-center gap-1 sm:hidden" role="group" :aria-label="$t('nav.language')">
-        <button
-          v-for="l in availableLocales"
-          :key="l.code"
-          type="button"
-          :aria-pressed="l.code === locale"
-          :title="l.name"
-          class="rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase transition-colors"
-          :style="l.code === locale
-            ? { background: 'linear-gradient(135deg, #8b5cf6, #a855f7)', color: '#0a0714', borderColor: 'transparent' }
-            : { color: 'var(--text-muted)', borderColor: 'var(--input-border)' }"
-          @click="setLocale(l.code as 'es' | 'en' | 'ca')"
-        >
-          {{ l.code }}
-        </button>
-      </div>
+      <LocaleSwitcher class="sm:hidden" />
       <span>© {{ new Date().getFullYear() }} TapeandoCartones</span>
       <span>{{ $t('landing.footer.disclaimer') }}</span>
     </footer>
