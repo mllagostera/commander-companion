@@ -4,7 +4,15 @@
   localhost, or a LAN IP via -PAPI_BASE_URL), and Android's default
   Network Security Config blocks cleartext from API 28+. Release doesn't
   inherit this (it still requires HTTPS).
+
+  ACCESS_LOCAL_NETWORK for the same reason: from targetSdk 37, Android 17
+  blocks traffic to local network addresses (10.0.2.2 and LAN IPs included)
+  without it. MainActivity asks for it at startup, in debug builds pointed at
+  such an address only. Release talks to the deployed backend and neither
+  declares nor needs it.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+
     <application android:usesCleartextTraffic="true" />
 </manifest>

@@ -199,7 +199,8 @@ for a new module), add it to this list too in the same change.
 - [0024 — Client IP for rate limits: BFF secret and opt-in proxy header](docs/decisions/0024-client-ip-for-rate-limits.md)
 - [0025 — Failed logins limited per account, Moxfield calls per user](docs/decisions/0025-per-account-and-per-user-rate-limits.md)
 - [0026 — Web BFF hardening: CSP scope, cross-origin check, Nitro-side limits](docs/decisions/0026-web-bff-hardening.md)
-- [0027 — A short grace window for reusing a just-rotated refresh token](docs/decisions/0027-refresh-token-reuse-grace.md)
+- [0027 — Sideloaded Android release builds signed with the debug key](docs/decisions/0027-sign-sideloaded-release-with-debug-key.md)
+- [0028 — A short grace window for reusing a just-rotated refresh token](docs/decisions/0028-refresh-token-reuse-grace.md)
 
 **READMEs per module:**
 

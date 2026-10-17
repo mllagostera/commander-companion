@@ -17,7 +17,7 @@ WHERE id = $1 AND revoked_at IS NULL;
 -- Whether a rotated token is being presented again within the reuse grace window
 -- (seconds, $2) while the token it was rotated into is still active — the shape of
 -- two concurrent refreshes by one client, not of a replayed stolen token. Compared
--- in SQL so revoked_at (set with now()) and the window share one clock. See ADR-0027.
+-- in SQL so revoked_at (set with now()) and the window share one clock. See ADR-0028.
 SELECT EXISTS (
   SELECT 1 FROM refresh_tokens parent
   JOIN refresh_tokens successor ON successor.id = parent.replaced_by

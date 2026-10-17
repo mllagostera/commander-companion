@@ -1,4 +1,4 @@
-# ADR-0027: A short grace window for reusing a just-rotated refresh token
+# ADR-0028: A short grace window for reusing a just-rotated refresh token
 
 **Status:** Accepted (2026-10-16). Amends the reuse-detection rule of
 [ADR-0001](0001-auth-jwt-refresh-token-strategy.md).

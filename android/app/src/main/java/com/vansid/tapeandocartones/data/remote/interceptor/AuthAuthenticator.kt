@@ -11,8 +11,9 @@ import okhttp3.Route
 /**
  * On a 401 from the authenticated HTTP client, tries to refresh the access token once and
  * retries the original request with the new token. If the refresh fails,
- * [SessionManager.refreshAccessToken] already takes care of forcing the logout — here we simply
- * return `null` so OkHttp gives up (no retry loop).
+ * [SessionManager.refreshAccessToken] already decides whether that ends the session (the backend
+ * rejected the token) or not (no network, a 5xx) — here we simply return `null` so OkHttp gives
+ * up (no retry loop) and the original 401 reaches the caller.
  */
 class AuthAuthenticator @Inject constructor(
     private val sessionManager: SessionManager

@@ -10,4 +10,7 @@ interface LastDeckRepository {
 
     /** [deckIdsByUserId] maps each seated member to the deck they picked. Fire-and-forget. */
     fun remember(playgroupId: String, deckIdsByUserId: Map<String, String>)
+
+    /** Drops everything remembered, so the next account on this device starts from nothing. */
+    suspend fun forgetAll()
 }

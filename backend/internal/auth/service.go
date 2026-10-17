@@ -74,7 +74,7 @@ func (s *service) GoogleLogin(ctx context.Context, idToken string) (*TokenRespon
 }
 
 // refreshReuseGrace is how long after a rotation the rotated-away token is still
-// accepted once more without being read as theft, see Refresh and ADR-0027.
+// accepted once more without being read as theft, see Refresh and ADR-0028.
 const refreshReuseGrace = 30 * time.Second
 
 // Refresh validates a valid refresh token, revokes it (rotation), and issues a new token pair.
@@ -88,7 +88,7 @@ const refreshReuseGrace = 30 * time.Second
 // leaked token can't be replayed indefinitely to keep a session alive on every device —
 // the account owner has to log in again everywhere, not just lose this one token.
 //
-// One exception (ADR-0027): a token rotated less than refreshReuseGrace ago, whose
+// One exception (ADR-0028): a token rotated less than refreshReuseGrace ago, whose
 // replacement is still active, gets a fresh pair instead. That is what one client
 // refreshing twice in parallel looks like (two web BFF instances, two app requests
 // racing on the same expired access token), and treating it as theft logged real users

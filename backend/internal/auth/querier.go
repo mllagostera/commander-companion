@@ -16,7 +16,7 @@ type Querier interface {
 	// Whether a rotated token is being presented again within the reuse grace window
 	// (seconds, $2) while the token it was rotated into is still active — the shape of
 	// two concurrent refreshes by one client, not of a replayed stolen token. Compared
-	// in SQL so revoked_at (set with now()) and the window share one clock. See ADR-0027.
+	// in SQL so revoked_at (set with now()) and the window share one clock. See ADR-0028.
 	HasActiveSuccessorWithinGrace(ctx context.Context, arg HasActiveSuccessorWithinGraceParams) (bool, error)
 	RevokeAllRefreshTokensForUser(ctx context.Context, userID pgtype.UUID) error
 	RevokeRefreshTokenByHash(ctx context.Context, tokenHash string) error

@@ -76,7 +76,7 @@ type HasActiveSuccessorWithinGraceParams struct {
 // Whether a rotated token is being presented again within the reuse grace window
 // (seconds, $2) while the token it was rotated into is still active — the shape of
 // two concurrent refreshes by one client, not of a replayed stolen token. Compared
-// in SQL so revoked_at (set with now()) and the window share one clock. See ADR-0027.
+// in SQL so revoked_at (set with now()) and the window share one clock. See ADR-0028.
 func (q *Queries) HasActiveSuccessorWithinGrace(ctx context.Context, arg HasActiveSuccessorWithinGraceParams) (bool, error) {
 	row := q.db.QueryRow(ctx, hasActiveSuccessorWithinGrace, arg.ID, arg.GraceSeconds)
 	var within_grace bool

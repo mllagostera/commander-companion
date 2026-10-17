@@ -54,7 +54,7 @@ func registerUser(t *testing.T, pool *pgxpool.Pool, usersSvc users.Service, emai
 
 // ageRevocationsPastGrace moves every revocation a minute into the past, so the
 // next Refresh with a rotated token sees it as older than the reuse grace window
-// (ADR-0027) — the window is compared against the database clock, so this is the
+// (ADR-0028) — the window is compared against the database clock, so this is the
 // way to "wait" it out without sleeping.
 func ageRevocationsPastGrace(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
@@ -191,7 +191,7 @@ func TestRefresh_ReuseOfRotatedToken_RevokesTheWholeSessionFamily(t *testing.T) 
 
 // Two refreshes with the same token, the second arriving right after the first
 // rotated it: what two web BFF instances (or two parallel app requests) do with one
-// expired access token. Within the grace window that is not theft (ADR-0027): the
+// expired access token. Within the grace window that is not theft (ADR-0028): the
 // second gets its own pair, and nothing is revoked.
 func TestRefresh_ReuseWithinGrace_IssuesAFreshPairAndKeepsTheSession(t *testing.T) {
 	pool := testutil.DB(t)

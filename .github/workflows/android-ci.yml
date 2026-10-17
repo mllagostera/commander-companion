@@ -85,7 +85,7 @@ jobs:
         run: chmod +x gradlew
 
       # Every runner starts empty, so without this Android Gradle mints a new random debug
-      # key on each run: every CI APK would be signed differently (none installs over the
+      # key on each run (the release build below is signed with it too): every CI APK would be signed differently (none installs over the
       # previous one) and Google Sign-In could never work, since OAuth registers a fixed SHA-1.
       # The secret is the same debug.keystore used for local builds, base64-encoded, so CI and
       # local APKs share one signature and one SHA-1. Restored before any Gradle task, so the
@@ -110,32 +110,51 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      # Compile check only, on the local default URL (10.0.2.2): nothing is archived from it. A
+      # debug build is not something to hand out -- it is debuggable (`adb run-as` reads the
+      # stored refresh token), allows cleartext, and logs request and response bodies,
+      # passwords and tokens included. The installable APK is the release build below.
+      - name: Build (assembleDebug)
+        run: ./gradlew assembleDebug --stacktrace
+
       # The APK archived below is meant to be installed on a real phone, so it talks to the
       # deployed backend, whose URL comes from the API_BASE_URL repository secret. Local builds
       # keep android/gradle.properties' 10.0.2.2 (the emulator's alias for the machine running the
-      # backend); lint and tests don't care which. Without the secret -- Dependabot and fork PRs
-      # get no secrets -- the build still runs, on the local default, and says so.
-      - name: Build (assembleDebug)
+      # backend). Without the secret -- Dependabot and fork PRs get no secrets -- there's nothing
+      # worth installing, so the release build is skipped and says so.
+      #
+      # It is signed with the shared debug key restored above (see app/build.gradle.kts for why
+      # that is fine until the app goes to Google Play), so it installs over the debug APKs CI
+      # used to archive, keeping their local data. VERSION_CODE is the run number, so every
+      # archived APK installs over any older one.
+      - name: Build (assembleRelease)
+        id: release
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
           if [ -z "$API_BASE_URL" ]; then
-            echo "::warning::API_BASE_URL secret not set: this APK points at 10.0.2.2, not the deployed backend"
-            ./gradlew assembleDebug --stacktrace
-          else
-            # Retrofit needs the base URL to end with a slash.
-            case "$API_BASE_URL" in */) ;; *) API_BASE_URL="$API_BASE_URL/" ;; esac
-            ./gradlew assembleDebug --stacktrace -PAPI_BASE_URL="$API_BASE_URL"
+            echo "::warning::API_BASE_URL secret not set: no installable APK is built"
+            exit 0
           fi
+          case "$API_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::API_BASE_URL must be an https:// URL: a release build refuses cleartext"; exit 1 ;;
+          esac
+          # Retrofit needs the base URL to end with a slash.
+          case "$API_BASE_URL" in */) ;; *) API_BASE_URL="$API_BASE_URL/" ;; esac
+          ./gradlew assembleRelease --stacktrace \
+            -PAPI_BASE_URL="$API_BASE_URL" -PVERSION_CODE="${{ github.run_number }}"
+          echo "built=true" >> "$GITHUB_OUTPUT"
 
       # Kept out of the report bundle below (which runs with if: always()) on purpose:
-      # this one should only run when assembleDebug succeeded, so if-no-files-found:error
+      # this one should only run when assembleRelease succeeded, so if-no-files-found:error
       # flags a moved output path instead of silently uploading nothing.
-      - name: Upload debug APK
+      - name: Upload release APK
+        if: steps.release.outputs.built == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: app-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: app-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 30
 
