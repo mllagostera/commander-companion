@@ -387,7 +387,7 @@ private fun SeatCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // The deck step gives that height to the deck art; its header already names who sits here.
+            // The deck step gives that height to the deck art.
             if (state.step != SeatStep.Deck) {
                 Text(stringResource(R.string.pregame_seat_label, seatIndex + 1), fontSize = 10.sp, color = AppFaint)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -446,78 +446,73 @@ private fun SeatMemberPicker(
 
 /**
  * Step 2 — the member's decks plus "no deck", as large as the seat allows so the art is readable
- * across the table. A ← goes back to picking the player. When changing an already chosen deck, it
- * stays highlighted and scrolled into view, so switching is a single tap.
+ * across the table, with a ← on the seat's edge back to picking the player. When changing an
+ * already chosen deck, it stays highlighted and scrolled into view, so switching is a single tap.
  */
 @Composable
 private fun SeatDeckPicker(state: SeatState, actions: SeatActions) {
-    DeckPickerHeader(name = state.assignedUsername.orEmpty(), onBack = actions.onFreeSeat)
-    Spacer(modifier = Modifier.height(6.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        BackToPlayersButton(onClick = actions.onFreeSeat)
+        Spacer(modifier = Modifier.width(6.dp))
 
-    if (state.decksLoading) {
-        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = AccentSoft)
-        return
-    }
-
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        // Fill the height left in the seat, keeping the art-crop aspect ratio.
-        val chipHeight = maxHeight.coerceIn(52.dp, 124.dp)
-        val chipWidth = chipHeight * 1.4f
-        val selectedIndex = state.memberDecks.indexOfFirst { it.id == state.deckId }
-        val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex.coerceAtLeast(0))
-        LazyRow(
-            state = listState,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp)
-        ) {
-            items(state.memberDecks, key = { it.id }) { deck ->
-                DeckArtChip(
-                    name = deck.name,
-                    imageUrl = deck.imageUrl,
-                    selected = deck.id == state.deckId,
-                    onClick = { actions.onDeckSelected(deck.id) },
-                    width = chipWidth,
-                    height = chipHeight,
-                    nameMaxLines = 2
-                )
+        if (state.decksLoading) {
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = AccentSoft)
             }
-            item(key = "no-deck") {
-                DeckArtChip(
-                    name = stringResource(R.string.pregame_no_deck),
-                    imageUrl = null,
-                    selected = state.deckId == "",
-                    onClick = { actions.onDeckSelected("") },
-                    width = chipWidth,
-                    height = chipHeight
-                )
+            return@Row
+        }
+
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            // Fill the seat's height, keeping the art-crop aspect ratio.
+            val chipHeight = maxHeight.coerceIn(52.dp, 124.dp)
+            val chipWidth = chipHeight * 1.4f
+            val selectedIndex = state.memberDecks.indexOfFirst { it.id == state.deckId }
+            val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex.coerceAtLeast(0))
+            LazyRow(
+                state = listState,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(end = 4.dp)
+            ) {
+                items(state.memberDecks, key = { it.id }) { deck ->
+                    DeckArtChip(
+                        name = deck.name,
+                        imageUrl = deck.imageUrl,
+                        selected = deck.id == state.deckId,
+                        onClick = { actions.onDeckSelected(deck.id) },
+                        width = chipWidth,
+                        height = chipHeight,
+                        nameMaxLines = 2
+                    )
+                }
+                item(key = "no-deck") {
+                    DeckArtChip(
+                        name = stringResource(R.string.pregame_no_deck),
+                        imageUrl = null,
+                        selected = state.deckId == "",
+                        onClick = { actions.onDeckSelected("") },
+                        width = chipWidth,
+                        height = chipHeight
+                    )
+                }
             }
         }
     }
 }
 
-/** ← back to picking the player (it frees the seat), then the seated member's name. */
+/** ← back to picking the player; it frees the seat. */
 @Composable
-private fun DeckPickerHeader(name: String, onBack: () -> Unit) {
+private fun BackToPlayersButton(onClick: () -> Unit) {
     val backLabel = stringResource(R.string.pregame_back_to_players)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onBack)
-            .semantics { contentDescription = backLabel }
-            .padding(end = 10.dp)
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = backLabel },
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.08f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("←", fontSize = 16.sp, color = AppOnBackground)
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppOnBackground, maxLines = 1)
+        Text("←", fontSize = 18.sp, color = AppOnBackground)
     }
 }
 
