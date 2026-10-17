@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.vansid.tapeandocartones.R
 import com.vansid.tapeandocartones.presentation.components.AppLogoMark
 import com.vansid.tapeandocartones.presentation.components.AppScreenBackground
+import com.vansid.tapeandocartones.presentation.components.BuildVersionLabel
 import com.vansid.tapeandocartones.presentation.components.GradientButton
 import com.vansid.tapeandocartones.presentation.components.GradientOutlineButton
 import com.vansid.tapeandocartones.presentation.components.GradientTitle
@@ -100,6 +101,7 @@ fun DashboardScreen(
                 modifier = Modifier.clickable { viewModel.logout(onLogout) }
             )
         }
+        BuildVersionLabel(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
     }
 }
 

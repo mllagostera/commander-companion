@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vansid.tapeandocartones.BuildConfig
 import coil3.compose.AsyncImage
 import com.vansid.tapeandocartones.presentation.theme.AccentGradient
 import com.vansid.tapeandocartones.presentation.theme.AccentSoft
@@ -487,6 +488,20 @@ fun AppScreenBackground(
             content = content
         )
     }
+}
+
+/**
+ * The installed build ("v1.0 · 421", the CI run number) in a barely-there tone, so a tester can
+ * tell at a glance which APK the phone is running. Not translated: it carries no words.
+ */
+@Composable
+fun BuildVersionLabel(modifier: Modifier = Modifier) {
+    Text(
+        text = "v${BuildConfig.VERSION_NAME} · ${BuildConfig.VERSION_CODE}",
+        color = AppFaint.copy(alpha = 0.45f),
+        fontSize = 10.sp,
+        modifier = modifier
+    )
 }
 
 /**
