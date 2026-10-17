@@ -95,6 +95,7 @@
     <string name="pregame_begin">EMPEZAR</string>
     <string name="pregame_no_deck">Sin deck</string>
     <string name="pregame_free_seat">Liberar asiento</string>
+    <string name="pregame_back_to_players">Volver a elegir jugador</string>
     <string name="pregame_unranked_title">Esta partida no contará</string>
     <string name="pregame_unranked_body">Solo cuenta en las estadísticas con al menos %1$d jugadores del grupo con deck. Ahora hay %2$d.</string>
     <string name="pregame_unranked_back">Asignar decks</string>
