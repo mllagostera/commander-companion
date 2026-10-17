@@ -218,7 +218,7 @@ make generate-sql-docker # same, via Docker
 make migrate-up          # goose migrations up (migrate-down to roll back)
 ```
 
-**Web** (`cd web`):
+**Web** (`cd web`, **Node 24+ / npm 11+ required** — enforced by `engines` + `web/.npmrc` `engine-strict`):
 
 ```bash
 npm install
@@ -461,6 +461,7 @@ what a *new* tool will read.
   `*-docker` Make targets.
 - **Backend tests are partly integration tests** (`backend/internal/testutil`)
   and need a Postgres; `make test` runs with `-p 1` for that reason.
+- **The web needs Node 24 / npm 11** (what CI, `web/Dockerfile` and the pre-push hook use). npm 10 resolves optional peer dependencies differently and rejects the lockfile with a misleading "not in sync" error; `engine-strict` turns that into a clear `EBADENGINE`. Never regenerate `package-lock.json` with an older npm.
 - **Android needs JDK 21.** If the system `java` is older, point `JAVA_HOME` at
   a compatible JDK (Android Studio bundles one at `Android Studio/jbr`).
 - **Google Sign-In is not wired to real credentials yet.** The backend answers
