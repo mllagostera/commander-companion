@@ -2,6 +2,7 @@ package com.vansid.tapeandocartones.presentation.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -24,7 +25,8 @@ import com.vansid.tapeandocartones.presentation.screens.statistics.StatisticsScr
 @Composable
 fun AppNavigation(
     navController: NavHostController = rememberNavController(),
-    sessionViewModel: SessionViewModel = hiltViewModel()
+    sessionViewModel: SessionViewModel = hiltViewModel(),
+    startupViewModel: StartupViewModel = hiltViewModel()
 ) {
     // Failed token refresh (stolen/expired/revoked token) on any screen -> Login.
     LaunchedEffect(Unit) {
@@ -33,9 +35,13 @@ fun AppNavigation(
         }
     }
 
+    // Blank (the activity's background) for the one DataStore read it takes to know whether a
+    // session is stored, rather than flashing the login at someone who is still signed in.
+    val startDestination = startupViewModel.startDestination.collectAsState().value ?: return
+
     NavHost(
         navController = navController,
-        startDestination = LoginRoute
+        startDestination = startDestination
     ) {
         composable<LoginRoute> {
             LoginScreen(

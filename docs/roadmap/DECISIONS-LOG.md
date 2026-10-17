@@ -25,6 +25,29 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-17 — Android asked to sign in again after every update.** Reported by
+the user: updating the app (installing a new APK over the old one, never
+uninstalling) lost the login. Production showed three fresh logins for the
+user that day and none of the earlier sessions revoked, so the backend never
+logged them out. The cause was on the client: `AppNavigation`'s `NavHost`
+always started on `LoginRoute`, and `SessionManager.isLoggedIn` was defined but
+read by nobody. The tokens survived the update in DataStore; the app just never
+looked at them, so any process death (an update always causes one) meant
+signing in again. It had never been implemented, not a regression.
+
+Fix: `StartupViewModel` reads the stored access token through
+`AccessTokenProvider` and opens on `DashboardRoute` when there is one, `LoginRoute`
+otherwise; the screen stays blank for that single DataStore read instead of
+flashing the login. Validity isn't checked up front: an expired access token is
+refreshed on the first 401, and a refresh the backend rejects already forces the
+logout back to the login.
+
+Block Store was proposed first and dropped for this problem: the token was never
+lost, so restoring it from elsewhere fixes nothing here. It only helps after an
+uninstall or a new phone, needs Google's backup turned on, and Google points to
+passkeys/Credential Manager instead. Not run on a device: no Android SDK in this
+environment, so Android CI is the first compile.
+
 **2026-10-17 — Android group games never reached the statistics.** Reported by
 the user: a group game played on Android showed in the local history but not in
 the statistics. Production (Supabase) explained it: the only game in two days was
