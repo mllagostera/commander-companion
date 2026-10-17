@@ -29,6 +29,7 @@ import com.vansid.tapeandocartones.R
 import com.vansid.tapeandocartones.presentation.components.AppLogoMark
 import com.vansid.tapeandocartones.presentation.components.AppScreenBackground
 import com.vansid.tapeandocartones.presentation.components.AuthTextField
+import com.vansid.tapeandocartones.presentation.components.BuildVersionLabel
 import com.vansid.tapeandocartones.presentation.components.GlassCard
 import com.vansid.tapeandocartones.presentation.components.GradientButton
 import com.vansid.tapeandocartones.presentation.components.GradientOutlineButton
@@ -231,5 +232,6 @@ fun LoginScreen(
                 }
             }
         }
+        BuildVersionLabel(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
     }
 }
