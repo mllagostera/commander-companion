@@ -19,42 +19,31 @@ The priority is NOT to have hundreds of features. The priority is that any actio
 
 ## 2. Repo structure
 
+Top level only — the file-by-file map of each app lives in
+[docs/architecture/PROJECT-STRUCTURE.md](docs/architecture/PROJECT-STRUCTURE.md),
+which is kept current, so it is not duplicated here.
+
 ```
 commander-companion/
 ├── backend/              # Go API (Fiber + PostgreSQL + sqlc + goose)
 │   ├── cmd/api/          # entrypoint (main.go)
-│   ├── internal/         # modules: auth, users, decks, games, game-actions,
-│   │                     #   playgroups, statistics, sync, websocket, common
+│   ├── internal/         # one package per feature (auth, users, decks, games, game-actions,
+│   │                     #   playgroups, statistics, tournaments, friends, admin, sync,
+│   │                     #   websocket, ...) plus shared ones (common, config, email, notify)
 │   ├── migrations/       # goose migrations
-│   ├── configs/          # per-environment configuration (still empty)
-│   ├── sqlc.yaml         # repository generation config
-│   └── Makefile          # build, run, test, lint, migrate, generate-sql
+│   └── Makefile          # run, test, lint, migrate, generate-sql
 ├── android/              # Native Android client (Kotlin, Compose, Hilt, Room, Retrofit)
 │   └── app/src/main/java/com/vansid/tapeandocartones/
-│       ├── data/
-│       │   ├── remote/     # CommanderApi.kt/AuthApi.kt (Retrofit), DTOs, interceptors
-│       │   ├── repository/ # GameRepository, DeckRepository — decide Room vs. backend
-│       │   ├── local/      # Room (DAOs, entities)
-│       │   └── session/    # SessionManager (DataStore)
-│       ├── domain/       # use cases + repository interfaces that data/ implements
 │       ├── presentation/ # screens, viewmodels, navigation, theme — depend on domain/
+│       ├── domain/       # use cases + repository interfaces that data/ implements
+│       ├── data/         # Retrofit, Room, repositories (decide Room vs. backend), SessionManager
 │       └── core/         # DI (Hilt) and utilities
-│       # note: the auth screens (Login/Register/Settings) deliberately stay outside domain/, see docs/roadmap/TASKS.md Stage 4
 ├── web/                  # Web client (Nuxt 4 SSR + Tailwind), see ADR-0004
-│   ├── server/           # Nitro layer (BFF): the only place that touches session cookies
-│   │   └── api/          # auth/{register,login,google,logout,session}, backend/[...path] (authenticated proxy)
-│   └── app/              # Nuxt 4 srcDir
-│       ├── pages/        # login, register, index (landing page without a session, dashboard with one), decks (import Moxfield), statistics
-│       ├── composables/  # useAuth, useDecks, useStatistics, useApi, useGoogleIdentity
-│       └── middleware/   # auth.global.ts (route guard)
-├── docs/                 # see section 8 for the full index, document by document
-│   ├── roadmap/          # ROADMAP.md (vision/stages), TASKS.md (compact status checklist) and DECISIONS-LOG.md (narrative history)
-│   ├── architecture/     # ARCHITECTURE.md (principles and patterns)
-│   ├── database/         # schema.dbml (source of truth for the data model)
-│   ├── api/               # openapi.yaml (source of truth for the REST contract)
-│   ├── decisions/        # ADRs (technical decisions and their rationale)
-│   ├── diagrams/         # additional Mermaid diagrams (ER, state machine, Android navigation)
-│   └── ux/                # use-cases.md, wireframes.md, screenshots.md
+│   ├── server/           # Nitro BFF: the only code that touches session cookies or calls the Go API
+│   └── app/              # pages, components, composables (one per REST slice), middleware
+├── docs/                 # sources of truth, ADRs, roadmap — see §8 for the full index
+├── scripts/screenshots/  # demo-data seed + Playwright capture for the landing and Play Store images
+├── .github/              # CI workflows (§6), check-architecture.sh, i18n checks, PR template
 └── docker-compose.yml    # db + api + web, to try the full stack locally
 ```
 
@@ -62,16 +51,16 @@ commander-companion/
 
 Before assuming how something works, consult the corresponding document — not another module's code by analogy, and not memory from previous conversations. Full detail (what each one defines, where it lives) in [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) §"The 4 Sources of Truth": DBML, OpenAPI 3.1, Mermaid, ADR.
 
-Rule: if you're going to change how backend and Android communicate, edit `openapi.yaml` first. If you change the data model, edit `schema.dbml` first and then create the goose migration.
+Rule: if you're going to change how the backend and its clients communicate, edit `openapi.yaml` first. If you change the data model, edit `schema.dbml` first and then create the goose migration.
 
 ## 4. How to proceed (for AI agents)
 
 > Full instructions for agents live in [AGENTS.md](AGENTS.md) — CodeGraph usage, language rules, architecture rules per area, quality gates and git workflow. What follows is the summary.
 
 1. **Read `docs/roadmap/TASKS.md` first.** It's the list of pending tasks organized by stage, with real status audited against the code (not against what "should" exist). It's a compact checklist on purpose — for the narrative behind any item (why, gotchas, how it was verified), see [docs/roadmap/DECISIONS-LOG.md](docs/roadmap/DECISIONS-LOG.md); don't read the whole log up front, only the entries you actually need.
-2. **Don't trust that something is finished just because the file exists.** Much of the backend is scaffolding: several modules' `service.go` return dummy data instead of using the injected repository. Verify by reading the code before assuming a function does what its name suggests.
+2. **Don't trust that something is finished just because the file exists.** Parts of the codebase started as scaffolding; read the code before assuming a function does what its name suggests, and check its line in `TASKS.md`.
 3. **Follow the already-established layer pattern** — backend (Handler → Service → Repository), Android (MVVM + UDF, presentation → domain → data), Web (SSR + Nitro BFF). Full detail in [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) §"System Architecture".
-4. **Respect the suggested work order** at the end of `TASKS.md`, unless the user explicitly asks to prioritize something else.
+4. **Check "Suggested order of work" at the end of `TASKS.md`** before picking something up: the original build-out sequence is complete, and that section now lists what is left (what is blocked on the owner, not on code, included), unless the user explicitly asks to prioritize something else.
 5. **If you make a non-trivial technical decision** (choosing a library, a pattern, a data structure that wasn't already defined), record it as an ADR in `docs/decisions/`.
 6. **If the work touches the API contract or the DB schema**, update `openapi.yaml` / `schema.dbml` (and the corresponding migration) as part of the same change, not afterward.
 
@@ -99,13 +88,13 @@ In `.github/workflows/` there are five quality pipelines that run on every push/
 - **`architecture-ci.yml`**: runs [`.github/scripts/check-architecture.sh`](.github/scripts/check-architecture.sh), which enforces what `ARCHITECTURE.md` and `PROJECT-STRUCTURE.md` otherwise only assert in prose — the Handler layer free of persistence, no slice reaching into another slice's sqlc `Queries`, SQL confined to `query.sql`, the web client never bypassing the Nitro BFF, every registered route present in `openapi.yaml` and no phantom paths, and every document under `docs/` linked from this hub (§8). It also warns, without blocking, when `TASKS.md`'s review date has fallen behind the code. Unlike the other four it has **no path filter**: the invariants are cross-cutting (a backend edit breaks the OpenAPI check, a docs edit breaks the hub check) and the whole script is a handful of greps. It exists because of a 2026-09-03 audit: every rule with a check was at 100% compliance, while three that lived only in prose — link new ADRs from the hub, keep `TASKS.md` fresh, keep `ARCHITECTURE.md` true — had all drifted despite being clearly written. In a repo worked on only by agents, each starting cold, a rule that isn't checked isn't a rule.
 
 
-**Architecture guardrails.** Beyond the pipelines above, the layering itself is enforced by four mechanisms, each owning the rules it can express natively and **nothing checked twice**: `depguard` in [`backend/.golangci.yml`](backend/.golangci.yml) (a handler must not import a database driver), [Konsist](android/app/src/test/java/com/vansid/tapeandocartones/architecture/ArchitectureTest.kt) as unit tests in `testDebugUnitTest` (Android layering, the enumerated auth exception, and two ratchets that freeze known debt so it can only shrink), `eslint-plugin-boundaries` plus `no-restricted-imports` in [`web/eslint.config.mjs`](web/eslint.config.mjs) (`app/` ↔ `server/`, both directions), and [`check-architecture.sh`](.github/scripts/check-architecture.sh) for everything that is not an import. The three native tools ride gates that already exist, so they cost no new CI job. Full breakdown of who owns what, and why the cross-slice `Queries` rule can only live in the script, in [AGENTS.md](AGENTS.md) §7.
+**Architecture guardrails.** Beyond the pipelines above, the layering itself is enforced by four mechanisms, each owning the rules it can express natively and **nothing checked twice**: `depguard` in [`backend/.golangci.yml`](backend/.golangci.yml) (a handler must not import a database driver), [Konsist](android/app/src/test/java/com/vansid/tapeandocartones/architecture/ArchitectureTest.kt) as unit tests in `testDebugUnitTest` (Android layering and the enumerated auth exception; two of its rules started as ratchets over known debt and are plain invariants since that debt was paid off, see ADR-0019), `eslint-plugin-boundaries` plus `no-restricted-imports` in [`web/eslint.config.mjs`](web/eslint.config.mjs) (`app/` ↔ `server/`, both directions), and [`check-architecture.sh`](.github/scripts/check-architecture.sh) for everything that is not an import. The three native tools ride gates that already exist, so they cost no new CI job. Full breakdown of who owns what, and why the cross-slice `Queries` rule can only live in the script, in [AGENTS.md](AGENTS.md) §7.
 
 **The i18n checks** (`.github/scripts/check-i18n-{web,android}.mjs`) exist because a missing translation key fails nothing else: on the web Vue renders the key itself and the page still returns 200; on Android the string falls back to the default locale and shows up in Spanish. Both run in seconds without a build. Each verifies that the locales define the same keys and that every key referenced in the source resolves. Android resources deliberately left untranslated must carry `tools:ignore="MissingTranslation"`, the same annotation Android Lint honours.
 
-**Note on branch protection**: the *required* checks on `main` are 8, all from `backend-ci.yml`/`android-ci.yml`/`docs-ci.yml` — `web-ci.yml` was added after branch protection was configured and its checks aren't in the required list yet, and neither are the two new i18n ones. Non-obvious detail: the `hadolint (Dockerfile)` job in `web-ci.yml` has the same name as the one in `backend-ci.yml`, so today either one satisfies that required check (GitHub matches by job name, not by workflow) — but `eslint, typecheck and nuxt build` from `web-ci.yml` isn't required by anything.
+**Note on branch protection**: which checks are *required* on `main` is configured in GitHub's branch protection settings, not in this repo, so this document can't keep that list true — check the settings. On 2026-10-17 GitHub reported 12 required checks. One non-obvious detail does live in the repo: the `hadolint (Dockerfile)` job in `web-ci.yml` has the same name as the one in `backend-ci.yml`, and GitHub matches required checks by job name, not by workflow, so either one satisfies a requirement on that name.
 
-Before considering a task done, these gates must pass locally (or at least not introduce new issues) for whatever you touched: `make lint` / `make test` in backend, `./gradlew lintDebug testDebugUnitTest` in Android. They require the repo to be connected to GitHub to run; locally they're just the Makefile / Gradle commands.
+Before considering a task done, run `sh .github/scripts/check-architecture.sh` plus the local gate for whatever you touched: `make lint && make test` in backend, `npm run lint && npm run typecheck && npm run build` in web, `./gradlew lintDebug testDebugUnitTest` in Android. The definition of done is in [AGENTS.md](AGENTS.md) §7.
 
 ## 7. Useful commands
 
@@ -119,22 +108,26 @@ don't run automatically inside the container), see `backend/Makefile` (`make mig
 **Backend** (`cd backend`):
 ```
 make run                 # run the API locally
-make test                # go test -race ./...
+make test                # go test -v -race -p 1 ./...  (some tests need Postgres)
 make lint                # golangci-lint
 make generate-sql        # regenerate repos with sqlc after editing query.sql
 make migrate-up          # apply goose migrations
 ```
 
-**Web** (`cd web`):
+**Web** (`cd web`, Node 24+ / npm 11+ — enforced by `engines` + `engine-strict`):
 ```
 npm install
 npm run dev              # http://localhost:3000, requires the API running separately
+npm run lint             # eslint (CI uses --max-warnings=0)
+npm run typecheck        # vue-tsc
+npm run build            # nuxt build (SSR)
 ```
 
-**Android** (`cd android`):
+**Android** (`cd android`, JDK 21):
 ```
 ./gradlew assembleDebug  # build
-./gradlew test           # unit tests
+./gradlew testDebugUnitTest  # unit tests (Konsist architecture tests included)
+./gradlew lintDebug      # Android Lint
 ./gradlew connectedAndroidTest  # instrumented tests
 ```
 
@@ -207,3 +200,4 @@ for a new module), add it to this list too in the same change.
 - [backend/README.md](backend/README.md) — setup, commands (`make`), backend stack.
 - [android/README.md](android/README.md) — setup, required JDK, Google Sign-In, Android client structure.
 - [web/README.md](web/README.md) — setup, session via Nitro/BFF, Nuxt client structure.
+- [scripts/screenshots/README.md](scripts/screenshots/README.md) — regenerating the landing captures, the Android Play Store image and the OG image.

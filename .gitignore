@@ -36,3 +36,6 @@ GEMINI.md
 
 # Build artifacts copied out of android/app/build/ for manual install.
 *.apk
+
+# Empty error log the dbml CLI drops in the working directory
+dbml-error.log

@@ -15,6 +15,10 @@ Moxfield), and statistics screens (global user stats and per-deck stats).
 
 ## Setup
 
+Requires **Node 24+ / npm 11+** (`engines` in `package.json`, enforced by
+`engine-strict` in `.npmrc`): npm 10 rejects the lockfile with a misleading
+"not in sync" error.
+
 ```bash
 cd web
 npm install
