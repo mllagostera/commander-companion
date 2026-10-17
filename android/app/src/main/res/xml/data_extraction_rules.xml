@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31): nothing of this app leaves the device, neither to cloud
+  backup nor in a device-to-device transfer to a new phone.
+
+  android:allowBackup="false" in the manifest already turns cloud backup off,
+  but on Android 12+ it does not stop device-to-device transfers, which would
+  copy the session DataStore (a 30-day refresh token, stored unencrypted) to
+  another device. Excluding these domains here is what stops those ("root"
+  is the whole data directory; "file" and "database" are listed too so the
+  intent survives anyone narrowing "root" later). Older
+  versions only read allowBackup, which already covers them.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+    </device-transfer>
+</data-extraction-rules>

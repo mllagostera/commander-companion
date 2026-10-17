@@ -25,6 +25,68 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-17 — Android `targetSdk` 34 → 37.** Scheduled by the user the day
+before ("sube el SDK a la última versión posible"). API 37 (Android 17) is the
+latest stable release and the highest `compileSdk` AGP 9.3 supports, so
+`compileSdk` stays at 37 and only `targetSdk` moves. Behavior changes for 35,
+36 and 37 were read from developer.android.com and checked against the code:
+
+- *Needed no change:* edge-to-edge (already `enableEdgeToEdge`, no bar colors),
+  predictive back (only Compose `BackHandler`, no `onBackPressed`/`KEYCODE_BACK`),
+  large-screen orientation/resizability (nothing locks orientation), no foreground
+  services, no audio, no `PendingIntent`/`IntentSender`, no reflection on static
+  finals, no `Configuration.screenWidthDp`, no `String.format` argument index 0.
+  Certificate transparency (on by default at 37) holds for Render/Vercel and the
+  card-image CDNs, which use public CAs.
+- *Needed work:* Android 17 blocks traffic to local network addresses (RFC 1918,
+  link-local, CGNAT) without the `ACCESS_LOCAL_NETWORK` runtime permission. The
+  release APK only talks to the deployed backend, so it is unaffected; a debug
+  build talking to `10.0.2.2` or a LAN IP would have failed every request. The
+  permission is declared in the debug manifest only, and `MainActivity` requests
+  it at startup in debug builds whose `API_BASE_URL` is a local IP literal
+  (`isLocalNetworkUrl`, unit-tested).
+- *Accepted:* from 37 the keyboard is no longer re-shown after an unhandled
+  rotation.
+
+No Android SDK here: nothing was compiled or run; CI is the check.
+
+**2026-10-16 — Android security review and fixes.** Asked by the user ("haz
+una revisión de seguridad de la app", narrowed to Android only). Read-only
+review first, then the fixes the user approved:
+
+- *The installed APK was a debug build.* CI archived `assembleDebug` built
+  against Render, so testers ran a debuggable app (`run-as` reads the session
+  DataStore), with cleartext allowed and `HttpLoggingInterceptor.Level.BODY`
+  writing passwords and token pairs to logcat. Now CI archives
+  `assembleRelease` (`app-release-apk`). The user chose to keep signing with the
+  shared debug key until the app goes to Google Play, so it installs over the
+  existing debug APKs without losing their Room-only game history — see
+  [ADR-0027](../decisions/0027-sign-sideloaded-release-with-debug-key.md).
+  `versionCode` is the CI run number (it was fixed at 1); the job fails on a
+  non-`https://` `API_BASE_URL` instead of silently shipping 10.0.2.2.
+- *Local data across accounts.* The deck cache's offline fallback
+  (`DeckDao.getAll()`, not keyed by user) survived logout, so the next account
+  on the device saw the previous one's decks whenever the network failed.
+  `SessionManager.clearSession` now also clears it and `last_decks`. The local
+  game history has the same problem but was **kept on purpose** at the user's
+  call: it exists only in Room, and wiping it on logout would lose it. Open in
+  TASKS.md; scoping it needs an owner column and a real migration.
+- *Logout on any refresh failure.* `refreshAccessToken` forced a logout on any
+  exception, so a dropped connection mid-game threw away a valid session
+  (without revoking it server-side). It now logs out only on 401/403
+  (`isRefreshRejected`, unit-tested).
+- *Device-to-device transfer.* `allowBackup="false"` doesn't stop Android 12+
+  D2D transfers; `data_extraction_rules.xml` now excludes `root`, `file` and
+  `database` from both cloud backup and device transfer.
+- *QR scan sent the request straight away.* A scanned profile is now held until
+  the user taps Add, same as the web landing page — and, like the web, without a
+  name, since there's deliberately no public id → username endpoint.
+
+Left as findings, not fixed: tokens stored unencrypted in DataStore (the
+sandbox suffices once the build isn't debuggable), no certificate pinning
+(deliberately — Render/Vercel rotate certificates), `targetSdk` 34, R8 off.
+No Android SDK in this environment: nothing was compiled or run here, CI is the
+check, and the friends screen change has no screenshot.
 **2026-10-16 — Emails limited per address; Go patch aligned with production.**
 Two items left open by the previous entries. (1) `forgot-password` and
 `resend-verification` now share 3 emails per 15 minutes per submitted address

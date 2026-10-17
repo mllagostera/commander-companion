@@ -229,7 +229,7 @@ class FriendsViewModelTest {
         assertTrue(vm.uiState.value.busyIds.isEmpty())
     }
 
-    // ------------------------------------------------------------- escaneo
+    // ------------------------------------------------------------- scanning
 
     @Test
     fun `escanear un enlace valido envia la solicitud`() = runTest(dispatcher) {
@@ -243,9 +243,12 @@ class FriendsViewModelTest {
 
         vm.onScanned("https://commander.example/friends/add/$SCANNED_ID")
         advanceUntilIdle()
+        vm.confirmScanned()
+        advanceUntilIdle()
 
         assertEquals(SCANNED_ID, sentTo)
         assertEquals(SendOutcome.REQUEST_SENT, vm.uiState.value.lastOutcome)
+        assertNull(vm.uiState.value.scannedUserId)
     }
 
     @Test
@@ -260,8 +263,43 @@ class FriendsViewModelTest {
 
         vm.onScanned(SCANNED_ID)
         advanceUntilIdle()
+        vm.confirmScanned()
+        advanceUntilIdle()
 
         assertEquals(SCANNED_ID, sentTo)
+    }
+
+    /**
+     * A QR is whatever was put in front of the camera; if its owner had already
+     * sent this user a request, sending one back would make them friends. So a
+     * scan alone must not send anything.
+     */
+    @Test
+    fun `escanear un codigo valido no envia nada hasta confirmar`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        api.calls.clear()
+
+        vm.onScanned("https://commander.example/friends/add/$SCANNED_ID")
+        advanceUntilIdle()
+
+        assertEquals(SCANNED_ID, vm.uiState.value.scannedUserId)
+        assertEquals(0, api.calls.count { it == "sendFriendRequest" })
+    }
+
+    @Test
+    fun `descartar el escaneo no envia la solicitud`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        api.calls.clear()
+
+        vm.onScanned(SCANNED_ID)
+        vm.dismissScanned()
+        vm.confirmScanned()
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.scannedUserId)
+        assertEquals(0, api.calls.count { it == "sendFriendRequest" })
     }
 
     /**

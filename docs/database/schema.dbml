@@ -35,6 +35,7 @@ Table refresh_tokens {
   expires_at timestamp [not null]
   created_at timestamp [default: `now()`]
   revoked_at timestamp [note: 'Set on logout or when the token is rotated']
+  replaced_by uuid [ref: > refresh_tokens.id, note: 'The token this one was rotated into; NULL when revoked any other way (logout, reuse detection, password reset). Lets a reuse within the grace window be told apart from a replay, see ADR-0028']
 }
 
 Table email_verification_tokens {

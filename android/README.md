@@ -37,17 +37,27 @@ device on the same network, or to point at another host:
 
 (or by setting `API_BASE_URL` in `gradle.properties`; see `app/build.gradle.kts`).
 
-The APK that Android CI builds and archives (`app-debug-apk` artifact) is the
+The APK that Android CI builds and archives (`app-release-apk` artifact) is the
 one exception: it takes `API_BASE_URL` from the repository secret of the same
 name (the deployed backend on Render), so it can be installed straight on a
-phone. Local builds are unaffected. Without the secret, CI builds the local
-default and flags it with a warning.
+phone. The secret must be an `https://` URL — the job fails otherwise, since a
+release build refuses cleartext. Local builds are unaffected. Without the secret
+(Dependabot, forks) CI skips the release build and flags it with a warning.
 
-That APK is also signed with a fixed debug key: the `ANDROID_DEBUG_KEYSTORE_BASE64`
-secret holds the repo owner's `~/.android/debug.keystore` (base64), restored on the
-runner before the build. So CI and local debug builds share one signature (they
-install over each other) and one SHA-1 to register in the Google Cloud Android
-OAuth client. Without it every run would mint its own random key. To rotate it:
+It is a **release** build, not a debug one: a debug APK is debuggable (`adb
+run-as` reads the stored session), allows cleartext and logs every request and
+response body, passwords and tokens included — fine on an emulator, not on a
+tester's phone. CI still runs `assembleDebug`, as a compile check only.
+
+That APK is signed with a fixed debug key (see
+[ADR-0027](../docs/decisions/0027-sign-sideloaded-release-with-debug-key.md)): the
+`ANDROID_DEBUG_KEYSTORE_BASE64` secret holds the repo owner's
+`~/.android/debug.keystore` (base64), restored on the runner before the build, and
+the `release` build type signs with it. So CI APKs, local debug builds and the debug
+APKs CI archived before share one signature (they install over each other, keeping
+local data) and one SHA-1 to register in the Google Cloud Android OAuth client. Its
+`versionCode` is the CI run number, so a newer APK always installs over an older
+one. Without the keystore secret every run would mint its own random key. To rotate it:
 `base64 -w0 ~/.android/debug.keystore | gh secret set ANDROID_DEBUG_KEYSTORE_BASE64`.
 
 ### Google Sign-In
