@@ -25,6 +25,31 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-17 — Android `targetSdk` 34 → 37.** Scheduled by the user the day
+before ("sube el SDK a la última versión posible"). API 37 (Android 17) is the
+latest stable release and the highest `compileSdk` AGP 9.3 supports, so
+`compileSdk` stays at 37 and only `targetSdk` moves. Behavior changes for 35,
+36 and 37 were read from developer.android.com and checked against the code:
+
+- *Needed no change:* edge-to-edge (already `enableEdgeToEdge`, no bar colors),
+  predictive back (only Compose `BackHandler`, no `onBackPressed`/`KEYCODE_BACK`),
+  large-screen orientation/resizability (nothing locks orientation), no foreground
+  services, no audio, no `PendingIntent`/`IntentSender`, no reflection on static
+  finals, no `Configuration.screenWidthDp`, no `String.format` argument index 0.
+  Certificate transparency (on by default at 37) holds for Render/Vercel and the
+  card-image CDNs, which use public CAs.
+- *Needed work:* Android 17 blocks traffic to local network addresses (RFC 1918,
+  link-local, CGNAT) without the `ACCESS_LOCAL_NETWORK` runtime permission. The
+  release APK only talks to the deployed backend, so it is unaffected; a debug
+  build talking to `10.0.2.2` or a LAN IP would have failed every request. The
+  permission is declared in the debug manifest only, and `MainActivity` requests
+  it at startup in debug builds whose `API_BASE_URL` is a local IP literal
+  (`isLocalNetworkUrl`, unit-tested).
+- *Accepted:* from 37 the keyboard is no longer re-shown after an unhandled
+  rotation.
+
+No Android SDK here: nothing was compiled or run; CI is the check.
+
 **2026-10-16 — Android security review and fixes.** Asked by the user ("haz
 una revisión de seguridad de la app", narrowed to Android only). Read-only
 review first, then the fixes the user approved:

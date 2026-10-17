@@ -18,7 +18,10 @@ android {
     defaultConfig {
         applicationId = "com.vansid.tapeandocartones"
         minSdk = 26
-        targetSdk = 34
+        // The latest stable API, and the highest AGP 9.3 supports (2026-10-17). Its behavior
+        // changes were reviewed for 35-37; the one that needed code is Android 17's local
+        // network permission, debug-only here (see src/debug/AndroidManifest.xml).
+        targetSdk = 37
         // CI passes its run number (-PVERSION_CODE=...), so every APK it archives installs over
         // any older one; local builds stay at 1.
         versionCode = (project.findProperty("VERSION_CODE") as String?)?.toInt() ?: 1
