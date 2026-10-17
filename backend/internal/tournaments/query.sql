@@ -59,9 +59,6 @@ LEFT JOIN decks d ON d.id = tp.deck_id
 WHERE tp.tournament_id = $1 AND tp.user_id = $2
 LIMIT 1;
 
--- name: GetParticipant :one
-SELECT * FROM tournament_participants WHERE id = $1 LIMIT 1;
-
 -- name: ListParticipantsForTournament :many
 -- Standings order: most points first, registration order breaks ties (see
 -- pairing.go's doc for why no fancier tiebreaker is computed).

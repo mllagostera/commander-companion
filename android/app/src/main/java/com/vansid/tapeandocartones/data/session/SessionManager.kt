@@ -19,12 +19,10 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 
 private val Context.sessionDataStore by preferencesDataStore(name = "session")
 
@@ -64,8 +62,6 @@ class SessionManager @Inject constructor(
     // singleton does (the app process).
     private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val refreshSingleFlight = SingleFlight<String?>(refreshScope)
-
-    val isLoggedIn: Flow<Boolean> = context.sessionDataStore.data.map { it[Keys.ACCESS_TOKEN] != null }
 
     suspend fun saveSession(token: TokenResponse) {
         context.sessionDataStore.edit { prefs ->

@@ -163,10 +163,6 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    fun errorShown() {
-        _uiState.update { it.copy(error = null) }
-    }
-
     private fun mapGoogleBackendError(e: HttpException): LoginError = when (e.code()) {
         400 -> LoginError.GoogleRejected
         501 -> LoginError.GoogleNotConfigured

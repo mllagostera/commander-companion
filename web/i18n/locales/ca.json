@@ -308,7 +308,6 @@
       "finishedGames": "Partides finalitzades"
     },
     "perDeck": {
-      "heading": "Per deck",
       "noDecksIntro": "Encara no tens cap deck.",
       "importLink": "Afegeix-ne un",
       "noDecksOutro": "per veure'n les estadístiques.",
@@ -328,8 +327,6 @@
       "loading": "Carregant partides...",
       "loadingMore": "Carregant...",
       "noGroup": "Partida sense grup",
-      "won": "Ha guanyat",
-      "lost": "Ha perdut",
       "winner": "Guanyador",
       "duration": "Durada",
       "turns": "Torns",
