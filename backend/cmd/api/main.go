@@ -232,7 +232,10 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	)
 	usersHandler := users.NewHandler(usersService)
 	// POST /auth/register, verify-email, resend-verification, forgot-password, reset-password
-	usersHandler.RegisterRoutes(api, limits.credentials)
+	usersHandler.RegisterRoutes(api, users.PublicRateLimits{
+		Credentials:  limits.credentials,
+		AccountEmail: limits.accountEmail,
+	})
 
 	authService := auth.NewService(db.Pool, usersService, cfg.Auth)
 	authHandler := auth.NewHandler(authService)

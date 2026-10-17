@@ -61,7 +61,7 @@ review first, then the fixes the user approved:
   `assembleRelease` (`app-release-apk`). The user chose to keep signing with the
   shared debug key until the app goes to Google Play, so it installs over the
   existing debug APKs without losing their Room-only game history — see
-  [ADR-0026](../decisions/0026-sign-sideloaded-release-with-debug-key.md).
+  [ADR-0027](../decisions/0027-sign-sideloaded-release-with-debug-key.md).
   `versionCode` is the CI run number (it was fixed at 1); the job fails on a
   non-`https://` `API_BASE_URL` instead of silently shipping 10.0.2.2.
 - *Local data across accounts.* The deck cache's offline fallback
@@ -87,6 +87,20 @@ sandbox suffices once the build isn't debuggable), no certificate pinning
 (deliberately — Render/Vercel rotate certificates), `targetSdk` 34, R8 off.
 No Android SDK in this environment: nothing was compiled or run here, CI is the
 check, and the friends screen change has no screenshot.
+**2026-10-16 — Emails limited per address; Go patch aligned with production.**
+Two items left open by the previous entries. (1) `forgot-password` and
+`resend-verification` now share 3 emails per 15 minutes per submitted address
+(addendum to [ADR-0025](../decisions/0025-per-account-and-per-user-rate-limits.md)),
+reusing the failed-login key; Android's resend now shows the "too many
+attempts" message on a `429` instead of "couldn't resend", and its
+forgot-password text says "a few minutes" like the web. (2) `go.mod`'s `go`
+directive went from `1.26.0` to `1.26.9`, so backend CI tests with the patch
+production runs. Verified rather than assumed: the digest Render's last build
+pulled for `golang:1.26-alpine` is Docker Hub's `1.26.9-alpine`, and the
+image's Dockerfile sets `GOTOOLCHAIN=local` — so a directive above the image's
+patch would fail the Render build instead of downloading Go. Written down in
+`backend/README.md` § Go version. golangci-lint (built with 1.26.0) only
+compares the minor version, so it still lints the module.
 
 **2026-10-16 — Per-account and per-user rate limits.** Items 2 and 4 of the
 security review earlier the same day. Failed logins are limited per account (10

@@ -284,7 +284,7 @@
     <string name="error_login_google_no_account">No hi ha cap compte de Google configurat en aquest dispositiu</string>
     <string name="error_login_google_unknown">No s\'ha pogut iniciar la sessió amb Google</string>
     <string name="error_forgot_password_empty_email">Escriu el teu correu</string>
-    <string name="error_forgot_password_too_many_requests">Massa intents. Espera un minut i torna-ho a provar.</string>
+    <string name="error_forgot_password_too_many_requests">Massa intents. Espera uns minuts i torna-ho a provar.</string>
     <string name="error_forgot_password_unknown">No s\'ha pogut enviar l\'enllaç (error %1$d)</string>
 
     <!-- Registration errors -->

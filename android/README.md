@@ -50,7 +50,7 @@ response body, passwords and tokens included — fine on an emulator, not on a
 tester's phone. CI still runs `assembleDebug`, as a compile check only.
 
 That APK is signed with a fixed debug key (see
-[ADR-0026](../docs/decisions/0026-sign-sideloaded-release-with-debug-key.md)): the
+[ADR-0027](../docs/decisions/0027-sign-sideloaded-release-with-debug-key.md)): the
 `ANDROID_DEBUG_KEYSTORE_BASE64` secret holds the repo owner's
 `~/.android/debug.keystore` (base64), restored on the runner before the build, and
 the `release` build type signs with it. So CI APKs, local debug builds and the debug

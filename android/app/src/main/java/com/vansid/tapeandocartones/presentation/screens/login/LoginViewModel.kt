@@ -33,7 +33,10 @@ sealed interface LoginError {
     data object BadCredentials : LoginError
     data object EmailNotConfirmed : LoginError
     data object AccountDeactivated : LoginError
-    /** 429: too many attempts from this IP, or too many failures for this account (ADR-0025). */
+    /**
+     * 429: too many attempts from this IP, too many failed logins for this account, or
+     * too many verification emails for this address (ADR-0025).
+     */
     data object TooManyAttempts : LoginError
     data object ResendFailed : LoginError
     data class Unknown(val code: Int) : LoginError
@@ -124,7 +127,9 @@ class LoginViewModel @Inject constructor(
                 authApi.resendVerification(ResendVerificationRequest(email.trim(), locale))
                 _uiState.update { it.copy(isResending = false, resendSent = true) }
             } catch (e: HttpException) {
-                _uiState.update { it.copy(isResending = false, error = LoginError.ResendFailed) }
+                // 429: the per-IP limit, or too many emails for this address (ADR-0025).
+                val error = if (e.code() == 429) LoginError.TooManyAttempts else LoginError.ResendFailed
+                _uiState.update { it.copy(isResending = false, error = error) }
             } catch (e: IOException) {
                 _uiState.update { it.copy(isResending = false, error = LoginError.Network) }
             }

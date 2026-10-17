@@ -15,6 +15,7 @@ info:
     |---|---|---|---|
     | Credentials | client IP | 20 / min | `POST /auth/login`, `/auth/google`, `/auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/forgot-password`, `/auth/reset-password`, `GET /users/username-available` |
     | Failed logins | account (the submitted email) | 10 failures / 15 min | `POST /auth/login` |
+    | Account emails | address (the submitted email) | 3 / 15 min | `POST /auth/forgot-password`, `POST /auth/resend-verification` |
     | Session refresh | client IP | 60 / min | `POST /auth/refresh` |
     | User search | client IP | 20 / min | `GET /users/search` |
     | Moxfield, one deck | user | 20 / 10 min | `POST /decks/import/moxfield`, `POST /sync/moxfield` |
@@ -26,7 +27,9 @@ info:
     The failed-logins budget only counts attempts that fail (any 4xx), so a
     user who logs in normally never spends it. It is keyed by the email as
     submitted, whether or not an account exists, so it says nothing about which
-    emails are registered. The Moxfield bulk budget only counts jobs actually
+    emails are registered. The account-emails budget is keyed the same way and
+    counts every request, so no one can make the API mail a given inbox over
+    and over. The Moxfield bulk budget only counts jobs actually
     started: a `400`/`409` refusal costs nothing (see ADR-0025).
 
     The client IP is the TCP peer address unless the deployment configures
@@ -1794,7 +1797,10 @@ Disallow: /
         '204':
           description: Request accepted (does not imply a new email was sent)
         '429':
-          description: Too many authentication requests from this IP (rate limit per IP)
+          description: >-
+            Too many authentication requests from this IP, or too many emails
+            requested for this address (3 per 15 minutes, shared with
+            POST /auth/forgot-password, counted whether or not the account exists).
           content:
             application/json:
               schema:
@@ -1827,7 +1833,10 @@ Disallow: /
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
-          description: Too many authentication requests from this IP (rate limit per IP)
+          description: >-
+            Too many authentication requests from this IP, or too many emails
+            requested for this address (3 per 15 minutes, shared with
+            POST /auth/resend-verification, counted whether or not the account exists).
           content:
             application/json:
               schema:

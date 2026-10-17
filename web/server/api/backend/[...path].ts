@@ -18,23 +18,49 @@ const BLOCKED_PREFIXES = ['auth/']
 
 const METHODS_WITHOUT_BODY = new Set(['GET', 'HEAD', 'DELETE', 'OPTIONS'])
 
-export default defineEventHandler(async (event) => {
-  const raw = getRouterParam(event, 'path') ?? ''
-  // Normalizes `//a/../b` and prevents escaping the API prefix.
-  const path = raw.split('/').filter((s) => s && s !== '.' && s !== '..').join('/')
+function notFound() {
+  return createError({
+    statusCode: 404,
+    statusMessage: 'Not Found',
+    message: 'Not Found',
+    data: { code: 404, message: 'Not Found' },
+  })
+}
 
-  if (!path) {
-    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+/**
+ * Turns the raw catch-all param into a path that can't leave the API prefix.
+ *
+ * h3 hands the param over still percent-encoded, and the URL parser behind
+ * `$fetch` treats `%2e%2e` exactly like `..` — so filtering only the literal
+ * dots let `/api/backend/%2e%2e/v1/auth/me` reach the blocked `/auth/*`
+ * endpoints (and anything outside `/api/v1`). Each segment is decoded first,
+ * dot segments and segments hiding a separator are dropped or rejected, and the
+ * survivors are re-encoded, so what the filter checks is what the API receives.
+ * Returns null when a segment can't be decoded or would smuggle a separator.
+ */
+function normalizeProxyPath(raw: string): string | null {
+  const segments: string[] = []
+  for (const encoded of raw.split('/')) {
+    let segment: string
+    try {
+      segment = decodeURIComponent(encoded)
+    } catch {
+      return null
+    }
+    if (!segment || segment === '.' || segment === '..') continue
+    if (/[/\\%]/.test(segment)) return null
+    segments.push(segment)
   }
+  return segments.map(encodeURIComponent).join('/')
+}
+
+export default defineEventHandler(async (event) => {
+  const path = normalizeProxyPath(getRouterParam(event, 'path') ?? '')
+  if (!path) throw notFound()
 
   const lowerPath = path.toLowerCase()
   if (BLOCKED_PREFIXES.some((prefix) => lowerPath.startsWith(prefix))) {
-    throw createError({
-      statusCode: 404,
-      statusMessage: 'Not Found',
-      message: 'Not Found',
-      data: { code: 404, message: 'Not Found' },
-    })
+    throw notFound()
   }
 
   const method = event.method.toUpperCase()

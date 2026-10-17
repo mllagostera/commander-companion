@@ -17,6 +17,13 @@
  *
  * Nothing here is persisted: the picked name and art URL are sent by the
  * client to the API's own `POST /decks` like any other manually typed deck.
+ *
+ * Abuse limits: this is the one BFF endpoint that calls a third party without
+ * going through the Go API's rate limits, and Scryfall throttles (then bans)
+ * by IP — ours. So it only answers to a browser holding session cookies (a
+ * presence check, not a verification: validating the token would cost an API
+ * round trip per keystroke), caps the query length, and limits calls both per
+ * browser IP and, for cache misses, towards Scryfall itself.
  */
 
 import type { CommanderSuggestion } from '#shared/types/scryfall'
@@ -38,8 +45,15 @@ const SCRYFALL_SEARCH = 'https://api.scryfall.com/cards/search'
 const MAX_RESULTS = 10
 /** Below this, a prefix matches most of the format and the ranking is noise. */
 const MIN_QUERY_LENGTH = 2
+/** Longer than any commander's name; anything past it is not a name lookup. */
+const MAX_QUERY_LENGTH = 100
 const CACHE_TTL_MS = 10 * 60 * 1000
 const CACHE_MAX_ENTRIES = 200
+
+/** Per browser IP. The form debounces input, so a person typing stays far below this. */
+const perClientLimit = createFixedWindowLimiter({ limit: 60, windowMs: 60_000 })
+/** Upstream calls (cache misses) per instance: Scryfall asks for at most ~10 per second. */
+const scryfallLimit = createFixedWindowLimiter({ limit: 8, windowMs: 1_000, maxKeys: 1 })
 
 const cache = new Map<string, { at: number, results: CommanderSuggestion[] }>()
 
@@ -80,15 +94,34 @@ function artOf(card: ScryfallCard): string | null {
   return card.image_uris?.art_crop ?? card.card_faces?.[0]?.image_uris?.art_crop ?? null
 }
 
+function fail(statusCode: number, message: string): never {
+  throw createError({
+    statusCode,
+    statusMessage: message,
+    message,
+    data: { code: statusCode, message },
+  })
+}
+
 export default defineEventHandler(async (event): Promise<CommanderSuggestion[]> => {
+  if (!getCookie(event, ACCESS_COOKIE) && !getCookie(event, REFRESH_COOKIE)) {
+    fail(401, 'Session required')
+  }
+  if (!perClientLimit(browserIP(event) ?? 'unknown')) {
+    fail(429, 'Too many requests')
+  }
+
   const { q } = getQuery<{ q?: string }>(event)
-  const query = (q ?? '').trim()
+  const query = (typeof q === 'string' ? q : '').trim()
 
   if (query.length < MIN_QUERY_LENGTH) return []
+  if (query.length > MAX_QUERY_LENGTH) fail(400, 'Query too long')
 
   const key = query.toLowerCase()
   const cached = cacheGet(key)
   if (cached) return cached
+
+  if (!scryfallLimit('scryfall')) fail(429, 'Too many requests')
 
   let response: ScryfallSearchResponse
   try {
@@ -115,12 +148,7 @@ export default defineEventHandler(async (event): Promise<CommanderSuggestion[]> 
       cacheSet(key, [])
       return []
     }
-    throw createError({
-      statusCode: 502,
-      statusMessage: 'Scryfall lookup failed',
-      message: 'Scryfall lookup failed',
-      data: { code: 502, message: 'Scryfall lookup failed' },
-    })
+    fail(502, 'Scryfall lookup failed')
   }
 
   const results: CommanderSuggestion[] = (response.data ?? [])

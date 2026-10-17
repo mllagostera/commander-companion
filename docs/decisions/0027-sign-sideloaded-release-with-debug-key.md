@@ -1,4 +1,4 @@
-# ADR-0026: Sideloaded Android release builds signed with the debug key
+# ADR-0027: Sideloaded Android release builds signed with the debug key
 
 **Status:** Accepted (2026-10-16)
 
