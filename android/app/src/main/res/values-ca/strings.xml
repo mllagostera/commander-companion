@@ -92,6 +92,7 @@
     <string name="pregame_begin">COMENÇA</string>
     <string name="pregame_no_deck">Sense deck</string>
     <string name="pregame_free_seat">Allibera el seient</string>
+    <string name="pregame_back_to_players">Torna a triar jugador</string>
     <string name="pregame_unranked_title">Aquesta partida no comptarà</string>
     <string name="pregame_unranked_body">Només compta a les estadístiques amb almenys %1$d jugadors del grup amb deck. Ara n\'hi ha %2$d.</string>
     <string name="pregame_unranked_back">Assigna decks</string>
