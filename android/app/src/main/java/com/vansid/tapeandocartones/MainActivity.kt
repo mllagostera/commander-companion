@@ -1,14 +1,19 @@
 package com.vansid.tapeandocartones
 
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
+import com.vansid.tapeandocartones.core.util.isLocalNetworkUrl
 import com.vansid.tapeandocartones.presentation.navigation.AppNavigation
 import com.vansid.tapeandocartones.presentation.theme.AppBackground
 import com.vansid.tapeandocartones.presentation.theme.TapeandoCartonesTheme
@@ -24,6 +29,12 @@ import dagger.hilt.android.AndroidEntryPoint
  */
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+
+    // The outcome needs no handling: denied, the requests to the backend fail like any other
+    // network error, and the permission can still be granted from the system settings.
+    private val localNetworkPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Edge-to-edge: the app paints the entire window, status bar and gesture bar included,
         // so the system no longer reserves (and colours) a strip of its own at either end -- which
@@ -38,6 +49,7 @@ class MainActivity : AppCompatActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
         )
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) requestLocalNetworkForDevBackend()
         setContent {
             TapeandoCartonesTheme {
                 Surface(
@@ -48,5 +60,27 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Android 17 blocks traffic to local network addresses (10.x, 192.168.x, ...) for apps
+     * targeting API 37 unless `ACCESS_LOCAL_NETWORK` is granted. Only a debug build pointed at a
+     * development backend needs that -- the emulator's 10.0.2.2, or a LAN IP for a phone -- so
+     * the permission is declared in the debug manifest alone and asked for only in that case.
+     * Release builds talk to the deployed backend over the internet and never ask.
+     */
+    private fun requestLocalNetworkForDevBackend() {
+        if (!BuildConfig.DEBUG || Build.VERSION.SDK_INT < LOCAL_NETWORK_PERMISSION_SDK) return
+        if (!isLocalNetworkUrl(BuildConfig.API_BASE_URL)) return
+        if (ContextCompat.checkSelfPermission(this, ACCESS_LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        localNetworkPermission.launch(ACCESS_LOCAL_NETWORK)
+    }
+
+    private companion object {
+        /** Android 17, the first release that enforces the local network permission. */
+        const val LOCAL_NETWORK_PERMISSION_SDK = 37
+        const val ACCESS_LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
     }
 }

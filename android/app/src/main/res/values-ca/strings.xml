@@ -235,6 +235,8 @@
     <string name="friends_section_outgoing">Sol·licituds enviades</string>
     <string name="friends_section_list">Els teus amics</string>
     <string name="friends_scan">Escaneja un codi</string>
+    <string name="friends_scanned_title">Perfil escanejat</string>
+    <string name="friends_scanned_note">No s\'envia res fins que no premis Afegeix.</string>
     <string name="friends_search_label">Cerca pel nom d\'usuari</string>
     <string name="friends_searching">Cercant…</string>
     <string name="friends_no_results">Cap usuari coincideix amb aquesta cerca.</string>

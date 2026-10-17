@@ -121,6 +121,23 @@ fun FriendsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
+                state.scannedUserId?.let { scannedId ->
+                    item(key = "scanned-$scannedId") {
+                        val known = scannedId in state.knownUserIds
+                        PersonRow(
+                            username = stringResource(R.string.friends_scanned_title),
+                            busy = false,
+                            actionLabel = if (known) null else stringResource(R.string.friends_action_add),
+                            onAction = viewModel::confirmScanned,
+                            secondaryLabel = stringResource(R.string.friends_action_cancel),
+                            onSecondary = viewModel::dismissScanned,
+                            note = stringResource(
+                                if (known) R.string.friends_already_related else R.string.friends_scanned_note
+                            )
+                        )
+                    }
+                }
+
                 if (state.isSearching) {
                     item { Hint(stringResource(R.string.friends_searching)) }
                 }
