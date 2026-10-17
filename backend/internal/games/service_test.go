@@ -363,6 +363,76 @@ func TestJoinGame_ProxyJoin_DeckMustBelongToTarget_ReturnsNotFound(t *testing.T)
 	}
 }
 
+// A seat grants full access to a game (GetGame, its actions, its WebSocket), so a
+// playgroup's game must not be joinable by someone outside the playgroup who
+// learned its ID — before this check, a self-join was the way around the
+// playgroup boundary.
+func TestJoinGame_SelfJoin_PlaygroupGame_NonMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	owner, _ := createUserAndDeck(t, pool, "selfjoin-owner@example.com")
+	outsider, outsiderDeck := createUserAndDeck(t, pool, "selfjoin-outsider@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, owner)
+	game, err := svc.CreateGame(context.Background(), owner, games.CreateGameRequest{PlaygroupID: playgroupID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+
+	_, err = svc.JoinGame(context.Background(), game.ID, outsider, games.JoinGameRequest{DeckID: outsiderDeck})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("JoinGame() by a non-member: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+	if _, err := svc.GetGame(context.Background(), game.ID, outsider); err == nil {
+		t.Fatalf("GetGame() by the outsider succeeded after the rejected join, want an error")
+	}
+}
+
+// Same check, on a game that has already started: the outsider must get the same
+// 404 as for a pending one, not the 409 that would confirm the game exists.
+func TestJoinGame_SelfJoin_StartedPlaygroupGame_NonMember_ReturnsNotFound(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	user1, deck1 := createUserAndDeck(t, pool, "selfjoin-started-1@example.com")
+	user2, deck2 := createUserAndDeck(t, pool, "selfjoin-started-2@example.com")
+	outsider, outsiderDeck := createUserAndDeck(t, pool, "selfjoin-started-outsider@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, user1, user2)
+	game, err := svc.CreateGame(context.Background(), user1, games.CreateGameRequest{PlaygroupID: playgroupID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+	mustJoin(t, svc, game.ID, user1, deck1)
+	mustJoin(t, svc, game.ID, user2, deck2)
+	mustStart(t, svc, game.ID, user1)
+
+	_, err = svc.JoinGame(context.Background(), game.ID, outsider, games.JoinGameRequest{DeckID: outsiderDeck})
+	if fiberErr := asFiberError(t, err); fiberErr.Code != fiber.StatusNotFound {
+		t.Fatalf("JoinGame() by a non-member on a started game: code = %d, want %d", fiberErr.Code, fiber.StatusNotFound)
+	}
+}
+
+func TestJoinGame_SelfJoin_PlaygroupGame_Member_Succeeds(t *testing.T) {
+	pool := testutil.DB(t)
+	truncateGamesTables(t, pool)
+
+	svc := newGamesSvc(pool)
+	owner, _ := createUserAndDeck(t, pool, "selfjoin-member-owner@example.com")
+	member, memberDeck := createUserAndDeck(t, pool, "selfjoin-member@example.com")
+	playgroupID := createPlaygroupWithMembers(t, pool, owner, member)
+	game, err := svc.CreateGame(context.Background(), owner, games.CreateGameRequest{PlaygroupID: playgroupID})
+	if err != nil {
+		t.Fatalf("CreateGame() error = %v", err)
+	}
+
+	_, err = svc.JoinGame(context.Background(), game.ID, member, games.JoinGameRequest{DeckID: memberDeck})
+	if err != nil {
+		t.Fatalf("JoinGame() by a playgroup member: error = %v, want nil", err)
+	}
+}
+
 func TestJoinGame_GameAlreadyStarted_ReturnsConflict(t *testing.T) {
 	pool := testutil.DB(t)
 	truncateGamesTables(t, pool)

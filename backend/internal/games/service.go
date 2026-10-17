@@ -351,6 +351,11 @@ func (s *service) JoinGame(
 	if err != nil {
 		return nil, err
 	}
+	// Checked before the status, so an outsider can't tell a started game from
+	// one that doesn't exist.
+	if authErr := s.authorizeSelfJoin(ctx, game, userID, req); authErr != nil {
+		return nil, authErr
+	}
 	if game.Status != statusPending {
 		return nil, ErrGameClosedToPlayers
 	}
@@ -402,6 +407,29 @@ func (s *service) resolveJoinTarget(
 		return "", pgtype.UUID{}, common.ErrInvalidUser
 	}
 	return req.UserID, callerUID, nil
+}
+
+// authorizeSelfJoin keeps a playgroup's games to its members: a seat grants full
+// access to the game (see isGameMember), so letting anyone holding the game's ID
+// sit down would bypass the playgroup boundary entirely. Denies with
+// ErrGameNotFound, same "don't reveal" pattern as authorizeGameAccess. Games with
+// no playgroup stay open to whoever has their ID — that ID is how ad-hoc games
+// are shared. Proxy-joins are authorized separately (authorizeProxyJoin).
+func (s *service) authorizeSelfJoin(ctx context.Context, game *Game, callerID string, req JoinGameRequest) error {
+	if req.UserID != "" && req.UserID != callerID {
+		return nil
+	}
+	if !game.PlaygroupID.Valid {
+		return nil
+	}
+	isMember, err := s.membership.IsMember(ctx, game.PlaygroupID.String(), callerID)
+	if err != nil {
+		return fmt.Errorf("checking playgroup membership: %w", err)
+	}
+	if !isMember {
+		return ErrGameNotFound
+	}
+	return nil
 }
 
 // authorizeProxyJoin validates that caller and target share the game's
