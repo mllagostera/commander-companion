@@ -2857,11 +2857,14 @@ Disallow: /
       tags:
         - Games
       description: >-
-        Without user_id (or equal to the authenticated user): normal join, no
-        changes. With a different user_id: proxy-join (see ADR-0013) — the
-        caller adds another user on their behalf, only if both share the
-        game's playgroup; the player ends up with added_by = caller,
-        authorizing them to register actions for that seat.
+        Without user_id (or equal to the authenticated user): normal join. A
+        game that belongs to a playgroup can only be joined by its members — a
+        seat grants full access to the game, so an outsider who knows the ID
+        gets 404, whatever the game's status. A game without a playgroup can be
+        joined by anyone who has its ID. With a different user_id: proxy-join
+        (see ADR-0013) — the caller adds another user on their behalf, only if
+        both share the game's playgroup; the player ends up with added_by =
+        caller, authorizing them to register actions for that seat.
       parameters:
         - in: path
           name: id
@@ -2899,7 +2902,10 @@ Disallow: /
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Game or deck not found (or the deck does not belong to the person joining)
+          description: >-
+            Game or deck not found (or the deck does not belong to the person
+            joining, or the game belongs to a playgroup the caller is not a
+            member of)
           content:
             application/json:
               schema:

@@ -91,6 +91,19 @@ func setupTwoPlayerGame(t *testing.T, pool *pgxpool.Pool, creatorID, playgroupID
 		t.Fatalf("creating deck 2: %v", err)
 	}
 
+	// A playgroup's game only seats its members (games.authorizeSelfJoin), so both
+	// players join the group first — what a real group does before playing.
+	if playgroupID != "" {
+		playgroupsSvc := playgroups.NewService(pool)
+		for _, u := range []*users.UserResponse{user1, user2} {
+			if _, addErr := playgroupsSvc.AddMember(
+				ctx, playgroupID, creatorID, playgroups.AddMemberRequest{UserID: u.ID},
+			); addErr != nil {
+				t.Fatalf("adding %s to the playgroup: %v", u.Username, addErr)
+			}
+		}
+	}
+
 	game := mustCreateGame(t, gamesSvc, creatorID, playgroupID)
 	p1, err := gamesSvc.JoinGame(ctx, game.ID, user1.ID, games.JoinGameRequest{DeckID: deck1.ID})
 	if err != nil {
@@ -557,10 +570,6 @@ func TestListPlaygroupGameCounts_IncludesGroupsWithZeroFinishedGames(t *testing.
 
 	g := setupTwoPlayerGame(t, pool, founder.ID, played.ID)
 	mustFinishGame(t, g.games, g.gameID, g.user1.ID)
-	_, err = playgroupsSvc.AddMember(ctx, played.ID, founder.ID, playgroups.AddMemberRequest{UserID: g.user1.ID})
-	if err != nil {
-		t.Fatalf("AddMember(played) error = %v", err)
-	}
 	_, err = playgroupsSvc.AddMember(ctx, empty.ID, founder.ID, playgroups.AddMemberRequest{UserID: g.user1.ID})
 	if err != nil {
 		t.Fatalf("AddMember(empty) error = %v", err)
