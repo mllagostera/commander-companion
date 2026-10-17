@@ -70,8 +70,6 @@
     <string name="setup_name_label">Nom</string>
     <string name="setup_which_deck">Amb quin deck juga?</string>
     <string name="setup_member_no_decks">%1$s encara no té cap deck: aquest seient no quedarà desat a les seves estadístiques.</string>
-    <string name="setup_seat_label">Seient</string>
-    <string name="setup_pick_group_first">Tria un grup a dalt per poder assignar jugadors.</string>
     <string name="setup_guest">Convidat</string>
     <string name="setup_group_seat_placeholder">El seient, el color i el deck es trien en començar la partida.</string>
 
@@ -182,7 +180,6 @@
     <string name="statistics_total_damage">Dany total</string>
     <string name="statistics_commander_damage">Dany de comandant</string>
     <string name="statistics_eliminations">Eliminacions</string>
-    <string name="statistics_per_deck_heading">Per deck</string>
     <string name="statistics_no_decks">Encara no tens cap deck importat.</string>
     <string name="statistics_no_deck_stats">Encara no hi ha partides jugades amb aquest deck.</string>
     <string name="statistics_deck_max_life">Vida màx.</string>

@@ -308,7 +308,6 @@
       "finishedGames": "Partidas finalizadas"
     },
     "perDeck": {
-      "heading": "Por deck",
       "noDecksIntro": "Todavía no tienes decks.",
       "importLink": "Añade uno",
       "noDecksOutro": "para ver sus estadísticas.",
@@ -328,8 +327,6 @@
       "loading": "Cargando partidas...",
       "loadingMore": "Cargando...",
       "noGroup": "Partida sin grupo",
-      "won": "Ganó",
-      "lost": "Perdió",
       "winner": "Ganador",
       "duration": "Duración",
       "turns": "Turnos",

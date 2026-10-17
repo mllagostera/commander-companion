@@ -3,7 +3,6 @@ package com.vansid.tapeandocartones.data.remote.api
 import com.vansid.tapeandocartones.data.remote.dto.ChangePasswordRequest
 import com.vansid.tapeandocartones.data.remote.dto.CreateDeckRequest
 import com.vansid.tapeandocartones.data.remote.dto.CreateGameRequest
-import com.vansid.tapeandocartones.data.remote.dto.HealthDto
 import com.vansid.tapeandocartones.data.remote.dto.ImportMoxfieldRequest
 import com.vansid.tapeandocartones.data.remote.dto.JoinGameRequest
 import com.vansid.tapeandocartones.data.remote.dto.SendFriendRequestRequest
@@ -50,10 +49,6 @@ import retrofit2.http.Query
  * call with `apiCall { }`, which translates `HttpException`/`IOException` into `ApiError`.
  */
 interface CommanderApi {
-
-    /** `/health` lives outside `/api/v1` and without auth (see `common.RegisterHealthRoute`). */
-    @GET("health")
-    suspend fun checkHealth(): HealthDto
 
     // ---------------------------------------------------------------- decks
 

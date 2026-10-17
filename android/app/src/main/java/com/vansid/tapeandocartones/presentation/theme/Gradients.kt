@@ -9,14 +9,3 @@ val AccentGradient: Brush
 /** Gradient used for headline text (app name, "TapeandoCartones"). */
 val TitleGradient: Brush
     get() = Brush.horizontalGradient(listOf(AccentSoft, AccentSofter))
-
-/** Full-bleed screen background: a soft violet glow fading into near-black. */
-val ScreenBackgroundGradient: Brush
-    get() = Brush.radialGradient(
-        colorStops = arrayOf(
-            0.0f to AppBackgroundGlow,
-            0.45f to AppBackgroundDeep,
-            1.0f to AppBackground
-        ),
-        radius = 1400f
-    )
