@@ -25,6 +25,39 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-17 — Android group games never reached the statistics.** Reported by
+the user: a group game played on Android showed in the local history but not in
+the statistics. Production (Supabase) explained it: the only game in two days was
+`pending` with one seat and no actions, and **no game had ever been `finished`**.
+Two independent causes, both fixed on the Android side:
+
+- **The `finish` was cancelled.** `GameTrackerScreen` calls `confirmFinish()` and
+  then `onFinish()`, which pops the tracker off the back stack and clears its
+  ViewModel. Every remote call went through `launchRemote` on `viewModelScope`,
+  queued behind a `Mutex` (the last `TurnEnd` goes first), so the `finish` that
+  triggers `RecalculateForGame` was almost always cancelled before it was sent.
+  `launchRemote` (and `persistLocalResult`) now run on a process-wide
+  `@ApplicationScope` scope (`core/di/AppModule.kt`, `SupervisorJob` +
+  `Dispatchers.Main.immediate`, the same thread confinement as `viewModelScope`) —
+  the same move `LastDeckRepositoryImpl` already made for the same reason. The whole
+  queue moved, not just `finish`: an action cancelled ahead of it would be missing
+  from the statistics. WorkManager was considered and left out: it would also cover
+  a game finished offline, but needs a new dependency and serialising the queue;
+  this fixes the observed failure, offline finish stays a known gap.
+  Regression test: `leaving the summary does not cancel the finish that counts the
+  game` (cancels `viewModelScope` right after `confirmFinish`).
+- **A table short of real players never starts.** Only seats with a member *and* a
+  deck join the backend game, and `StartGame` needs 2 (`minPlayersToStart`). With
+  one, `start` answers 409, the session stays `pending`, and every action and the
+  `finish` are skipped — only a "waiting for players" banner hinted at it, mid-game.
+  `PreGameScreen` now checks `countsForStatistics()` (`PlayerConfigCodec.kt`) on
+  START in Group mode and shows a warning with "Assign decks" / "Play anyway". The
+  user's game today fell into this case.
+
+Not verified with Gradle: this environment has no Android SDK (`dl.google.com` is
+blocked), so the change is left for Android CI. The orphaned `pending` game in
+production was left untouched.
+
 **2026-10-17 — Android `targetSdk` 34 → 37.** Scheduled by the user the day
 before ("sube el SDK a la última versión posible"). API 37 (Android 17) is the
 latest stable release and the highest `compileSdk` AGP 9.3 supports, so

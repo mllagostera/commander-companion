@@ -1,6 +1,7 @@
 package com.vansid.tapeandocartones.presentation.screens.game
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import com.vansid.tapeandocartones.core.util.ApiFailure
 import com.vansid.tapeandocartones.data.repository.GameRepositoryImpl
 import com.vansid.tapeandocartones.data.repository.PlaygroupRepositoryImpl
@@ -26,8 +27,11 @@ import com.vansid.tapeandocartones.testing.httpException
 import com.vansid.tapeandocartones.testing.playgroupDto
 import com.vansid.tapeandocartones.testing.playgroupMemberDto
 import java.io.IOException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -54,6 +58,9 @@ class GameViewModelTest {
     private val socket = FakeGameSocketClient()
     private val accessTokenProvider = AccessTokenProvider { "access-token" }
 
+    /** Stands in for the process-wide scope: it survives the ViewModel, like the real one. */
+    private val applicationScope = CoroutineScope(SupervisorJob() + dispatcher)
+
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
@@ -66,6 +73,7 @@ class GameViewModelTest {
 
     @After
     fun tearDown() {
+        applicationScope.cancel()
         Dispatchers.resetMain()
     }
 
@@ -90,7 +98,8 @@ class GameViewModelTest {
             playgroupRepository = PlaygroupRepositoryImpl(api),
             accessTokenProvider = accessTokenProvider,
             resolveGameOutcomeUseCase = ResolveGameOutcomeUseCase(),
-            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase()
+            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase(),
+            applicationScope = applicationScope
         )
     }
 
@@ -105,7 +114,8 @@ class GameViewModelTest {
             playgroupRepository = PlaygroupRepositoryImpl(api),
             accessTokenProvider = accessTokenProvider,
             resolveGameOutcomeUseCase = ResolveGameOutcomeUseCase(),
-            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase()
+            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase(),
+            applicationScope = applicationScope
         )
     }
 
@@ -129,7 +139,8 @@ class GameViewModelTest {
             playgroupRepository = PlaygroupRepositoryImpl(api),
             accessTokenProvider = accessTokenProvider,
             resolveGameOutcomeUseCase = ResolveGameOutcomeUseCase(),
-            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase()
+            replayCommanderDamageUseCase = ReplayCommanderDamageUseCase(),
+            applicationScope = applicationScope
         )
     }
 
@@ -459,6 +470,26 @@ class GameViewModelTest {
         advanceUntilIdle()
 
         assertTrue(api.calls.contains("finishGame"))
+        assertEquals("FINISHED", dao.finished.single().second)
+    }
+
+    @Test
+    fun `leaving the summary does not cancel the finish that counts the game`() = runTest(dispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        var now = 0L
+        vm.nowMs = { now }
+        vm.startTurnClock()
+        now += 30_000
+
+        vm.finishGame(winnerId = 1)
+        vm.confirmFinish()
+        // What popping the tracker off the back stack does to the ViewModel, before anything ran.
+        vm.viewModelScope.cancel()
+        advanceUntilIdle()
+
+        assertEquals(GameActionType.TURN_END, api.recordedActions.last().second.actionType)
+        assertEquals("finishGame", api.calls.last())
         assertEquals("FINISHED", dao.finished.single().second)
     }
 

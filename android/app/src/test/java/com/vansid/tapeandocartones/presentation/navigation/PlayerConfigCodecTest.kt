@@ -1,7 +1,9 @@
 package com.vansid.tapeandocartones.presentation.navigation
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlayerConfigCodecTest {
@@ -74,5 +76,17 @@ class PlayerConfigCodecTest {
         val decoded = decodePlayerConfigs("Ana|blue|0")
 
         assertEquals(PlayerConfig(name = "Ana", colorKey = "blue"), decoded.single())
+    }
+
+    @Test
+    fun `a table counts for statistics only with two seats that have both a member and a deck`() {
+        val ana = PlayerConfig(name = "Ana", colorKey = "blue", assignedUserId = "user-1", deckId = "deck-a")
+        val beto = PlayerConfig(name = "Beto", colorKey = "red", assignedUserId = "user-2", deckId = "deck-b")
+        val guest = PlayerConfig(name = "Invitado", colorKey = "green")
+        val deckless = PlayerConfig(name = "Carla", colorKey = "white", assignedUserId = "user-3")
+
+        assertTrue(listOf(ana, beto, guest).countsForStatistics())
+        assertFalse(listOf(ana, guest, deckless).countsForStatistics())
+        assertFalse(listOf(guest, guest).countsForStatistics())
     }
 }

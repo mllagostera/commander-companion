@@ -29,6 +29,21 @@ data class PlayerConfig(
     val deckImageUrl: String? = null
 )
 
+/**
+ * The backend only starts a game with at least this many players (`minPlayersToStart` in
+ * `internal/games/service.go`), and a game that never starts is never finished, so it never
+ * reaches the statistics.
+ */
+const val MIN_PLAYERS_FOR_STATISTICS = 2
+
+/**
+ * Whether this table will count towards the statistics: only a seat with both a member and a deck
+ * joins the backend game ([GameRepository.bootstrapRemoteGame]), so guests and deckless members
+ * don't add up to [MIN_PLAYERS_FOR_STATISTICS].
+ */
+fun List<PlayerConfig>.countsForStatistics(): Boolean =
+    count { it.assignedUserId != null && it.deckId != null } >= MIN_PLAYERS_FOR_STATISTICS
+
 private const val ENTRY_SEPARATOR = ","
 private const val FIELD_SEPARATOR = "|"
 private const val CHARSET = "UTF-8"
