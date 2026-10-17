@@ -9,9 +9,7 @@
  * Android app's Play Store set. scripts/screenshots/ regenerates all of them
  * (see its README); re-run it when the screens they show change noticeably.
  */
-const { t, locale, locales, setLocale, localeProperties } = useI18n()
-
-const availableLocales = computed(() => locales.value as { code: string, name?: string }[])
+const { t, localeProperties } = useI18n()
 
 // og:image must be absolute: link-preview crawlers (WhatsApp, Discord, X...)
 // don't resolve relative URLs. The image is public/og-image.png, 1200x630,
@@ -148,29 +146,22 @@ const showcase = computed(() => [
           <span class="cc-gradient-text hidden text-[15px] font-semibold tracking-wide sm:inline">TapeandoCartones</span>
         </NuxtLink>
 
-        <div class="ml-auto flex items-center gap-1" role="group" :aria-label="$t('nav.language')">
-          <button
-            v-for="l in availableLocales"
-            :key="l.code"
-            type="button"
-            :aria-pressed="l.code === locale"
-            :title="l.name"
-            class="rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase transition-colors"
-            :style="l.code === locale
-              ? { background: 'linear-gradient(135deg, #8b5cf6, #a855f7)', color: '#0a0714', borderColor: 'transparent' }
-              : { color: 'var(--text-muted)', borderColor: 'var(--input-border)' }"
-            @click="setLocale(l.code as 'es' | 'en' | 'ca')"
-          >
-            {{ l.code }}
-          </button>
-        </div>
+        <!-- Below sm the language switcher moves to the footer: the header only has
+             room for the two account actions, and both must stay visible. -->
+        <LocaleSwitcher class="ml-auto hidden sm:flex" />
 
-        <NuxtLink to="/login" class="hidden text-sm sm:inline" style="color: var(--text-muted);">
+        <!-- Outlined rather than a bare muted link: returning users scan the header
+             for it, and next to the filled register pill plain text read as inert. -->
+        <NuxtLink
+          to="/login"
+          class="ml-auto whitespace-nowrap rounded-full border px-3.5 py-[7px] text-[13px] font-semibold transition-colors hover:bg-[var(--card-bg-strong)] sm:ml-0 sm:px-4"
+          style="border-color: var(--input-border); color: var(--text);"
+        >
           {{ $t('landing.nav.login') }}
         </NuxtLink>
         <NuxtLink
           to="/register"
-          class="whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold text-[#0a0714] transition-transform hover:scale-[1.04]"
+          class="whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold text-[#0a0714] transition-transform hover:scale-[1.04] sm:px-4"
           style="background: linear-gradient(90deg, #8b5cf6, #a855f7);"
         >
           {{ $t('landing.nav.register') }}
@@ -208,7 +199,7 @@ const showcase = computed(() => [
               class="rounded-full border px-6 py-3 text-sm font-medium transition-colors hover:bg-[var(--card-bg-strong)]"
               style="border-color: var(--input-border); color: var(--text);"
             >
-              {{ $t('landing.hero.secondaryCta') }}
+              {{ $t('landing.nav.login') }}
             </NuxtLink>
           </div>
         </div>
@@ -397,11 +388,18 @@ const showcase = computed(() => [
           >
             {{ $t('landing.cta.button') }}
           </NuxtLink>
+          <p class="text-[13px]" style="color: var(--text-muted);">
+            {{ $t('landing.cta.haveAccount') }}
+            <NuxtLink to="/login" class="font-semibold underline underline-offset-2" style="color: var(--accent-link);">
+              {{ $t('landing.nav.login') }}
+            </NuxtLink>
+          </p>
         </div>
       </section>
     </main>
 
     <footer class="relative z-[1] mx-auto flex max-w-[1080px] flex-col items-center justify-between gap-2 border-t px-4 py-8 text-xs sm:flex-row sm:px-6" style="border-color: var(--card-border); color: var(--text-dim);">
+      <LocaleSwitcher class="sm:hidden" />
       <span>© {{ new Date().getFullYear() }} TapeandoCartones</span>
       <span>{{ $t('landing.footer.disclaimer') }}</span>
     </footer>

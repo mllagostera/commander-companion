@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const { user, logout } = useAuth()
 const { theme, toggleTheme } = useTheme()
-const { t, locale, locales, setLocale } = useI18n()
+const { t } = useI18n()
 
 const { count: pendingFriendRequests, watchForChanges } = useFriendRequestCount()
 watchForChanges()
@@ -15,8 +15,6 @@ onMounted(() => {
 const friendRequestCount = computed(() => (isMounted.value ? pendingFriendRequests.value : 0))
 /** Badges cap at 9+: past that the exact number doesn't change what the user does. */
 const friendRequestBadge = computed(() => (friendRequestCount.value > 9 ? '9+' : String(friendRequestCount.value)))
-
-const availableLocales = computed(() => locales.value as { code: string, name?: string }[])
 
 const links = computed(() => {
   /** badge: shows the pending friend requests count next to the label. */
@@ -184,20 +182,7 @@ onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
               </div>
               <div class="flex items-center justify-between px-2.5 py-2">
                 <span class="text-[13px]" style="color: var(--text);">{{ $t('nav.language') }}</span>
-                <div class="flex gap-1">
-                  <button
-                    v-for="l in availableLocales"
-                    :key="l.code"
-                    type="button"
-                    class="rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase transition-colors"
-                    :style="l.code === locale
-                      ? { background: 'linear-gradient(135deg, #8b5cf6, #a855f7)', color: '#0a0714', borderColor: 'transparent' }
-                      : { color: 'var(--text-muted)', borderColor: 'var(--input-border)' }"
-                    @click="setLocale(l.code as 'es' | 'en' | 'ca')"
-                  >
-                    {{ l.code }}
-                  </button>
-                </div>
+                <LocaleSwitcher />
               </div>
               <NuxtLink
                 to="/settings"

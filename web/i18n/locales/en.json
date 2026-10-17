@@ -915,7 +915,6 @@
       "titleHighlight": "tracked and remembered.",
       "subtitle": "TapeandoCartones keeps life totals at the table, imports your decks from Moxfield and turns every game into statistics: which deck wins, against whom, and in which group.",
       "primaryCta": "Create a free account",
-      "secondaryCta": "I already have an account",
       "screenshotAlt": "TapeandoCartones dashboard: best deck, win rate, current streak and recent games"
     },
     "pillars": {
@@ -990,7 +989,8 @@
     "cta": {
       "title": "Your next game starts here",
       "body": "Create your account, import a deck and track your first game in under a minute.",
-      "button": "Get started for free"
+      "button": "Get started for free",
+      "haveAccount": "Already have an account?"
     },
     "footer": {
       "disclaimer": "Not affiliated with or endorsed by Wizards of the Coast. Magic: The Gathering is a trademark of Wizards of the Coast LLC."

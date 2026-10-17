@@ -915,7 +915,6 @@
       "titleHighlight": "registrada y recordada.",
       "subtitle": "TapeandoCartones lleva las vidas en la mesa, importa tus decks desde Moxfield y convierte cada partida en estadísticas: qué deck gana, contra quién y en qué grupo.",
       "primaryCta": "Crear cuenta gratis",
-      "secondaryCta": "Ya tengo cuenta",
       "screenshotAlt": "Panel de TapeandoCartones: mejor deck, porcentaje de victorias, racha actual y últimas partidas"
     },
     "pillars": {
@@ -990,7 +989,8 @@
     "cta": {
       "title": "Tu próxima partida empieza aquí",
       "body": "Crea tu cuenta, importa un deck y registra tu primera partida en menos de un minuto.",
-      "button": "Empieza gratis"
+      "button": "Empieza gratis",
+      "haveAccount": "¿Ya tienes cuenta?"
     },
     "footer": {
       "disclaimer": "Sin afiliación ni respaldo de Wizards of the Coast. Magic: The Gathering es una marca registrada de Wizards of the Coast LLC."
