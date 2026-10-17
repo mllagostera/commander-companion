@@ -291,11 +291,11 @@ the page still returns 200; on Android the string silently falls back to
 Spanish. Android resources deliberately left untranslated must carry
 `tools:ignore="MissingTranslation"`.
 
-**Branch protection caveat**: the required checks on `main` are 8, from
-`backend-ci.yml`/`android-ci.yml`/`docs-ci.yml`. `web-ci.yml` was added
-afterwards and its checks are not required yet; also, its `hadolint (Dockerfile)`
-job shares a name with the backend one, so GitHub (which matches by job name)
-lets either satisfy that check. Don't rely on web CI being blocking.
+**Branch protection caveat**: the required checks on `main` are set in GitHub's
+branch protection settings, not in the repo — check there rather than trusting a
+count written down here (GitHub reported 12 on 2026-10-17). The web and backend
+`hadolint (Dockerfile)` jobs share a name, and GitHub matches by job name, so
+either one satisfies a requirement on it.
 
 ### Architecture guardrails
 
@@ -306,7 +306,7 @@ belongs rather than next to a similar-looking one.
 | Guardrail | Where | Owns | Runs in |
 |---|---|---|---|
 | `depguard` | [`backend/.golangci.yml`](backend/.golangci.yml) | a handler must not import a database driver | `golangci-lint` (required check) |
-| Konsist | [`android/app/src/test/.../architecture/ArchitectureTest.kt`](android/app/src/test/java/com/vansid/tapeandocartones/architecture/ArchitectureTest.kt) | Android layering, the enumerated auth exception, two ratchets on known debt | `testDebugUnitTest` (required check) |
+| Konsist | [`android/app/src/test/.../architecture/ArchitectureTest.kt`](android/app/src/test/java/com/vansid/tapeandocartones/architecture/ArchitectureTest.kt) | Android layering, the enumerated auth exception | `testDebugUnitTest` (required check) |
 | `eslint-plugin-boundaries` + `no-restricted-imports` | [`web/eslint.config.mjs`](web/eslint.config.mjs) | `app/` ↔ `server/` in both directions | `npm run lint` |
 | `check-architecture.sh` | [`.github/scripts/check-architecture.sh`](.github/scripts/check-architecture.sh) | everything that is **not** an import | `architecture-ci.yml`, `pre-push` |
 
