@@ -27,7 +27,6 @@ type Querier interface {
 	DeleteTournament(ctx context.Context, id pgtype.UUID) error
 	FinishRound(ctx context.Context, id pgtype.UUID) (TournamentRound, error)
 	FinishTournament(ctx context.Context, id pgtype.UUID) (Tournament, error)
-	GetParticipant(ctx context.Context, id pgtype.UUID) (TournamentParticipant, error)
 	GetParticipantByUser(ctx context.Context, arg GetParticipantByUserParams) (GetParticipantByUserRow, error)
 	GetRound(ctx context.Context, id pgtype.UUID) (TournamentRound, error)
 	GetRoundByNumber(ctx context.Context, arg GetRoundByNumberParams) (TournamentRound, error)

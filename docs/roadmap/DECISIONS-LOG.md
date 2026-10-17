@@ -25,6 +25,38 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-17 — Dead code sweep.** Asked by the user ("¿hay código muerto?",
+then "es importante la limpieza"). Each client was checked with the tool that
+understands it, and every hit was then confirmed by hand:
+
+- *Backend:* `deadcode -test` and `staticcheck -checks U1000` found nothing.
+  Their blind spot is sqlc, whose generated `Querier` interface makes every
+  query reachable, so each `-- name:` was matched against real call sites:
+  `tournaments.GetParticipant` had none. Removed and regenerated with sqlc
+  1.27.0 (CI's pin).
+- *Android* (no SDK here, so no Android Lint): a reference scan over every
+  declaration and string, then checked one by one. Removed `core/util/Resource`
+  (superseded by `Result`/`ApiError`), `CommanderApi.checkHealth` + `HealthDto`
+  (the app never calls `/health`), `SessionManager.isLoggedIn`,
+  `LoginViewModel.errorShown` (the login error is inline and every new attempt
+  already clears it — so not a missing call), `ScreenBackgroundGradient` and its
+  only color `AppBackgroundGlow` (`AppScreenBackground` draws its own glows), and
+  `setup_seat_label`, `setup_pick_group_first`, `statistics_per_deck_heading`
+  in all three locales.
+- *Web:* `knip` plus a scan of components, auto-imported exports and i18n keys.
+  Removed `statistics.perDeck.heading`, `statistics.finishedGames.won`/`lost`
+  in all three locales, and the `vue-router` dependency: nothing imports it, and
+  Nuxt requires the same range itself, so the installed version (5.3.1) doesn't
+  change. Kept, as `knip` false positives: `google-identity.d.ts` (ambient
+  `window.google` types), `i18n/i18n.config.ts` (loaded by `@nuxtjs/i18n` by
+  convention, holds the `short` date format), `vue-tsc` (used by
+  `nuxt typecheck`), `DashboardMember` (used inside `api.ts`).
+
+Verified here: backend gofmt, `go vet`, build, golangci-lint 2.12.2 and the full
+`go test -race` suite against a local Postgres; web lint, typecheck, `nuxt
+build` and both i18n checks; Android i18n check. Android compilation is left to
+CI.
+
 **2026-10-17 — Android group games never reached the statistics.** Reported by
 the user: a group game played on Android showed in the local history but not in
 the statistics. Production (Supabase) explained it: the only game in two days was

@@ -5,7 +5,6 @@ import androidx.compose.ui.graphics.Color
 // Base surface colors — dark violet-tinted, matching the app's card-game brand identity.
 val AppBackground = Color(0xFF050308)
 val AppBackgroundDeep = Color(0xFF0A0714)
-val AppBackgroundGlow = Color(0xFF1E1B4B)
 val AppSurface = Color(0xFF15121F)
 val AppSurfaceVariant = Color(0xFF1F1B2E)
 val AppOnBackground = Color(0xFFF1F0F6)

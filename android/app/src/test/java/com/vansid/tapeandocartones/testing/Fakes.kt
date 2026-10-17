@@ -10,7 +10,6 @@ import com.vansid.tapeandocartones.data.remote.api.CommanderApi
 import com.vansid.tapeandocartones.data.remote.dto.ChangePasswordRequest
 import com.vansid.tapeandocartones.data.remote.dto.CreateDeckRequest
 import com.vansid.tapeandocartones.data.remote.dto.CreateGameRequest
-import com.vansid.tapeandocartones.data.remote.dto.HealthDto
 import com.vansid.tapeandocartones.data.remote.dto.ImportMoxfieldRequest
 import com.vansid.tapeandocartones.data.remote.dto.JoinGameRequest
 import com.vansid.tapeandocartones.data.remote.dto.SendFriendRequestRequest
@@ -258,8 +257,6 @@ class FakeCommanderApi : CommanderApi {
     var onRejectFriendRequest: suspend (String) -> Unit = { }
     var onCancelFriendRequest: suspend (String) -> Unit = { }
     var onRemoveFriend: suspend (String) -> Unit = { }
-
-    override suspend fun checkHealth(): HealthDto = HealthDto(status = "ok", db = "ok")
 
     override suspend fun listDecks(cursor: String?): Page<Deck> {
         calls += "listDecks"

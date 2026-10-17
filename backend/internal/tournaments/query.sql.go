@@ -289,26 +289,6 @@ func (q *Queries) FinishTournament(ctx context.Context, id pgtype.UUID) (Tournam
 	return i, err
 }
 
-const getParticipant = `-- name: GetParticipant :one
-SELECT id, tournament_id, user_id, guest_name, deck_id, commander_name, points, created_at FROM tournament_participants WHERE id = $1 LIMIT 1
-`
-
-func (q *Queries) GetParticipant(ctx context.Context, id pgtype.UUID) (TournamentParticipant, error) {
-	row := q.db.QueryRow(ctx, getParticipant, id)
-	var i TournamentParticipant
-	err := row.Scan(
-		&i.ID,
-		&i.TournamentID,
-		&i.UserID,
-		&i.GuestName,
-		&i.DeckID,
-		&i.CommanderName,
-		&i.Points,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getParticipantByUser = `-- name: GetParticipantByUser :one
 SELECT tp.id, tp.tournament_id, tp.user_id, tp.guest_name, tp.deck_id, tp.commander_name,
        tp.points, tp.created_at,
