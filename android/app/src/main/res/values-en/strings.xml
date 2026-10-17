@@ -94,6 +94,10 @@
     <string name="pregame_begin">START</string>
     <string name="pregame_no_deck">No deck</string>
     <string name="pregame_free_seat">Free seat</string>
+    <string name="pregame_unranked_title">This game won\'t count</string>
+    <string name="pregame_unranked_body">A game only counts towards statistics with at least %1$d group members playing a deck. Right now there are %2$d.</string>
+    <string name="pregame_unranked_back">Assign decks</string>
+    <string name="pregame_unranked_play">Play anyway</string>
 
     <!-- Game tracker -->
     <string name="tracker_rotate_prompt">Rotate your device\nto start the game</string>

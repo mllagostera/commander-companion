@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.vansid.tapeandocartones.core.di.ApplicationScope
 import com.vansid.tapeandocartones.core.util.ApiError
 import com.vansid.tapeandocartones.core.util.ApiFailure
 import com.vansid.tapeandocartones.core.util.toFailure
@@ -29,6 +30,7 @@ import com.vansid.tapeandocartones.presentation.theme.PlayerColorPalette
 import com.vansid.tapeandocartones.presentation.theme.colorForKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -83,7 +85,8 @@ class GameViewModel @Inject constructor(
     private val playgroupRepository: PlaygroupRepository,
     private val accessTokenProvider: AccessTokenProvider,
     private val resolveGameOutcomeUseCase: ResolveGameOutcomeUseCase,
-    private val replayCommanderDamageUseCase: ReplayCommanderDamageUseCase
+    private val replayCommanderDamageUseCase: ReplayCommanderDamageUseCase,
+    @ApplicationScope private val applicationScope: CoroutineScope
 ) : ViewModel() {
 
     private val gameId: String = checkNotNull(savedStateHandle["gameId"])
@@ -672,7 +675,8 @@ class GameViewModel @Inject constructor(
                 won = player.id == winnerId
             )
         }
-        viewModelScope.launch { gameRepository.persistLocalResult(gameId, results) }
+        // Runs as the tracker leaves the back stack (see [confirmFinish]), which cancels viewModelScope.
+        applicationScope.launch { gameRepository.persistLocalResult(gameId, results) }
     }
 
     /**
@@ -1125,9 +1129,16 @@ class GameViewModel @Inject constructor(
 
     private fun activeSession(): RemoteGameSession? = remoteSession?.takeIf { it.isActive }
 
-    /** Queues a remote operation respecting emission order (see [remoteMutex]). */
+    /**
+     * Queues a remote operation respecting emission order (see [remoteMutex]).
+     *
+     * On [applicationScope], not `viewModelScope`: leaving the summary pops the tracker right after
+     * [confirmFinish], and cancelling the queue then dropped the final `TurnEnd` and the `finish`
+     * that recalculates the statistics -- so the game never counted. Every queued operation has to
+     * outlive the screen, not just `finish`: one left behind would be missing from the statistics.
+     */
     private fun launchRemote(block: suspend () -> Unit) {
-        viewModelScope.launch { remoteMutex.withLock { block() } }
+        applicationScope.launch { remoteMutex.withLock { block() } }
     }
 
     private fun reportRemoteFailure(error: Throwable) {

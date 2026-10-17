@@ -11,7 +11,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - Keep each line short (status + what + a pointer to the file/module). Put narrative, rationale, and verification detail in DECISIONS-LOG.md instead, dated, under the matching stage — don't let it accumulate here again.
 - Update the "Last reviewed" date every time the real state of the code is audited, and add the corresponding entry to DECISIONS-LOG.md.
 
-**Last reviewed:** 2026-10-16 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
+**Last reviewed:** 2026-10-17 — see [DECISIONS-LOG.md](DECISIONS-LOG.md) for the full history of audits and decisions up to that date, including this restructuring itself.
 
 ---
 
@@ -217,6 +217,7 @@ The full narrative behind any item — what changed, why, gotchas hit, how it wa
 - [x] Room as an offline-first cache for own decks (`DeckEntity`/`DeckDao`, network-first with cache fallback)
 - [x] **Android security review fixes** (2026-10-16, see [DECISIONS-LOG.md](DECISIONS-LOG.md)): the archived APK is a release build signed with the shared debug key, `versionCode` = CI run number, `https://` required ([ADR-0027](../decisions/0027-sign-sideloaded-release-with-debug-key.md)); logout clears the deck cache and `last_decks` (`SessionManager.clearSession`); a failed refresh logs out only on 401/403 (`RefreshFailure.kt`); `data_extraction_rules.xml` keeps app data out of device-to-device transfers; a scanned profile QR waits for confirmation (`FriendsViewModel.confirmScanned`). **Not verified on a device** (no SDK here): CI is the check
 - [x] **`targetSdk` 34 → 37** (2026-10-17, see [DECISIONS-LOG.md](DECISIONS-LOG.md)): the latest stable API and AGP 9.3's maximum (`compileSdk` was already 37). Behavior changes 35-37 reviewed against the code; only Android 17's local network permission needed work, debug-only (`src/debug/AndroidManifest.xml`, `MainActivity.requestLocalNetworkForDevBackend`, `isLocalNetworkUrl`). **Not verified on a device** (no SDK here)
+- [ ] **Group games from Android never reached the statistics** (found 2026-10-17, see [DECISIONS-LOG.md](DECISIONS-LOG.md)): the remote `finish` ran on `viewModelScope`, cancelled when leaving the summary pops the tracker, so it was dropped (production had 0 finished games); a table with fewer than 2 member+deck seats never starts on the backend and was only flagged by a mid-game banner. Fixed: remote mirroring runs on an `@ApplicationScope` (`core/di/AppModule.kt`, `GameViewModel.launchRemote`), and START in `PreGameScreen` warns when the game won't count (`countsForStatistics`). **Still `[ ]`: not compiled or run on a device** (no Android SDK in the environment where it was written)
 - [ ] **Local game history is visible to every account on the device** (found 2026-10-16): Room's `games` has no owner and survives logout. Kept on purpose, it exists nowhere else; scoping it per user needs an owner column and a real Room migration (today `fallbackToDestructiveMigration` would wipe it)
 
 ## Stage 6: Synchronization (WebSocket)

@@ -1,27 +1,35 @@
 package com.vansid.tapeandocartones.presentation.screens.pregame
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
@@ -47,10 +55,14 @@ import com.vansid.tapeandocartones.R
 import com.vansid.tapeandocartones.domain.model.Deck
 import com.vansid.tapeandocartones.domain.model.PlaygroupMember
 import com.vansid.tapeandocartones.presentation.components.DeckArtChip
+import com.vansid.tapeandocartones.presentation.components.GradientButton
+import com.vansid.tapeandocartones.presentation.components.GradientOutlineButton
 import com.vansid.tapeandocartones.presentation.components.KeepScreenOn
 import com.vansid.tapeandocartones.presentation.components.RotateDevicePrompt
 import com.vansid.tapeandocartones.presentation.components.SelectableChip
+import com.vansid.tapeandocartones.presentation.navigation.MIN_PLAYERS_FOR_STATISTICS
 import com.vansid.tapeandocartones.presentation.navigation.PlayerConfig
+import com.vansid.tapeandocartones.presentation.navigation.countsForStatistics
 import com.vansid.tapeandocartones.presentation.navigation.decodePlayerConfigs
 import com.vansid.tapeandocartones.presentation.navigation.encodePlayerConfigs
 import com.vansid.tapeandocartones.presentation.theme.AccentGradient
@@ -59,6 +71,8 @@ import com.vansid.tapeandocartones.presentation.theme.AppBackgroundDeep
 import com.vansid.tapeandocartones.presentation.theme.AppFaint
 import com.vansid.tapeandocartones.presentation.theme.AppMuted
 import com.vansid.tapeandocartones.presentation.theme.AppOnBackground
+import com.vansid.tapeandocartones.presentation.theme.AppOutline
+import com.vansid.tapeandocartones.presentation.theme.AppSurface
 import com.vansid.tapeandocartones.presentation.theme.colorForKey
 import kotlin.random.Random
 
@@ -117,6 +131,8 @@ fun PreGameScreen(
     val seatChangingDeck = rememberSaveable(saver = stateListSaver<Boolean>()) {
         mutableStateListOf(*Array(configs.size) { false })
     }
+
+    var showUnrankedWarning by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(playgroupId) {
         if (playgroupId != null) viewModel.loadPlaygroup(playgroupId)
@@ -220,44 +236,68 @@ fun PreGameScreen(
                 )
             }
 
+            fun seatConfigs(): List<PlayerConfig> = configs.mapIndexed { index, config ->
+                if (playgroupId != null) {
+                    val userId = seatMemberUserIds[index]?.takeIf { it.isNotEmpty() }
+                    val deckId = userId?.let { seatDeckIds[index] }?.takeIf { it.isNotEmpty() }
+                    // The tracker paints the seat with this art; the deck is already
+                    // loaded here, so it travels with the seat instead of being fetched
+                    // again once the game is on screen.
+                    val deckImageUrl = userId
+                        ?.let { id -> viewModel.decksFor(id).firstOrNull { deck -> deck.id == deckId } }
+                        ?.imageUrl
+                    config.copy(
+                        name = displayName(index),
+                        mulligans = mulligans[index],
+                        assignedUserId = userId,
+                        assignedUsername = seatMemberUsernames[index],
+                        deckId = deckId,
+                        deckImageUrl = deckImageUrl
+                    )
+                } else {
+                    config.copy(mulligans = mulligans[index])
+                }
+            }
+
+            fun start(updatedConfigs: List<PlayerConfig>) {
+                if (playgroupId != null) {
+                    viewModel.rememberDecks(
+                        playgroupId,
+                        updatedConfigs.mapNotNull { config ->
+                            val userId = config.assignedUserId ?: return@mapNotNull null
+                            val deckId = config.deckId ?: return@mapNotNull null
+                            userId to deckId
+                        }.toMap()
+                    )
+                }
+                onContinue(encodePlayerConfigs(updatedConfigs), Random.nextInt(configs.size))
+            }
+
             PlayButton(
                 onClick = {
-                    val updatedConfigs = configs.mapIndexed { index, config ->
-                        if (playgroupId != null) {
-                            val userId = seatMemberUserIds[index]?.takeIf { it.isNotEmpty() }
-                            val deckId = userId?.let { seatDeckIds[index] }?.takeIf { it.isNotEmpty() }
-                            // The tracker paints the seat with this art; the deck is already
-                            // loaded here, so it travels with the seat instead of being fetched
-                            // again once the game is on screen.
-                            val deckImageUrl = userId
-                                ?.let { id -> viewModel.decksFor(id).firstOrNull { deck -> deck.id == deckId } }
-                                ?.imageUrl
-                            config.copy(
-                                name = displayName(index),
-                                mulligans = mulligans[index],
-                                assignedUserId = userId,
-                                assignedUsername = seatMemberUsernames[index],
-                                deckId = deckId,
-                                deckImageUrl = deckImageUrl
-                            )
-                        } else {
-                            config.copy(mulligans = mulligans[index])
-                        }
+                    val updatedConfigs = seatConfigs()
+                    // A Group game short of real players never starts on the backend, so it would
+                    // silently never reach the statistics: say so while seats can still be fixed.
+                    if (playgroupId != null && !updatedConfigs.countsForStatistics()) {
+                        showUnrankedWarning = true
+                    } else {
+                        start(updatedConfigs)
                     }
-                    if (playgroupId != null) {
-                        viewModel.rememberDecks(
-                            playgroupId,
-                            updatedConfigs.mapNotNull { config ->
-                                val userId = config.assignedUserId ?: return@mapNotNull null
-                                val deckId = config.deckId ?: return@mapNotNull null
-                                userId to deckId
-                            }.toMap()
-                        )
-                    }
-                    onContinue(encodePlayerConfigs(updatedConfigs), Random.nextInt(configs.size))
                 },
                 modifier = Modifier.align(Alignment.Center)
             )
+
+            if (showUnrankedWarning) {
+                UnrankedGameWarning(
+                    rankedSeats = seatConfigs().count { it.assignedUserId != null && it.deckId != null },
+                    onBack = { showUnrankedWarning = false },
+                    onPlayAnyway = {
+                        showUnrankedWarning = false
+                        start(seatConfigs())
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }
@@ -563,6 +603,61 @@ private fun StepperButton(label: String, onClick: () -> Unit) {
  * starter banner right after) — matches the mockup's single centered play button, no
  * separate "shuffle" step.
  */
+/**
+ * Shown on START when a Group game can't reach the statistics (see [countsForStatistics]). Without
+ * it the tracker only hinted at it with a sync banner mid-game, and the game was lost by then.
+ * Back and a tap outside return to the seats, which is the usual fix.
+ */
+@Composable
+private fun UnrankedGameWarning(
+    rankedSeats: Int,
+    onBack: () -> Unit,
+    onPlayAnyway: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    BackHandler(onBack = onBack)
+    Box(
+        modifier = modifier
+            .background(WarningScrim)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onBack)
+            .safeDrawingPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .widthIn(max = 420.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(AppSurface)
+                .border(1.dp, AppOutline, RoundedCornerShape(24.dp))
+                // Swallows taps on the card so only the scrim around it dismisses.
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                stringResource(R.string.pregame_unranked_title),
+                color = AppOnBackground,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                stringResource(R.string.pregame_unranked_body, MIN_PLAYERS_FOR_STATISTICS, rankedSeats),
+                color = AppMuted,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center
+            )
+            GradientButton(text = stringResource(R.string.pregame_unranked_back), onClick = onBack)
+            GradientOutlineButton(text = stringResource(R.string.pregame_unranked_play), onClick = onPlayAnyway)
+        }
+    }
+}
+
+private val WarningScrim = Color(0xD9050308)
+
 @Composable
 private fun PlayButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(R.string.pregame_begin)
