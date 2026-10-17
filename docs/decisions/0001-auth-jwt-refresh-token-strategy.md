@@ -36,6 +36,9 @@ There were decisions to make:
   refresh token, used once before the legitimate client's own next refresh,
   would otherwise let the thief keep rotating it into a fresh session
   indefinitely with no way for the account owner to detect or stop it.
+  Amended by [ADR-0028](0028-refresh-token-reuse-grace.md): a reuse within
+  30 s of the rotation, while the successor is still active, gets a fresh
+  pair instead.
 - **Real logout**: revokes the specified refresh token (`revoked_at`), does
   not depend on the access token expiring to end the session.
 - Refresh token lifetime: `REFRESH_TOKEN_TTL`, default 720h (30 days).
