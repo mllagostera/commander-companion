@@ -54,9 +54,10 @@ Two independent causes, both fixed on the Android side:
   START in Group mode and shows a warning with "Assign decks" / "Play anyway". The
   user's game today fell into this case.
 
-Not verified with Gradle: this environment has no Android SDK (`dl.google.com` is
-blocked), so the change is left for Android CI. The orphaned `pending` game in
-production was left untouched.
+Not verified with Gradle locally: this environment has no Android SDK
+(`dl.google.com` is blocked); Android CI (lint, unit tests, `assembleDebug`)
+passed on #155. Not yet run on a device. The orphaned `pending` game in
+production (`a215f35d-…`, one seat, no actions) was deleted by hand the same day.
 
 **2026-10-17 — Android `targetSdk` 34 → 37.** Scheduled by the user the day
 before ("sube el SDK a la última versión posible"). API 37 (Android 17) is the
