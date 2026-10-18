@@ -26,6 +26,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/friends"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
+	"github.com/usuario/commander-companion-backend/internal/inbound"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
 	"github.com/usuario/commander-companion-backend/internal/moxfieldimport"
 	"github.com/usuario/commander-companion-backend/internal/notify"
@@ -246,6 +247,13 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 		Refresh:     limits.refresh,
 	})
 
+	registerInboundWebhook(api, cfg.Inbound)
+
+	// Every public route must be registered above this line. The protected group
+	// has an empty prefix, so in Fiber its RequireAuth runs for every /api/v1
+	// path registered after it, even ones attached to api rather than protected:
+	// such a route would answer 401 to anyone without a JWT.
+	//
 	// The activity tracker runs on every authenticated request (after RequireAuth,
 	// which gives it the user ID) to keep users.last_seen_at fresh for the admin
 	// overview's online_users — see users.ActivityTracker and ADR-0018's addendum.
@@ -313,4 +321,16 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	adminGroup := protected.Group("/admin", auth.RequireAdmin(usersService))
 	adminService := admin.NewService(db.Pool, wsHub)
 	admin.NewHandler(adminService).RegisterRoutes(adminGroup)
+}
+
+// registerInboundWebhook mounts the Resend webhook that forwards the mail
+// received on the domain to a personal inbox (see internal/inbound). Resend
+// authenticates with the webhook signature, not a JWT, so it must be mounted
+// before the protected group (see registerModules). Without its settings the
+// route doesn't exist at all.
+func registerInboundWebhook(api fiber.Router, cfg inbound.Config) {
+	if !cfg.Enabled() {
+		return
+	}
+	inbound.NewHandler(cfg.WebhookSecret, inbound.NewResendForwarder(cfg)).RegisterRoutes(api)
 }

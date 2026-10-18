@@ -185,3 +185,127 @@ func TestLoad_ClientIP_ShortBFFSecret_ReturnsError(t *testing.T) {
 		t.Fatalf("Load() error = %v, want ErrBFFSecretTooShort", err)
 	}
 }
+
+// Environment variables and sample values for the inbound forwarding tests.
+const (
+	envWebhookSecret  = "RESEND_WEBHOOK_SECRET"  //nolint:gosec // an env var name, not a credential
+	envInboundAPIKey  = "RESEND_INBOUND_API_KEY" //nolint:gosec // an env var name, not a credential
+	envForwardTo      = "INBOUND_FORWARD_TO"
+	envForwardFrom    = "INBOUND_FORWARD_FROM"
+	envResendAPIKey   = "RESEND_API_KEY" //nolint:gosec // an env var name, not a credential
+	envEmailFrom      = "EMAIL_FROM"
+	sampleWebhookSig  = "whsec_dGVzdA=="
+	samplePersonal    = "me@gmail.com"
+	sampleSiteSender  = "TapeandoCartones <no-reply@tapeandocartones.es>"
+	samplePrivacyAddr = "privacidad@tapeandocartones.es"
+	sampleAPIKey      = "re_x"
+)
+
+// clearInboundEnv unsets every variable loadInboundConfig reads, plus the
+// email ones it falls back to.
+func clearInboundEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{
+		envWebhookSecret, envInboundAPIKey, envForwardTo, envForwardFrom, envResendAPIKey, envEmailFrom,
+	} {
+		t.Setenv(key, "")
+	}
+}
+
+func TestLoad_Inbound_DisabledByDefault(t *testing.T) {
+	clearProductionSecrets(t)
+	clearInboundEnv(t)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if cfg.Inbound.Enabled() {
+		t.Fatalf("Inbound.Enabled() = true, want false without configuration")
+	}
+}
+
+func TestLoad_Inbound_FallsBackToEmailSettings(t *testing.T) {
+	clearProductionSecrets(t)
+	clearInboundEnv(t)
+	t.Setenv(envWebhookSecret, sampleWebhookSig)
+	t.Setenv(envForwardTo, samplePersonal)
+	t.Setenv(envResendAPIKey, "re_full")
+	t.Setenv(envEmailFrom, sampleSiteSender)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if !cfg.Inbound.Enabled() {
+		t.Fatal("Inbound.Enabled() = false, want true")
+	}
+	if cfg.Inbound.APIKey != "re_full" {
+		t.Errorf("Inbound.APIKey = %q, want the RESEND_API_KEY fallback", cfg.Inbound.APIKey)
+	}
+	if cfg.Inbound.ForwardFrom != sampleSiteSender {
+		t.Errorf("Inbound.ForwardFrom = %q, want the EMAIL_FROM fallback", cfg.Inbound.ForwardFrom)
+	}
+}
+
+func TestLoad_Inbound_PrefersDedicatedKeyAndSender(t *testing.T) {
+	clearProductionSecrets(t)
+	clearInboundEnv(t)
+	t.Setenv(envWebhookSecret, sampleWebhookSig)
+	t.Setenv(envForwardTo, samplePersonal)
+	t.Setenv(envResendAPIKey, "re_sending")
+	t.Setenv(envInboundAPIKey, "re_full")
+	t.Setenv(envEmailFrom, sampleSiteSender)
+	t.Setenv(envForwardFrom, samplePrivacyAddr)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if cfg.Inbound.APIKey != "re_full" || cfg.Inbound.ForwardFrom != samplePrivacyAddr {
+		t.Errorf("Inbound = %+v, want the dedicated key and sender", cfg.Inbound)
+	}
+}
+
+func TestLoad_Inbound_PartialConfig_ReturnsError(t *testing.T) {
+	tests := []struct {
+		name, webhookSecret, forwardTo, apiKey string
+	}{
+		{name: "secret without destination", webhookSecret: sampleWebhookSig, apiKey: sampleAPIKey},
+		{name: "destination without secret", forwardTo: samplePersonal, apiKey: sampleAPIKey},
+		{name: "no API key at all", webhookSecret: sampleWebhookSig, forwardTo: samplePersonal},
+		{
+			name: "destination not an address", webhookSecret: sampleWebhookSig,
+			forwardTo: "not an email", apiKey: sampleAPIKey,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearProductionSecrets(t)
+			clearInboundEnv(t)
+			t.Setenv(envWebhookSecret, tt.webhookSecret)
+			t.Setenv(envForwardTo, tt.forwardTo)
+			t.Setenv(envResendAPIKey, tt.apiKey)
+			t.Setenv(envEmailFrom, sampleSiteSender)
+
+			_, err := config.Load()
+			if !errors.Is(err, config.ErrInboundConfigIncomplete) {
+				t.Fatalf("Load() error = %v, want ErrInboundConfigIncomplete", err)
+			}
+		})
+	}
+}
+
+func TestLoad_Inbound_ForwardToSameDomain_ReturnsError(t *testing.T) {
+	clearProductionSecrets(t)
+	clearInboundEnv(t)
+	t.Setenv(envWebhookSecret, sampleWebhookSig)
+	t.Setenv(envForwardTo, "otro@TapeandoCartones.es")
+	t.Setenv(envResendAPIKey, "re_full")
+	t.Setenv(envEmailFrom, sampleSiteSender)
+
+	_, err := config.Load()
+	if !errors.Is(err, config.ErrInboundForwardLoop) {
+		t.Fatalf("Load() error = %v, want ErrInboundForwardLoop", err)
+	}
+}
