@@ -7,13 +7,17 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/mail"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/usuario/commander-companion-backend/internal/auth"
 	"github.com/usuario/commander-companion-backend/internal/common"
 	"github.com/usuario/commander-companion-backend/internal/email"
+	"github.com/usuario/commander-companion-backend/internal/inbound"
 )
 
 var (
@@ -31,6 +35,14 @@ var (
 	// shorter than minBFFSecretLen: it is all that stops anyone from choosing
 	// their own rate-limit bucket, so a guessable value is refused at startup.
 	ErrBFFSecretTooShort = errors.New("BFF_SHARED_SECRET is too short")
+	// ErrInboundConfigIncomplete is returned by Load when only part of the inbound
+	// mail forwarding is configured (see loadInboundConfig): half a setup would
+	// either refuse every webhook or have nowhere to forward to, silently.
+	ErrInboundConfigIncomplete = errors.New("inbound mail forwarding is partially configured")
+	// ErrInboundForwardLoop is returned by Load when INBOUND_FORWARD_TO is on the
+	// same domain as the sender of the copies: that domain's mail goes to Resend,
+	// so every copy would come back as a new received email, forever.
+	ErrInboundForwardLoop = errors.New("INBOUND_FORWARD_TO must not be on the forwarding domain")
 )
 
 const (
@@ -95,6 +107,9 @@ type Config struct {
 	ClientIP common.ClientIPConfig
 	Auth     auth.Config
 	Email    email.Config
+	// Inbound forwards the mail Resend receives on the domain to a personal inbox
+	// (see internal/inbound). Off unless configured.
+	Inbound inbound.Config
 }
 
 // Load reads the full configuration from environment variables, with the
@@ -122,6 +137,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	emailCfg := loadEmailConfig()
+	inboundCfg, err := loadInboundConfig(emailCfg)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		AppEnv:                   env,
 		DBURL:                    dbURL(),
@@ -135,7 +156,8 @@ func Load() (Config, error) {
 		SlackSignupWebhookURL:    os.Getenv("SLACK_SIGNUP_WEBHOOK_URL"),
 		ClientIP:                 clientIP,
 		Auth:                     authCfg,
-		Email:                    loadEmailConfig(),
+		Email:                    emailCfg,
+		Inbound:                  inboundCfg,
 	}, nil
 }
 
@@ -211,6 +233,77 @@ func loadEmailConfig() email.Config {
 		VerifyEmailTemplateID:   os.Getenv("RESEND_VERIFY_EMAIL_TEMPLATE_ID"),
 		PasswordResetTemplateID: passwordResetTemplateID(),
 	}
+}
+
+// loadInboundConfig reads the inbound mail forwarding settings. Both
+// RESEND_WEBHOOK_SECRET and INBOUND_FORWARD_TO unset means the feature is off
+// (local development, CI); setting only one of them is refused.
+//
+// RESEND_INBOUND_API_KEY is meant to be a separate full-access key, so the
+// sending-only RESEND_API_KEY keeps its narrower scope; when unset it falls back
+// to RESEND_API_KEY, which then has to be full access. INBOUND_FORWARD_FROM
+// falls back to EMAIL_FROM.
+func loadInboundConfig(emailCfg email.Config) (inbound.Config, error) {
+	cfg := inbound.Config{
+		WebhookSecret: os.Getenv("RESEND_WEBHOOK_SECRET"),
+		APIKey:        os.Getenv("RESEND_INBOUND_API_KEY"),
+		ForwardTo:     os.Getenv("INBOUND_FORWARD_TO"),
+		ForwardFrom:   os.Getenv("INBOUND_FORWARD_FROM"),
+	}
+	if cfg.WebhookSecret == "" && cfg.ForwardTo == "" {
+		return inbound.Config{}, nil
+	}
+	if cfg.APIKey == "" {
+		cfg.APIKey = emailCfg.APIKey
+	}
+	if cfg.ForwardFrom == "" {
+		cfg.ForwardFrom = emailCfg.FromAddress
+	}
+	if err := validateInboundConfig(cfg); err != nil {
+		return inbound.Config{}, err
+	}
+	return cfg, nil
+}
+
+// validateInboundConfig checks an enabled inbound configuration: every value
+// present, both addresses parseable, and the copies not sent to the domain they
+// are forwarded from.
+func validateInboundConfig(cfg inbound.Config) error {
+	var missing []string
+	for name, value := range map[string]string{
+		"RESEND_WEBHOOK_SECRET":                      cfg.WebhookSecret,
+		"INBOUND_FORWARD_TO":                         cfg.ForwardTo,
+		"RESEND_INBOUND_API_KEY (or RESEND_API_KEY)": cfg.APIKey,
+		"INBOUND_FORWARD_FROM (or EMAIL_FROM)":       cfg.ForwardFrom,
+	} {
+		if value == "" {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return fmt.Errorf("%w: missing %s", ErrInboundConfigIncomplete, strings.Join(missing, ", "))
+	}
+
+	to, err := mail.ParseAddress(cfg.ForwardTo)
+	if err != nil {
+		return fmt.Errorf("%w: INBOUND_FORWARD_TO is not an email address: %w",
+			ErrInboundConfigIncomplete, err)
+	}
+	from, err := mail.ParseAddress(cfg.ForwardFrom)
+	if err != nil {
+		return fmt.Errorf("%w: INBOUND_FORWARD_FROM is not an email address: %w",
+			ErrInboundConfigIncomplete, err)
+	}
+	if strings.EqualFold(addressDomain(to.Address), addressDomain(from.Address)) {
+		return ErrInboundForwardLoop
+	}
+	return nil
+}
+
+func addressDomain(address string) string {
+	_, domain, _ := strings.Cut(address, "@")
+	return domain
 }
 
 // passwordResetTemplateID defaults to the alias the reference templates are uploaded

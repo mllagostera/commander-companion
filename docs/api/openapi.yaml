@@ -1599,6 +1599,10 @@ tags:
     description: >-
       Admin-only moderation and global stats. These routes answer 403 to a
       non-admin rather than hiding behind a 404.
+  - name: Webhooks
+    description: >-
+      Called by third-party services, not by the clients. They authenticate
+      with the caller's own request signature instead of a JWT.
 
 security:
   - bearerAuth: []
@@ -1663,6 +1667,92 @@ paths:
                 example: "User-agent: *
 Disallow: /
 "
+  /webhooks/resend-inbound:
+    post:
+      summary: Forward an email Resend received on the domain
+      operationId: resendInboundWebhook
+      tags:
+        - Webhooks
+      description: >-
+        Resend's `email.received` webhook (see ADR-0029). The body is checked
+        against the `svix-signature` header with the webhook's signing secret
+        before anything else; then the email is fetched from Resend and a copy
+        is sent to the configured inbox. Other event types are acknowledged and
+        ignored. Only registered when inbound forwarding is configured
+        (RESEND_WEBHOOK_SECRET and INBOUND_FORWARD_TO); otherwise the route
+        does not exist and answers 404.
+      security: []
+      parameters:
+        - name: svix-id
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: svix-timestamp
+          in: header
+          required: true
+          description: Unix seconds. Refused when more than 5 minutes off.
+          schema:
+            type: string
+        - name: svix-signature
+          in: header
+          required: true
+          description: One or more space-separated `v1,<base64 HMAC-SHA256>` values.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - data
+              properties:
+                type:
+                  type: string
+                  example: email.received
+                created_at:
+                  type: string
+                  format: date-time
+                data:
+                  type: object
+                  properties:
+                    email_id:
+                      type: string
+                      example: 4ef9a417-02e9-4d39-ad75-9611e0fcc33c
+      responses:
+        '204':
+          description: Forwarded, or an event type this endpoint ignores
+        '400':
+          description: Signed but malformed payload, or email.received without email_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid signature, or a stale timestamp
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: >-
+            A Resend call failed (fetching the email, downloading the original
+            or sending the copy). Resend retries the webhook on its backoff
+            schedule; the copy is sent with an idempotency key, so a retry never
+            delivers it twice.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: The Resend calls did not finish in time. Retried like a 502.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /auth/register:
     post:
       summary: Register user

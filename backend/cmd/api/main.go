@@ -26,6 +26,7 @@ import (
 	"github.com/usuario/commander-companion-backend/internal/friends"
 	gameactions "github.com/usuario/commander-companion-backend/internal/game-actions"
 	"github.com/usuario/commander-companion-backend/internal/games"
+	"github.com/usuario/commander-companion-backend/internal/inbound"
 	"github.com/usuario/commander-companion-backend/internal/moxfield"
 	"github.com/usuario/commander-companion-backend/internal/moxfieldimport"
 	"github.com/usuario/commander-companion-backend/internal/notify"
@@ -313,4 +314,13 @@ func registerModules(app *fiber.App, db *common.DB, cfg *config.Config) {
 	adminGroup := protected.Group("/admin", auth.RequireAdmin(usersService))
 	adminService := admin.NewService(db.Pool, wsHub)
 	admin.NewHandler(adminService).RegisterRoutes(adminGroup)
+
+	// inbound: forwards the mail Resend receives on the domain to a personal
+	// inbox (see internal/inbound). Registered on api, not protected: Resend
+	// authenticates with the webhook signature, not a JWT. Without its settings
+	// the route doesn't exist at all.
+	if cfg.Inbound.Enabled() {
+		inboundForwarder := inbound.NewResendForwarder(cfg.Inbound)
+		inbound.NewHandler(cfg.Inbound.WebhookSecret, inboundForwarder).RegisterRoutes(api)
+	}
 }
