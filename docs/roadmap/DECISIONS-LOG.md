@@ -25,6 +25,41 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-23 — October 2026 advisory sweep (Node, Java, PHP).** Asked by the
+user ("revisa las últimas vulnerabilidades que han salido (nodejs/php/java) y
+mira si estamos afectados"). Findings and actions:
+
+- **PHP** (CVE-2026-109618/109619, critical RCE): not affected — there is no PHP
+  anywhere in the repo or the deployment.
+- **OkHttp CVE-2026-111943** (leaked private keys of a widely-trusted CA, so
+  HTTPS can be impersonated until the platform's root store drops it): affected,
+  the Android app ran OkHttp 5.4.0 with no pinning, and Retrofit and Coil both go
+  through it. Bumped to 5.5.1, which ships a blocklist of the affected
+  certificates. Not compiled here (no Android SDK in the sandbox); CI's
+  `assembleDebug`/`testDebugUnitTest` is the check.
+- **Nuxt / Vite** (`npm audit`, production deps): GHSA-vjh5-4x84-xrqp
+  (route rules skipped for case-variant paths), GHSA-xfq5-w38q-pc2x (server
+  islands XSS) and GHSA-jjm6-p2m9-9w4x (`javascript:` in `<NuxtLink>` with
+  `pages` disabled) don't apply to our config — no `routeRules`, no server
+  islands, `pages` on — but they turned `security-ci`'s `audit-ci` red for any PR
+  touching `web/`. Vite 8.3.1 and `launch-editor` 2.14.1 carried dev-server
+  advisories, two of them Windows-specific (our dev platform). Nuxt 4.5.2→4.6.2
+  (Vite 8.3.5), plus `npm update launch-editor` (2.14.2); lockfile regenerated
+  with Node 24.22.1 / npm 11. Only the two allowlisted, unpatched advisories
+  (`braces`, `node-forge`) remain. Verified: `audit-ci`, `eslint
+  --max-warnings=0`, `nuxt typecheck`, `nuxt build`.
+- **Node.js runtime** (21-Oct release, 10 CVEs, fixed in 24.22.1): the most
+  relevant is the Brotli decoder out-of-bounds write (CVE-2026-111497), reachable
+  in principle through the BFF's `fetch` to Scryfall, which requires Scryfall or
+  its TLS to be compromised. Docker picks up the fix on rebuild (`node:24-alpine`).
+  On Vercel, the project pins `24.x`; the build log doesn't print the patch level,
+  so whether production already runs 24.22.1 is not confirmed. The live production
+  deployment predates the release (2026-10-16); merging this change touches
+  `web/`, so the `ignoreCommand` lets Vercel build and redeploy it.
+- **Go**: `govulncheck` reports 0 reachable vulnerabilities. `golang.org/x/net`
+  0.59.0→0.60.0 anyway (5 unreachable advisories); one `x/crypto` advisory
+  (GO-2026-5932) has no fix yet and isn't reachable either.
+
 **2026-10-17 — Android asked to sign in again after every update.** Reported by
 the user: updating the app (installing a new APK over the old one, never
 uninstalling) lost the login. Production showed three fresh logins for the
