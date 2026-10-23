@@ -56,6 +56,11 @@ mira si estamos afectados"). Findings and actions:
   so whether production already runs 24.22.1 is not confirmed. The live production
   deployment predates the release (2026-10-16); merging this change touches
   `web/`, so the `ignoreCommand` lets Vercel build and redeploy it.
+  Follow-up the same day: `web/server/plugins/runtime-version.ts` logs
+  `process.version` at startup. The first preview deployment logged
+  **v24.21.0** — Vercel had not rolled out 24.22.1 yet, and a project can only
+  pin the major, so there is nothing to change on our side but to re-check the
+  log until it reads 24.22.1 or later.
 - **Go**: `govulncheck` reports 0 reachable vulnerabilities. `golang.org/x/net`
   0.59.0→0.60.0 anyway (5 unreachable advisories); one `x/crypto` advisory
   (GO-2026-5932) has no fix yet and isn't reachable either.
