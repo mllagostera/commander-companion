@@ -1,14 +1,21 @@
-.PHONY: help build run test lint generate-sql migrate-up migrate-down clean
+.PHONY: help build build-mcp run test lint generate-sql migrate-up migrate-down clean
 
 # Variables
 DB_URL="postgres://postgres:postgres@localhost:5432/commander?sslmode=disable"
 DOCKER_CMD=docker run --rm -v $(PWD):/app -w /app
+# Windows needs the extension for the MCP client to launch the binary.
+ifeq ($(OS),Windows_NT)
+EXE=.exe
+endif
 
 help: ## Show this help
 	@egrep -h '\s##\s' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m  %-30s\033[0m %s\n", $$1, $$2}'
 
 build: ## Build the API binary
 	go build -o bin/api ./cmd/api
+
+build-mcp: ## Build the MCP server for AI clients (personal use, see ADR-0030)
+	go build -o bin/commander-mcp$(EXE) ./cmd/mcp
 
 run: ## Run the API locally
 	go run ./cmd/api

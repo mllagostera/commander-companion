@@ -44,11 +44,14 @@ backend/
 ├── cmd/api/
 │   ├── main.go          # config → migrations → pool → Fiber → registerModules() → listen
 │   └── listener.go      # TCP listener with TCP_NODELAY
+├── cmd/mcp/main.go      # MCP server over stdio, for AI clients (personal use, ADR-0030); not deployed
 ├── internal/
 │   ├── <feature>/       # one vertical slice per feature — see §2.1
 │   ├── common/          # cross-cutting: errors, context keys, DB, health,
 │   │                    #   migrations, pagination, tokens, uuid
 │   ├── config/          # env loading and validation (config.Load)
+│   ├── mcpserver/       # MCP tools/prompts as a client of the REST API — never a slice's Service or DB;
+│   │                    #   every path it calls is in endpoints.go, checked against openapi.yaml
 │   ├── email/           # Resend client: verification + password reset (logs the link to console without an API key)
 │   ├── moxfield/        # external Moxfield HTTP client (+ retry)
 │   ├── notify/          # Slack webhook: a message per new signup (no-op without a URL)

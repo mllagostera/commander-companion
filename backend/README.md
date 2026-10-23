@@ -31,6 +31,65 @@ make migrate-up          # apply goose migrations
 make migrate-down        # revert the last migration
 ```
 
+## MCP server (personal use)
+
+`cmd/mcp` is an [MCP](https://modelcontextprotocol.io) server that lets an AI
+client (Claude Desktop, Claude Code) query your own games, decks, playgroups,
+statistics and tournaments in plain language. It is a client of this API, logged
+in as you, and read-only. Why it is built this way, and its limits:
+[ADR-0030](../docs/decisions/0030-mcp-server-for-personal-use.md).
+
+```bash
+make build-mcp           # -> bin/commander-mcp (bin/commander-mcp.exe on Windows)
+```
+
+It reads three environment variables:
+
+| Variable | Default | |
+|---|---|---|
+| `COMMANDER_API_URL` | `http://localhost:8080/api/v1` | The API root, including `/api/v1`. Use the Render URL to query production data. |
+| `COMMANDER_EMAIL` | — | Your account's email. |
+| `COMMANDER_PASSWORD` | — | Your password. Google-only accounts have none and can't use it. |
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport stdio \
+  --env COMMANDER_API_URL=https://<your-api>.onrender.com/api/v1 \
+  --env COMMANDER_EMAIL=you@example.com \
+  --env COMMANDER_PASSWORD='...' \
+  commander-companion -- /absolute/path/to/backend/bin/commander-mcp
+```
+
+**Claude Desktop** (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "commander-companion": {
+      "command": "C:\\path\\to\\backend\\bin\\commander-mcp.exe",
+      "env": {
+        "COMMANDER_API_URL": "https://<your-api>.onrender.com/api/v1",
+        "COMMANDER_EMAIL": "you@example.com",
+        "COMMANDER_PASSWORD": "..."
+      }
+    }
+  }
+}
+```
+
+The password is stored in plain text in that config. Keep it on your own
+machine. A wrong password is tried once and then reported, not retried: failed
+logins count against a per-account limit (ADR-0025) that would lock you out of
+the apps too. Fix it and restart the client.
+
+Tools: `get_overview`, `query_games`, `get_breakdown`, `get_head_to_head`,
+`list_decks`, `get_deck`, `list_playgroups`, `get_playgroup`, `get_game`,
+`list_tournaments`, `get_tournament`. Prompts: `weekly-recap`, `deck-review`,
+`rivalries`. Every path the server calls lives in
+[`internal/mcpserver/endpoints.go`](internal/mcpserver/endpoints.go), which
+`check-architecture.sh` checks against `openapi.yaml`.
+
 ## Testing the full stack with Docker
 
 To bring up the API together with Postgres (and optionally the web client), see

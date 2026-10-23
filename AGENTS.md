@@ -336,7 +336,8 @@ sh .github/scripts/check-architecture.sh
 It enforces, with the file and the fix named in each failure: handlers mapping
 their errors, no slice reaching into another slice's `Queries`, SQL only in
 `query.sql`, the web client not bypassing the Nitro BFF, every route present in
-`openapi.yaml` (and no phantom paths), and every document linked from the
+`openapi.yaml` (and no phantom paths), the MCP server calling only paths the
+contract documents, and every document linked from the
 README hub. It also warns when `TASKS.md`'s review date has fallen behind the
 code. `architecture-ci.yml` runs the same script on every PR, and
 `.githooks/pre-push` runs it before a push, so a failure here is a failure

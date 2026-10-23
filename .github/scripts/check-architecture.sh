@@ -213,6 +213,30 @@ if [ -f docs/api/openapi.yaml ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# 5b. The MCP server only calls endpoints the contract documents.
+#     internal/mcpserver is a client of the REST API (ADR-0030), with every path
+#     it calls declared once in endpoints.go. Without this check, a route
+#     renamed in the contract would break the MCP server silently: it isn't one
+#     of the clients anyone opens, and its failure is a 404 inside a chat.
+#     Paths only, not methods: the method lives at the call site.
+# ---------------------------------------------------------------------------
+section "MCP server endpoints exist in openapi.yaml"
+
+mcp_endpoints=backend/internal/mcpserver/endpoints.go
+if [ -f "$mcp_endpoints" ] && [ -f docs/api/openapi.yaml ]; then
+  grep -E '^\s*path[A-Za-z]+\s*=\s*"' "$mcp_endpoints" \
+    | sed -E 's/^[^"]*"([^"]*)".*/\1/' | sort -u > "$tmp/mcp_paths"
+  [ -s "$tmp/mcp_paths" ] || report_fail "$mcp_endpoints declares no pathXxx constants" \
+    "keep one \`pathXxx = \"/...\"\` constant per line; this check greps for that shape"
+  grep -E '^  /' docs/api/openapi.yaml | sed 's|^  ||; s|:[[:space:]]*$||' | sort -u > "$tmp/oas_paths_mcp"
+  comm -23 "$tmp/mcp_paths" "$tmp/oas_paths_mcp" > "$tmp/mcp_unknown"
+  while IFS= read -r p; do
+    [ -n "$p" ] && report_fail "the MCP server calls $p, which openapi.yaml does not document" \
+      "fix the path in $mcp_endpoints, or document the route first"
+  done < "$tmp/mcp_unknown"
+fi
+
+# ---------------------------------------------------------------------------
 # 6. Every document is reachable from the README hub.
 #    README §8: "every document in the repo should be linked from here. If you
 #    add a new document under docs/, add it to this list too in the same

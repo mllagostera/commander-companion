@@ -25,6 +25,37 @@ Stage section below has the detail.
 
 ## Audit / session history (newest first)
 
+**2026-10-23 — MCP server, phase 1 ([ADR-0030](../decisions/0030-mcp-server-for-personal-use.md)).**
+Asked by the user ("¿podríamos crear un servidor MCP para las llamadas?"), first
+as an analysis of which tools and resources to expose, then "es solo para uso
+personal, empieza por el ADR y la fase 1". What was built and why it looks the
+way it does:
+
+- **Tools by question, not by endpoint.** 11 read-only tools over 20 paths,
+  instead of ~85 generated ones. Names resolve to IDs (an ambiguous name returns
+  the candidates), lists are paged by the server, and answers drop image URLs and
+  similar fields, which is most of their size.
+- **The analysis recommended `oapi-codegen`; the build dropped it.** The contract
+  is OpenAPI 3.1, which it supports only partially, and it would generate 85
+  operations to use 20. Drift is caught by a new `check-architecture.sh` section
+  instead, which fails when a path in `internal/mcpserver/endpoints.go` is not in
+  `openapi.yaml`. Mutation-tested by renaming `/statistics/opponents`.
+- **A rejected login is never retried.** Found while writing the ADR: failed
+  logins count against the per-account limit (ADR-0025), so a wrong password in
+  the client config, retried on every tool call, would lock the owner out of the
+  web and Android apps for 15 minutes. The client latches the 401/403/429 until
+  restart. `TestClient_DoesNotRetryARejectedLogin` covers it.
+- **Verified for real, not only against the fake API.** Postgres 16 in the
+  sandbox (no Docker), `cmd/api` built from this branch, migrations applied on
+  startup, data seeded through the API itself (two users, three decks, a
+  playgroup, three finished games with commander damage, a timed turn and
+  eliminations). Then the `commander-mcp` binary, driven over stdio by the SDK's
+  client: all 11 tools returned correct data. Errors read well ("no deck is named
+  "Krenko"…; call list_decks"), and after exit the MCP session's refresh token was
+  revoked in `refresh_tokens`. Unit tests: 14, through the SDK's in-memory
+  transport, so output schemas are validated too. Two were mutation-checked
+  (win-rate maths, the `since` stop condition).
+
 **2026-10-23 — October 2026 advisory sweep (Node, Java, PHP).** Asked by the
 user ("revisa las últimas vulnerabilidades que han salido (nodejs/php/java) y
 mira si estamos afectados"). Findings and actions:

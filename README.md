@@ -195,6 +195,7 @@ for a new module), add it to this list too in the same change.
 - [0027 — Sideloaded Android release builds signed with the debug key](docs/decisions/0027-sign-sideloaded-release-with-debug-key.md)
 - [0028 — A short grace window for reusing a just-rotated refresh token](docs/decisions/0028-refresh-token-reuse-grace.md)
 - [0029 — Inbound mail forwarded through Resend](docs/decisions/0029-inbound-mail-forwarding-via-resend.md)
+- [0030 — An MCP server over the REST API, for personal use](docs/decisions/0030-mcp-server-for-personal-use.md)
 
 **READMEs per module:**
 
